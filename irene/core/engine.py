@@ -25,6 +25,9 @@ from ..plugins.builtin.random_plugin import RandomPlugin
 from ..plugins.builtin.timer_plugin import AsyncTimerPlugin
 from ..plugins.builtin.console_tts_plugin import ConsoleTTSPlugin
 from ..plugins.builtin.pyttsx_tts_plugin import PyttsTTSPlugin
+from ..plugins.builtin.silero_v3_tts_plugin import SileroV3TTSPlugin
+from ..plugins.builtin.silero_v4_tts_plugin import SileroV4TTSPlugin
+from ..plugins.builtin.vosk_tts_plugin import VoskTTSPlugin
 from ..plugins.builtin.sounddevice_audio_plugin import SoundDeviceAudioPlugin
 from ..plugins.builtin.audioplayer_audio_plugin import AudioPlayerAudioPlugin
 from ..plugins.builtin.aplay_audio_plugin import AplayAudioPlugin
@@ -104,6 +107,9 @@ class AsyncVACore:
                 # TTS plugins
                 ConsoleTTSPlugin(),
                 PyttsTTSPlugin(),
+                SileroV3TTSPlugin(),
+                SileroV4TTSPlugin(),
+                VoskTTSPlugin(),
                 
                 # Audio plugins
                 SoundDeviceAudioPlugin(),

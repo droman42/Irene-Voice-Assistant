@@ -17,6 +17,9 @@ from .timer_plugin import AsyncTimerPlugin
 # TTS plugins
 from .console_tts_plugin import ConsoleTTSPlugin
 from .pyttsx_tts_plugin import PyttsTTSPlugin
+from .silero_v3_tts_plugin import SileroV3TTSPlugin
+from .silero_v4_tts_plugin import SileroV4TTSPlugin
+from .vosk_tts_plugin import VoskTTSPlugin
 
 # Audio plugins
 from .sounddevice_audio_plugin import SoundDeviceAudioPlugin
@@ -41,6 +44,9 @@ __all__ = [
     # TTS plugins
     "ConsoleTTSPlugin",
     "PyttsTTSPlugin",
+    "SileroV3TTSPlugin",
+    "SileroV4TTSPlugin",
+    "VoskTTSPlugin",
     
     # Audio plugins
     "SoundDeviceAudioPlugin",
