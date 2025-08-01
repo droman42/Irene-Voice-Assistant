@@ -19,7 +19,12 @@ from .timers import AsyncTimerManager
 from .commands import CommandProcessor, CommandResult
 from .components import ComponentManager
 from ..plugins.builtin.core_commands import CoreCommandsPlugin
+from ..plugins.builtin.greetings_plugin import GreetingsPlugin
+from ..plugins.builtin.datetime_plugin import DateTimePlugin
+from ..plugins.builtin.random_plugin import RandomPlugin
 from ..plugins.builtin.timer_plugin import AsyncTimerPlugin
+from ..plugins.builtin.console_tts_plugin import ConsoleTTSPlugin
+from ..plugins.builtin.pyttsx_tts_plugin import PyttsTTSPlugin
 from ..plugins.builtin.async_service_demo import AsyncServiceDemoPlugin
 
 logger = logging.getLogger(__name__)
@@ -82,8 +87,20 @@ class AsyncVACore:
         try:
             # Import builtin plugins
             builtin_plugins = [
+                # Command plugins
                 CoreCommandsPlugin(),
-                AsyncTimerPlugin(), 
+                GreetingsPlugin(),
+                DateTimePlugin(),
+                RandomPlugin(),
+                
+                # Timer plugins
+                AsyncTimerPlugin(),
+                
+                # TTS plugins
+                ConsoleTTSPlugin(),
+                PyttsTTSPlugin(),
+                
+                # Service plugins
                 AsyncServiceDemoPlugin()
             ]
             

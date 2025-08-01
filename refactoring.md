@@ -1239,14 +1239,27 @@ Current state: **Framework ready, implementations needed**
 - ✅ Graceful dependency checking and fallback handling
 - ✅ Consistent error handling and logging across all runners
 
-##### **B. Core Plugin Migration (7 plugins)**
-- ✅ `plugin_greetings.py` - Basic greeting responses  
-- ❌ `plugin_datetime.py` - Date and time queries
-- ❌ `plugin_timer.py` - Timer functionality 
-- ❌ `plugin_random.py` - Random number/coin flip commands
-- ❌ `plugin_tts_pyttsx.py` - Primary TTS engine
-- ❌ `plugin_tts_console.py` - Text-only output
-- ❌ `plugin_tts_elevenlabs.py` - Cloud TTS service
+##### **B. Core Plugin Migration (7 plugins)** ✅ **COMPLETED**
+- ✅ `plugin_greetings.py` → `GreetingsPlugin` - Random greeting responses with bilingual support
+- ✅ `plugin_datetime.py` → `DateTimePlugin` - Date and time queries with natural language  
+- ✅ `plugin_timer.py` → `AsyncTimerPlugin` - Timer functionality (already completed in Phase 2)
+- ✅ `plugin_random.py` → `RandomPlugin` - Random numbers, coin flips, and dice rolls
+- ✅ `plugin_tts_pyttsx.py` → `PyttsTTSPlugin` - Cross-platform TTS engine with async support
+- ✅ `plugin_tts_console.py` → `ConsoleTTSPlugin` - Debug text output with colored console
+- ❌ `plugin_tts_elevenlabs.py` - Cloud TTS service (moved to Extended functionality)
+
+**✅ Core Plugin Migration Achievement Summary:**
+- ✅ Complete migration of 6 essential core plugins to v13 async architecture
+- ✅ GreetingsPlugin with enhanced bilingual support (Russian/English) and multiple greeting variations
+- ✅ DateTimePlugin with natural language date/time formatting and proper Russian grammar
+- ✅ RandomPlugin with coin flips, dice rolls, and random number generation
+- ✅ ConsoleTTSPlugin with colored debug output and graceful termcolor fallback
+- ✅ PyttsTTSPlugin with async threading, voice selection, and file output support
+- ✅ AsyncTimerPlugin with non-blocking async timers and natural language parsing
+- ✅ All plugins implement proper v13 interfaces (CommandPlugin/TTSPlugin)
+- ✅ Automatic plugin loading and registration in AsyncVACore engine
+- ✅ Graceful dependency handling for optional TTS engines
+- ✅ Full backward compatibility for command triggers and functionality
 
 ##### **C. Essential Input/Output Implementation**
 - ❌ **CLIInput real implementation** → Currently just basic placeholder

@@ -6,6 +6,8 @@ like help, status, version, etc.
 """
 
 import asyncio
+import time
+from datetime import datetime
 from typing import List
 
 from ...core.context import Context
@@ -81,6 +83,14 @@ Core Commands:
 • ping - Test system responsiveness
 • uptime - Show system uptime
 
+Basic Commands:
+• привет - Greeting responses
+• время - Current time
+• дата - Current date
+• подбрось монетку - Coin flip
+• брось кубик - Dice roll
+• таймер 30 секунд - Set timer
+
 Type any command to get started!
         """.strip()
         
@@ -95,7 +105,7 @@ Type any command to get started!
 📊 System Status:
 • Session ID: {context.session_id[:8]}...
 • Session created: {context.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-• Last activity: {context.last_activity.strftime('%H:%M:%S')}
+• Last accessed: {context.last_accessed.strftime('%H:%M:%S')}
 • Commands processed: {len(context.previous_commands)}
 • Context active: ✅
 • System status: 🟢 Operational
@@ -132,7 +142,6 @@ Type any command to get started!
     async def _handle_ping(self, context: Context) -> CommandResult:
         """Test system responsiveness"""
         # Measure async response time
-        import time
         start_time = time.time()
         await asyncio.sleep(0.01)  # Simulate minimal processing
         response_time = (time.time() - start_time) * 1000
@@ -142,8 +151,7 @@ Type any command to get started!
         
     async def _handle_uptime(self, context: Context) -> CommandResult:
         """Show system uptime"""
-        import datetime
-        uptime = datetime.datetime.now() - context.created_at
+        uptime = datetime.now() - context.created_at
         
         uptime_text = f"⏰ Session uptime: {str(uptime).split('.')[0]}"
         return CommandResult.success_result(uptime_text) 

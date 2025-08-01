@@ -86,7 +86,7 @@ class AsyncTimerPlugin(BaseCommandPlugin):
             timer_data[timer_id] = {
                 "name": timer_name,
                 "duration": duration,
-                "created_at": context.last_activity
+                "created_at": context.last_accessed
             }
             context.set_plugin_data(self.name, timer_data)
             
