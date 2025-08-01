@@ -191,11 +191,10 @@ class OutputManager:
     async def _discover_output_targets(self) -> None:
         """Discover and initialize available output targets"""
         try:
-            # Always add text output (always available)
-            from .text import TextOutput as LegacyTextOutput
-            legacy_text = LegacyTextOutput()
-            text_adapter = LegacyOutputAdapter(legacy_text)
-            await self.add_target("text", text_adapter)
+            # Add text output (always available) - now using modern implementation
+            from .text import TextOutput
+            text_output = TextOutput()
+            await self.add_target("text", text_output)
             
             # Try to add TTS output if available
             try:
@@ -224,10 +223,7 @@ class OutputManager:
             logger.warning(f"Output target '{name}' is not available")
             return
             
-        # Handle legacy targets with adapter
-        if isinstance(target, LegacyOutputTarget):
-            target = LegacyOutputAdapter(target)
-            
+        # No need for legacy adapter - modern targets implement OutputTarget directly
         self._targets[name] = target
         self._active_targets.append(name)
         

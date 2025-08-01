@@ -206,11 +206,10 @@ class InputManager:
     async def _discover_input_sources(self) -> None:
         """Discover and initialize available input sources"""
         try:
-            # Always add CLI input (always available) - using legacy adapter for now
-            from .cli import CLIInput as LegacyCLIInput
-            legacy_cli = LegacyCLIInput()
-            cli_adapter = LegacyInputAdapter(legacy_cli)
-            await self.add_source("cli", cli_adapter)
+            # Add CLI input (always available) - now using modern implementation
+            from .cli import CLIInput
+            cli_input = CLIInput()
+            await self.add_source("cli", cli_input)
             
             # Try to add microphone input if available
             try:
@@ -239,10 +238,7 @@ class InputManager:
             logger.warning(f"Input source '{name}' is not available")
             return
             
-        # Handle legacy sources with adapter
-        if isinstance(source, LegacyInputSource):
-            source = LegacyInputAdapter(source)
-            
+        # No need for legacy adapter - modern sources implement InputSource directly
         self._sources[name] = source
         logger.info(f"Added input source: {name} ({source.get_input_type()})")
         

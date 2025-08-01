@@ -17,6 +17,7 @@
 - ✅ **Гибкие режимы развертывания** - от headless-сервера до полного голосового ассистента
 - ✅ **Современные раннеры** - замена всех legacy `runva_*.py` файлов
 - ✅ **Основные плагины** - приветствие, дата/время, таймер, генератор случайных чисел, TTS
+- ✅ **Современная I/O система** - AsyncIterator для ввода, Response-объекты для вывода
 
 ### **Зачем нужна была модернизация:**
 - **Производительность**: синхронная архитектура v12 блокировала выполнение при TTS/аудио операциях
@@ -55,37 +56,40 @@ uv add irene-voice-assistant[headless]
 ### **Проверка зависимостей:**
 ```bash
 # Проверить, какие компоненты доступны
-python -m irene.runners.cli --check-deps
+uv run python -m irene.runners.cli --check-deps
 
 # Показать доступные профили развертывания
-python -m irene.runners.cli --list-profiles
+uv run python -m irene.runners.cli --list-profiles
 
 # Протестировать основной функционал (работает сейчас!)
-python -m irene.runners.cli --test-greeting
+uv run python -m irene.runners.cli --test-greeting
+
+# Протестировать новую I/O систему
+uv run python -m irene.examples.io_demo
 ```
 
 ### **Быстрые команды:**
 ```bash
 # Простой CLI режим (всегда работает)
-python -m irene.runners.cli
+uv run python -m irene.runners.cli
 
 # Тест приветствия (совместимость с legacy)
-python -m irene.runners.cli --test-greeting
+uv run python -m irene.runners.cli --test-greeting
 
 # Выполнить одну команду и выйти
-python -m irene.runners.cli --command "время"
+uv run python -m irene.runners.cli --command "время"
 
 # Headless режим (без аудио)
-python -m irene.runners.cli --headless
+uv run python -m irene.runners.cli --headless
 
 # Voice режим (если зависимости доступны)
-python -m irene.runners.cli --voice
+uv run python -m irene.runners.cli --voice
 ```
 
 ### **🎯 Основные команды уже работают:**
 ```bash
 # Протестируйте основной функционал v13:
-python -m irene.runners.cli
+uv run python -m irene.runners.cli
 
 # Доступные команды:
 > привет              # Случайные приветствия (рус/eng)
@@ -102,35 +106,35 @@ python -m irene.runners.cli
 ### **1. CLI Раннер** 💻
 ```bash
 # Интерактивный режим
-python -m irene.runners.cli
+uv run python -m irene.runners.cli
 
 # Одна команда и выход (как legacy runva_cmdline.py)
-python -m irene.runners.cli --command "привет"
+uv run python -m irene.runners.cli --command "привет"
 
 # Тихий режим
-python -m irene.runners.cli --quiet
+uv run python -m irene.runners.cli --quiet
 
 # С отладкой
-python -m irene.runners.cli --debug --log-level DEBUG
+uv run python -m irene.runners.cli --debug --log-level DEBUG
 ```
 - **Заменяет:** `runva_cmdline.py`
 - **Возможности:** Интерактивный и одноразовый режимы
-- **Ввод:** Командная строка
-- **Вывод:** Текст в консоль
+- **Ввод:** Командная строка (AsyncIterator)
+- **Вывод:** Текст в консоль (Response-объекты)
 
 ### **2. VOSK Раннер** 🎤
 ```bash
 # Запуск с моделью по умолчанию
-python -m irene.runners.vosk_runner
+uv run python -m irene.runners.vosk_runner
 
 # Кастомная модель и устройство
-python -m irene.runners.vosk_runner --model models/vosk-small --device 2
+uv run python -m irene.runners.vosk_runner --model models/vosk-small --device 2
 
 # Список аудио устройств
-python -m irene.runners.vosk_runner --list-devices
+uv run python -m irene.runners.vosk_runner --list-devices
 
 # Сохранение аудио
-python -m irene.runners.vosk_runner --save-audio recording.wav
+uv run python -m irene.runners.vosk_runner --save-audio recording.wav
 ```
 - **Заменяет:** `runva_vosk.py`
 - **Возможности:** Офлайн распознавание речи с VOSK
@@ -140,16 +144,16 @@ python -m irene.runners.vosk_runner --save-audio recording.wav
 ### **3. Web API Раннер** 🌐
 ```bash
 # Запуск на localhost:5003
-python -m irene.runners.webapi_runner
+uv run python -m irene.runners.webapi_runner
 
 # Кастомный хост и порт
-python -m irene.runners.webapi_runner --host 0.0.0.0 --port 8080
+uv run python -m irene.runners.webapi_runner --host 0.0.0.0 --port 8080
 
 # С SSL
-python -m irene.runners.webapi_runner --ssl-cert cert.pem --ssl-key key.pem
+uv run python -m irene.runners.webapi_runner --ssl-cert cert.pem --ssl-key key.pem
 
 # Режим разработки
-python -m irene.runners.webapi_runner --reload --debug
+uv run python -m irene.runners.webapi_runner --reload --debug
 ```
 - **Заменяет:** `runva_webapi.py`
 - **Возможности:** FastAPI + WebSocket + автодокументация
@@ -159,13 +163,13 @@ python -m irene.runners.webapi_runner --reload --debug
 ### **4. Settings Manager** ⚙️
 ```bash
 # Веб-интерфейс настроек
-python -m irene.runners.settings_runner
+uv run python -m irene.runners.settings_runner
 
 # Кастомный порт
-python -m irene.runners.settings_runner --port 7860
+uv run python -m irene.runners.settings_runner --port 7860
 
 # Без автооткрытия браузера
-python -m irene.runners.settings_runner --no-browser
+uv run python -m irene.runners.settings_runner --no-browser
 ```
 - **Заменяет:** `runva_settings_manager.py`
 - **Возможности:** Современный Gradio интерфейс
@@ -209,16 +213,16 @@ irene/                           # Основной пакет v13
 │       ├── core_commands.py     # Основные команды
 │       ├── timer_plugin.py      # Асинхронные таймеры
 │       └── async_service_demo.py # Демо сервисов
-├── inputs/                      # Источники ввода
+├── inputs/                      # Источники ввода ✅
 │   ├── base.py                  # Базовые классы ввода
 │   ├── cli.py                   # Ввод из командной строки ✅
-│   ├── microphone.py            # Микрофонный ввод (опционально)
-│   └── web.py                   # Веб-ввод (опционально)
-├── outputs/                     # Цели вывода
+│   ├── microphone.py            # Микрофонный ввод (в разработке)
+│   └── web.py                   # Веб-ввод (в разработке)
+├── outputs/                     # Цели вывода ✅
 │   ├── base.py                  # Базовые классы вывода
 │   ├── text.py                  # Текстовый вывод ✅
-│   ├── tts.py                   # TTS вывод (опционально)
-│   └── web.py                   # Веб-вывод (опционально)
+│   ├── tts.py                   # TTS вывод ✅
+│   └── web.py                   # Веб-вывод (в разработке)
 ├── runners/                     # Современные точки входа ✅
 │   ├── cli.py                   # CLI раннер ✅
 │   ├── vosk_runner.py           # VOSK раннер ✅
@@ -234,7 +238,8 @@ irene/                           # Основной пакет v13
     ├── async_demo.py            # Демо асинхронности
     ├── component_demo.py        # Демо компонентов
     ├── dependency_demo.py       # Демо зависимостей
-    └── phase5_demo.py           # Демо phase 5
+    ├── phase5_demo.py           # Демо phase 5
+    └── io_demo.py               # Демо I/O системы ✅
 ```
 
 ## ⚡ **Ключевые преимущества v13**
@@ -262,6 +267,12 @@ irene/                           # Основной пакет v13
 - **Consistent CLI**: единообразные опции `--help`, `--check-deps`, `--debug`
 - **Graceful fallback**: автоматическая деградация при отсутствии зависимостей
 - **Legacy compatibility**: поддержка привычных команд и режимов
+
+### **Современная I/O система:**
+- **AsyncIterator ввод**: неблокирующие потоки команд из любых источников
+- **Response-объекты вывод**: структурированные ответы с метаданными и типизацией
+- **Цветной консольный вывод**: автоматическая поддержка colorama для лучшего UX
+- **Грэйсфул деградация**: автоматические fallback при отсутствии зависимостей
 
 ## 🔌 **Разработка плагинов v13**
 
@@ -309,6 +320,25 @@ class MyTTSPlugin(TTSPlugin):
         await self._save_to_file_async(text, output_path)
 ```
 
+### **Современные Input/Output плагины:**
+```python
+from irene.inputs.base import InputSource
+from irene.outputs.base import OutputTarget, Response
+from typing import AsyncIterator
+
+class MyInputSource(InputSource):
+    async def listen(self) -> AsyncIterator[str]:
+        while self._listening:
+            command = await self._get_command_async()
+            if command:
+                yield command
+
+class MyOutputTarget(OutputTarget):
+    async def send(self, response: Response) -> None:
+        # Отправка структурированного ответа
+        await self._send_response_async(response.text, response.response_type)
+```
+
 ## ⚠️ **Миграция с v12**
 
 ### **Критические изменения:**
@@ -321,12 +351,12 @@ class MyTTSPlugin(TTSPlugin):
 
 | Legacy файл | v13 раннер | Команда |
 |-------------|------------|---------|
-| `runva_cmdline.py` | CLI Runner | `python -m irene.runners.cli --command "привет"` |
-| `runva_vosk.py` | VOSK Runner | `python -m irene.runners.vosk_runner` |
-| `runva_webapi.py` | Web API Runner | `python -m irene.runners.webapi_runner` |
-| `runva_settings_manager.py` | Settings Manager | `python -m irene.runners.settings_runner` |
-| `runva_speechrecognition.py` | CLI Runner | `python -m irene.runners.cli` (cloud deprecated) |
-| `runva_voskrem.py` | Web API Runner | `python -m irene.runners.webapi_runner` (WebSocket) |
+| `runva_cmdline.py` | CLI Runner | `uv run python -m irene.runners.cli --command "привет"` |
+| `runva_vosk.py` | VOSK Runner | `uv run python -m irene.runners.vosk_runner` |
+| `runva_webapi.py` | Web API Runner | `uv run python -m irene.runners.webapi_runner` |
+| `runva_settings_manager.py` | Settings Manager | `uv run python -m irene.runners.settings_runner` |
+| `runva_speechrecognition.py` | CLI Runner | `uv run python -m irene.runners.cli` (cloud deprecated) |
+| `runva_voskrem.py` | Web API Runner | `uv run python -m irene.runners.webapi_runner` (WebSocket) |
 
 ### **Автоматическая помощь в миграции:**
 ```bash
@@ -384,16 +414,19 @@ file = false
 
 ```bash
 # Демонстрация асинхронных возможностей
-python -m irene.examples.async_demo
+uv run python -m irene.examples.async_demo
 
 # Демонстрация компонентной системы
-python -m irene.examples.component_demo
+uv run python -m irene.examples.component_demo
 
 # Демонстрация управления зависимостями
-python -m irene.examples.dependency_demo
+uv run python -m irene.examples.dependency_demo
 
-# Демонстрация phase 5 (I/O системы)
-python -m irene.examples.phase5_demo
+# Демонстрация I/O системы (новое!) ✅
+uv run python -m irene.examples.io_demo
+
+# Демонстрация phase 5 (I/O системы - legacy)
+uv run python -m irene.examples.phase5_demo
 ```
 
 ## 🔧 **Отладка и разработка**
@@ -401,41 +434,44 @@ python -m irene.examples.phase5_demo
 ### **Проверка статуса компонентов:**
 ```bash
 # Быстрая проверка всех раннеров
-python -m irene.runners.cli --check-deps
+uv run python -m irene.runners.cli --check-deps
 
 # Детальная информация о компонентах
-python -c "
+uv run python -c "
 from irene.utils.loader import get_component_status
 import json
 print(json.dumps(get_component_status(), indent=2))
 "
 
 # Веб-интерфейс для мониторинга
-python -m irene.runners.settings_runner
+uv run python -m irene.runners.settings_runner
 ```
 
 ### **Запуск с отладкой:**
 ```bash
 # Детальное логирование CLI
-python -m irene.runners.cli --log-level DEBUG
+uv run python -m irene.runners.cli --log-level DEBUG
 
 # Отладка VOSK распознавания
-python -m irene.runners.vosk_runner --debug
+uv run python -m irene.runners.vosk_runner --debug
 
 # Отладка Web API сервера
-python -m irene.runners.webapi_runner --debug --reload
+uv run python -m irene.runners.webapi_runner --debug --reload
 
 # Тестирование одной команды
-python -m irene.runners.cli --command "время" --debug
+uv run python -m irene.runners.cli --command "время" --debug
 ```
 
 ### **Профилирование и тестирование:**
 ```bash
 # Тест производительности
-python -m irene.examples.async_demo --benchmark
+uv run python -m irene.examples.async_demo --benchmark
 
 # Анализ миграции legacy файлов
 python tools/migrate_runners.py --details
+
+# Тестирование I/O системы
+uv run python -m irene.examples.io_demo
 ```
 
 ## 🎯 **Статус v13.0 (Текущий)**
@@ -448,31 +484,33 @@ python tools/migrate_runners.py --details
 - ✅ **Основные плагины** - приветствие, дата/время, таймер, random, TTS (console/pyttsx)
 - ✅ **Конфигурация TOML** - с Pydantic валидацией
 - ✅ **Инструменты миграции** - автоматический анализ и помощь
+- ✅ **Essential I/O Implementation** - современная система ввода/вывода
 
 ### **🔄 В разработке (следующие фазы):**
-- 🔄 **Реальные I/O компоненты** - полная интеграция микрофона, TTS output, WebAPI
+- 🔄 **Продвинутые I/O компоненты** - полная интеграция микрофона и WebAPI
 - 🔄 **Расширенные плагины** - audio playback, weather, media controls (21+ плагинов)
 - 🔄 **Расширенная Web API** - полнофункциональный FastAPI сервер с WebSocket
 - 🔄 **Инструменты конфигурации** - миграция JSON → TOML
 
 ### **📋 Известные ограничения:**
 - **Расширенные плагины v12 несовместимы** - требуется миграция на async API (21+ плагинов)
-- **Реальные аудио компоненты частично интегрированы** - микрофон/WebAPI требуют доработки
+- **Микрофон и WebAPI** - базовые заготовки готовы, требуется полная реализация
 - **Некоторая документация устарела** - обновление в процессе
 
 ### **🎉 Что уже работает и готово к использованию:**
-- ✅ **CLI режим** - полнофункциональная командная строка
+- ✅ **CLI режим** - полнофункциональная командная строка с современной I/O
 - ✅ **Основные команды** - приветствие, время, дата, случайные числа, таймеры
 - ✅ **TTS вывод** - консольный и pyttsx3 (при наличии зависимостей)
 - ✅ **Async архитектура** - неблокирующая обработка команд
 - ✅ **Современные раннеры** - замена всех legacy точек входа
+- ✅ **I/O система** - CLIInput, TextOutput, TTSOutput полностью готовы
 
 ## 🤝 **Contributing в эпоху v13**
 
 Мы приветствуем участие в развитии v13! Приоритетные направления:
 
 ### **Высокий приоритет:**
-- 🔥 **Интеграция I/O компонентов** - реальные CLIInput, MicrophoneInput, TextOutput
+- 🔥 **Продвинутые I/O компоненты** - полная реализация MicrophoneInput и WebInput
 - 🔥 **Web API реализация** - полная FastAPI интеграция с WebSocket
 - 🔥 **Портирование расширенных плагинов** - audio playback, weather, media (21+ плагинов)
 - 🔥 **Создание миграционных инструментов** - помощь сообществу в переходе
@@ -487,8 +525,9 @@ python tools/migrate_runners.py --details
 1. **Изучите новую архитектуру** в `irene/examples/`
 2. **Смотрите современные раннеры** в `irene/runners/`
 3. **Анализируйте интерфейсы** в `irene/core/interfaces/`
-4. **Тестируйте миграцию** с `tools/migrate_runners.py`
-5. **Создавайте PR** с улучшениями!
+4. **Тестируйте I/O систему** с `uv run python -m irene.examples.io_demo`
+5. **Тестируйте миграцию** с `tools/migrate_runners.py`
+6. **Создавайте PR** с улучшениями!
 
 ## 💝 **Поддержка проекта**
 
@@ -503,7 +542,8 @@ python tools/migrate_runners.py --details
 
 ### **Ближайшие планы (Phases 6-7):**
 - [x] **Портирование основных плагинов** - datetime, timer, random, TTS engines ✅ **ЗАВЕРШЕНО**
-- [ ] **Реальная интеграция I/O компонентов** - CLIInput, MicrophoneInput, TextOutput, WebInput
+- [x] **Essential I/O Implementation** - CLIInput, TextOutput, TTSOutput ✅ **ЗАВЕРШЕНО**
+- [ ] **Продвинутые I/O компоненты** - MicrophoneInput, WebInput с полной реализацией
 - [ ] **Полнофункциональный Web API сервер** - FastAPI + WebSocket + документация
 - [ ] **Расширенные плагины** - audio playback, weather, media controls
 
@@ -521,16 +561,17 @@ python tools/migrate_runners.py --details
 
 ---
 
-**Основной функционал v13 уже работает! Протестируйте команды: `привет`, `время`, `дата`, `таймер 10 секунд`. Современные раннеры готовы к использованию.**
+**Основной функционал v13 уже работает! Протестируйте команды: `привет`, `время`, `дата`, `таймер 10 секунд`. Современные раннеры и I/O система готовы к использованию.**
 
 ---
 
-## 🎉 **Статус: Основные плагины работают!**
+## 🎉 **Статус: I/O система готова!**
 
-V13 теперь имеет **функциональное ядро** с работающими командами. Вы можете:
-- ✅ **Запустить CLI** и протестировать основные команды  
+V13 теперь имеет **современную I/O архитектуру** с работающими системами ввода и вывода. Вы можете:
+- ✅ **Запустить CLI** с современным AsyncIterator вводом и Response-объектами вывода
 - ✅ **Использовать современные раннеры** вместо legacy файлов
 - ✅ **Настроить TTS** (console или pyttsx3 при наличии зависимостей)
 - ✅ **Разрабатывать новые плагины** на основе v13 API
+- ✅ **Тестировать I/O систему** с помощью `uv run python -m irene.examples.io_demo`
 
-**Переход на v13 уже оправдан для базового использования!**
+**I/O система v13 обеспечивает надежную основу для дальнейшего развития!**

@@ -639,9 +639,23 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "audioplayer" },
+    { name = "elevenlabs" },
+    { name = "fastapi" },
+    { name = "pyttsx3" },
+    { name = "sounddevice" },
+    { name = "soundfile" },
+    { name = "tomli-w" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "vosk" },
+    { name = "websockets" },
+]
 api = [
     { name = "fastapi" },
+    { name = "tomli-w" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
 ]
 audio-input = [
     { name = "sounddevice" },
@@ -653,6 +667,9 @@ audio-output = [
     { name = "sounddevice" },
     { name = "soundfile" },
 ]
+config-writing = [
+    { name = "tomli-w" },
+]
 dev = [
     { name = "black" },
     { name = "flake8" },
@@ -660,6 +677,9 @@ dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+]
+headless = [
+    { name = "tomli-w" },
 ]
 tts = [
     { name = "elevenlabs" },
@@ -686,12 +706,15 @@ voice = [
     { name = "pyttsx3" },
     { name = "sounddevice" },
     { name = "soundfile" },
+    { name = "tomli-w" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "vosk" },
+    { name = "websockets" },
 ]
 web-api = [
     { name = "fastapi" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -714,8 +737,10 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'web-api'", specifier = ">=0.100.0" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "fsspec", marker = "extra == 'v12-compat'", specifier = "==2023.1.0" },
-    { name = "irene-voice-assistant", extras = ["audio-input", "tts", "audio-output", "web-api"], marker = "extra == 'voice'" },
-    { name = "irene-voice-assistant", extras = ["web-api"], marker = "extra == 'api'" },
+    { name = "irene-voice-assistant", extras = ["audio-input", "tts", "audio-output", "web-api", "config-writing"], marker = "extra == 'voice'" },
+    { name = "irene-voice-assistant", extras = ["config-writing"], marker = "extra == 'headless'" },
+    { name = "irene-voice-assistant", extras = ["voice"], marker = "extra == 'all'" },
+    { name = "irene-voice-assistant", extras = ["web-api", "config-writing"], marker = "extra == 'api'" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "openai", marker = "extra == 'v12-compat'", specifier = "==0.28.0" },
@@ -734,13 +759,15 @@ requires-dist = [
     { name = "soundfile", marker = "extra == 'v12-compat'" },
     { name = "termcolor", specifier = ">=1.1.0" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=1.2.0" },
+    { name = "tomli-w", marker = "extra == 'config-writing'", specifier = ">=1.0.0" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'web-api'", specifier = ">=0.20.0" },
     { name = "vosk", marker = "extra == 'audio-input'", specifier = ">=0.3.45" },
     { name = "vosk", marker = "extra == 'v12-compat'", specifier = ">=0.3.45" },
     { name = "vosk-tts", marker = "extra == 'v12-compat'", specifier = ">=0.3.52" },
+    { name = "websockets", marker = "extra == 'web-api'", specifier = ">=11.0.0" },
     { name = "wikipedia-api", marker = "extra == 'v12-compat'", specifier = ">=0.5.4" },
 ]
-provides-extras = ["audio-input", "tts", "audio-output", "web-api", "voice", "api", "v12-compat", "dev"]
+provides-extras = ["audio-input", "tts", "audio-output", "web-api", "config-writing", "voice", "api", "headless", "all", "v12-compat", "dev"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4439,6 +4466,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/0a/42348c995c67e2e6e5c89ffb9cfd68507cbaeb84ff39c49ee6e0a6dd0fd2/tokenizers-0.21.4-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:c212aa4e45ec0bb5274b16b6f31dd3f1c41944025c2358faaa5782c754e84c24", size = 9461980 },
     { url = "https://files.pythonhosted.org/packages/3d/d3/dacccd834404cd71b5c334882f3ba40331ad2120e69ded32cf5fda9a7436/tokenizers-0.21.4-cp39-abi3-win32.whl", hash = "sha256:6c42a930bc5f4c47f4ea775c91de47d27910881902b0f20e4990ebe045a415d0", size = 2329871 },
     { url = "https://files.pythonhosted.org/packages/41/f2/fd673d979185f5dcbac4be7d09461cbb99751554ffb6718d0013af8604cb/tokenizers-0.21.4-cp39-abi3-win_amd64.whl", hash = "sha256:475d807a5c3eb72c59ad9b5fcdb254f6e17f53dfcbb9903233b0dfa9c943b597", size = 2507568 },
+]
+
+[[package]]
+name = "tomli-w"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/75/241269d1da26b624c0d5e110e8149093c759b7a286138f4efd61a60e75fe/tomli_w-1.2.0.tar.gz", hash = "sha256:2dd14fac5a47c27be9cd4c976af5a12d87fb1f0b4512f81d69cce3b35ae25021", size = 7184 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c7/18/c86eb8e0202e32dd3df50d43d7ff9854f8e0603945ff398974c1d91ac1ef/tomli_w-1.2.0-py3-none-any.whl", hash = "sha256:188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90", size = 6675 },
 ]
 
 [[package]]

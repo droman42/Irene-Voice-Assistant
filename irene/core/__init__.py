@@ -8,7 +8,7 @@ from .engine import AsyncVACore
 from .context import Context, ContextManager
 from .timers import AsyncTimerManager
 from .commands import CommandProcessor, CommandResult
-from .components import ComponentManager, ComponentNotAvailableError, Component
+from .components import ComponentManager, ComponentNotAvailable, Component
 
 __all__ = [
     "AsyncVACore",
@@ -18,6 +18,6 @@ __all__ = [
     "CommandProcessor",
     "CommandResult",
     "ComponentManager",
-    "ComponentNotAvailableError",
+    "ComponentNotAvailable",
     "Component"
 ] 
