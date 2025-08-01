@@ -40,11 +40,33 @@ class SileroV3TTSPlugin(BasePlugin, TTSPlugin):
         
     @property
     def description(self) -> str:
-        return "High-quality Russian neural TTS using Silero v3.1 models"
+        return "Neural TTS v3 using Silero models with multi-speaker support"
         
     @property
-    def optional_dependencies(self) -> List[str]:
+    def dependencies(self) -> list[str]:
+        """No required dependencies (torch is optional)"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Requires torch for neural TTS"""
         return ["torch"]
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Silero v3 not enabled by default (requires torch)"""
+        return False
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "tts"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

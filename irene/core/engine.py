@@ -18,22 +18,7 @@ from .context import Context, ContextManager
 from .timers import AsyncTimerManager
 from .commands import CommandProcessor, CommandResult
 from .components import ComponentManager
-from ..plugins.builtin.core_commands import CoreCommandsPlugin
-from ..plugins.builtin.greetings_plugin import GreetingsPlugin
-from ..plugins.builtin.datetime_plugin import DateTimePlugin
-from ..plugins.builtin.random_plugin import RandomPlugin
-from ..plugins.builtin.timer_plugin import AsyncTimerPlugin
-from ..plugins.builtin.console_tts_plugin import ConsoleTTSPlugin
-from ..plugins.builtin.pyttsx_tts_plugin import PyttsTTSPlugin
-from ..plugins.builtin.silero_v3_tts_plugin import SileroV3TTSPlugin
-from ..plugins.builtin.silero_v4_tts_plugin import SileroV4TTSPlugin
-from ..plugins.builtin.vosk_tts_plugin import VoskTTSPlugin
-from ..plugins.builtin.sounddevice_audio_plugin import SoundDeviceAudioPlugin
-from ..plugins.builtin.audioplayer_audio_plugin import AudioPlayerAudioPlugin
-from ..plugins.builtin.aplay_audio_plugin import AplayAudioPlugin
-from ..plugins.builtin.simpleaudio_audio_plugin import SimpleAudioPlugin
-from ..plugins.builtin.console_audio_plugin import ConsoleAudioPlugin
-from ..plugins.builtin.async_service_demo import AsyncServiceDemoPlugin
+from ..plugins.builtin import get_builtin_plugins
 
 logger = logging.getLogger(__name__)
 
@@ -91,51 +76,43 @@ class AsyncVACore:
             raise
             
     async def _load_builtin_plugins(self) -> None:
-        """Load builtin plugins"""
+        """Load builtin plugins using the unified plugin manager system"""
         try:
-            # Import builtin plugins
-            builtin_plugins = [
-                # Command plugins
-                CoreCommandsPlugin(),
-                GreetingsPlugin(),
-                DateTimePlugin(),
-                RandomPlugin(),
-                
-                # Timer plugins
-                AsyncTimerPlugin(),
-                
-                # TTS plugins
-                ConsoleTTSPlugin(),
-                PyttsTTSPlugin(),
-                SileroV3TTSPlugin(),
-                SileroV4TTSPlugin(),
-                VoskTTSPlugin(),
-                
-                # Audio plugins
-                SoundDeviceAudioPlugin(),
-                AudioPlayerAudioPlugin(),
-                AplayAudioPlugin(),
-                SimpleAudioPlugin(),
-                ConsoleAudioPlugin(),
-                
-                # Service plugins
-                AsyncServiceDemoPlugin()
-            ]
+            logger.info("Loading builtin plugins via plugin manager...")
             
-            # Register plugins with plugin manager and command processor
-            for plugin in builtin_plugins:
-                # Initialize plugin
-                await plugin.initialize(self)
-                
-                # Register with plugin manager 
-                self.plugin_manager._plugins[plugin.name] = plugin
-                await self.plugin_manager._categorize_plugin(plugin)
-                
-                # Register command plugins with command processor using new adapter system
-                if hasattr(plugin, 'get_triggers') and hasattr(plugin, 'can_handle'):
-                    self.command_processor.register_plugin(plugin)
+            # Use plugin manager's unified loading system
+            await self.plugin_manager.load_plugins()
+            
+            # Get loaded plugins from plugin manager
+            loaded_plugins = list(self.plugin_manager._plugins.values())
+            
+            # Filter plugins based on configuration
+            builtin_config = getattr(self.config.plugins, 'builtin_plugins', {})
+            
+            enabled_plugins = []
+            for plugin in loaded_plugins:
+                plugin_name = plugin.__class__.__name__
+                if builtin_config.get(plugin_name, False):
+                    enabled_plugins.append(plugin)
+                    logger.info(f"Enabled builtin plugin: {plugin_name}")
+                else:
+                    # Remove disabled plugins from plugin manager
+                    if plugin.name in self.plugin_manager._plugins:
+                        await self.plugin_manager.unload_plugin(plugin.name)
+                    logger.debug(f"Builtin plugin disabled in config: {plugin_name}")
+            
+            # Register enabled plugins with command processor
+            for plugin in enabled_plugins:
+                try:
+                    # Register command plugins with command processor
+                    if hasattr(plugin, 'get_triggers') and hasattr(plugin, 'can_handle'):
+                        self.command_processor.register_plugin(plugin)
+                        
+                    logger.info(f"Registered builtin plugin: {plugin.name}")
                     
-                logger.info(f"Loaded builtin plugin: {plugin.name}")
+                except Exception as e:
+                    logger.error(f"Failed to register builtin plugin {plugin.name}: {e}")
+                    continue
                 
         except Exception as e:
             logger.error(f"Failed to load builtin plugins: {e}")

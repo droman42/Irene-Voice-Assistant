@@ -37,11 +37,33 @@ class SimpleAudioPlugin(AudioPlugin):
         
     @property
     def description(self) -> str:
-        return "Simple audio playback using simpleaudio library"
+        return "Simple WAV playback using simpleaudio with volume control"
         
     @property
-    def optional_dependencies(self) -> List[str]:
-        return ["simpleaudio"]
+    def dependencies(self) -> list[str]:
+        """No required dependencies (simpleaudio is optional)"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Requires simpleaudio for WAV playback"""
+        return ["simpleaudio", "numpy"]
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """SimpleAudio not enabled by default (requires dependency)"""
+        return False
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "audio"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

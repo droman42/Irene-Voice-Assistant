@@ -35,7 +35,33 @@ class AsyncTimerPlugin(BaseCommandPlugin):
         
     @property
     def description(self) -> str:
-        return "Async timer functionality with natural language support"
+        return "Async timer functionality with natural language parsing"
+        
+    @property
+    def dependencies(self) -> list[str]:
+        """No dependencies for timer"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """No optional dependencies for timer"""
+        return []
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Timer should be enabled by default"""
+        return True
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "command"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

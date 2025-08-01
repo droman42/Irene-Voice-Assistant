@@ -35,7 +35,33 @@ class AsyncServiceDemoPlugin(AsyncServicePlugin, BaseCommandPlugin):
         
     @property
     def description(self) -> str:
-        return "Demonstrates async background service capabilities"
+        return "Service demonstration with background tasks and lifecycle management"
+        
+    @property
+    def dependencies(self) -> list[str]:
+        """No dependencies for service demo"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """No optional dependencies for service demo"""
+        return []
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Service demo not enabled by default (demonstration only)"""
+        return False
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "service"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

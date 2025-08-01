@@ -40,11 +40,33 @@ class AplayAudioPlugin(AudioPlugin):
         
     @property
     def description(self) -> str:
-        return "Linux audio playback using ALSA aplay command"
+        return "Linux ALSA audio playback using aplay with device discovery"
         
     @property
-    def optional_dependencies(self) -> List[str]:
-        return []  # No Python dependencies, just system aplay command
+    def dependencies(self) -> list[str]:
+        """No Python dependencies (uses system aplay)"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """No optional dependencies (uses system aplay command)"""
+        return []
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Aplay not enabled by default (Linux only)"""
+        return False
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "audio"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (Linux only)"""
+        return ["linux"]
         
     def __init__(self):
         super().__init__()

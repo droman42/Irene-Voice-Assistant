@@ -33,7 +33,33 @@ class ConsoleTTSPlugin(TTSPlugin):
         
     @property
     def description(self) -> str:
-        return "Console text output for TTS debugging (no actual speech)"
+        return "Debug TTS output to console with colored text support"
+        
+    @property
+    def dependencies(self) -> list[str]:
+        """No dependencies for console TTS"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Optional termcolor for colored output"""
+        return ["termcolor"]
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Console TTS enabled by default for debugging"""
+        return True
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "tts"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

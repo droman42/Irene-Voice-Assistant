@@ -37,11 +37,33 @@ class ConsoleAudioPlugin(AudioPlugin):
         
     @property
     def description(self) -> str:
-        return "Debug audio output to console (no actual playback)"
+        return "Debug audio output to console with timing simulation"
         
     @property
-    def optional_dependencies(self) -> List[str]:
-        return []  # No dependencies required
+    def dependencies(self) -> list[str]:
+        """No dependencies for console audio"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Optional termcolor for colored output"""
+        return ["termcolor"]
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Console audio enabled by default for debugging"""
+        return True
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "audio"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

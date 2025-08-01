@@ -156,10 +156,48 @@ class AsyncPluginManager:
             raise ExceptionGroup("Plugin initialization failed", errors)
 
     async def _load_builtin_plugins(self) -> None:
-        """Load built-in plugins from the builtin/ directory"""
-        builtin_path = Path(__file__).parent / "builtin"
-        if builtin_path.exists():
-            await self._registry.scan_directory(builtin_path)
+        """Load built-in plugins using the registry system"""
+        try:
+            # Instead of scanning directory (which causes import issues), 
+            # directly register builtin plugins from the dynamic registry
+            from .builtin import get_builtin_plugins
+            
+            builtin_plugins = get_builtin_plugins()
+            logger.info(f"Discovered {len(builtin_plugins)} builtin plugins")
+            
+            # Register each builtin plugin with the registry
+            for plugin_name, plugin_class in builtin_plugins.items():
+                try:
+                    # Create temporary instance to extract metadata
+                    temp_instance = plugin_class()
+                    
+                    # Register in our discovery registry
+                    self._registry._discovered_plugins[plugin_name] = plugin_class
+                    self._registry._plugin_metadata[plugin_name] = {
+                        "name": temp_instance.name,
+                        "version": temp_instance.version,
+                        "description": temp_instance.description,
+                        "dependencies": temp_instance.dependencies,
+                        "optional_dependencies": temp_instance.optional_dependencies,
+                        "class": plugin_class.__name__,
+                        "module": plugin_class.__module__,
+                        "file_path": f"builtin:{plugin_class.__module__}",
+                        "config_schema": temp_instance.get_config_schema(),
+                        # Additional metadata for discovery
+                        "enabled_by_default": getattr(temp_instance, 'enabled_by_default', False),
+                        "category": getattr(temp_instance, 'category', 'unknown'),
+                        "platforms": getattr(temp_instance, 'platforms', [])
+                    }
+                    
+                    logger.debug(f"Registered builtin plugin: {plugin_name}")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to register builtin plugin {plugin_name}: {e}")
+                    continue
+                    
+        except Exception as e:
+            logger.error(f"Error loading builtin plugins: {e}")
+            raise
             
     async def _load_single_plugin(self, plugin_class: Type[PluginInterface]) -> None:
         """Load and initialize a single plugin class"""

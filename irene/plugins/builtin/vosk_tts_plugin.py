@@ -41,11 +41,33 @@ class VoskTTSPlugin(BasePlugin, TTSPlugin):
         
     @property
     def description(self) -> str:
-        return "Russian TTS using VOSK TTS models with optional GPU acceleration"
+        return "Russian TTS using VOSK with GPU acceleration support"
         
     @property
-    def optional_dependencies(self) -> List[str]:
-        return ["vosk_tts"]
+    def dependencies(self) -> list[str]:
+        """No required dependencies (vosk-tts is optional)"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Requires vosk-tts for Russian TTS"""
+        return ["vosk-tts"]
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """VOSK TTS not enabled by default (requires dependency)"""
+        return False
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "tts"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

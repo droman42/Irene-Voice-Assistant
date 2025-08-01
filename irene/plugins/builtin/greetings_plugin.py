@@ -34,7 +34,33 @@ class GreetingsPlugin(BaseCommandPlugin):
         
     @property
     def description(self) -> str:
-        return "Random greeting responses and welcome messages"
+        return "Greeting and farewell responses with bilingual support"
+        
+    @property
+    def dependencies(self) -> list[str]:
+        """No dependencies for greetings"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """No optional dependencies for greetings"""
+        return []
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Greetings should be enabled by default"""
+        return True
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "command"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

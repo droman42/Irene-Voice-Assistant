@@ -37,11 +37,33 @@ class SoundDeviceAudioPlugin(AudioPlugin):
         
     @property
     def description(self) -> str:
-        return "Primary audio playback using sounddevice and soundfile"
+        return "High-quality audio playback using sounddevice with device selection"
         
     @property
-    def optional_dependencies(self) -> List[str]:
-        return ["sounddevice", "soundfile", "numpy"]
+    def dependencies(self) -> list[str]:
+        """No required dependencies (sounddevice is optional)"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Requires sounddevice for high-quality audio"""
+        return ["sounddevice", "soundfile"]
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """SoundDevice not enabled by default (requires dependency)"""
+        return False
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "audio"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

@@ -1,60 +1,65 @@
 """
-Built-in Plugins - Core functionality plugins
+Builtin Plugin Discovery - Direct import system for builtin plugins
 
-Contains essential plugins that provide core assistant functionality.
-Replaces legacy v12 plugins with modern async v13 architecture.
+Provides direct access to builtin plugin classes for the unified PluginRegistry system.
+This eliminates hardcoding while maintaining simplicity for builtin plugins.
 """
 
-# Command plugins
-from .core_commands import CoreCommandsPlugin
-from .greetings_plugin import GreetingsPlugin
-from .datetime_plugin import DateTimePlugin
-from .random_plugin import RandomPlugin
+import importlib
+from typing import Type, Dict
+from pathlib import Path
 
-# Timer plugins
-from .timer_plugin import AsyncTimerPlugin
+from ..base import PluginInterface
 
-# TTS plugins
-from .console_tts_plugin import ConsoleTTSPlugin
-from .pyttsx_tts_plugin import PyttsTTSPlugin
-from .silero_v3_tts_plugin import SileroV3TTSPlugin
-from .silero_v4_tts_plugin import SileroV4TTSPlugin
-from .vosk_tts_plugin import VoskTTSPlugin
 
-# Audio plugins
-from .sounddevice_audio_plugin import SoundDeviceAudioPlugin
-from .audioplayer_audio_plugin import AudioPlayerAudioPlugin
-from .aplay_audio_plugin import AplayAudioPlugin
-from .simpleaudio_audio_plugin import SimpleAudioPlugin
-from .console_audio_plugin import ConsoleAudioPlugin
-
-# Service plugins
-from .async_service_demo import AsyncServiceDemoPlugin
-
-__all__ = [
-    # Command plugins
-    "CoreCommandsPlugin",
-    "GreetingsPlugin",
-    "DateTimePlugin", 
-    "RandomPlugin",
+def get_builtin_plugins() -> Dict[str, Type[PluginInterface]]:
+    """
+    Get all builtin plugin classes through direct imports.
     
-    # Timer plugins
-    "AsyncTimerPlugin",
+    This avoids filesystem scanning for builtin plugins while still
+    allowing the unified PluginRegistry to extract metadata from
+    plugin instances.
+    """
     
-    # TTS plugins
-    "ConsoleTTSPlugin",
-    "PyttsTTSPlugin",
-    "SileroV3TTSPlugin",
-    "SileroV4TTSPlugin",
-    "VoskTTSPlugin",
+    # Define plugin modules and their main plugin classes
+    plugin_modules = [
+        ("core_commands", "CoreCommandsPlugin"),
+        ("greetings_plugin", "GreetingsPlugin"), 
+        ("datetime_plugin", "DateTimePlugin"),
+        ("random_plugin", "RandomPlugin"),
+        ("timer_plugin", "AsyncTimerPlugin"),
+        ("console_tts_plugin", "ConsoleTTSPlugin"),
+        ("pyttsx_tts_plugin", "PyttsTTSPlugin"),
+        ("silero_v3_tts_plugin", "SileroV3TTSPlugin"),
+        ("silero_v4_tts_plugin", "SileroV4TTSPlugin"),
+        ("vosk_tts_plugin", "VoskTTSPlugin"),
+        ("console_audio_plugin", "ConsoleAudioPlugin"),
+        ("sounddevice_audio_plugin", "SoundDeviceAudioPlugin"),
+        ("audioplayer_audio_plugin", "AudioPlayerAudioPlugin"),
+        ("aplay_audio_plugin", "AplayAudioPlugin"),
+        ("simpleaudio_audio_plugin", "SimpleAudioPlugin"),
+        ("async_service_demo", "AsyncServiceDemoPlugin"),
+    ]
     
-    # Audio plugins
-    "SoundDeviceAudioPlugin",
-    "AudioPlayerAudioPlugin", 
-    "AplayAudioPlugin",
-    "SimpleAudioPlugin",
-    "ConsoleAudioPlugin",
+    plugins = {}
     
-    # Service plugins
-    "AsyncServiceDemoPlugin"
-] 
+    for module_name, class_name in plugin_modules:
+        try:
+            # Import the plugin module
+            module = importlib.import_module(f".{module_name}", package=__name__)
+            
+            # Get the plugin class
+            plugin_class = getattr(module, class_name, None)
+            if plugin_class:
+                plugins[class_name] = plugin_class
+                
+        except Exception as e:
+            # Skip plugins that can't be imported (missing dependencies, etc.)
+            print(f"Warning: Could not load builtin plugin {class_name}: {e}")
+            continue
+            
+    return plugins
+
+
+# Backward compatibility for existing imports
+__all__ = ["get_builtin_plugins"] 

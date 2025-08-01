@@ -37,11 +37,33 @@ class AudioPlayerAudioPlugin(AudioPlugin):
         
     @property
     def description(self) -> str:
-        return "Cross-platform audio playback using audioplayer library"
+        return "Cross-platform audio playback using audioplayer with threading"
         
     @property
-    def optional_dependencies(self) -> List[str]:
+    def dependencies(self) -> list[str]:
+        """No required dependencies (audioplayer is optional)"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Requires audioplayer for cross-platform support"""
         return ["audioplayer"]
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """AudioPlayer not enabled by default (requires dependency)"""
+        return False
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "audio"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

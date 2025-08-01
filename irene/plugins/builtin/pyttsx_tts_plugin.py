@@ -34,11 +34,33 @@ class PyttsTTSPlugin(TTSPlugin):
         
     @property
     def description(self) -> str:
-        return "Text-to-speech using pyttsx3 engine"
+        return "Cross-platform TTS using pyttsx3 with voice selection"
         
     @property
-    def optional_dependencies(self) -> List[str]:
+    def dependencies(self) -> list[str]:
+        """No required dependencies (pyttsx3 is optional)"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Requires pyttsx3 for TTS functionality"""
         return ["pyttsx3"]
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Pyttsx TTS not enabled by default (requires dependency)"""
+        return False
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "tts"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

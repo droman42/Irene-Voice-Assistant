@@ -35,7 +35,33 @@ class DateTimePlugin(BaseCommandPlugin):
         
     @property
     def description(self) -> str:
-        return "Date and time information with natural language support"
+        return "Date and time queries with natural language formatting"
+        
+    @property
+    def dependencies(self) -> list[str]:
+        """No dependencies for datetime"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """No optional dependencies for datetime"""
+        return []
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """DateTime should be enabled by default"""
+        return True
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "command"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()

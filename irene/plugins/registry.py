@@ -191,7 +191,11 @@ class PluginRegistry:
                 "class": plugin_class.__name__,
                 "module": plugin_class.__module__,
                 "file_path": str(file_path),
-                "config_schema": temp_instance.get_config_schema()
+                "config_schema": temp_instance.get_config_schema(),
+                # Additional metadata for discovery (with safe defaults)
+                "enabled_by_default": getattr(temp_instance, 'enabled_by_default', False),
+                "category": getattr(temp_instance, 'category', 'unknown'),
+                "platforms": getattr(temp_instance, 'platforms', [])
             }
             
             logger.debug(f"Registered plugin: {plugin_name} v{temp_instance.version}")
@@ -280,6 +284,11 @@ class PluginRegistry:
         """Detect circular dependencies between plugins"""
         cycles = []
         
+        # Build dependency graph
+        graph = {}
+        for plugin_name, metadata in self._plugin_metadata.items():
+            graph[plugin_name] = metadata.get("dependencies", [])
+        
         def has_path(start: str, end: str, visited: set[str]) -> bool:
             if start == end:
                 return True
@@ -292,6 +301,7 @@ class PluginRegistry:
                     return True
             return False
         
+        # Check each plugin for circular dependencies
         for plugin_name in self._plugin_metadata:
             metadata = self._plugin_metadata[plugin_name]
             for dep in metadata.get("dependencies", []):
@@ -317,6 +327,13 @@ class PluginRegistry:
             "dependency_issues": len(self.validate_dependencies()),
             "circular_dependencies": len(self._detect_circular_dependencies())
         }
+        
+    def get_default_config(self) -> Dict[str, bool]:
+        """Get default plugin configuration from discovered plugins"""
+        default_config = {}
+        for plugin_name, metadata in self._plugin_metadata.items():
+            default_config[plugin_name] = metadata.get("enabled_by_default", False)
+        return default_config
         
     @property
     def plugin_count(self) -> int:

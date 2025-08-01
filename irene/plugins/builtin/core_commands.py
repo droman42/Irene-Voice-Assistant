@@ -17,14 +17,15 @@ from ..base import BaseCommandPlugin
 
 class CoreCommandsPlugin(BaseCommandPlugin):
     """
-    Core commands plugin providing essential system functionality.
+    Core system commands for Irene.
     
-    Demonstrates:
-    - Async command handling
-    - Plugin interface implementation
-    - Context management
-    - Error handling
+    Provides essential commands for system control and information.
     """
+    
+    # Plugin metadata for PluginRegistry discovery
+    _enabled_by_default = True
+    _category = "command"
+    _platforms = []  # All platforms
     
     @property
     def name(self) -> str:
@@ -37,6 +38,32 @@ class CoreCommandsPlugin(BaseCommandPlugin):
     @property
     def description(self) -> str:
         return "Essential system commands (help, status, version, etc.)"
+        
+    @property
+    def dependencies(self) -> list[str]:
+        """No dependencies for core commands"""
+        return []
+        
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """No optional dependencies for core commands"""
+        return []
+        
+    # Additional metadata for PluginRegistry discovery
+    @property
+    def enabled_by_default(self) -> bool:
+        """Core commands should always be enabled by default"""
+        return True
+        
+    @property  
+    def category(self) -> str:
+        """Plugin category"""
+        return "command"
+        
+    @property
+    def platforms(self) -> list[str]:
+        """Supported platforms (empty = all platforms)"""
+        return []
         
     def __init__(self):
         super().__init__()
