@@ -25,6 +25,11 @@ from ..plugins.builtin.random_plugin import RandomPlugin
 from ..plugins.builtin.timer_plugin import AsyncTimerPlugin
 from ..plugins.builtin.console_tts_plugin import ConsoleTTSPlugin
 from ..plugins.builtin.pyttsx_tts_plugin import PyttsTTSPlugin
+from ..plugins.builtin.sounddevice_audio_plugin import SoundDeviceAudioPlugin
+from ..plugins.builtin.audioplayer_audio_plugin import AudioPlayerAudioPlugin
+from ..plugins.builtin.aplay_audio_plugin import AplayAudioPlugin
+from ..plugins.builtin.simpleaudio_audio_plugin import SimpleAudioPlugin
+from ..plugins.builtin.console_audio_plugin import ConsoleAudioPlugin
 from ..plugins.builtin.async_service_demo import AsyncServiceDemoPlugin
 
 logger = logging.getLogger(__name__)
@@ -99,6 +104,13 @@ class AsyncVACore:
                 # TTS plugins
                 ConsoleTTSPlugin(),
                 PyttsTTSPlugin(),
+                
+                # Audio plugins
+                SoundDeviceAudioPlugin(),
+                AudioPlayerAudioPlugin(),
+                AplayAudioPlugin(),
+                SimpleAudioPlugin(),
+                ConsoleAudioPlugin(),
                 
                 # Service plugins
                 AsyncServiceDemoPlugin()

@@ -18,6 +18,13 @@ from .timer_plugin import AsyncTimerPlugin
 from .console_tts_plugin import ConsoleTTSPlugin
 from .pyttsx_tts_plugin import PyttsTTSPlugin
 
+# Audio plugins
+from .sounddevice_audio_plugin import SoundDeviceAudioPlugin
+from .audioplayer_audio_plugin import AudioPlayerAudioPlugin
+from .aplay_audio_plugin import AplayAudioPlugin
+from .simpleaudio_audio_plugin import SimpleAudioPlugin
+from .console_audio_plugin import ConsoleAudioPlugin
+
 # Service plugins
 from .async_service_demo import AsyncServiceDemoPlugin
 
@@ -34,6 +41,13 @@ __all__ = [
     # TTS plugins
     "ConsoleTTSPlugin",
     "PyttsTTSPlugin",
+    
+    # Audio plugins
+    "SoundDeviceAudioPlugin",
+    "AudioPlayerAudioPlugin", 
+    "AplayAudioPlugin",
+    "SimpleAudioPlugin",
+    "ConsoleAudioPlugin",
     
     # Service plugins
     "AsyncServiceDemoPlugin"
