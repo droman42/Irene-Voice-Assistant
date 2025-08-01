@@ -191,7 +191,7 @@ def _convert_one_num_float(match_obj: re.Match) -> str:
     if match_obj.group() is not None:
         try:
             # Try to use lingua_franca if available
-            from lingua_franca.format import pronounce_number
+            from lingua_franca.format import pronounce_number  # type: ignore
             return pronounce_number(float(match_obj.group()))
         except ImportError:
             # Fallback to Russian implementation for integers
@@ -241,7 +241,7 @@ def all_num_to_text(text: str, language: str = "ru") -> str:
     """
     try:
         # Try to load lingua_franca if available
-        import lingua_franca
+        import lingua_franca  # type: ignore
         lingua_franca.load_language(language)
         logger.debug(f"Using lingua_franca for language: {language}")
     except ImportError:
@@ -308,7 +308,7 @@ def load_language(lang: str) -> None:
         lang: Language code to load
     """
     try:
-        import lingua_franca
+        import lingua_franca  # type: ignore
         lingua_franca.load_language(lang)
         logger.debug(f"Loaded lingua_franca language: {lang}")
     except ImportError:

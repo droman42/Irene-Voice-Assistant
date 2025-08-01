@@ -217,8 +217,8 @@ class MicrophoneComponent(Component):
             raise ComponentNotAvailable("Microphone dependencies not available")
             
         # Dynamic imports
-        import sounddevice as sd
-        import vosk
+        import sounddevice as sd  # type: ignore
+        import vosk  # type: ignore
         
         # Initialize VOSK model (would need actual model path)
         self.logger.info("Microphone component initialized")
@@ -247,7 +247,7 @@ class TTSComponent(Component):
             raise ComponentNotAvailable("TTS dependencies not available")
             
         # Dynamic import
-        import pyttsx3
+        import pyttsx3  # type: ignore
         
         self._engine = pyttsx3.init()
         self.logger.info("TTS component initialized")
@@ -283,8 +283,8 @@ class AudioOutputComponent(Component):
             raise ComponentNotAvailable("Audio output dependencies not available")
             
         # Dynamic imports
-        import sounddevice as sd
-        import soundfile as sf
+        import sounddevice as sd  # type: ignore
+        import soundfile as sf  # type: ignore
         
         self.logger.info("Audio output component initialized")
         
@@ -310,8 +310,8 @@ class WebAPIComponent(Component):
             raise ComponentNotAvailable("Web API dependencies not available")
             
         # Dynamic imports
-        from fastapi import FastAPI
-        import uvicorn
+        from fastapi import FastAPI  # type: ignore
+        import uvicorn  # type: ignore
         
         self._app = FastAPI(title="Irene Voice Assistant API")
         self.logger.info("Web API component initialized")
@@ -402,6 +402,10 @@ class ComponentManager:
     def get_component(self, name: str) -> Optional[Component]:
         """Get a component by name"""
         return self._components.get(name)
+        
+    def get_active_components(self) -> list[str]:
+        """Get list of active (initialized) component names"""
+        return list(self._components.keys())
         
     def get_deployment_profile(self) -> str:
         """Auto-detect current deployment profile based on available components"""

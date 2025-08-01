@@ -45,7 +45,7 @@ async def demo_deployment_profile(profile_name: str, component_config: Component
         
         # Show actual deployment profile
         profile = core.component_manager.get_deployment_profile()
-        active = core.component_manager.active_components
+        active = core.component_manager.get_active_components()
         print(f"\nActual deployment: {profile}")
         print(f"Active components: {active}")
         

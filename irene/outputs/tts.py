@@ -7,10 +7,17 @@ This is an optional component that requires additional dependencies.
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from pathlib import Path
 
 from .base import OutputTarget, Response, ComponentNotAvailable
+
+if TYPE_CHECKING:
+    # Type hints for optional dependencies
+    try:
+        import pyttsx3  # type: ignore
+    except ImportError:
+        pyttsx3 = None
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +33,7 @@ class TTSOutput(OutputTarget):
     def __init__(self, engine: str = "pyttsx3", voice: Optional[str] = None):
         self.engine = engine
         self.voice = voice
-        self._tts_engine = None
+        self._tts_engine: Optional[Any] = None
         self._settings = {
             "rate": 200,
             "volume": 0.9,
@@ -36,7 +43,7 @@ class TTSOutput(OutputTarget):
         # Check for required dependencies
         try:
             if engine == "pyttsx3":
-                import pyttsx3
+                import pyttsx3  # type: ignore
                 self._pyttsx3_available = True
             else:
                 self._pyttsx3_available = False
@@ -120,20 +127,21 @@ class TTSOutput(OutputTarget):
             
         try:
             if self.engine == "pyttsx3":
-                import pyttsx3
+                import pyttsx3  # type: ignore
                 self._tts_engine = pyttsx3.init()
                 
                 # Configure engine settings
-                self._tts_engine.setProperty('rate', self._settings['rate'])
-                self._tts_engine.setProperty('volume', self._settings['volume'])
-                
-                if self._settings['voice']:
-                    voices = self._tts_engine.getProperty('voices')
-                    for voice in voices:
-                        if self._settings['voice'] in voice.id:
-                            self._tts_engine.setProperty('voice', voice.id)
-                            break
-                            
+                if self._tts_engine:
+                    self._tts_engine.setProperty('rate', self._settings['rate'])
+                    self._tts_engine.setProperty('volume', self._settings['volume'])
+                    
+                    if self._settings['voice']:
+                        voices = self._tts_engine.getProperty('voices')
+                        for voice in voices:
+                            if self._settings['voice'] in voice.id:
+                                self._tts_engine.setProperty('voice', voice.id)
+                                break
+                                
                 logger.info(f"Initialized {self.engine} TTS engine")
                 
         except Exception as e:
@@ -159,8 +167,11 @@ class TTSOutput(OutputTarget):
     def _pyttsx3_speak(self, text: str) -> None:
         """Synchronous pyttsx3 speaking method"""
         try:
-            self._tts_engine.say(text)
-            self._tts_engine.runAndWait()
+            if self._tts_engine:
+                self._tts_engine.say(text)
+                self._tts_engine.runAndWait()
+            else:
+                raise ComponentNotAvailable("TTS engine not initialized")
         except Exception as e:
             logger.error(f"pyttsx3 speaking error: {e}")
             raise
@@ -187,8 +198,11 @@ class TTSOutput(OutputTarget):
     def _pyttsx3_save_to_file(self, text: str, output_path: Path) -> None:
         """Save pyttsx3 output to file"""
         try:
-            self._tts_engine.save_to_file(text, str(output_path))
-            self._tts_engine.runAndWait()
+            if self._tts_engine:
+                self._tts_engine.save_to_file(text, str(output_path))
+                self._tts_engine.runAndWait()
+            else:
+                raise ComponentNotAvailable("TTS engine not initialized")
         except Exception as e:
             logger.error(f"pyttsx3 file save error: {e}")
             raise
