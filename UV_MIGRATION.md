@@ -8,6 +8,7 @@ This project has been migrated from pip to UV for faster and more reliable depen
 - ✅ **Added** virtual environment management with UV
 - ✅ **Organized** dependencies into logical groups (core, web, ui, minimal, dev)
 - ✅ **Improved** dependency resolution and installation speed
+- ✅ **Configured** reasonable linting settings for existing codebase
 
 ## Installation Options
 
@@ -44,6 +45,31 @@ Adds: pytest, black, isort, flake8, mypy for development tools
 ### 6. **Multiple Groups**
 ```bash
 uv sync --extra web --extra ui --extra dev
+```
+
+## Code Quality
+
+### **Linting Configuration**
+The project now includes a `.flake8` configuration that focuses on important errors while ignoring overly strict style rules:
+
+- ✅ **Focuses on**: Import errors, undefined variables, syntax issues
+- ✅ **Ignores**: Line length, minor whitespace, style preferences
+- ✅ **Excludes**: Auto-generated and vendor directories
+- ✅ **Configured for**: VS Code automatic linting
+
+### **Running Code Quality Tools**
+```bash
+# Check for important errors only
+uv run flake8 .
+
+# Format code automatically
+uv run black .
+
+# Sort imports
+uv run isort .
+
+# Type checking (if needed)
+uv run mypy vacore.py
 ```
 
 ## Running the Application
@@ -102,6 +128,8 @@ uv pip freeze > requirements.txt
 - ✅ `pyproject.toml` - New unified configuration
 - ✅ `.venv/` - UV-managed virtual environment
 - ✅ `uv.lock` - Dependency lockfile for reproducible builds
+- ✅ `.flake8` - Reasonable linting configuration
+- ✅ `.vscode/settings.json` - IDE integration
 - ❌ `requirements*.txt` - **REMOVED** (legacy files no longer needed)
 
 ## Troubleshooting
@@ -123,6 +151,12 @@ uv sync --python 3.10
 rm -rf .venv uv.lock
 uv sync
 ```
+
+### Linting Issues:
+The project is configured with reasonable linting rules. If you see many errors:
+1. Most style issues are ignored intentionally
+2. Focus on F-codes (real errors) and E9-codes (syntax)
+3. Use `uv run black .` to auto-format code
 
 ## Legacy Compatibility
 

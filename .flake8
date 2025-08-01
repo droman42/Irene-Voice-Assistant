@@ -1,0 +1,38 @@
+[flake8]
+# More lenient settings for existing codebase
+max-line-length = 120
+
+# Ignore common style issues that are too strict for existing code
+ignore = 
+    E501,
+    E203,
+    E231,
+    E265,
+    E303,
+    W503,
+    W291,
+    W292
+
+# Exclude directories that shouldn't be linted
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    build,
+    dist,
+    eng_to_ipa,
+    lingua_franca,
+    model,
+    .eggs,
+    *.egg
+
+# Focus on important errors only
+select = 
+    F,
+    E9,
+    W6
+
+# Allow specific ignores for certain files
+per-file-ignores =
+    */lang/*.py:E501,F401
+    jaa.py:F841 

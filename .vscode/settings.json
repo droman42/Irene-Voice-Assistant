@@ -1,0 +1,18 @@
+{
+    "python.defaultInterpreter": "./.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": ["--config=.flake8"],
+    "python.formatting.provider": "black",
+    "python.analysis.extraPaths": [
+        "./plugins",
+        "./utils",
+        "./mpcapi",
+        "./lingua_franca",
+        "./eng_to_ipa"
+    ],
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "basic"
+} 
