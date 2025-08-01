@@ -731,7 +731,7 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'web-api'", specifier = ">=0.100.0" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "fsspec", marker = "extra == 'v12-compat'", specifier = "==2023.1.0" },
-    { name = "irene-voice-assistant", extras = ["audio-input", "tts", "audio-output", "web-api", "config-writing"], marker = "extra == 'voice'" },
+    { name = "irene-voice-assistant", extras = ["audio-input", "tts", "audio-output", "web-api", "text-multilingual", "config-writing"], marker = "extra == 'voice'" },
     { name = "irene-voice-assistant", extras = ["config-writing"], marker = "extra == 'headless'" },
     { name = "irene-voice-assistant", extras = ["voice"], marker = "extra == 'all'" },
     { name = "irene-voice-assistant", extras = ["web-api", "config-writing"], marker = "extra == 'api'" },
@@ -763,7 +763,7 @@ requires-dist = [
     { name = "websockets", marker = "extra == 'web-api'", specifier = ">=11.0.0" },
     { name = "wikipedia-api", marker = "extra == 'v12-compat'", specifier = ">=0.5.4" },
 ]
-provides-extras = ["audio-input", "tts", "audio-output", "web-api", "config-writing", "voice", "api", "headless", "all", "v12-compat", "dev"]
+provides-extras = ["audio-input", "tts", "audio-output", "web-api", "config-writing", "text-multilingual", "voice", "api", "headless", "all", "v12-compat", "dev"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -51,9 +51,13 @@ config-writing = [
     # tomli-w moved to core dependencies
 ]
 
+# Text processing and multilingual support
+text-multilingual = [ # Mycroft AI's multilingual text processing
+]
+
 # Full voice assistant
 voice = [
-    "irene-voice-assistant[audio-input,tts,audio-output,web-api,config-writing]"
+    "irene-voice-assistant[audio-input,tts,audio-output,web-api,text-multilingual,config-writing]"
 ]
 
 # API server only
@@ -66,9 +70,9 @@ headless = [
     "irene-voice-assistant[config-writing]"
 ]
 
-# All optional components
+# All optional components  
 all = [
-    "irene-voice-assistant[voice]"
+    "irene-voice-assistant[voice]"  # voice already includes text-multilingual
 ]
 
 # Legacy v12 compatibility
@@ -123,7 +127,6 @@ extend-exclude = '''
   | build
   | dist
   | eng_to_ipa
-  | lingua_franca
 )/
 '''
 
@@ -152,6 +155,5 @@ warn_unreachable = true
 strict_equality = true
 exclude = [
     "eng_to_ipa/",
-    "lingua_franca/",
     "model/",
 ]

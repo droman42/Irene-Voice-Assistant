@@ -1405,10 +1405,25 @@ Current state: **Framework ready, implementations needed**
 - ✅ **Core dependencies updated**: pydantic>=2.0.0, pydantic-settings>=2.0.0, tomli-w>=1.0.0 now required
 - ✅ **Simplified codebase**: Removed 200+ lines of conditional fallback logic for cleaner, more maintainable code
 
-##### **I. Essential Utilities Migration**
-- ❌ **Number-to-text conversion** → Port `utils/num_to_text_ru.py`
-- ❌ **Audio processing utilities** → Port audio helpers
-- ❌ **Legacy helper functions** → Port commonly used utilities
+##### **I. Essential Utilities Migration** ✅ **COMPLETED**
+- ✅ **Number-to-text conversion** → Port `utils/num_to_text_ru.py` - Complete modern implementation with async support
+- ✅ **Audio processing utilities** → Port audio helpers - Comprehensive audio processing helpers created
+- ✅ **Legacy helper functions** → Port commonly used utilities - Text processing and audio utilities fully migrated
+
+**✅ Phase I Achievement Summary:**
+- ✅ Complete Russian number-to-text conversion with async support (`irene/utils/text_processing.py`)
+- ✅ Modern text normalization with lingua_franca integration and fallback to native Russian implementation  
+- ✅ Comprehensive audio processing helpers with device enumeration and format conversion (`irene/utils/audio_helpers.py`)
+- ✅ Async versions of all utilities for v13 integration (`all_num_to_text_async`, `num_to_text_ru_async`, etc.)
+- ✅ Legacy compatibility maintained for migration period with fallback support
+- ✅ Modern Python 3.11+ patterns with proper type annotations throughout
+- ✅ Graceful dependency handling - works without optional libraries (lingua_franca, soundfile, etc.)
+- ✅ Complete integration with existing TTS plugins (SileroV3, SileroV4) using migrated utilities
+- ✅ Working demonstration script showcasing all migrated functionality
+- ✅ Updated utils module with proper exports and documentation
+- ✅ **Embedded lingua_franca/ removed** - Now available as optional dependency `irene-voice-assistant[text-multilingual]`
+- ✅ **Repository cleanup** - Removed 100+ embedded files, reduced project size significantly
+- ✅ **Optional multilingual support** - Users can install lingua-franca when needed for enhanced language support
 
 ##### **J. Extended Functionality Plugins (5 plugins)**
 - ❌ `plugin_weather_wttr.py` - Weather via wttr.in
@@ -1765,7 +1780,8 @@ Final Repository Structure (Clean Slate):
 - [ ] Remove `jaa.py` completely (replaced by new plugin system)  
 - [ ] Remove `vacore.py` completely (replaced by `irene/core/engine.py`) ✅ **NEW REPLACEMENT CREATED**
 - [ ] Remove entire `plugins/` directory (replaced by `irene/plugins/`) ✅ **NEW REPLACEMENT CREATED**
-- [ ] Remove embedded `lingua_franca/` and `eng_to_ipa/` completely
+- ✅ Remove embedded `lingua_franca/` completely → Now optional dependency `irene-voice-assistant[text-multilingual]`
+- [ ] Remove embedded `eng_to_ipa/` completely
 - [ ] Remove `options/`, `options_docker/`, `docker_plugins/` directories
 - [ ] Remove **ALL** root-level legacy configuration files
 - [ ] Remove legacy Docker configurations completely

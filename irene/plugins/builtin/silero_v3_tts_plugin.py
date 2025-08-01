@@ -312,12 +312,21 @@ class SileroV3TTSPlugin(BasePlugin, TTSPlugin):
         # Basic text normalization
         normalized = text.replace("…", "...")
         
-        # TODO: Add number-to-text conversion using core.all_num_to_text if available
+        # Modern number-to-text conversion using migrated utilities
+        try:
+            from ...utils.text_processing import all_num_to_text_async
+            normalized = await all_num_to_text_async(normalized, language="ru")
+            logger.debug("Applied number-to-text normalization")
+        except Exception as e:
+            logger.debug(f"Text normalization failed, using original: {e}")
+            
+        # Legacy fallback for migration period
         if self.core and hasattr(self.core, 'all_num_to_text'):
             try:
                 normalized = await asyncio.to_thread(self.core.all_num_to_text, normalized)
+                logger.debug("Applied legacy text normalization")
             except Exception as e:
-                logger.debug(f"Text normalization failed, using original: {e}")
+                logger.debug(f"Legacy text normalization failed: {e}")
                 
         return normalized
         
