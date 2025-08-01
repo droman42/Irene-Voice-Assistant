@@ -70,18 +70,40 @@ Examples:
         action="store_true",
         help="List available deployment profiles and exit"
     )
-    
-    # Runtime options
+    parser.add_argument(
+        "--quiet", "-q",
+        action="store_true",
+        help="Reduce output verbosity"
+    )
     parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug logging"
     )
+    
+    # Command execution options
+    parser.add_argument(
+        "--command", "-e",
+        type=str,
+        help="Execute a single command and exit (like legacy runva_cmdline.py)"
+    )
+    parser.add_argument(
+        "--interactive", "-i",
+        action="store_true",
+        help="Force interactive mode even when --command is specified"
+    )
+    parser.add_argument(
+        "--test-greeting",
+        action="store_true",
+        help="Test greeting command and exit (legacy compatibility)"
+    )
+    
+    # Logging options
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default="INFO",
-        help="Set logging level (default: INFO)"
+        help="Set logging level"
     )
     parser.add_argument(
         "--data-dir",
@@ -217,67 +239,94 @@ async def create_config_from_args(args: argparse.Namespace) -> CoreConfig:
 
 async def main():
     """Main CLI entry point"""
+    # Setup argument parser and parse args
     parser = setup_argument_parser()
     args = parser.parse_args()
     
-    # Handle utility commands
-    if args.check_deps:
-        check_dependencies()
-        return
-    
-    if args.list_profiles:
-        list_deployment_profiles()
-        return
-    
-    # Create configuration
-    try:
-        config = await create_config_from_args(args)
-    except Exception as e:
-        print(f"❌ Configuration error: {e}")
-        sys.exit(1)
-    
-    # Setup logging
+    # Setup logging based on args
+    log_level = getattr(logging, args.log_level)
     logging.basicConfig(
-        level=getattr(logging, config.log_level.value),
+        level=log_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     logger = logging.getLogger(__name__)
     
-    print("🎯 Starting Irene Voice Assistant v13")
-    print("=" * 50)
+    # Handle utility options first (exit early)
+    if args.check_deps:
+        success = check_dependencies()
+        return 0 if success else 1
     
-    # Show component status if in debug mode
-    if config.debug:
-        check_dependencies()
-        print()
+    if args.list_profiles:
+        list_deployment_profiles()
+        return 0
+    
+    # Handle test greeting (legacy compatibility)
+    if args.test_greeting:
+        args.command = "привет"
+        if not args.quiet:
+            print("🧪 Testing greeting command (legacy compatibility mode)")
+    
+    # Create configuration from args
+    try:
+        config = await create_config_from_args(args)
+    except Exception as e:
+        logger.error(f"Configuration error: {e}")
+        print(f"❌ Configuration error: {e}")
+        return 1
+
     
     # Create and start the assistant
     core = AsyncVACore(config)
     
     try:
-        logger.info("Initializing Irene...")
+        if not args.quiet:
+            logger.info("Initializing Irene...")
+            print("🔧 Initializing Irene...")
         await core.start()
         
         profile = core.component_manager.get_deployment_profile()
-        print(f"🚀 Irene started successfully in {profile} mode")
+        if not args.quiet:
+            print(f"🚀 Irene started successfully in {profile} mode")
+            
+            # Show available components
+            component_info = core.component_manager.get_component_info()
+            active_components = [name for name, info in component_info.items() 
+                               if info.initialized]
+            
+            if active_components:
+                print(f"📦 Active components: {', '.join(active_components)}")
+            else:
+                print("📦 Running in minimal mode (no optional components)")
         
-        # Show available components
-        component_info = core.component_manager.get_component_info()
-        active_components = [name for name, info in component_info.items() 
-                           if info.initialized]
+        # Handle single command execution
+        if args.command:
+            try:
+                if not args.quiet:
+                    print(f"🔤 Executing command: '{args.command}'")
+                await core.process_command(args.command)
+                
+                # Exit unless interactive mode is forced
+                if not args.interactive:
+                    if not args.quiet:
+                        print("✅ Command executed successfully")
+                    await core.stop()
+                    return 0
+            except Exception as e:
+                logger.error(f"Error executing command '{args.command}': {e}")
+                print(f"❌ Error executing command: {e}")
+                await core.stop()
+                return 1
         
-        if active_components:
-            print(f"📦 Active components: {', '.join(active_components)}")
-        else:
-            print("📦 Running in minimal mode (no optional components)")
-        
-        print("\n💬 Type 'help' for available commands, or 'quit' to exit")
-        print("-" * 50)
+        # Interactive mode
+        if not args.quiet:
+            print("\n💬 Type 'help' for available commands, or 'quit' to exit")
+            print("-" * 50)
         
         # Main interaction loop
         while core.is_running:
             try:
-                command = input("irene> ").strip()
+                prompt = "irene> " if not args.quiet else "> "
+                command = input(prompt).strip()
                 
                 if command.lower() in ["quit", "exit", "q"]:
                     break
@@ -294,30 +343,30 @@ async def main():
                 await core.process_command(command)
                 
             except KeyboardInterrupt:
-                print("\n\n🛑 Interrupt received, shutting down...")
+                if not args.quiet:
+                    print("\n\n🛑 Interrupt received, shutting down...")
                 break
             except EOFError:
-                print("\n\n👋 EOF received, goodbye!")
+                if not args.quiet:
+                    print("\n\n👋 EOF received, goodbye!")
                 break
             except Exception as e:
                 logger.error(f"Error processing command: {e}")
-                print(f"❌ Error: {e}")
+                if not args.quiet:
+                    print(f"❌ Error: {e}")
     
     except Exception as e:
         logger.error(f"Failed to start Irene: {e}")
-        print(f"❌ Failed to start: {e}")
-        
-        # Suggest dependency installation if likely the issue
-        if "import" in str(e).lower():
-            print("\n💡 This might be a missing dependency issue.")
-            print("Run with --check-deps to see what's missing.")
-        
-        sys.exit(1)
-    
+        print(f"❌ Failed to start Irene: {e}")
+        return 1
     finally:
-        print("\n🛑 Shutting down Irene...")
+        if not args.quiet:
+            print("\n🔄 Shutting down...")
         await core.stop()
-        print("👋 Goodbye!")
+        if not args.quiet:
+            print("👋 Goodbye!")
+    
+    return 0
 
 
 def print_help():
@@ -338,21 +387,154 @@ def print_status(core: AsyncVACore):
     print("\n📊 System Status:")
     print("-" * 20)
     
-    profile = core.component_manager.get_deployment_profile()
-    print(f"Profile: {profile}")
+    # Core status
+    print(f"🔧 Core: {'Running' if core._running else 'Stopped'}")
     
+    # Component status
     component_info = core.component_manager.get_component_info()
-    
     for name, info in component_info.items():
         status_icon = "✅" if info.initialized else "❌"
         print(f"{status_icon} {name.capitalize()}: {'Active' if info.initialized else 'Inactive'}")
     
+    # Plugin status
+    plugin_count = len(core.plugin_manager._plugins)
+    print(f"🔌 Plugins loaded: {plugin_count}")
+    
+    # Deployment profile
+    profile = core.component_manager.get_deployment_profile()
+    print(f"🚀 Deployment profile: {profile}")
     print()
 
 
-if __name__ == "__main__":
+class CLIRunner:
+    """
+    CLI Runner class - Provides command line interface for Irene.
+    
+    Replaces legacy runva_cmdline.py with modern async architecture.
+    """
+    
+    def __init__(self):
+        self.core: Optional[AsyncVACore] = None
+        
+    async def run(self, args: Optional[list[str]] = None) -> int:
+        """Run the CLI with optional argument list"""
+        # Parse arguments
+        parser = setup_argument_parser()
+        parsed_args = parser.parse_args(args)
+        
+        # Set up logging
+        log_level = getattr(logging, parsed_args.log_level)
+        logging.basicConfig(
+            level=log_level,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Handle utility options
+            if parsed_args.check_deps:
+                success = check_dependencies()
+                return 0 if success else 1
+            
+            if parsed_args.list_profiles:
+                list_deployment_profiles()
+                return 0
+            
+            # Handle test greeting (legacy compatibility)
+            if parsed_args.test_greeting:
+                parsed_args.command = "привет"
+                if not parsed_args.quiet:
+                    print("🧪 Testing greeting command (legacy compatibility mode)")
+            
+            # Create configuration
+            config = await create_config_from_args(parsed_args)
+            
+            # Create and start assistant
+            self.core = AsyncVACore(config)
+            
+            if not parsed_args.quiet:
+                print("🔧 Initializing Irene...")
+            await self.core.start()
+            
+            # Handle single command execution
+            if parsed_args.command:
+                if not parsed_args.quiet:
+                    print(f"🔤 Executing command: '{parsed_args.command}'")
+                await self.core.process_command(parsed_args.command)
+                
+                if not parsed_args.interactive:
+                    if not parsed_args.quiet:
+                        print("✅ Command executed successfully")
+                    return 0
+            
+            # Interactive mode
+            return await self._interactive_loop(parsed_args)
+            
+        except Exception as e:
+            logger.error(f"CLI Runner error: {e}")
+            return 1
+        finally:
+            if self.core:
+                await self.core.stop()
+    
+    async def _interactive_loop(self, args) -> int:
+        """Run the interactive command loop"""
+        if not self.core:
+            return 1
+            
+        if not args.quiet:
+            profile = self.core.component_manager.get_deployment_profile()
+            print(f"🚀 Irene started successfully in {profile} mode")
+            print("\n💬 Type 'help' for available commands, or 'quit' to exit")
+            print("-" * 50)
+        
+        try:
+            while self.core.is_running:
+                try:
+                    prompt = "irene> " if not args.quiet else "> "
+                    command = input(prompt).strip()
+                    
+                    if command.lower() in ["quit", "exit", "q"]:
+                        break
+                    elif command.lower() == "help":
+                        print_help()
+                        continue
+                    elif command.lower() == "status":
+                        print_status(self.core)
+                        continue
+                    elif not command:
+                        continue
+                    
+                    await self.core.process_command(command)
+                    
+                except KeyboardInterrupt:
+                    if not args.quiet:
+                        print("\n\n🛑 Interrupt received, shutting down...")
+                    break
+                except EOFError:
+                    if not args.quiet:
+                        print("\n\n👋 EOF received, goodbye!")
+                    break
+                except Exception as e:
+                    logging.getLogger(__name__).error(f"Error processing command: {e}")
+                    if not args.quiet:
+                        print(f"❌ Error: {e}")
+            
+            return 0
+            
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Interactive loop error: {e}")
+            return 1
+
+
+def run_cli() -> int:
+    """Entry point for CLI runner (legacy compatibility)"""
     try:
-        asyncio.run(main())
+        return asyncio.run(main())
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
-        sys.exit(0) 
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(run_cli()) 
