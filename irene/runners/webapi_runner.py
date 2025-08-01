@@ -85,18 +85,13 @@ Examples:
         action="store_true",
         help="Enable debug mode"
     )
-    parser.add_argument(
-        "--quiet", "-q",
-        action="store_true",
-        help="Reduce output verbosity"
-    )
     
     # CORS options
     parser.add_argument(
         "--cors-origins",
         nargs="*",
-        default=["*"],
-        help="Allowed CORS origins (default: *)"
+        default=["http://localhost:3000", "http://127.0.0.1:3000"],
+        help="Allowed CORS origins"
     )
     
     # Logging options
@@ -104,7 +99,25 @@ Examples:
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default="INFO",
-        help="Set logging level"
+        help="Logging level"
+    )
+    parser.add_argument(
+        "--quiet", "-q",
+        action="store_true",
+        help="Suppress startup messages"
+    )
+    
+    # Web component options
+    parser.add_argument(
+        "--enable-microphone",
+        action="store_true",
+        help="Enable microphone input for web API"
+    )
+    parser.add_argument(
+        "--enable-tts",
+        action="store_true",
+        default=True,
+        help="Enable TTS output (default: True)"
     )
     
     return parser
@@ -115,12 +128,10 @@ def check_webapi_dependencies() -> bool:
     try:
         import fastapi  # type: ignore
         import uvicorn  # type: ignore
-        print("✅ Web API dependencies available")
-        print(f"   FastAPI version: {fastapi.__version__}")
-        print(f"   Uvicorn available: yes")
+        logger.info("✅ Web API dependencies available")
         return True
     except ImportError as e:
-        print(f"❌ Web API dependencies missing: {e}")
+        logger.error(f"❌ Web API dependencies missing: {e}")
         print("💡 Install with: uv add irene-voice-assistant[web-api]")
         return False
 
@@ -136,7 +147,8 @@ class WebAPIRunner:
     def __init__(self):
         self.core: Optional[AsyncVACore] = None
         self.app = None
-        self.websocket_connections: list = []
+        self.web_input = None
+        self.web_output = None
         
     async def run(self, args: Optional[list[str]] = None) -> int:
         """Run Web API server mode"""
@@ -166,6 +178,9 @@ class WebAPIRunner:
                 print("🔧 Initializing Irene Web API...")
             await self.core.start()
             
+            # Initialize web components
+            await self._setup_web_components(parsed_args)
+            
             # Create FastAPI app
             self.app = await self._create_fastapi_app(parsed_args)
             
@@ -183,10 +198,10 @@ class WebAPIRunner:
         """Create configuration for Web API mode"""
         # Enable web API, optionally enable other components
         components = ComponentConfig(
-            microphone=False,  # Typically no microphone in API mode
-            tts=True,         # Enable TTS for audio responses
-            audio_output=False, # No direct audio output in API mode
-            web_api=True      # Enable web API
+            microphone=args.enable_microphone,  # Optional microphone in API mode
+            tts=args.enable_tts,               # Enable TTS for audio responses
+            audio_output=False,                # No direct audio output in API mode
+            web_api=True                       # Enable web API
         )
         
         config = CoreConfig(
@@ -195,6 +210,26 @@ class WebAPIRunner:
         )
         
         return config
+    
+    async def _setup_web_components(self, args) -> None:
+        """Setup WebInput and WebOutput components"""
+        from ..inputs.web import WebInput
+        from ..outputs.web import WebOutput
+        
+        # Create web input and output
+        self.web_input = WebInput(host=args.host, port=args.port)
+        self.web_output = WebOutput(host=args.host, port=args.port)
+        
+        # Add to core managers
+        if self.core:
+            # Add web input source
+            await self.core.input_manager.add_source("web", self.web_input)
+            await self.core.input_manager.start_source("web")
+            
+            # Add web output target
+            await self.core.output_manager.add_target("web", self.web_output)
+            
+            logger.info("✅ Web components initialized")
     
     async def _create_fastapi_app(self, args):
         """Create and configure FastAPI application"""
@@ -206,7 +241,7 @@ class WebAPIRunner:
         # Create FastAPI app
         app = FastAPI(
             title="Irene Voice Assistant API",
-            description="Modern async voice assistant API",
+            description="Modern async voice assistant API with WebSocket support",
             version="13.0.0",
             debug=args.debug
         )
@@ -233,154 +268,234 @@ class WebAPIRunner:
         
         class StatusResponse(BaseModel):
             status: str
-            deployment_profile: str
             components: Dict[str, Any]
-            plugins_loaded: int
+            web_clients: int
+            
+        class HistoryResponse(BaseModel):
+            messages: list[Dict[str, Any]]
+            total_count: int
         
-        # Routes
+        # Root endpoint
         @app.get("/", response_class=HTMLResponse)
         async def root():
-            """Root endpoint with API information"""
-            return """
+            """Serve a simple web interface"""
+            html_content = """
+            <!DOCTYPE html>
             <html>
-                <head><title>Irene Voice Assistant API</title></head>
-                <body>
-                    <h1>🤖 Irene Voice Assistant API v13</h1>
-                    <p>Modern async voice assistant API</p>
-                    <ul>
-                        <li><a href="/docs">📚 API Documentation</a></li>
-                        <li><a href="/status">📊 System Status</a></li>
-                        <li><a href="/health">❤️ Health Check</a></li>
-                    </ul>
-                </body>
+            <head>
+                <title>Irene Voice Assistant API</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; }
+                    .container { max-width: 800px; }
+                    .command-form { margin: 20px 0; }
+                    .command-input { width: 60%; padding: 10px; }
+                    .send-btn { padding: 10px 20px; background: #007cba; color: white; border: none; cursor: pointer; }
+                    .messages { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; margin: 20px 0; }
+                    .message { margin: 5px 0; padding: 5px; border-left: 3px solid #007cba; }
+                    .error { border-left-color: #dc3545; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🤖 Irene Voice Assistant</h1>
+                    <p>Modern async voice assistant API - v13.0.0</p>
+                    
+                    <div class="command-form">
+                        <input type="text" id="commandInput" class="command-input" placeholder="Enter command..." />
+                        <button onclick="sendCommand()" class="send-btn">Send Command</button>
+                    </div>
+                    
+                    <div id="messages" class="messages">
+                        <div class="message">Connected to Irene API. Type a command above!</div>
+                    </div>
+                    
+                    <p><strong>API Documentation:</strong> <a href="/docs">/docs</a></p>
+                    <p><strong>WebSocket:</strong> /ws</p>
+                    <p><strong>REST API:</strong> POST /command</p>
+                </div>
+                
+                <script>
+                    const ws = new WebSocket(`ws://${window.location.host}/ws`);
+                    const messages = document.getElementById('messages');
+                    
+                    ws.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        addMessage(data.text || JSON.stringify(data), data.type || 'info');
+                    };
+                    
+                    function addMessage(text, type) {
+                        const div = document.createElement('div');
+                        div.className = 'message' + (type === 'error' ? ' error' : '');
+                        div.textContent = new Date().toLocaleTimeString() + ': ' + text;
+                        messages.appendChild(div);
+                        messages.scrollTop = messages.scrollHeight;
+                    }
+                    
+                    function sendCommand() {
+                        const input = document.getElementById('commandInput');
+                        const command = input.value.trim();
+                        if (command) {
+                            ws.send(JSON.stringify({type: 'command', command: command}));
+                            input.value = '';
+                        }
+                    }
+                    
+                    document.getElementById('commandInput').addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') sendCommand();
+                    });
+                </script>
+            </body>
             </html>
             """
+            return HTMLResponse(content=html_content)
         
-        @app.get("/health")
-        async def health_check():
-            """Health check endpoint"""
-            return {"status": "healthy", "timestamp": asyncio.get_event_loop().time()}
-        
+        # Status endpoint
         @app.get("/status", response_model=StatusResponse)
         async def get_status():
-            """Get system status"""
-            if not self.core:
-                raise HTTPException(status_code=503, detail="Assistant not initialized")
-            
-            component_info = self.core.component_manager.get_component_info()
-            profile = self.core.component_manager.get_deployment_profile()
-            plugin_count = len(self.core.plugin_manager._plugins)
+            """Get assistant status and component information"""
+            components = get_component_status()
+            web_clients = len(self.web_output._clients) if self.web_output else 0
             
             return StatusResponse(
-                status="running" if self.core.is_running else "stopped",
-                deployment_profile=profile,
-                components=component_info,
-                plugins_loaded=plugin_count
+                status="running",
+                components=components,
+                web_clients=web_clients
             )
         
+        # Command execution endpoint
         @app.post("/command", response_model=CommandResponse)
         async def execute_command(request: CommandRequest):
-            """Execute voice assistant command"""
-            if not self.core:
-                raise HTTPException(status_code=503, detail="Assistant not initialized")
-            
+            """Execute a voice assistant command via REST API"""
             try:
-                # Create context if provided
-                context = None
-                if request.context:
-                    # Convert context dict to Context object
-                    pass  # TODO: Implement context conversion
+                if not self.core:
+                    raise HTTPException(status_code=503, detail="Assistant not initialized")
                 
-                # Process command
-                await self.core.process_command(request.command, context)
+                # Process command through the assistant
+                await self.core.process_command(request.command)
                 
                 return CommandResponse(
                     success=True,
-                    response=f"Command '{request.command}' processed successfully"
+                    response=f"Command '{request.command}' processed successfully",
+                    metadata={"processed_via": "rest_api"}
                 )
-            
+                
             except Exception as e:
-                logger.error(f"Error processing command: {e}")
+                logger.error(f"Command execution error: {e}")
                 return CommandResponse(
                     success=False,
                     error=str(e)
                 )
         
+        # Message history endpoint
+        @app.get("/history", response_model=HistoryResponse)
+        async def get_message_history(limit: int = 50):
+            """Get recent message history"""
+            if not self.web_output:
+                raise HTTPException(status_code=503, detail="Web output not available")
+                
+            messages = self.web_output.get_message_history(limit)
+            return HistoryResponse(
+                messages=messages,
+                total_count=len(messages)
+            )
+        
+        # Clear history endpoint
+        @app.post("/history/clear")
+        async def clear_message_history():
+            """Clear message history"""
+            if not self.web_output:
+                raise HTTPException(status_code=503, detail="Web output not available")
+                
+            await self.web_output.clear_history()
+            return {"message": "History cleared successfully"}
+        
+        # WebSocket endpoint
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             """WebSocket endpoint for real-time communication"""
             await websocket.accept()
-            self.websocket_connections.append(websocket)
+            
+            # Add client to web output
+            if self.web_output:
+                await self.web_output.add_client(websocket)
+            
+            # Add connection to web input
+            if self.web_input:
+                await self.web_input.add_websocket_connection(websocket)
             
             try:
                 while True:
-                    # Receive command from client
+                    # Receive message from client
                     data = await websocket.receive_text()
-                    message = json.loads(data)
                     
-                    if message.get("type") == "command":
-                        command = message.get("command", "")
-                        
-                        try:
-                            # Process command (with None check)
-                            if self.core:
-                                await self.core.process_command(command)
-                                
-                                # Send success response
-                                await websocket.send_text(json.dumps({
-                                    "type": "response",
-                                    "success": True,
-                                    "command": command,
-                                    "response": f"Command '{command}' processed"
-                                }))
-                            else:
-                                # Send error response
-                                await websocket.send_text(json.dumps({
-                                    "type": "error",
-                                    "success": False,
-                                    "command": command,
-                                    "error": "Assistant not initialized"
-                                }))
-                        
-                        except Exception as e:
-                            # Send error response
-                            await websocket.send_text(json.dumps({
-                                "type": "error",
-                                "success": False,
-                                "command": command,
-                                "error": str(e)
-                            }))
+                    # Handle message through web input
+                    if self.web_input:
+                        await self.web_input.handle_websocket_message(websocket, data)
                     
-                    elif message.get("type") == "ping":
-                        # Respond to ping
-                        await websocket.send_text(json.dumps({
-                            "type": "pong",
-                            "timestamp": asyncio.get_event_loop().time()
-                        }))
-            
             except WebSocketDisconnect:
-                pass
+                logger.info("WebSocket client disconnected")
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
             finally:
-                if websocket in self.websocket_connections:
-                    self.websocket_connections.remove(websocket)
+                # Remove client from components
+                if self.web_output:
+                    await self.web_output.remove_client(websocket)
+                if self.web_input:
+                    await self.web_input.remove_websocket_connection(websocket)
         
-        # Add startup and shutdown events
-        @app.on_event("startup")
-        async def startup_event():
-            if not args.quiet:
-                print("🚀 Web API server started")
+        # Health check endpoint
+        @app.get("/health")
+        async def health_check():
+            """Health check endpoint"""
+            return {
+                "status": "healthy",
+                "version": "13.0.0",
+                "timestamp": asyncio.get_event_loop().time()
+            }
         
+        # Component info endpoint
+        @app.get("/components")
+        async def get_component_info():
+            """Get detailed component information"""
+            info = {}
+            
+            if self.web_input:
+                info["web_input"] = self.web_input.get_connection_info()
+            
+            if self.web_output:
+                info["web_output"] = {
+                    **self.web_output.get_settings(),
+                    "client_info": self.web_output.get_client_info()
+                }
+            
+            if self.core:
+                info["core"] = {
+                    "input_sources": list(self.core.input_manager._sources.keys()),
+                    "output_targets": list(self.core.output_manager._targets.keys()),
+                    "plugins": self.core.plugin_manager.plugin_count
+                }
+            
+            return info
+        
+        # Shutdown event
         @app.on_event("shutdown")
         async def shutdown_event():
-            if not args.quiet:
-                print("🛑 Web API server stopped")
+            """Handle app shutdown"""
+            logger.info("Shutting down Web API server")
             
-            # Close all WebSocket connections
-            for websocket in self.websocket_connections:
-                try:
-                    await websocket.close()
-                except:
-                    pass
+            # Clean up web components
+            if self.web_input:
+                await self.web_input.stop_listening()
+            
+            if self.web_output:
+                # Notify clients of shutdown
+                await self.web_output.send_system_message("Server shutting down", "shutdown")
+                # Disconnect all clients
+                for client in self.web_output._clients[:]:
+                    try:
+                        await client.close()
+                    except:
+                        pass
         
         return app
     
@@ -417,6 +532,8 @@ class WebAPIRunner:
             protocol = "https" if ssl_config else "http"
             print(f"🌐 Starting Web API server at {protocol}://{args.host}:{args.port}")
             print(f"📚 API docs available at {protocol}://{args.host}:{args.port}/docs")
+            print(f"🌍 Web interface at {protocol}://{args.host}:{args.port}")
+            print(f"🔌 WebSocket at ws://{args.host}:{args.port}/ws")
             print("Press Ctrl+C to stop")
         
         try:
@@ -433,13 +550,11 @@ class WebAPIRunner:
 
 def run_webapi() -> int:
     """Entry point for Web API runner"""
-    runner = WebAPIRunner()
     try:
+        runner = WebAPIRunner()
         return asyncio.run(runner.run())
     except KeyboardInterrupt:
-        print("\n👋 Web API server stopped")
         return 0
-
-
-if __name__ == "__main__":
-    sys.exit(run_webapi()) 
+    except Exception as e:
+        logger.error(f"Failed to start Web API runner: {e}")
+        return 1 
