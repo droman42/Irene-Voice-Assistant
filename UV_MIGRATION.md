@@ -100,9 +100,9 @@ uv pip freeze > requirements.txt
 
 ### Files
 - ✅ `pyproject.toml` - New unified configuration
-- ⚠️  `requirements*.txt` - Legacy files (can be removed after testing)
 - ✅ `.venv/` - UV-managed virtual environment
 - ✅ `uv.lock` - Dependency lockfile for reproducible builds
+- ❌ `requirements*.txt` - **REMOVED** (legacy files no longer needed)
 
 ## Troubleshooting
 
@@ -126,12 +126,15 @@ uv sync
 
 ## Legacy Compatibility
 
-The old pip-based installation still works:
+⚠️  **Legacy requirements.txt files have been removed** as they are no longer needed.
+
+If you need pip compatibility, you can generate requirements files:
 ```bash
-pip install -r requirements.txt
+uv pip freeze > requirements.txt
+uv pip freeze --extra web > requirements-web.txt
 ```
 
-But UV is recommended for:
+UV is recommended for:
 - Faster installations
 - Better dependency management  
 - Modern Python workflow
