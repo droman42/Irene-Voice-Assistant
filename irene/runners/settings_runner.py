@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any
 from ..config.models import CoreConfig, ComponentConfig
 from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
-from ..utils.loader import ComponentLoader, get_component_status
+from ..utils.loader import get_component_status
 
 
 logger = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ Examples:
 def check_settings_dependencies() -> bool:
     """Check if Settings Manager dependencies are available"""
     try:
-        import gradio as gr
+        import gradio as gr  # type: ignore
         print("✅ Settings Manager dependencies available")
         print(f"   Gradio version: {gr.__version__}")
         return True
@@ -171,7 +171,7 @@ class SettingsManagerRunner:
     
     async def _create_gradio_interface(self, args):
         """Create Gradio web interface for settings management"""
-        import gradio as gr
+        import gradio as gr  # type: ignore
         
         # Disable Gradio analytics
         import os
@@ -222,6 +222,8 @@ class SettingsManagerRunner:
                         return status, components
                     
                     async def start_assistant():
+                        if not self.core:
+                            return "Error: Core not initialized", "Core not available"
                         try:
                             await self.core.start()
                             return get_status_info()
@@ -229,6 +231,8 @@ class SettingsManagerRunner:
                             return f"Error: {e}", str(e)
                     
                     async def stop_assistant():
+                        if not self.core:
+                            return "Error: Core not initialized", "Core not available"
                         try:
                             await self.core.stop()
                             return get_status_info()
@@ -282,6 +286,11 @@ class SettingsManagerRunner:
                     )
                     
                     async def save_configuration(mic, tts, audio, web):
+                        if not self.config_manager:
+                            return "❌ Error: Config manager not initialized"
+                        if not self.core:
+                            return "❌ Error: Core not initialized"
+                            
                         try:
                             # Update component configuration
                             new_components = ComponentConfig(
@@ -334,9 +343,13 @@ class SettingsManagerRunner:
                                 for name, plugin in plugins.items():
                                     info += f"📦 {name}\n"
                                     info += f"   Version: {plugin.version}\n"
-                                    if hasattr(plugin, 'get_triggers'):
-                                        triggers = plugin.get_triggers()
-                                        info += f"   Triggers: {', '.join(triggers[:3])}{'...' if len(triggers) > 3 else ''}\n"
+                                    # Check if plugin has get_triggers method (CommandPlugin specific)
+                                    if hasattr(plugin, 'get_triggers') and callable(getattr(plugin, 'get_triggers')):
+                                        try:
+                                            triggers = plugin.get_triggers()  # type: ignore
+                                            info += f"   Triggers: {', '.join(triggers[:3])}{'...' if len(triggers) > 3 else ''}\n"
+                                        except:
+                                            pass
                                     info += "\n"
                                 return info
                             else:
@@ -401,6 +414,10 @@ class SettingsManagerRunner:
     
     async def _launch_interface(self, args) -> int:
         """Launch the Gradio interface"""
+        if not self.interface:
+            logger.error("Interface not initialized")
+            return 1
+            
         try:
             if not args.quiet:
                 print(f"🌐 Starting Settings Manager at http://{args.host}:{args.port}")

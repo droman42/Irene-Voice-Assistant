@@ -16,7 +16,7 @@ import json
 from ..config.models import CoreConfig, ComponentConfig
 from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
-from ..utils.loader import ComponentLoader, get_component_status
+from ..utils.loader import get_component_status
 
 
 logger = logging.getLogger(__name__)
@@ -113,8 +113,8 @@ Examples:
 def check_webapi_dependencies() -> bool:
     """Check if Web API dependencies are available"""
     try:
-        import fastapi
-        import uvicorn
+        import fastapi  # type: ignore
+        import uvicorn  # type: ignore
         print("✅ Web API dependencies available")
         print(f"   FastAPI version: {fastapi.__version__}")
         print(f"   Uvicorn available: yes")
@@ -198,10 +198,10 @@ class WebAPIRunner:
     
     async def _create_fastapi_app(self, args):
         """Create and configure FastAPI application"""
-        from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-        from fastapi.middleware.cors import CORSMiddleware
-        from fastapi.responses import HTMLResponse
-        from pydantic import BaseModel
+        from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore
+        from fastapi.middleware.cors import CORSMiddleware  # type: ignore
+        from fastapi.responses import HTMLResponse  # type: ignore
+        from pydantic import BaseModel  # type: ignore
         
         # Create FastAPI app
         app = FastAPI(
@@ -322,16 +322,25 @@ class WebAPIRunner:
                         command = message.get("command", "")
                         
                         try:
-                            # Process command
-                            await self.core.process_command(command)
-                            
-                            # Send success response
-                            await websocket.send_text(json.dumps({
-                                "type": "response",
-                                "success": True,
-                                "command": command,
-                                "response": f"Command '{command}' processed"
-                            }))
+                            # Process command (with None check)
+                            if self.core:
+                                await self.core.process_command(command)
+                                
+                                # Send success response
+                                await websocket.send_text(json.dumps({
+                                    "type": "response",
+                                    "success": True,
+                                    "command": command,
+                                    "response": f"Command '{command}' processed"
+                                }))
+                            else:
+                                # Send error response
+                                await websocket.send_text(json.dumps({
+                                    "type": "error",
+                                    "success": False,
+                                    "command": command,
+                                    "error": "Assistant not initialized"
+                                }))
                         
                         except Exception as e:
                             # Send error response
@@ -377,7 +386,11 @@ class WebAPIRunner:
     
     async def _start_server(self, args) -> int:
         """Start the FastAPI server with uvicorn"""
-        import uvicorn
+        import uvicorn  # type: ignore
+        
+        if not self.app:
+            logger.error("FastAPI app not initialized")
+            return 1
         
         # Configure SSL if provided
         ssl_config = {}

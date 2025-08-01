@@ -16,7 +16,7 @@ from typing import Optional
 from ..config.models import CoreConfig, ComponentConfig
 from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
-from ..utils.loader import ComponentLoader, get_component_status
+from ..utils.loader import get_component_status
 
 
 logger = logging.getLogger(__name__)
@@ -105,8 +105,8 @@ Examples:
 def check_vosk_dependencies() -> bool:
     """Check if VOSK dependencies are available"""
     try:
-        import vosk
-        import sounddevice as sd
+        import vosk  # type: ignore
+        import sounddevice as sd  # type: ignore
         print("✅ VOSK dependencies available")
         print(f"   VOSK version: {vosk.__version__ if hasattr(vosk, '__version__') else 'unknown'}")
         print(f"   Sounddevice available: yes")
@@ -120,7 +120,7 @@ def check_vosk_dependencies() -> bool:
 def list_audio_devices():
     """List available audio input devices"""
     try:
-        import sounddevice as sd
+        import sounddevice as sd  # type: ignore
         print("🎤 Available Audio Input Devices:")
         print("=" * 50)
         devices = sd.query_devices()
@@ -210,8 +210,8 @@ class VoskRunner:
     
     async def _initialize_vosk(self, args):
         """Initialize VOSK model and audio components"""
-        import vosk
-        import sounddevice as sd
+        import vosk  # type: ignore
+        import sounddevice as sd  # type: ignore
         
         # Create audio queue
         self.audio_queue = queue.Queue()
@@ -246,7 +246,7 @@ class VoskRunner:
             """Audio callback for sounddevice"""
             if status:
                 logger.warning(f"Audio status: {status}")
-            if not self.mic_blocked:
+            if not self.mic_blocked and self.audio_queue:
                 self.audio_queue.put(bytes(indata))
         
         self.audio_stream = sd.RawInputStream(
@@ -284,6 +284,16 @@ class VoskRunner:
         """Main speech recognition loop"""
         import json
         
+        if not self.audio_stream:
+            logger.error("Audio stream not initialized")
+            return 1
+        if not self.audio_queue:
+            logger.error("Audio queue not initialized")
+            return 1
+        if not self.recognizer:
+            logger.error("VOSK recognizer not initialized")
+            return 1
+        
         try:
             # Start audio stream
             self.audio_stream.start()
@@ -318,7 +328,8 @@ class VoskRunner:
                             
                             try:
                                 # Process command with assistant
-                                await self.core.process_command(text)
+                                if self.core:
+                                    await self.core.process_command(text)
                             except Exception as e:
                                 logger.error(f"Error processing command '{text}': {e}")
                             finally:
