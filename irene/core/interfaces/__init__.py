@@ -10,6 +10,7 @@ from .command import CommandPlugin
 from .tts import TTSPlugin
 from .audio import AudioPlugin
 from .input import InputPlugin
+from .webapi import WebAPIPlugin
 
 __all__ = [
     "PluginInterface",
@@ -17,5 +18,6 @@ __all__ = [
     "CommandPlugin",
     "TTSPlugin",
     "AudioPlugin", 
-    "InputPlugin"
+    "InputPlugin",
+    "WebAPIPlugin"
 ] 

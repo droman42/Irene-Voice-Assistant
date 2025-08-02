@@ -1,23 +1,23 @@
 """
-Console Audio Plugin - Debug audio output
+Console Audio Provider - Debug audio output
 
-Replaces legacy plugin_playwav_consolewav.py with modern async architecture.
-Provides debug audio output by printing file information to console.
+Converted from irene/plugins/builtin/console_audio_plugin.py to provider pattern.
+Provides audio playback by printing file information to console for debugging purposes.
 """
 
 import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, List, AsyncIterator
 
-from ...core.interfaces.audio import AudioPlugin
+from .base import AudioProvider
 
 logger = logging.getLogger(__name__)
 
 
-class ConsoleAudioPlugin(AudioPlugin):
+class ConsoleAudioProvider(AudioProvider):
     """
-    Console audio plugin for debugging audio playback.
+    Console audio provider for debugging purposes.
     
     Features:
     - Prints audio file information instead of playing
@@ -27,72 +27,41 @@ class ConsoleAudioPlugin(AudioPlugin):
     - Useful for testing and debugging
     """
     
-    @property
-    def name(self) -> str:
-        return "console_audio"
+    def __init__(self, config: Dict[str, Any]):
+        """
+        Initialize ConsoleAudioProvider with configuration.
         
-    @property
-    def version(self) -> str:
-        return "1.0.0"
+        Args:
+            config: Provider configuration including color_output, timing_simulation
+        """
+        super().__init__(config)
         
-    @property
-    def description(self) -> str:
-        return "Debug audio output to console with timing simulation"
+        # Configuration values
+        self.color_output = config.get("color_output", True)
+        self.timing_simulation = config.get("timing_simulation", True)
+        self.prefix = config.get("prefix", "[CONSOLE AUDIO] ")
+        self.simulate_delay = config.get("simulate_delay", 1.0)  # seconds per file
         
-    @property
-    def dependencies(self) -> list[str]:
-        """No dependencies for console audio"""
-        return []
-        
-    @property
-    def optional_dependencies(self) -> list[str]:
-        """Optional termcolor for colored output"""
-        return ["termcolor"]
-        
-    # Additional metadata for PluginRegistry discovery
-    @property
-    def enabled_by_default(self) -> bool:
-        """Console audio enabled by default for debugging"""
-        return True
-        
-    @property  
-    def category(self) -> str:
-        """Plugin category"""
-        return "audio"
-        
-    @property
-    def platforms(self) -> list[str]:
-        """Supported platforms (empty = all platforms)"""
-        return []
-        
-    def __init__(self):
-        super().__init__()
-        self._available = True  # Always available
+        # Runtime state
         self._current_playback = None
         self._volume = 1.0
         self._output_device = "console"
-        self._simulate_timing = True
         
         # Try to import termcolor for colored output
         try:
             import termcolor  # type: ignore
             self._termcolor_available = True
             self._colored_print = termcolor.cprint
+            logger.debug("Console audio provider: termcolor available")
         except ImportError:
             self._termcolor_available = False
             self._colored_print = None
-            
-        logger.info("Console audio backend available (debug mode)")
-            
-    def is_available(self) -> bool:
-        """Check if console backend is available (always True)"""
-        return self._available
-        
-    async def initialize(self, core) -> None:
-        """Initialize the audio plugin"""
-        await super().initialize(core)
-        logger.info("Console audio plugin initialized successfully")
-            
+            logger.debug("Console audio provider: termcolor not available, using plain text")
+    
+    async def is_available(self) -> bool:
+        """Console audio is always available"""
+        return True
+    
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """
         'Play' an audio file by printing information to console.
@@ -108,7 +77,7 @@ class ConsoleAudioPlugin(AudioPlugin):
         try:
             volume = kwargs.get('volume', self._volume)
             device = kwargs.get('device', self._output_device)
-            simulate_timing = kwargs.get('simulate_timing', self._simulate_timing)
+            simulate_timing = kwargs.get('simulate_timing', self.timing_simulation)
             
             # Get file information
             file_size = file_path.stat().st_size
@@ -134,26 +103,30 @@ class ConsoleAudioPlugin(AudioPlugin):
         except Exception as e:
             logger.error(f"Failed to process audio file {file_path}: {e}")
             raise RuntimeError(f"Console audio processing failed: {e}")
-            
-    async def play_stream(self, audio_data: bytes, format: str = "wav", **kwargs) -> None:
+    
+    async def play_stream(self, audio_stream: AsyncIterator[bytes], **kwargs) -> None:
         """
         'Play' audio from a byte stream by printing information.
         
         Args:
-            audio_data: Raw audio data
-            format: Audio format
-            **kwargs: Additional parameters
+            audio_stream: Async iterator of audio data chunks
+            **kwargs: volume, device, simulate_timing
         """
         try:
             volume = kwargs.get('volume', self._volume)
             device = kwargs.get('device', self._output_device)
-            simulate_timing = kwargs.get('simulate_timing', self._simulate_timing)
+            simulate_timing = kwargs.get('simulate_timing', self.timing_simulation)
+            
+            # Collect stream data to get size
+            audio_data = b''
+            async for chunk in audio_stream:
+                audio_data += chunk
             
             # Create stream info
             stream_info = {
                 'type': 'audio stream',
                 'size': f"{len(audio_data):,} bytes",
-                'format': format,
+                'format': 'stream',
                 'volume': f"{volume:.2f}",
                 'device': device
             }
@@ -170,13 +143,68 @@ class ConsoleAudioPlugin(AudioPlugin):
         except Exception as e:
             logger.error(f"Failed to process audio stream: {e}")
             raise RuntimeError(f"Console audio stream processing failed: {e}")
-            
+    
+    def get_parameter_schema(self) -> Dict[str, Any]:
+        """Return schema for provider-specific parameters"""
+        return {
+            "volume": {
+                "type": "number",
+                "description": "Playback volume",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 1.0
+            },
+            "device": {
+                "type": "string",
+                "description": "Console output mode",
+                "options": ["console", "console_color", "console_silent"],
+                "default": "console"
+            },
+            "simulate_timing": {
+                "type": "boolean",
+                "description": "Simulate playback timing",
+                "default": True
+            }
+        }
+    
+    def get_supported_formats(self) -> List[str]:
+        """Get list of supported audio formats (all formats for console)"""
+        return ['wav', 'mp3', 'ogg', 'flac', 'aiff', 'au', 'raw', 'm4a', 'wma', 'any']
+    
+    async def set_volume(self, volume: float) -> None:
+        """Set playback volume"""
+        if not 0.0 <= volume <= 1.0:
+            raise ValueError("Volume must be between 0.0 and 1.0")
+        self._volume = volume
+        await self._print_message(f"🔊 Volume set to {volume:.2f}", "blue")
+    
     async def stop_playback(self) -> None:
         """Stop current audio 'playback'"""
         if self._current_playback:
             self._current_playback = None
             await self._print_message("🛑 Audio playback stopped", "yellow")
-                
+    
+    def get_provider_name(self) -> str:
+        """Get unique provider identifier"""
+        return "console"
+    
+    def get_capabilities(self) -> Dict[str, Any]:
+        """Return provider capabilities information"""
+        return {
+            "formats": self.get_supported_formats(),
+            "features": [
+                "debug_output",
+                "colored_text" if self._termcolor_available else "plain_text",
+                "timing_simulation",
+                "all_formats",
+                "no_dependencies"
+            ],
+            "concurrent_playback": False,
+            "devices": True,
+            "quality": "debug",
+            "speed": "instant"
+        }
+    
     async def pause_playback(self) -> None:
         """Pause current audio 'playback'"""
         await self._print_message("⏸️  Audio playback paused", "yellow")
@@ -184,11 +212,7 @@ class ConsoleAudioPlugin(AudioPlugin):
     async def resume_playback(self) -> None:
         """Resume paused audio 'playback'"""
         await self._print_message("▶️  Audio playback resumed", "green")
-        
-    def get_supported_formats(self) -> List[str]:
-        """Get list of supported audio formats (all formats for console)"""
-        return ['wav', 'mp3', 'ogg', 'flac', 'aiff', 'au', 'raw', 'm4a', 'wma', 'any']
-        
+    
     def get_playback_devices(self) -> List[Dict[str, Any]]:
         """Get list of available audio output devices"""
         return [
@@ -197,56 +221,82 @@ class ConsoleAudioPlugin(AudioPlugin):
             {'id': 'console_silent', 'name': 'Console Silent Mode', 'default': False}
         ]
         
-    async def set_output_device(self, device_id: Union[str, int]) -> None:
+    async def set_output_device(self, device_id: str) -> None:
         """Set the audio output device"""
         valid_devices = ['console', 'console_color', 'console_silent']
-        device_str = str(device_id)
+        if device_id not in valid_devices:
+            raise ValueError(f"Invalid device ID: {device_id}. Valid options: {valid_devices}")
+        self._output_device = device_id
+        await self._print_message(f"🔧 Output device set to: {device_id}", "blue")
+    
+    def get_volume(self) -> float:
+        """Get current playback volume"""
+        return self._volume
         
-        if device_str not in valid_devices:
-            logger.warning(f"Unknown console device: {device_id}, using 'console'")
-            device_str = 'console'
+    def is_playing(self) -> bool:
+        """Check if audio is currently playing"""
+        return self._current_playback is not None
+    
+    async def validate_parameters(self, **kwargs) -> bool:
+        """Validate provider-specific parameters"""
+        try:
+            if "volume" in kwargs:
+                volume = kwargs["volume"]
+                if not isinstance(volume, (int, float)) or not 0.0 <= volume <= 1.0:
+                    return False
+                    
+            if "device" in kwargs:
+                device = kwargs["device"]
+                valid_devices = ['console', 'console_color', 'console_silent']
+                if device not in valid_devices:
+                    return False
+                    
+            if "simulate_timing" in kwargs:
+                if not isinstance(kwargs["simulate_timing"], bool):
+                    return False
+                    
+            return True
+        except (ValueError, TypeError):
+            return False
+    
+    async def configure(self, config: Dict[str, Any]) -> None:
+        """Update provider configuration at runtime"""
+        self.config.update(config)
+        
+        # Update settings
+        if "color_output" in config:
+            self.color_output = config["color_output"]
             
-        self._output_device = device_str
-        await self._print_message(f"📻 Console audio device set to: {device_str}", "blue")
-        
-    async def set_volume(self, volume: float) -> None:
-        """Set playback volume (0.0 to 1.0)"""
-        if volume < 0.0 or volume > 1.0:
-            raise ValueError("Volume must be between 0.0 and 1.0")
+        if "timing_simulation" in config:
+            self.timing_simulation = config["timing_simulation"]
             
-        self._volume = volume
-        await self._print_message(f"🔊 Console audio volume set to: {volume:.2f}", "blue")
-        
-    async def set_timing_simulation(self, enabled: bool) -> None:
-        """Enable or disable playback timing simulation"""
-        self._simulate_timing = enabled
-        status = "enabled" if enabled else "disabled"
-        await self._print_message(f"⏱️  Timing simulation {status}", "blue")
-        
+        if "prefix" in config:
+            self.prefix = config["prefix"]
+            
+        if "simulate_delay" in config:
+            self.simulate_delay = config["simulate_delay"]
+            
+        logger.debug(f"Console audio provider configuration updated: {config}")
+    
+    # Helper methods
     async def _print_playback_info(self, info: Dict[str, Any]) -> None:
-        """Print playback information to console"""
+        """Print formatted playback information"""
         if self._output_device == 'console_silent':
             return
             
-        # Create formatted output
-        header = "🎵 CONSOLE AUDIO PLAYBACK 🎵"
-        separator = "=" * len(header)
-        
-        lines = [
-            separator,
-            header,
-            separator
-        ]
-        
-        for key, value in info.items():
-            lines.append(f"  {key.capitalize()}: {value}")
-            
-        lines.append(separator)
-        
-        # Print with color if available and enabled
         use_color = (self._termcolor_available and 
                     self._output_device == 'console_color' and 
                     self._colored_print)
+        
+        lines = [
+            "┌─ Console Audio Playback ─────────────────┐",
+            f"│ File: {info.get('file', info.get('type', 'Unknown')):35} │",
+            f"│ Size: {info['size']:35} │",
+            f"│ Format: {info['format']:33} │",
+            f"│ Volume: {info['volume']:33} │",
+            f"│ Device: {info['device']:33} │",
+            "└──────────────────────────────────────────┘"
+        ]
         
         for line in lines:
             if use_color and self._colored_print:
@@ -267,9 +317,9 @@ class ConsoleAudioPlugin(AudioPlugin):
                     self._colored_print)
         
         if use_color and self._colored_print:
-            self._colored_print(f"[CONSOLE AUDIO] {message}", color)
+            self._colored_print(f"{self.prefix}{message}", color)
         else:
-            print(f"[CONSOLE AUDIO] {message}")
+            print(f"{self.prefix}{message}")
             
     async def _simulate_playback_duration(self, file_path: Path, file_size: int) -> None:
         """Simulate playback duration based on file characteristics"""

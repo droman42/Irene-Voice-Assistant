@@ -1,14 +1,17 @@
 """
-Microphone Input Source - Speech recognition input
+Microphone Input Source - Pure audio capture
 
-Provides speech-to-text input using VOSK speech recognition engines.
-This is an optional component that requires additional dependencies.
+REFACTORED: Pure audio capture input source that delegates ASR processing
+to UniversalASRPlugin for clean separation of concerns.
+
+Responsibilities changed:
+- BEFORE: Audio capture + VOSK ASR processing
+- AFTER: Audio capture only, delegates ASR to UniversalASRPlugin
 """
 
 import asyncio
 import logging
 import queue
-import json
 from typing import AsyncIterator, Dict, Any, Optional
 from pathlib import Path
 
@@ -19,39 +22,43 @@ logger = logging.getLogger(__name__)
 
 class MicrophoneInput(InputSource):
     """
-    Microphone input source with VOSK speech recognition.
+    REFACTORED: Pure audio capture input source
     
-    Requires VOSK and sounddevice for operation.
-    Gracefully handles missing dependencies.
+    Responsibilities changed:
+    - BEFORE: Audio capture + VOSK ASR processing
+    - AFTER: Audio capture only, delegates ASR to UniversalASRPlugin
     """
     
-    def __init__(self, model_path: Optional[str] = None, device_id: Optional[int] = None,
+    def __init__(self, asr_plugin: Optional[Any] = None, device_id: Optional[int] = None,
                  samplerate: int = 16000, blocksize: int = 8000):
-        self.model_path = model_path or "model"
+        """Initialize microphone input with optional ASR plugin injection
+        
+        Args:
+            asr_plugin: UniversalASRPlugin instance for ASR processing
+            device_id: Audio device ID (None for default)
+            samplerate: Audio sample rate in Hz
+            blocksize: Audio block size for processing
+        """
+        # Remove VOSK-specific parameters - now handled by ASR plugin
         self.device_id = device_id
         self.samplerate = samplerate
         self.blocksize = blocksize
+        self.asr_plugin = asr_plugin  # Injected ASR plugin
         self._listening = False
-        self._recognizer = None
-        self._model = None
         self._audio_queue = None
         self._audio_stream = None
-        self._recognition_task = None
         
-        # Check for required dependencies
+        # Check for audio dependencies only (no VOSK required)
         try:
-            import vosk  # type: ignore
             import sounddevice as sd  # type: ignore
-            self._vosk_available = True
             self._sd_available = True
         except ImportError as e:
-            logger.warning(f"Microphone input dependencies not available: {e}")
-            self._vosk_available = False
+            logger.warning(f"Audio input dependencies not available: {e}")
             self._sd_available = False
         
     def is_available(self) -> bool:
-        """Check if microphone input is available"""
-        return self._vosk_available and self._sd_available
+        """Check if audio capture is available"""
+        return self._sd_available
         
     def get_input_type(self) -> str:
         """Get input type identifier"""
@@ -60,20 +67,17 @@ class MicrophoneInput(InputSource):
     def get_settings(self) -> Dict[str, Any]:
         """Get current microphone settings"""
         return {
-            "model_path": self.model_path,
             "device_id": self.device_id,
             "samplerate": self.samplerate,
             "blocksize": self.blocksize,
-            "vosk_available": self._vosk_available,
-            "sounddevice_available": self._sd_available
+            "sounddevice_available": self._sd_available,
+            "asr_plugin_available": self.asr_plugin is not None
         }
         
     async def configure_input(self, **settings) -> None:
         """Configure microphone settings"""
         if "device_id" in settings:
             self.device_id = settings["device_id"]
-        if "model_path" in settings:
-            self.model_path = settings["model_path"]
         if "samplerate" in settings:
             self.samplerate = settings["samplerate"]
         if "blocksize" in settings:
@@ -118,35 +122,23 @@ class MicrophoneInput(InputSource):
             return []
         
     async def start_listening(self) -> None:
-        """Initialize and start microphone listening"""
+        """Initialize and start audio capture (NO VOSK loading)"""
         if not self.is_available():
-            raise ComponentNotAvailable("Microphone dependencies (VOSK, sounddevice) not available")
+            raise ComponentNotAvailable("Audio dependencies (sounddevice) not available")
             
         try:
-            import vosk  # type: ignore
             import sounddevice as sd  # type: ignore
             
-            # Load VOSK model
-            model_path = Path(self.model_path)
-            if not model_path.exists():
-                raise ComponentNotAvailable(f"VOSK model not found at: {model_path}")
-                
-            logger.info(f"Loading VOSK model from: {model_path}")
-            self._model = vosk.Model(str(model_path))
-            
-            # Get audio device info and sample rate
+            # Audio device setup only - no VOSK model loading
             if self.device_id is not None:
                 device_info = sd.query_devices(self.device_id, 'input')
                 if self.samplerate is None:
                     self.samplerate = int(device_info['default_samplerate'])
             
-            # Create recognizer
-            self._recognizer = vosk.KaldiRecognizer(self._model, self.samplerate)
-            
             # Initialize audio queue
             self._audio_queue = queue.Queue()
             
-            # Set up audio callback
+            # Set up audio callback (unchanged)
             def audio_callback(indata, frames, time, status):
                 """Audio callback for sounddevice"""
                 if status:
@@ -168,19 +160,19 @@ class MicrophoneInput(InputSource):
             self._listening = True
             self._audio_stream.start()
             
-            logger.info(f"Microphone listening started - Device: {self.device_id or 'default'}, "
-                       f"Sample rate: {self.samplerate} Hz, Block size: {self.blocksize}")
+            logger.info(f"Audio capture started - Device: {self.device_id or 'default'}, "
+                       f"Sample rate: {self.samplerate} Hz")
             
         except Exception as e:
-            logger.error(f"Failed to start microphone: {e}")
+            logger.error(f"Failed to start audio capture: {e}")
             await self._cleanup()
-            raise ComponentNotAvailable(f"Microphone initialization failed: {e}")
+            raise ComponentNotAvailable(f"Audio initialization failed: {e}")
         
     async def stop_listening(self) -> None:
-        """Stop microphone listening"""
+        """Stop audio capture"""
         self._listening = False
         await self._cleanup()
-        logger.info("Microphone listening stopped")
+        logger.info("Audio capture stopped")
         
     def is_listening(self) -> bool:
         """Check if currently listening"""
@@ -188,55 +180,47 @@ class MicrophoneInput(InputSource):
         
     async def listen(self) -> AsyncIterator[str]:
         """
-        Listen for speech and yield recognized commands.
+        REFACTORED: Audio capture → ASR processing separation
         
-        Yields recognized speech commands as they are detected.
+        Now: Audio capture → UniversalASRPlugin → Text commands
         """
-        if not self._listening or not self._audio_queue or not self._recognizer:
+        if not self._listening or not self._audio_queue:
             return
             
-        logger.info("Starting speech recognition...")
+        logger.info("Starting audio capture with ASR processing...")
         
         while self._listening:
             try:
-                # Get audio data from queue (non-blocking with timeout)
+                # Get audio data from queue
                 try:
                     data = await asyncio.to_thread(self._audio_queue.get, timeout=1.0)
                 except queue.Empty:
-                    # No audio data, continue listening
                     await asyncio.sleep(0.1)
                     continue
                 
-                # Process audio with VOSK
-                if self._recognizer.AcceptWaveform(data):
-                    # Complete recognition result
-                    result = self._recognizer.Result()
-                    result_data = json.loads(result)
-                    text = result_data.get("text", "").strip()
-                    
-                    if text:
-                        logger.info(f"Speech recognized: '{text}'")
-                        yield text
-                        
-                # Optional: Handle partial results for debugging
-                # else:
-                #     partial = self._recognizer.PartialResult()
-                #     partial_data = json.loads(partial)
-                #     partial_text = partial_data.get("partial", "")
-                #     if partial_text:
-                #         logger.debug(f"Partial recognition: '{partial_text}'")
+                # Process audio with ASR plugin (NEW: clean separation)
+                if self.asr_plugin:
+                    try:
+                        text = await self.asr_plugin.transcribe_audio(data)
+                        if text.strip():
+                            logger.info(f"Speech recognized: '{text}'")
+                            yield text
+                    except Exception as e:
+                        logger.error(f"ASR processing error: {e}")
+                        await asyncio.sleep(0.1)
+                else:
+                    logger.warning("No ASR plugin available - audio captured but not processed")
+                    await asyncio.sleep(0.1)
                 
             except Exception as e:
-                logger.error(f"Error in speech recognition: {e}")
-                # Continue listening even if there's an error
+                logger.error(f"Error in audio processing: {e}")
                 await asyncio.sleep(0.1)
                 
     async def get_recognition_info(self) -> Dict[str, Any]:
         """Get current recognition status and info"""
         return {
             "listening": self._listening,
-            "model_loaded": self._model is not None,
-            "recognizer_ready": self._recognizer is not None,
+            "asr_plugin_available": self.asr_plugin is not None,
             "audio_stream_active": self._audio_stream is not None and self._audio_stream.active,
             "queue_size": self._audio_queue.qsize() if self._audio_queue else 0,
             "audio_devices": self.list_audio_devices()
@@ -260,8 +244,5 @@ class MicrophoneInput(InputSource):
                         break
                 self._audio_queue = None
                 
-            self._recognizer = None
-            self._model = None
-            
         except Exception as e:
-            logger.error(f"Error during microphone cleanup: {e}") 
+            logger.error(f"Error during audio cleanup: {e}") 

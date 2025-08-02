@@ -204,26 +204,33 @@ class InputManager:
         logger.info("InputManager initialized")
         
     async def _discover_input_sources(self) -> None:
-        """Discover and initialize available input sources"""
+        """UPDATED: Inject ASR plugin into microphone input"""
         try:
-            # Add CLI input (always available) - now using modern implementation
+            # Add CLI input (always available)
             from .cli import CLIInput
             cli_input = CLIInput()
             await self.add_source("cli", cli_input)
             
-            # Try to add microphone input if available
+            # Try to add microphone input with ASR plugin injection
             try:
                 from .microphone import MicrophoneInput
-                mic_input = MicrophoneInput()
+                
+                # Get ASR plugin from core
+                asr_plugin = None
+                if hasattr(self.component_manager, 'core'):
+                    asr_plugin = self.component_manager.core.plugin_manager.get_plugin("universal_asr")
+                
+                mic_input = MicrophoneInput(asr_plugin=asr_plugin)
                 if mic_input.is_available():
                     await self.add_source("microphone", mic_input)
             except (ImportError, ComponentNotAvailable) as e:
                 logger.info(f"Microphone input not available: {e}")
                 
-            # Try to add web input if available
+            # Try to add web input with core reference for ASR
             try:
                 from .web import WebInput
                 web_input = WebInput()
+                web_input.core = self.component_manager.core  # Inject core reference
                 if web_input.is_available():
                     await self.add_source("web", web_input)
             except (ImportError, ComponentNotAvailable) as e:

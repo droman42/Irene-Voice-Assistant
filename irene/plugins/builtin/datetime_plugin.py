@@ -11,10 +11,11 @@ from typing import List, Optional, Dict, Any
 
 from ...core.context import Context
 from ...core.commands import CommandResult
+from ...core.interfaces.webapi import WebAPIPlugin
 from ..base import BaseCommandPlugin
 
 
-class DateTimePlugin(BaseCommandPlugin):
+class DateTimePlugin(BaseCommandPlugin, WebAPIPlugin):
     """
     DateTime plugin providing date and time information.
     
@@ -23,6 +24,7 @@ class DateTimePlugin(BaseCommandPlugin):
     - Current time with natural language
     - Configurable time format options
     - Russian language support
+    - Web API endpoints for datetime operations
     """
     
     @property
@@ -35,7 +37,7 @@ class DateTimePlugin(BaseCommandPlugin):
         
     @property
     def description(self) -> str:
-        return "Date and time queries with natural language formatting"
+        return "Date and time queries with natural language formatting and web API"
         
     @property
     def dependencies(self) -> list[str]:
@@ -110,6 +112,7 @@ class DateTimePlugin(BaseCommandPlugin):
             "skip_minutes_when_zero": True  # Don't say minutes if zero
         }
         
+    # BaseCommandPlugin interface - existing voice functionality    
     async def _handle_command_impl(self, command: str, context: Context) -> CommandResult:
         """Handle datetime commands"""
         command_lower = command.lower().strip()
@@ -123,17 +126,177 @@ class DateTimePlugin(BaseCommandPlugin):
             return await self._handle_time_request(context)
         else:
             return CommandResult.error_result("Неизвестная команда даты/времени")
+    
+    # DateTime functionality methods (used by both voice and API)
+    def get_current_datetime_info(self) -> Dict[str, Any]:
+        """Get comprehensive current datetime information"""
+        now = datetime.now()
+        weekday_en = now.strftime("%A")
+        weekday_ru = self.weekdays_ru[now.weekday()]
+        
+        return {
+            "datetime": now.isoformat(),
+            "date": now.strftime("%Y-%m-%d"),
+            "time": now.strftime("%H:%M:%S"),
+            "timezone": str(now.astimezone().tzinfo),
+            "weekday": weekday_en,
+            "weekday_ru": weekday_ru,
+            "unix_timestamp": now.timestamp(),
+            "day": now.day,
+            "month": now.month,
+            "year": now.year,
+            "hour": now.hour,
+            "minute": now.minute,
+            "second": now.second,
+            "formatted_date_ru": self._format_date_russian(now),
+            "formatted_time_ru": self._format_time_natural(now.hour, now.minute)
+        }
+    
+    def format_datetime_custom(self, timestamp: Optional[float] = None, format_str: str = "%Y-%m-%d %H:%M:%S") -> Dict[str, Any]:
+        """Format datetime with custom format string"""
+        dt = datetime.fromtimestamp(timestamp) if timestamp else datetime.now()
+        
+        return {
+            "formatted": dt.strftime(format_str),
+            "original": dt.isoformat(),
+            "timestamp": dt.timestamp()
+        }
+    
+    def get_time_in_timezone(self, timezone_name: str) -> Dict[str, Any]:
+        """Get current time in specified timezone"""
+        try:
+            import pytz  # type: ignore
+            tz = pytz.timezone(timezone_name)
+            now = datetime.now(tz)
+            
+            return {
+                "datetime": now.isoformat(),
+                "date": now.strftime("%Y-%m-%d"),
+                "time": now.strftime("%H:%M:%S"),
+                "timezone": timezone_name,
+                "utc_offset": str(now.utcoffset()),
+                "unix_timestamp": now.timestamp()
+            }
+        except ImportError:
+            raise ValueError("pytz library not available for timezone operations")
+        except Exception as e:
+            raise ValueError(f"Invalid timezone '{timezone_name}': {str(e)}")
+    
+    # WebAPIPlugin interface - unified API
+    def get_router(self) -> Optional[Any]:
+        """Get FastAPI router with datetime endpoints"""
+        if not self.is_api_available():
+            return None
+            
+        try:
+            from fastapi import APIRouter, HTTPException  # type: ignore
+            from pydantic import BaseModel  # type: ignore
+            
+            router = APIRouter()
+            
+            # Response models
+            class DateTimeResponse(BaseModel):
+                datetime: str
+                date: str
+                time: str
+                timezone: str
+                weekday: str
+                weekday_ru: str
+                unix_timestamp: float
+                day: int
+                month: int
+                year: int
+                hour: int
+                minute: int
+                second: int
+                formatted_date_ru: str
+                formatted_time_ru: str
+                
+            class FormatResponse(BaseModel):
+                formatted: str
+                original: str
+                timestamp: float
+                
+            class TimezoneResponse(BaseModel):
+                datetime: str
+                date: str
+                time: str
+                timezone: str
+                utc_offset: str
+                unix_timestamp: float
+            
+            @router.get("/current", response_model=DateTimeResponse)
+            async def get_current_datetime():
+                """Get current date and time with comprehensive information"""
+                info = self.get_current_datetime_info()
+                return DateTimeResponse(**info)
+            
+            @router.get("/format", response_model=FormatResponse)
+            async def format_datetime(
+                timestamp: Optional[float] = None, 
+                format_str: str = "%Y-%m-%d %H:%M:%S"
+            ):
+                """Format datetime with custom format string"""
+                try:
+                    result = self.format_datetime_custom(timestamp, format_str)
+                    return FormatResponse(**result)
+                except Exception as e:
+                    raise HTTPException(400, f"Invalid format or timestamp: {str(e)}")
+            
+            @router.get("/timezone/{timezone_name}", response_model=TimezoneResponse)
+            async def get_time_in_timezone(timezone_name: str):
+                """Get current time in specified timezone"""
+                try:
+                    result = self.get_time_in_timezone(timezone_name)
+                    return TimezoneResponse(**result)
+                except ValueError as e:
+                    raise HTTPException(400, str(e))
+                except Exception as e:
+                    raise HTTPException(500, f"Error getting timezone info: {str(e)}")
+            
+            @router.get("/timezones")
+            async def list_common_timezones():
+                """List commonly used timezones"""
+                common_timezones = [
+                    "UTC",
+                    "Europe/Moscow",
+                    "Europe/London", 
+                    "America/New_York",
+                    "America/Los_Angeles",
+                    "Asia/Tokyo",
+                    "Asia/Shanghai",
+                    "Australia/Sydney",
+                    "Europe/Paris",
+                    "Europe/Berlin"
+                ]
+                return {"timezones": common_timezones}
+            
+            return router
+            
+        except ImportError:
+            self.logger.warning("FastAPI not available for datetime web API")
+            return None
+    
+    def get_api_prefix(self) -> str:
+        """Get URL prefix for datetime API endpoints"""
+        return "/datetime"
+    
+    def get_api_tags(self) -> list[str]:
+        """Get OpenAPI tags for datetime endpoints"""
+        return ["DateTime", "Time", "Date"]
+
+    # Internal helper methods
+    def _format_date_russian(self, dt: datetime) -> str:
+        """Format date in natural Russian"""
+        weekday = self.weekdays_ru[dt.weekday()]
+        day = self.days_ru[dt.day - 1]
+        month = self.months_ru[dt.month - 1]
+        return f"сегодня {weekday}, {day} {month}"
             
     async def _handle_date_request(self, context: Context) -> CommandResult:
         """Handle date request"""
         now = datetime.now()
-        weekday = self.weekdays_ru[now.weekday()]
-        
-        # Format date in natural Russian
-        day = self.days_ru[now.day - 1]
-        month = self.months_ru[now.month - 1]
-        
-        date_text = f"сегодня {weekday}, {day} {month}"
+        date_text = self._format_date_russian(now)
         
         return CommandResult.success_result(
             response=date_text,

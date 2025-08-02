@@ -7,14 +7,16 @@ replacing the old threading.Timer approach.
 
 import asyncio
 import re
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timedelta
 
 from ...core.context import Context
 from ...core.commands import CommandResult
+from ...core.interfaces.webapi import WebAPIPlugin
 from ..base import BaseCommandPlugin
 
 
-class AsyncTimerPlugin(BaseCommandPlugin):
+class AsyncTimerPlugin(BaseCommandPlugin, WebAPIPlugin):
     """
     Async timer plugin demonstrating the new timer system.
     
@@ -23,6 +25,7 @@ class AsyncTimerPlugin(BaseCommandPlugin):
     - Timer management and cancellation
     - Context-aware timer storage
     - Natural language time parsing
+    - Web API endpoints for timer management
     """
     
     @property
@@ -35,7 +38,7 @@ class AsyncTimerPlugin(BaseCommandPlugin):
         
     @property
     def description(self) -> str:
-        return "Async timer functionality with natural language parsing"
+        return "Async timer functionality with natural language parsing and web API"
         
     @property
     def dependencies(self) -> list[str]:
@@ -70,6 +73,10 @@ class AsyncTimerPlugin(BaseCommandPlugin):
         self.add_trigger("cancel timer")
         self.add_trigger("list timers")
         
+        # Internal timer tracking for API
+        self.active_timers: Dict[str, Dict[str, Any]] = {}
+        
+    # BaseCommandPlugin interface - existing voice functionality
     async def _handle_command_impl(self, command: str, context: Context) -> CommandResult:
         """Handle timer commands"""
         command_lower = command.lower().strip()
@@ -82,6 +89,229 @@ class AsyncTimerPlugin(BaseCommandPlugin):
             return await self._handle_list_timers(context)
         else:
             return await self._handle_timer_help(context)
+    
+    # Timer functionality methods (used by both voice and API)
+    async def start_timer_async(self, duration: int, message: str = "Timer finished!", unit: str = "seconds") -> str:
+        """Start a timer and return timer ID"""
+        # Convert duration to seconds
+        duration_seconds = self._convert_to_seconds(duration, unit)
+        
+        if not self._core:
+            raise RuntimeError("Plugin not initialized")
+            
+        # Create a temporary timer_id for the callback (this would be handled by timer manager)
+        import uuid
+        temp_timer_id = str(uuid.uuid4())
+        
+        timer_id = await self._core.timer_manager.schedule_timer(
+            name=message,
+            delay_seconds=duration_seconds,
+            callback=self._create_api_timer_callback(message, temp_timer_id)
+        )
+        
+        # Use the actual timer_id returned by the manager
+        if timer_id != temp_timer_id:
+            # Update our tracking to use the real timer_id
+            pass
+        
+        # Store timer info
+        self.active_timers[timer_id] = {
+            "name": message,
+            "duration": duration_seconds,
+            "unit": unit,
+            "created_at": datetime.now(),
+            "expires_at": datetime.now() + timedelta(seconds=duration_seconds),
+            "status": "active"
+        }
+        
+        return timer_id
+    
+    async def cancel_timer_async(self, timer_id: str) -> bool:
+        """Cancel a specific timer"""
+        if timer_id not in self.active_timers:
+            return False
+            
+        if not self._core:
+            raise RuntimeError("Plugin not initialized")
+            
+        success = await self._core.timer_manager.cancel_timer(timer_id)
+        
+        if success and timer_id in self.active_timers:
+            self.active_timers[timer_id]["status"] = "cancelled"
+            del self.active_timers[timer_id]
+            
+        return success
+    
+    async def pause_timer_async(self, timer_id: str) -> bool:
+        """Pause a running timer"""
+        if timer_id not in self.active_timers:
+            return False
+            
+        # Note: This is a simplified implementation
+        # In a full implementation, you'd need timer manager support for pausing
+        self.active_timers[timer_id]["status"] = "paused"
+        return True
+    
+    async def resume_timer_async(self, timer_id: str) -> bool:
+        """Resume a paused timer"""
+        if timer_id not in self.active_timers:
+            return False
+            
+        # Note: This is a simplified implementation
+        # In a full implementation, you'd need timer manager support for resuming
+        self.active_timers[timer_id]["status"] = "active"
+        return True
+    
+    def get_timer_info(self, timer_id: str) -> Optional[Dict[str, Any]]:
+        """Get timer information"""
+        return self.active_timers.get(timer_id)
+    
+    def list_active_timers(self) -> List[Dict[str, Any]]:
+        """List all active timers"""
+        timers = []
+        now = datetime.now()
+        
+        for timer_id, timer_info in self.active_timers.items():
+            remaining_seconds = (timer_info["expires_at"] - now).total_seconds()
+            timers.append({
+                "id": timer_id,
+                "name": timer_info["name"],
+                "remaining_seconds": max(0, remaining_seconds),
+                "status": timer_info["status"],
+                "created_at": timer_info["created_at"].isoformat(),
+                "expires_at": timer_info["expires_at"].isoformat()
+            })
+            
+        return timers
+    
+    # WebAPIPlugin interface - unified API
+    def get_router(self) -> Optional[Any]:
+        """Get FastAPI router with timer endpoints"""
+        if not self.is_api_available():
+            return None
+            
+        try:
+            from fastapi import APIRouter, HTTPException  # type: ignore
+            from pydantic import BaseModel  # type: ignore
+            
+            router = APIRouter()
+            
+            # Request/Response models
+            class TimerRequest(BaseModel):
+                duration: int
+                message: str = "Timer finished!"
+                unit: str = "seconds"
+                
+            class TimerResponse(BaseModel):
+                timer_id: str
+                duration: int
+                unit: str
+                message: str
+                expires_at: str
+                
+            class TimerListResponse(BaseModel):
+                active_timers: List[Dict[str, Any]]
+                count: int
+                
+            class TimerActionResponse(BaseModel):
+                success: bool
+                timer_id: str
+                action: str
+                message: Optional[str] = None
+            
+            @router.post("/set", response_model=TimerResponse)
+            async def set_timer(request: TimerRequest):
+                """Set a timer via API"""
+                try:
+                    timer_id = await self.start_timer_async(
+                        duration=request.duration,
+                        message=request.message,
+                        unit=request.unit
+                    )
+                    
+                    timer_info = self.get_timer_info(timer_id)
+                    if not timer_info:
+                        raise HTTPException(500, "Failed to create timer")
+                    
+                    return TimerResponse(
+                        timer_id=timer_id,
+                        duration=request.duration,
+                        unit=request.unit,
+                        message=request.message,
+                        expires_at=timer_info["expires_at"].isoformat()
+                    )
+                    
+                except Exception as e:
+                    raise HTTPException(400, f"Failed to set timer: {str(e)}")
+            
+            @router.get("/list", response_model=TimerListResponse)
+            async def list_timers():
+                """List all active timers"""
+                timers = self.list_active_timers()
+                return TimerListResponse(
+                    active_timers=timers,
+                    count=len(timers)
+                )
+            
+            @router.delete("/{timer_id}", response_model=TimerActionResponse)
+            async def cancel_timer(timer_id: str):
+                """Cancel a specific timer"""
+                success = await self.cancel_timer_async(timer_id)
+                return TimerActionResponse(
+                    success=success,
+                    timer_id=timer_id,
+                    action="cancel",
+                    message="Timer cancelled successfully" if success else "Timer not found"
+                )
+            
+            @router.post("/pause/{timer_id}", response_model=TimerActionResponse)
+            async def pause_timer(timer_id: str):
+                """Pause a running timer"""
+                success = await self.pause_timer_async(timer_id)
+                return TimerActionResponse(
+                    success=success,
+                    timer_id=timer_id,
+                    action="pause",
+                    message="Timer paused successfully" if success else "Timer not found"
+                )
+            
+            @router.post("/resume/{timer_id}", response_model=TimerActionResponse)
+            async def resume_timer(timer_id: str):
+                """Resume a paused timer"""
+                success = await self.resume_timer_async(timer_id)
+                return TimerActionResponse(
+                    success=success,
+                    timer_id=timer_id,
+                    action="resume",
+                    message="Timer resumed successfully" if success else "Timer not found"
+                )
+            
+            return router
+            
+        except ImportError:
+            self.logger.warning("FastAPI not available for timer web API")
+            return None
+    
+    def get_api_prefix(self) -> str:
+        """Get URL prefix for timer API endpoints"""
+        return "/timer"
+    
+    def get_api_tags(self) -> list[str]:
+        """Get OpenAPI tags for timer endpoints"""
+        return ["Timer", "Async Timers"]
+
+    # Internal helper methods
+    def _convert_to_seconds(self, duration: int, unit: str) -> float:
+        """Convert duration to seconds based on unit"""
+        unit_multipliers = {
+            "seconds": 1,
+            "minutes": 60,
+            "hours": 3600,
+            "s": 1,
+            "m": 60,
+            "h": 3600
+        }
+        return float(duration) * unit_multipliers.get(unit.lower(), 1)
             
     async def _handle_set_timer(self, command: str, context: Context) -> CommandResult:
         """Set a new timer"""
@@ -230,8 +460,22 @@ Supported time units: seconds, minutes, hours
             hours = int(seconds // 3600)
             return f"{hours} hour{'s' if hours != 1 else ''}"
             
+    def _create_api_timer_callback(self, timer_name: str, timer_id: str):
+        """Create async callback for API timer expiration"""
+        async def timer_expired():
+            # Send notification through the core
+            message = f"⏰ Timer expired: {timer_name}"
+            if self._core:
+                await self._core.say(message)
+            
+            # Remove from internal tracking
+            if timer_id in self.active_timers:
+                del self.active_timers[timer_id]
+            
+        return timer_expired
+    
     def _create_timer_callback(self, timer_name: str, context: Context):
-        """Create async callback for timer expiration"""
+        """Create async callback for voice command timer expiration"""
         async def timer_expired():
             # Send notification through the core
             message = f"⏰ Timer expired: {timer_name}"

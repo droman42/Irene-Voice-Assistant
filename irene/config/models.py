@@ -8,7 +8,7 @@ Requires: pydantic>=2.0.0, pydantic-settings>=2.0.0
 """
 
 import os
-from typing import Optional, Any
+from typing import Optional, Any, Dict, List
 from pathlib import Path
 from enum import Enum
 
@@ -43,8 +43,21 @@ def _get_default_builtin_plugins() -> dict[str, bool]:
             "DateTimePlugin": True,
             "RandomPlugin": True,
             "AsyncTimerPlugin": True,
-            "ConsoleTTSPlugin": True,
-            "ConsoleAudioPlugin": True,
+            # Universal plugins (Phase 1 & 2)
+            "UniversalTTSPlugin": True,
+            "UniversalAudioPlugin": True,
+            # Legacy TTS plugins (backward compatibility - disabled by default in favor of universal)
+            "ConsoleTTSPlugin": False,
+            "PyttsTTSPlugin": False,
+            "SileroV3TTSPlugin": False,
+            "SileroV4TTSPlugin": False,
+            "VoskTTSPlugin": False,
+            # Legacy Audio plugins (Phase 2 - disabled in favor of universal)
+            "ConsoleAudioPlugin": False,
+            "SoundDeviceAudioPlugin": False,
+            "AudioPlayerAudioPlugin": False,
+            "AplayAudioPlugin": False,
+            "SimpleAudioPlugin": False,
         }
 
 
@@ -78,6 +91,163 @@ class ComponentConfig(BaseModel):
         return v
 
 
+class UniversalTTSConfig(BaseModel):
+    """Universal TTS plugin configuration"""
+    enabled: bool = Field(default=True, description="Enable Universal TTS plugin")
+    default_provider: str = Field(default="console", description="Default TTS provider")
+    fallback_providers: list[str] = Field(
+        default_factory=lambda: ["console"],
+        description="Fallback providers in order of preference"
+    )
+    providers: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "console": {
+                "enabled": True,
+                "color_output": True,
+                "timing_simulation": False
+            }
+        },
+        description="Provider-specific configurations"
+    )
+
+
+class UniversalAudioConfig(BaseModel):
+    """Universal Audio plugin configuration"""
+    enabled: bool = Field(default=True, description="Enable Universal Audio plugin")
+    default_provider: str = Field(default="console", description="Default audio provider")
+    fallback_providers: list[str] = Field(
+        default_factory=lambda: ["console"],
+        description="Fallback providers in order of preference"
+    )
+    concurrent_playback: bool = Field(default=False, description="Allow concurrent audio playback")
+    providers: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "console": {
+                "enabled": True,
+                "color_output": True,
+                "timing_simulation": False
+            },
+            "sounddevice": {
+                "enabled": False,
+                "device_id": -1,
+                "sample_rate": 44100,
+                "channels": 2,
+                "buffer_size": 1024
+            },
+            "audioplayer": {
+                "enabled": False,
+                "volume": 0.8,
+                "fade_in": False,
+                "fade_out": True
+            },
+            "aplay": {
+                "enabled": False,
+                "device": "default",
+                "volume": 1.0
+            },
+            "simpleaudio": {
+                "enabled": False,
+                "volume": 1.0
+            }
+        },
+        description="Provider-specific configurations"
+    )
+
+
+# Phase 4 configuration classes
+class UniversalASRConfig(BaseModel):
+    """Universal ASR plugin configuration"""
+    enabled: bool = Field(default=True, description="Enable Universal ASR plugin")
+    default_provider: str = Field(default="vosk", description="Default ASR provider")
+    default_language: str = Field(default="ru", description="Default recognition language")
+    confidence_threshold: float = Field(default=0.7, description="Minimum confidence threshold")
+    providers: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "vosk": {
+                "enabled": True,
+                "model_paths": {"ru": "./models/vosk-model-ru-0.22", "en": "./models/vosk-model-en-us-0.22"},
+                "sample_rate": 16000,
+                "confidence_threshold": 0.7
+            },
+            "whisper": {
+                "enabled": False,
+                "model_size": "base",
+                "device": "cpu",
+                "download_root": "~/.cache/irene/whisper"
+            },
+            "google_cloud": {
+                "enabled": False,
+                "credentials_path": "path/to/credentials.json",
+                "project_id": "your-project-id",
+                "default_language": "ru-RU"
+            }
+        },
+        description="ASR provider configurations"
+    )
+
+
+class UniversalLLMConfig(BaseModel):
+    """Universal LLM plugin configuration"""
+    enabled: bool = Field(default=True, description="Enable Universal LLM plugin")
+    default_provider: str = Field(default="openai", description="Default LLM provider")
+    default_task: str = Field(default="improve_speech_recognition", description="Default enhancement task")
+    providers: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "openai": {
+                "enabled": True,
+                "api_key_env": "OPENAI_API_KEY",
+                "default_model": "gpt-4",
+                "max_tokens": 150,
+                "temperature": 0.3
+            },
+            "vsegpt": {
+                "enabled": False,
+                "api_key_env": "VSEGPT_API_KEY",
+                "default_model": "openai/gpt-4o-mini",
+                "max_tokens": 150,
+                "temperature": 0.3
+            },
+            "anthropic": {
+                "enabled": False,
+                "api_key_env": "ANTHROPIC_API_KEY",
+                "default_model": "claude-3-haiku-20240307",
+                "max_tokens": 150
+            }
+        },
+        description="LLM provider configurations"
+    )
+
+
+class TextProcessingConfig(BaseModel):
+    """Text processing pipeline configuration"""
+    enabled: bool = Field(default=True, description="Enable text processing pipeline")
+    stages: List[str] = Field(
+        default_factory=lambda: ["asr_output", "tts_input", "command_input", "general"],
+        description="Processing stages"
+    )
+    normalizers: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "numbers": {
+                "enabled": True,
+                "stages": ["asr_output", "general", "tts_input"]
+            },
+            "prepare": {
+                "enabled": True,
+                "stages": ["tts_input", "general"],
+                "latin_to_cyrillic": True,
+                "symbol_replacement": True
+            },
+            "runorm": {
+                "enabled": True,
+                "stages": ["tts_input"],
+                "model_size": "small",
+                "device": "cpu"
+            }
+        },
+        description="Text normalizer configurations"
+    )
+
+
 class PluginConfig(BaseModel):
     """Plugin system configuration"""
     plugin_directories: list[Path] = Field(
@@ -103,6 +273,29 @@ class PluginConfig(BaseModel):
     auto_discover: bool = Field(
         default=True,
         description="Automatically discover plugins in plugin directories"
+    )
+    
+    # Universal plugin configurations
+    universal_tts: UniversalTTSConfig = Field(
+        default_factory=UniversalTTSConfig,
+        description="Universal TTS plugin configuration"
+    )
+    universal_audio: UniversalAudioConfig = Field(
+        default_factory=UniversalAudioConfig,
+        description="Universal Audio plugin configuration"
+    )
+    # Phase 4 additions
+    universal_asr: "UniversalASRConfig" = Field(
+        default_factory=lambda: UniversalASRConfig(),
+        description="Universal ASR plugin configuration"
+    )
+    universal_llm: "UniversalLLMConfig" = Field(
+        default_factory=lambda: UniversalLLMConfig(),
+        description="Universal LLM plugin configuration"
+    )
+    text_processing: "TextProcessingConfig" = Field(
+        default_factory=lambda: TextProcessingConfig(),
+        description="Text processing pipeline configuration"
     )
     
     @field_validator('plugin_directories')

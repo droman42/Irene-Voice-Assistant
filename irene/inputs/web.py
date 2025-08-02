@@ -1,14 +1,15 @@
 """
-Web Input Source - Web interface input
+Web Input Source - Web interface input with audio processing
 
-Provides web-based input via WebSockets or HTTP for remote control
-and web application integration.
+ENHANCED: Provides web-based input via WebSockets or HTTP for remote control
+and web application integration. Now supports audio chunk processing via ASR.
 """
 
 import asyncio
 import logging
 from typing import AsyncIterator, Dict, Any, Optional
 import json
+import base64
 
 from .base import InputSource, ComponentNotAvailable
 
@@ -17,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 class WebInput(InputSource):
     """
-    Web input source for receiving commands via web interface.
+    ENHANCED: Web input source for receiving commands via web interface.
     
-    Supports WebSocket and HTTP-based command input.
+    Supports WebSocket and HTTP-based command input with audio processing.
     Requires FastAPI/uvicorn for operation.
     """
     
@@ -30,6 +31,7 @@ class WebInput(InputSource):
         self._command_queue: Optional[asyncio.Queue] = None
         self._web_server = None
         self._websocket_connections: list = []
+        self.core = None  # Core reference for ASR plugin access
         
         # Check for required dependencies
         try:
@@ -173,11 +175,15 @@ class WebInput(InputSource):
             
     async def handle_websocket_message(self, websocket, message_data: str) -> None:
         """
-        Handle incoming WebSocket message and extract commands.
-        Expected format: {"type": "command", "command": "text"}
+        ENHANCED: Handle both text and audio messages
+        Expected formats:
+        - Text: {"type": "command", "command": "text"}
+        - Audio: {"type": "audio_chunk", "data": "base64_audio", "language": "ru", "enhance": false}
         """
         try:
             message = json.loads(message_data)
+            
+            # Existing text command handling
             if message.get("type") == "command":
                 command = message.get("command", "").strip()
                 if command:
@@ -200,6 +206,10 @@ class WebInput(InputSource):
                     }
                     await websocket.send_text(json.dumps(response))
                     
+            # NEW: Audio chunk handling via ASR plugin
+            elif message.get("type") == "audio_chunk":
+                await self._handle_audio_chunk(websocket, message)
+                
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in WebSocket message: {e}")
             response = {
@@ -216,6 +226,78 @@ class WebInput(InputSource):
                 "error": str(e)
             }
             await websocket.send_text(json.dumps(response))
+    
+    async def _handle_audio_chunk(self, websocket, message: dict) -> None:
+        """NEW: Process audio chunk using ASR plugin"""
+        try:
+            # Get ASR plugin from core
+            if not self.core:
+                raise ComponentNotAvailable("Core reference not available")
+                
+            asr_plugin = self.core.plugin_manager.get_plugin("universal_asr")
+            if not asr_plugin:
+                raise ComponentNotAvailable("ASR plugin not available")
+            
+            # Decode base64 audio
+            audio_data = base64.b64decode(message["data"])
+            language = message.get("language", "ru")
+            enhance = message.get("enhance", False)
+            
+            # Transcribe audio using ASR plugin
+            text = await asr_plugin.transcribe_audio(
+                audio_data, language=language
+            )
+            
+            if text.strip():
+                # Optional LLM enhancement
+                enhanced_text = None
+                if enhance:
+                    llm_plugin = self.core.plugin_manager.get_plugin("universal_llm")
+                    if llm_plugin:
+                        try:
+                            enhanced_text = await llm_plugin.enhance_text(text, task="improve_speech_recognition")
+                        except Exception as e:
+                            logger.warning(f"LLM enhancement failed: {e}")
+                
+                # Use enhanced text if available, otherwise use original
+                final_text = enhanced_text if enhanced_text else text
+                
+                # Send transcribed text as command
+                await self.send_command(final_text.strip())
+                
+                # Send result back to client
+                response = {
+                    "type": "transcription_result",
+                    "original_audio_size": len(audio_data),
+                    "transcribed_text": text,
+                    "enhanced_text": enhanced_text,
+                    "final_text": final_text,
+                    "enhanced": enhance and enhanced_text is not None,
+                    "language": language,
+                    "success": True
+                }
+                await websocket.send_text(json.dumps(response))
+            else:
+                # No text recognized
+                response = {
+                    "type": "transcription_result",
+                    "transcribed_text": "",
+                    "enhanced": False,
+                    "language": language,
+                    "success": True,
+                    "message": "No speech detected"
+                }
+                await websocket.send_text(json.dumps(response))
+                
+        except Exception as e:
+            logger.error(f"Audio processing failed: {e}")
+            error_response = {
+                "type": "error",
+                "success": False,
+                "error": str(e),
+                "error_type": "audio_processing"
+            }
+            await websocket.send_text(json.dumps(error_response))
             
     def get_connection_info(self) -> Dict[str, Any]:
         """Get detailed connection information"""

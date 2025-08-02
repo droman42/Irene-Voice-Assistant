@@ -315,6 +315,224 @@ def load_language(lang: str) -> None:
         logger.debug("lingua_franca not available, language loading skipped")
 
 
+# Phase 4 Enhancement: Unified Text Processing Pipeline
+# Following the document specification for normalizer migration
+
+class TextProcessor:
+    """Unified text processing pipeline for ASR, LLM, and TTS stages"""
+    
+    def __init__(self):
+        self.normalizers = [
+            NumberNormalizer(),      # "123" → "сто двадцать три"
+            PrepareNormalizer(),     # Latin→Cyrillic, symbols cleanup
+            RunormNormalizer()       # Advanced Russian normalization
+        ]
+        
+    async def process_pipeline(self, text: str, stage: str = "general") -> str:
+        """Apply normalizers based on processing stage"""
+        processed_text = text
+        
+        for normalizer in self.normalizers:
+            if normalizer.applies_to_stage(stage):
+                try:
+                    processed_text = await normalizer.normalize(processed_text)
+                except Exception as e:
+                    logger.warning(f"Normalizer {normalizer.__class__.__name__} failed: {e}")
+                    
+        return processed_text
+
+
+class NumberNormalizer:
+    """Extracted from plugin_normalizer_numbers.py"""
+    
+    def applies_to_stage(self, stage: str) -> bool:
+        return stage in ["asr_output", "general", "tts_input"]
+        
+    async def normalize(self, text: str) -> str:
+        # Move core.all_num_to_text() functionality here
+        return await all_num_to_text_async(text, language="ru")
+
+
+class PrepareNormalizer:
+    """Extracted from plugin_normalizer_prepare.py"""
+    
+    def __init__(self):
+        # Default options matching the original plugin
+        self.options = {
+            "changeNumbers": "process",
+            "changeLatin": "process", 
+            "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
+            "keepSymbols": r",.?!;:() ",
+            "deleteUnknownSymbols": True,
+        }
+    
+    def applies_to_stage(self, stage: str) -> bool:
+        return stage in ["tts_input", "general"]
+        
+    async def normalize(self, text: str) -> str:
+        """
+        Latin→Cyrillic transcription, symbol replacement, etc.
+        Extracted from plugin_normalizer_prepare.py
+        """
+        # If only Cyrillic and punctuation - leave as is
+        if not bool(re.search(r'[^,.?!;:"() ЁА-Яа-яё]', text)):
+            return text
+        
+        # Symbol replacement
+        if bool(re.search(r'["-+\-/<->@{-}№]', text)):
+            text = await self._replace_symbols(text)
+        
+        # Number processing
+        if bool(re.search(r'[0-9]', text)):
+            text = await self._process_numbers(text)
+        
+        # Latin to Cyrillic transcription
+        if bool(re.search('[a-zA-Z]', text)) and self.options['changeLatin'] == 'process':
+            text = await self._transcribe_latin_to_cyrillic(text)
+        
+        return text
+    
+    async def _replace_symbols(self, text: str) -> str:
+        """Replace symbols with text equivalents"""
+        symbol_dict = {
+            '!': '!', '"': ' двойная кавычка ', '#': ' решётка ', '$': ' доллар ', '%': ' процент ',
+            '&': ' амперсанд ', "'": ' кавычка ', '(': ' левая скобка ', ')': ' правая скобка ',
+            '*': ' звёздочка ', '+': ' плюс ', ',': ',', '-': ' минус ', '.': '.', '/': ' косая черта ',
+            ':': ':', ';': ';', '<': 'меньше', '=': ' равно ', '>': 'больше', '?': '?', '@': ' эт ',
+            '~': ' тильда ', '[': ' левая квадратная скобка ', '\\': ' обратная косая черта ',
+            ']': ' правая квадратная скобка ', '^': ' циркумфлекс ', '_': ' нижнее подчеркивание ',
+            '`': ' обратная кавычка ', '{': ' левая фигурная скобка ', '|': ' вертикальная черта ',
+            '}': ' правая фигурная скобка ', '№': ' номер ',
+        }
+        
+        symbols_to_change = self.options['changeSymbols']
+        filtered_symbol_dict = {key: value for key, value in symbol_dict.items() if key in symbols_to_change}
+        
+        symbols_to_keep = self.options['keepSymbols']
+        filtered_symbol_dict.update({key: key for key in symbols_to_keep})
+        
+        if filtered_symbol_dict:
+            translation_table = str.maketrans(filtered_symbol_dict)
+            text = text.translate(translation_table)
+        
+        if self.options['deleteUnknownSymbols']:
+            pattern = f'[^{symbols_to_change}{symbols_to_keep}A-Za-zЁА-Яа-яё ]'
+            text = re.sub(pattern, '', text)
+        
+        text = re.sub(r'[\s]+', ' ', text)  # Remove extra spaces
+        return text
+    
+    async def _process_numbers(self, text: str) -> str:
+        """Process numbers according to options"""
+        if self.options['changeNumbers'].lower() == 'process':
+            return await all_num_to_text_async(text)
+        elif self.options['changeNumbers'].lower() == 'delete':
+            return re.sub(r'[0-9]', '', text)
+        return text  # 'no_process'
+    
+    async def _transcribe_latin_to_cyrillic(self, text: str) -> str:
+        """Transcribe Latin text to Cyrillic using IPA"""
+        try:
+            import eng_to_ipa as ipa
+        except ImportError:
+            logger.warning("eng_to_ipa not available for Latin transcription")
+            return text
+        
+        # IPA to Russian mapping
+        ipa2ru_map = {
+            "p": "п", "b": "б", "t": "т", "d": "д", "k": "к", "g": "г", "m": "м", "n": "н", "ŋ": "нг", "ʧ": "ч",
+            "ʤ": "дж", "f": "ф", "v": "в", "θ": "т", "ð": "з", "s": "с", "z": "з", "ʃ": "ш", "ʒ": "ж", "h": "х",
+            "w": "в", "j": "й", "r": "р", "l": "л",
+            # Vowels
+            "i": "и", "ɪ": "и", "e": "э", "ɛ": "э", "æ": "э", "ʌ": "а", "ə": "е", "u": "у", "ʊ": "у", "oʊ": "оу",
+            "ɔ": "о", "ɑ": "а", "aɪ": "ай", "aʊ": "ау", "ɔɪ": "ой", "ɛr": "ё", "ər": "ё", "ɚ": "а", "ju": "ю",
+            "əv": "ов", "o": "о",
+            # Stress marks
+            "ˈ": "", "ˌ": "", "*": "",
+        }
+        
+        try:
+            # Convert to IPA
+            ipa_text = ipa.convert(text)
+            
+            # Convert IPA to Russian
+            result = ""
+            pos = 0
+            while pos < len(ipa_text):
+                ch = ipa_text[pos]
+                ch2 = ipa_text[pos: pos + 2]
+                
+                # Check for two-character sequences first
+                if ch2 in ipa2ru_map:
+                    result += ipa2ru_map[ch2]
+                    pos += 2
+                elif ch in ipa2ru_map:
+                    result += ipa2ru_map[ch]
+                    pos += 1
+                elif ord(ch) < 128:  # ASCII characters
+                    result += ch
+                    pos += 1
+                else:
+                    result += ch
+                    pos += 1
+            
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Latin transcription failed: {e}")
+            return text
+
+
+class RunormNormalizer:
+    """Extracted from plugin_normalizer_runorm.py"""
+    
+    def __init__(self):
+        self.options = {
+            "modelSize": "small",
+            "device": "cpu"
+        }
+        self._normalizer = None
+    
+    def applies_to_stage(self, stage: str) -> bool:
+        return stage in ["tts_input"]
+        
+    async def normalize(self, text: str) -> str:
+        """Advanced Russian text normalization using RUNorm"""
+        try:
+            if self._normalizer is None:
+                await self._initialize_runorm()
+            
+            if self._normalizer:
+                return await asyncio.to_thread(self._normalizer.norm, text)
+            else:
+                logger.warning("RUNorm not available, skipping normalization")
+                return text
+                
+        except Exception as e:
+            logger.warning(f"RUNorm normalization failed: {e}")
+            return text
+    
+    async def _initialize_runorm(self) -> None:
+        """Initialize RUNorm model"""
+        try:
+            from runorm import RUNorm
+            
+            self._normalizer = RUNorm()
+            await asyncio.to_thread(
+                self._normalizer.load,
+                model_size=self.options["modelSize"],
+                device=self.options["device"]
+            )
+            logger.info(f"RUNorm initialized with model: {self.options['modelSize']}")
+            
+        except ImportError:
+            logger.warning("RUNorm library not available (pip install runorm)")
+            self._normalizer = None
+        except Exception as e:
+            logger.error(f"Failed to initialize RUNorm: {e}")
+            self._normalizer = None
+
+
 # Export commonly used functions
 __all__ = [
     'num_to_text_ru',
@@ -323,5 +541,10 @@ __all__ = [
     'num_to_text_ru_async',
     'decimal_to_text_ru_async',
     'all_num_to_text_async',
-    'load_language'
+    'load_language',
+    # Phase 4 additions
+    'TextProcessor',
+    'NumberNormalizer',
+    'PrepareNormalizer', 
+    'RunormNormalizer'
 ] 

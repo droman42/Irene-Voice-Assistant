@@ -28,16 +28,12 @@ def get_builtin_plugins() -> Dict[str, Type[PluginInterface]]:
         ("datetime_plugin", "DateTimePlugin"),
         ("random_plugin", "RandomPlugin"),
         ("timer_plugin", "AsyncTimerPlugin"),
-        ("console_tts_plugin", "ConsoleTTSPlugin"),
-        ("pyttsx_tts_plugin", "PyttsTTSPlugin"),
-        ("silero_v3_tts_plugin", "SileroV3TTSPlugin"),
-        ("silero_v4_tts_plugin", "SileroV4TTSPlugin"),
-        ("vosk_tts_plugin", "VoskTTSPlugin"),
-        ("console_audio_plugin", "ConsoleAudioPlugin"),
-        ("sounddevice_audio_plugin", "SoundDeviceAudioPlugin"),
-        ("audioplayer_audio_plugin", "AudioPlayerAudioPlugin"),
-        ("aplay_audio_plugin", "AplayAudioPlugin"),
-        ("simpleaudio_audio_plugin", "SimpleAudioPlugin"),
+        # Universal Plugins (Phase 1, 2 & 4) - These replace all legacy plugins
+        ("universal_tts_plugin", "UniversalTTSPlugin"),
+        ("universal_audio_plugin", "UniversalAudioPlugin"),
+        ("universal_asr_plugin", "UniversalASRPlugin"),  # Phase 4
+        ("universal_llm_plugin", "UniversalLLMPlugin"),  # Phase 4
+        ("conversation_plugin", "ConversationPlugin"),   # Phase 4 - Interactive LLM Chat
         ("async_service_demo", "AsyncServiceDemoPlugin"),
     ]
     
@@ -45,19 +41,22 @@ def get_builtin_plugins() -> Dict[str, Type[PluginInterface]]:
     
     for module_name, class_name in plugin_modules:
         try:
-            # Import the plugin module
-            module = importlib.import_module(f".{module_name}", package=__name__)
+            # Import module
+            module = importlib.import_module(f".{module_name}", package=__package__)
             
-            # Get the plugin class
-            plugin_class = getattr(module, class_name, None)
-            if plugin_class:
-                plugins[class_name] = plugin_class
-                
-        except Exception as e:
-            # Skip plugins that can't be imported (missing dependencies, etc.)
-            print(f"Warning: Could not load builtin plugin {class_name}: {e}")
+            # Get plugin class
+            plugin_class = getattr(module, class_name)
+            
+            # Add to plugins dict using class name as key
+            plugins[class_name] = plugin_class
+            
+        except (ImportError, AttributeError) as e:
+            # Log warning but continue - optional plugins might not be available
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Could not load builtin plugin {module_name}.{class_name}: {e}")
             continue
-            
+    
     return plugins
 
 
