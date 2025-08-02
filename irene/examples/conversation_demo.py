@@ -185,9 +185,13 @@ class ConversationDemoRunner:
         # List available endpoints
         logger.info("\n📋 Available API endpoints:")
         for route in router.routes:
-            if hasattr(route, 'methods') and hasattr(route, 'path'):
-                methods = ', '.join(route.methods) if route.methods else 'N/A'
-                logger.info(f"  {methods} {route.path}")
+            # Use getattr with defaults to safely access route attributes
+            methods = getattr(route, 'methods', None)
+            path = getattr(route, 'path', None)
+            
+            if methods and path:
+                methods_str = ', '.join(methods) if methods else 'N/A'
+                logger.info(f"  {methods_str} {path}")
         
         # Note: We can't easily test the actual FastAPI endpoints here without
         # setting up a full web server, but we can show they're available

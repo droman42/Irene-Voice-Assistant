@@ -60,7 +60,7 @@ async def test_microphone_configuration():
     from irene.inputs.microphone import MicrophoneInput
     
     mic_input = MicrophoneInput(
-        model_path="model",
+        asr_plugin=None,  # No ASR plugin for config demo
         device_id=None,  # Use default device
         samplerate=16000,
         blocksize=8000
@@ -85,7 +85,7 @@ async def test_microphone_configuration():
 
 
 async def test_speech_recognition_basic():
-    """Test basic speech recognition functionality"""
+    """Test basic speech recognition functionality with ASR plugin integration"""
     print("\n=== Testing Basic Speech Recognition ===")
     
     from irene.inputs.microphone import MicrophoneInput
@@ -96,38 +96,34 @@ async def test_speech_recognition_basic():
         print("❌ Microphone not available - skipping speech recognition test")
         return
     
-    # Check if model exists
-    model_path = Path("model")
-    if not model_path.exists():
-        print(f"❌ VOSK model not found at '{model_path}' - skipping speech recognition test")
-        print("💡 Download a model from https://alphacephei.com/vosk/models")
-        return
+    # Note: ASR processing now handled by UniversalASRPlugin
+    print("🔄 Note: In refactored architecture, speech recognition requires:")
+    print("   1. MicrophoneInput for audio capture")
+    print("   2. UniversalASRPlugin for speech-to-text processing")
+    print("   3. Integration through InputManager/OutputManager")
     
     try:
-        print("🎤 Starting speech recognition...")
-        print("💬 Speak something (test will run for 10 seconds)")
+        print("🎤 Testing audio capture (without ASR)...")
         
         await mic_input.start_listening()
         
-        # Listen for speech for 10 seconds
-        recognition_count = 0
-        start_time = asyncio.get_event_loop().time()
+        # Test audio capture for a short period
+        info = await mic_input.get_recognition_info()
+        print(f"📊 Audio capture status:")
+        for key, value in info.items():
+            if key != "audio_devices":  # Skip device list for brevity
+                print(f"   {key}: {value}")
         
-        async for command in mic_input.listen():
-            recognition_count += 1
-            print(f"🗣️  #{recognition_count}: '{command}'")
-            
-            # Stop after 10 seconds or 3 recognitions
-            current_time = asyncio.get_event_loop().time()
-            if current_time - start_time > 10.0 or recognition_count >= 3:
-                break
+        # Note about ASR integration
+        print("🔗 For speech recognition, use test_microphone_with_managers()")
+        print("   which demonstrates full integration with InputManager/OutputManager")
         
         await mic_input.stop_listening()
-        print(f"✅ Speech recognition completed - {recognition_count} commands recognized")
+        print("✅ Audio capture test completed")
         
     except Exception as e:
-        print(f"❌ Speech recognition test failed: {e}")
-        logger.exception("Speech recognition error details")
+        print(f"❌ Audio capture test failed: {e}")
+        logger.exception("Audio capture error details")
 
 
 async def test_microphone_with_managers():
@@ -162,55 +158,42 @@ async def test_microphone_with_managers():
         mic_info = input_manager.get_source_info("microphone")
         print(f"🎤 Microphone info: {mic_info}")
         
-        # Test if VOSK model exists
-        model_path = Path("model")
-        if model_path.exists():
-            print("\n🎙️  Starting integrated microphone test (5 seconds)...")
+        # Note: Speech recognition requires UniversalASRPlugin
+        print("\n🎙️  Note: Full speech recognition requires UniversalASRPlugin")
+        print("ℹ️  This demo shows InputManager/OutputManager integration without ASR")
+        
+        try:
+            # Start microphone source (audio capture only)
+            await input_manager.start_source("microphone")
             
-            try:
-                # Start microphone source
-                await input_manager.start_source("microphone")
-                
+            await output_manager.send_response(
+                "🎤 Microphone integration test started (audio capture only)",
+                response_type="info"
+            )
+            
+            # Test audio stream status
+            mic_source = None
+            for source in input_manager._sources.values():
+                if hasattr(source, 'get_input_type') and source.get_input_type() == "microphone":
+                    mic_source = source
+                    break
+                    
+            if mic_source and hasattr(mic_source, 'get_recognition_info'):
+                info = await mic_source.get_recognition_info()  # type: ignore
                 await output_manager.send_response(
-                    "🎤 Microphone integration test started. Speak a command!",
+                    f"📊 Audio stream active: {info.get('audio_stream_active', False)}",
                     response_type="info"
                 )
-                
-                # Listen for commands
-                command_count = 0
-                start_time = asyncio.get_event_loop().time()
-                
-                while command_count < 2:  # Limit for demo
-                    try:
-                        source_name, command = await asyncio.wait_for(
-                            input_manager.get_next_input(), timeout=5.0
-                        )
-                        command_count += 1
-                        
-                        await output_manager.send_response(
-                            f"🗣️  Heard from {source_name}: '{command}'",
-                            response_type="success"
-                        )
-                        
-                        # Test TTS if available
-                        if output_manager.has_tts():
-                            await output_manager.speak(f"I heard: {command}")
-                        
-                    except asyncio.TimeoutError:
-                        await output_manager.send_response(
-                            "⏰ No speech detected in 5 seconds",
-                            response_type="warning"
-                        )
-                        break
-                
-                await input_manager.stop_source("microphone")
-                print("✅ Integrated microphone test completed")
-                
-            except Exception as e:
-                print(f"❌ Integrated test failed: {e}")
-                logger.exception("Integration test error")
-        else:
-            print(f"ℹ️  VOSK model not found at '{model_path}' - skipping integrated test")
+            
+            # Wait briefly to show audio capture is working
+            await asyncio.sleep(2)
+            
+            await input_manager.stop_source("microphone")
+            print("✅ Integrated microphone test completed")
+            
+        except Exception as e:
+            print(f"❌ Integrated test failed: {e}")
+            logger.exception("Integration test error")
     else:
         print("❌ Microphone not discovered by InputManager")
 
@@ -234,30 +217,26 @@ async def test_recognition_status_monitoring():
         if key != "audio_devices":  # Skip device list for brevity
             print(f"  {key}: {value}")
     
-    model_path = Path("model")
-    if model_path.exists():
-        try:
-            # Initialize and test status
-            await mic_input.start_listening()
-            
-            status_after = await mic_input.get_recognition_info()
-            print("\n📊 Status after initialization:")
-            for key, value in status_after.items():
-                if key != "audio_devices":
-                    print(f"  {key}: {value}")
-            
-            await mic_input.stop_listening()
-            
-            status_stopped = await mic_input.get_recognition_info()
-            print("\n📊 Status after stopping:")
-            for key, value in status_stopped.items():
-                if key != "audio_devices":
-                    print(f"  {key}: {value}")
-            
-        except Exception as e:
-            print(f"❌ Status monitoring test failed: {e}")
-    else:
-        print(f"ℹ️  VOSK model not found at '{model_path}' - status shows model not loaded")
+    try:
+        # Initialize and test status
+        await mic_input.start_listening()
+        
+        status_after = await mic_input.get_recognition_info()
+        print("\n📊 Status after initialization:")
+        for key, value in status_after.items():
+            if key != "audio_devices":
+                print(f"  {key}: {value}")
+        
+        await mic_input.stop_listening()
+        
+        status_stopped = await mic_input.get_recognition_info()
+        print("\n📊 Status after stopping:")
+        for key, value in status_stopped.items():
+            if key != "audio_devices":
+                print(f"  {key}: {value}")
+        
+    except Exception as e:
+        print(f"❌ Status monitoring test failed: {e}")
 
 
 async def test_error_handling():
@@ -266,16 +245,17 @@ async def test_error_handling():
     
     from irene.inputs.microphone import MicrophoneInput
     
-    # Test with invalid model path
-    print("🧪 Testing invalid model path...")
-    mic_input = MicrophoneInput(model_path="nonexistent_model")
+    # Test with invalid device ID
+    print("🧪 Testing with no ASR plugin...")
+    mic_input = MicrophoneInput(asr_plugin=None)
     
     if mic_input.is_available():
         try:
             await mic_input.start_listening()
-            print("❌ Expected error for invalid model path")
+            await mic_input.stop_listening()
+            print("✅ Successfully handled microphone without ASR plugin")
         except Exception as e:
-            print(f"✅ Correctly handled invalid model path: {e}")
+            print(f"✅ Correctly handled missing ASR plugin: {e}")
     
     # Test with invalid device ID
     print("\n🧪 Testing invalid device ID...")
@@ -284,6 +264,7 @@ async def test_error_handling():
     if mic_input2.is_available():
         try:
             await mic_input2.start_listening()
+            await mic_input2.stop_listening()
             print("❌ Expected error for invalid device ID")
         except Exception as e:
             print(f"✅ Correctly handled invalid device ID: {e}")
@@ -310,14 +291,13 @@ async def main():
         # Test error handling
         await test_error_handling()
         
-        # Interactive speech recognition test
+        # Interactive audio capture test
         from irene.inputs.microphone import MicrophoneInput
         mic_input = MicrophoneInput()
-        model_path = Path("model")
         
-        if mic_input.is_available() and model_path.exists():
-            print("\n⚠️  Interactive speech recognition test available.")
-            response = input("Run speech recognition test? (y/n): ")
+        if mic_input.is_available():
+            print("\n⚠️  Interactive audio capture test available.")
+            response = input("Run audio capture test? (y/n): ")
             if response.lower().startswith('y'):
                 await test_speech_recognition_basic()
         

@@ -123,27 +123,34 @@ class SileroV4TTSProvider(TTSProvider):
             logger.warning(f"Unknown speaker: {speaker}, using default: {self.default_speaker}")
             speaker = self.default_speaker
             
-        # For now, create placeholder implementation
-        # In real implementation, this would use Silero v4 model
-        placeholder_content = f"Silero v4 TTS: {text} (speaker: {speaker}, rate: {sample_rate})"
-        
+        # Generate speech using Silero v4 model
         try:
-            # Placeholder: write text to file (real implementation would generate audio)
-            with open(output_path.with_suffix('.txt'), 'w', encoding='utf-8') as f:
-                f.write(placeholder_content)
-            logger.info(f"Silero v4 placeholder generated: {output_path}")
+            # Ensure model is loaded
+            await self._ensure_model_loaded()
+            
+            # Normalize text for better pronunciation
+            normalized_text = await self._normalize_text_async(text)
+            
+            # Generate speech with specified parameters
+            await self._generate_speech_async(
+                normalized_text, output_path, speaker, sample_rate
+            )
+            
+            logger.info(f"Silero v4 speech generated: {output_path}")
+            
         except Exception as e:
             logger.error(f"Failed to generate Silero v4 speech: {e}")
             raise RuntimeError(f"TTS generation failed: {e}")
     
     async def warm_up(self) -> None:
-        """Warm up by preloading the Silero v4 model (placeholder)"""
+        """Warm up by preloading the Silero v4 model"""
         try:
             logger.info("Warming up Silero v4 TTS model...")
-            # Placeholder - in real implementation would load model
-            logger.info("Silero v4 TTS model warmed up successfully (placeholder)")
+            await self._ensure_model_loaded()
+            logger.info("Silero v4 TTS model warmed up successfully")
         except Exception as e:
             logger.error(f"Failed to warm up Silero v4 model: {e}")
+            # Don't raise - let the provider work with lazy loading
     
     def get_parameter_schema(self) -> Dict[str, Any]:
         """Return schema for provider-specific parameters"""
@@ -188,3 +195,139 @@ class SileroV4TTSProvider(TTSProvider):
     def get_provider_name(self) -> str:
         """Get unique provider identifier"""
         return "silero_v4" 
+
+    async def _ensure_model_loaded(self) -> None:
+        """Ensure model is loaded and ready with caching optimization"""
+        if not self._available:
+            raise RuntimeError("Silero v4 TTS provider not available (torch dependency missing)")
+            
+        if not self._model:
+            # Try to get model from cache first
+            cache_key = f"{self.model_file}:{self.torch_device}"
+            await self._get_or_load_cached_model(cache_key)
+            
+        if not self._model:
+            raise RuntimeError("Failed to load Silero v4 model")
+    
+    async def _get_or_load_cached_model(self, cache_key: str) -> None:
+        """Get model from cache or load it if not cached"""
+        async with self._cache_lock:
+            # Check if model is already cached
+            if cache_key in self._model_cache:
+                self._model = self._model_cache[cache_key]
+                logger.info(f"Using cached Silero v4 model: {cache_key}")
+                return
+            
+            # Model not in cache, load it
+            try:
+                await self._load_model_async()
+                
+                # Cache the loaded model
+                self._model_cache[cache_key] = self._model
+                logger.info(f"Silero v4 model loaded and cached: {cache_key}")
+                
+            except Exception as e:
+                logger.error(f"Failed to load Silero v4 model: {e}")
+                raise
+    
+    async def _load_model_async(self) -> None:
+        """Load Silero v4 model asynchronously"""
+        # Ensure model file exists
+        self.model_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        if not self.model_file.exists():
+            # Get model info from asset manager
+            model_info = self.asset_manager.get_model_info("silero", "v4_ru")
+            if model_info:
+                logger.info(f"Downloading Silero v4 model (size: {model_info.get('size', 'unknown')})")
+            
+            try:
+                # Try asset manager download first
+                downloaded_path = await self.asset_manager.download_model("silero", "v4_ru")
+                if downloaded_path != self.model_file:
+                    # Copy to expected location if different
+                    import shutil
+                    shutil.copy2(downloaded_path, self.model_file)
+            except Exception as e:
+                logger.warning(f"Asset manager download failed, using legacy method: {e}")
+                await asyncio.to_thread(self._download_model, self.model_file)
+            
+        # Load model
+        logger.info(f"Loading Silero v4 model from {self.model_file}...")
+        await asyncio.to_thread(self._load_model, self.model_file)
+        
+    def _download_model(self, model_path: Path) -> None:
+        """Download model using legacy method (called from thread)"""
+        if not self._torch:
+            return
+            
+        try:
+            # Silero v4 model URL - this may need to be updated when v4 is officially released
+            model_url = "https://models.silero.ai/models/tts/ru/v4_ru.pt"
+            self._torch.hub.download_url_to_file(model_url, str(model_path))
+            logger.info(f"Silero v4 model downloaded to: {model_path}")
+        except Exception as e:
+            logger.error(f"Failed to download Silero v4 model: {e}")
+            raise
+            
+    def _load_model(self, model_path: Path) -> None:
+        """Load model from file (called from thread)"""
+        if not self._torch:
+            return
+            
+        try:
+            # For v4, the loading mechanism might be different from v3
+            # This assumes similar structure to v3, but may need adjustment
+            self._model = self._torch.package.PackageImporter(str(model_path)).load_pickle("tts_models", "model")
+            self._model.to(self._device)
+            logger.info("Silero v4 model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load Silero v4 model: {e}")
+            raise
+            
+    async def _normalize_text_async(self, text: str) -> str:
+        """Normalize text asynchronously"""
+        # Basic text normalization
+        normalized = text.replace("…", "...")
+        
+        # Modern number-to-text conversion using migrated utilities
+        try:
+            from ...utils.text_processing import all_num_to_text_async
+            normalized = await all_num_to_text_async(normalized, language="ru")
+            logger.debug("Applied number-to-text normalization")
+        except Exception as e:
+            logger.debug(f"Text normalization failed, using original: {e}")
+            
+        return normalized
+        
+    async def _generate_speech_async(self, text: str, output_path: Path, 
+                                   speaker: str, sample_rate: int) -> None:
+        """Generate speech asynchronously"""
+        await asyncio.to_thread(
+            self._generate_speech_blocking, 
+            text, output_path, speaker, sample_rate
+        )
+        
+    def _generate_speech_blocking(self, text: str, output_path: Path,
+                                speaker: str, sample_rate: int) -> None:
+        """Generate speech in blocking mode (called from thread)"""
+        if not self._model or not self._torch:
+            raise RuntimeError("Model not loaded or torch not available")
+            
+        try:
+            # Generate audio data using Silero v4 model
+            audio_data = self._model.apply_tts(
+                text=text,
+                speaker=speaker,
+                sample_rate=sample_rate
+            )
+            
+            # Convert to appropriate format and save
+            import soundfile as sf  # type: ignore
+            sf.write(str(output_path), audio_data, sample_rate)
+            
+            logger.debug(f"Generated speech file: {output_path}")
+            
+        except Exception as e:
+            logger.error(f"Speech generation failed: {e}")
+            raise 

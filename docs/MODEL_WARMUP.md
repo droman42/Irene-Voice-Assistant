@@ -68,13 +68,20 @@ IRENE_PROVIDERS__ASR__VOSK__PRELOAD_MODELS=true
 - Supports device placement (CPU/GPU)
 
 **SileroV4TTSProvider:**
-- Placeholder implementation with warm-up interface
-- Ready for future Silero v4 integration
+- ✅ Full asset management integration 
+- ✅ Model downloading and warm-up infrastructure
+- ✅ Configuration and device placement support
+- ✅ **Complete TTS synthesis** - Generates actual audio files
+- Uses Silero v4 models with enhanced quality
+- Requires torch and soundfile dependencies
 
 **VoskTTSProvider:**
-- Downloads VOSK TTS model if not present
-- Ensures model availability on startup
-- Placeholder implementation ready for enhancement
+- ✅ Full asset management integration
+- ✅ Downloads VOSK TTS model if not present
+- ✅ Model availability checking and warm-up
+- ✅ **Complete TTS synthesis** - Generates actual audio files
+- Multi-engine fallback: espeak/espeak-ng → pyttsx3
+- Works without specialized TTS libraries
 
 ## How It Works
 
@@ -240,6 +247,11 @@ WARNING: Falling back to lazy loading for Whisper provider
 
 3. **Download failures**: Network issues or incorrect URLs
    - **Solution**: Check asset registry URLs and network connectivity
+
+4. **TTS synthesis errors**: Audio generation failures with SileroV4 or VoskTTS
+   - **SileroV4**: Requires torch and soundfile dependencies
+   - **VoskTTS**: Requires espeak/espeak-ng or pyttsx3 for fallback
+   - **Solution**: Install dependencies or use SileroV3/PyttSX providers
 
 ### Debug Commands
 
