@@ -41,10 +41,20 @@ class SileroV4TTSProvider(TTSProvider):
         self._device = None
         self._torch = None
         
-        # Configuration values
-        self.model_path = config.get("model_path", "~/.cache/irene/models/silero_v4")
+        # Asset management integration
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Configuration values with asset management
+        legacy_model_path = config.get("model_path")
+        if legacy_model_path:
+            self.model_path = Path(legacy_model_path).expanduser()
+            logger.warning("Using legacy model_path config. Consider using IRENE_MODELS_ROOT environment variable.")
+        else:
+            self.model_path = self.asset_manager.config.silero_models_dir
+            
         self.model_url = config.get("model_url", "https://models.silero.ai/models/tts/ru/v4_ru.pt")
-        self.model_file = config.get("model_file", "silero_model_v4.pt")
+        self.model_file = self.model_path / config.get("model_file", "v4_ru.pt")
         self.default_speaker = config.get("default_speaker", "xenia")
         self.sample_rate = config.get("sample_rate", 48000)
         self.torch_device = config.get("torch_device", "cpu")

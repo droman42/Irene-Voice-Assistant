@@ -25,15 +25,36 @@ class GoogleCloudASRProvider(ASRProvider):
         
         Args:
             config: Provider configuration containing:
-                - credentials_path: Path to Google Cloud service account JSON
+                - credentials_path: Path to Google Cloud service account JSON (deprecated - uses asset manager)
                 - project_id: Google Cloud project ID
                 - default_language: Default language code (e.g., 'ru-RU', 'en-US')
                 - sample_rate_hertz: Audio sample rate
                 - encoding: Audio encoding format
         """
         super().__init__(config)  # Proper ABC inheritance
-        self.credentials_path = config.get("credentials_path")
-        self.project_id = config.get("project_id")
+        
+        # Asset management integration for credentials
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Get credentials through asset manager or fallback to config
+        credentials = self.asset_manager.get_credentials("google_cloud")
+        
+        # Handle credentials path - check asset manager first, then config
+        creds_from_env = credentials.get("google_application_credentials")
+        legacy_creds_path = config.get("credentials_path")
+        
+        if creds_from_env:
+            self.credentials_path = creds_from_env
+        elif legacy_creds_path:
+            self.credentials_path = legacy_creds_path
+            logger.warning("Using legacy credentials_path config. Consider using GOOGLE_APPLICATION_CREDENTIALS environment variable.")
+        else:
+            # Try asset manager credentials directory
+            creds_file = self.asset_manager.get_credentials_path("google_cloud", "credentials.json")
+            self.credentials_path = str(creds_file) if creds_file.exists() else None
+            
+        self.project_id = credentials.get("google_cloud_project_id") or config.get("project_id")
         self.default_language = config.get("default_language", "ru-RU")
         self.sample_rate_hertz = config.get("sample_rate_hertz", 16000)
         self.encoding = config.get("encoding", "LINEAR16")

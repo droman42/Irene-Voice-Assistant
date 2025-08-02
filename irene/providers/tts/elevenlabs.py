@@ -25,14 +25,25 @@ class ElevenLabsTTSProvider(TTSProvider):
         
         Args:
             config: Provider configuration containing:
-                - api_key_env: Environment variable name for API key
+                - api_key_env: Environment variable name for API key (deprecated - uses asset manager)
                 - voice_id: Default voice ID to use
                 - model: Model to use for synthesis
                 - stability: Voice stability setting (0-1)
                 - similarity_boost: Voice similarity boost (0-1)
         """
         super().__init__(config)  # Proper ABC inheritance
-        self.api_key = os.getenv(config["api_key_env"])
+        
+        # Asset management integration for credentials
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Get API key through asset manager or fallback to config
+        credentials = self.asset_manager.get_credentials("elevenlabs")
+        self.api_key = credentials.get("elevenlabs_api_key") or os.getenv(config.get("api_key_env", "ELEVENLABS_API_KEY"))
+        
+        if not self.api_key and config.get("api_key_env"):
+            logger.warning("Using legacy api_key_env config. Consider using ELEVENLABS_API_KEY environment variable.")
+            
         self.voice_id = config.get("voice_id", "default")
         self.model = config.get("model", "eleven_monolingual_v1")
         self.stability = config.get("stability", 0.5)

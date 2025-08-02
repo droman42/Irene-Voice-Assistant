@@ -165,7 +165,7 @@ class UniversalASRConfig(BaseModel):
         default_factory=lambda: {
             "vosk": {
                 "enabled": True,
-                "model_paths": {"ru": "./models/vosk-model-ru-0.22", "en": "./models/vosk-model-en-us-0.22"},
+                "model_paths": {},  # Deprecated - uses IRENE_MODELS_ROOT
                 "sample_rate": 16000,
                 "confidence_threshold": 0.7
             },
@@ -173,12 +173,12 @@ class UniversalASRConfig(BaseModel):
                 "enabled": False,
                 "model_size": "base",
                 "device": "cpu",
-                "download_root": "~/.cache/irene/whisper"
+                "download_root": ""  # Deprecated - uses IRENE_MODELS_ROOT
             },
             "google_cloud": {
                 "enabled": False,
-                "credentials_path": "path/to/credentials.json",
-                "project_id": "your-project-id",
+                "credentials_path": "",  # Deprecated - uses GOOGLE_APPLICATION_CREDENTIALS
+                "project_id": "",  # Uses GOOGLE_CLOUD_PROJECT_ID
                 "default_language": "ru-RU"
             }
         },
@@ -195,21 +195,21 @@ class UniversalLLMConfig(BaseModel):
         default_factory=lambda: {
             "openai": {
                 "enabled": True,
-                "api_key_env": "OPENAI_API_KEY",
+                "api_key_env": "",  # Deprecated - uses OPENAI_API_KEY environment variable
                 "default_model": "gpt-4",
                 "max_tokens": 150,
                 "temperature": 0.3
             },
             "vsegpt": {
                 "enabled": False,
-                "api_key_env": "VSEGPT_API_KEY",
+                "api_key_env": "",  # Deprecated - uses VSEGPT_API_KEY environment variable
                 "default_model": "openai/gpt-4o-mini",
                 "max_tokens": 150,
                 "temperature": 0.3
             },
             "anthropic": {
                 "enabled": False,
-                "api_key_env": "ANTHROPIC_API_KEY",
+                "api_key_env": "",  # Deprecated - uses ANTHROPIC_API_KEY environment variable
                 "default_model": "claude-3-haiku-20240307",
                 "max_tokens": 150
             }
@@ -320,6 +320,119 @@ class SecurityConfig(BaseModel):
     )
 
 
+class AssetConfig(BaseModel):
+    """Centralized asset management configuration with environment variable support"""
+    
+    # Root directories from environment variables
+    models_root: Path = Field(
+        default_factory=lambda: Path(os.getenv("IRENE_MODELS_ROOT", "~/.cache/irene/models")).expanduser()
+    )
+    cache_root: Path = Field(
+        default_factory=lambda: Path(os.getenv("IRENE_CACHE_ROOT", "~/.cache/irene/cache")).expanduser()
+    )
+    credentials_root: Path = Field(
+        default_factory=lambda: Path(os.getenv("IRENE_CREDENTIALS_ROOT", "~/.config/irene/credentials")).expanduser()
+    )
+    
+    # Auto-create directories on initialization
+    auto_create_dirs: bool = Field(default=True)
+    
+    # Model registry with download information
+    model_registry: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "whisper": {
+                "tiny": {"size": "39MB", "url": "auto"},
+                "base": {"size": "74MB", "url": "auto"},
+                "small": {"size": "244MB", "url": "auto"},
+                "medium": {"size": "769MB", "url": "auto"},
+                "large": {"size": "1550MB", "url": "auto"}
+            },
+            "silero": {
+                "v3_ru": {
+                    "url": "https://models.silero.ai/models/tts/ru/v3_1_ru.pt",
+                    "size": "36MB",
+                    "checksum": None
+                },
+                "v4_ru": {
+                    "url": "https://models.silero.ai/models/tts/ru/v4_ru.pt", 
+                    "size": "50MB",
+                    "checksum": None
+                }
+            },
+            "vosk": {
+                "ru_small": {
+                    "url": "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip",
+                    "size": "50MB",
+                    "extract": True,
+                    "checksum": None
+                },
+                "en_us": {
+                    "url": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
+                    "size": "1.8GB", 
+                    "extract": True,
+                    "checksum": None
+                }
+            }
+        }
+    )
+    
+    # Helper properties for computed paths
+    @property
+    def whisper_models_dir(self) -> Path:
+        return self.models_root / "whisper"
+    
+    @property
+    def silero_models_dir(self) -> Path:
+        return self.models_root / "silero"
+        
+    @property
+    def vosk_models_dir(self) -> Path:
+        return self.models_root / "vosk"
+        
+    @property
+    def downloads_cache_dir(self) -> Path:
+        return self.cache_root / "downloads"
+        
+    @property
+    def runtime_cache_dir(self) -> Path:
+        return self.cache_root / "runtime"
+        
+    @property
+    def tts_cache_dir(self) -> Path:
+        return self.cache_root / "tts"
+        
+    @property
+    def temp_dir(self) -> Path:
+        return self.cache_root / "temp"
+
+    def model_post_init(self, __context):
+        """Create directories after initialization if auto_create_dirs is True"""
+        if self.auto_create_dirs:
+            self._create_directories()
+    
+    def _create_directories(self) -> None:
+        """Create all necessary directories"""
+        directories = [
+            self.models_root,
+            self.cache_root,
+            self.credentials_root,
+            self.whisper_models_dir,
+            self.silero_models_dir,
+            self.vosk_models_dir,
+            self.downloads_cache_dir,
+            self.runtime_cache_dir,
+            self.tts_cache_dir,
+            self.temp_dir
+        ]
+        
+        for directory in directories:
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                # Silently continue if directory creation fails
+                pass
+
+
 class CoreConfig(BaseSettings):
     """Main configuration for the Irene core system with environment variable support"""
     
@@ -338,10 +451,13 @@ class CoreConfig(BaseSettings):
     # Security configuration
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     
-    # System paths
+    # Asset management configuration
+    assets: AssetConfig = Field(default_factory=AssetConfig)
+    
+    # System paths (deprecated - use assets configuration instead)
     data_directory: Path = Field(default=Path("./data"), description="Data storage directory")
     log_directory: Path = Field(default=Path("./logs"), description="Log storage directory")
-    cache_directory: Path = Field(default=Path("./cache"), description="Cache directory")
+    cache_directory: Path = Field(default=Path("./cache"), description="Cache directory (deprecated - use assets.cache_root)")
     
     # Runtime settings
     max_concurrent_commands: int = Field(default=10, ge=1, description="Maximum concurrent commands")
@@ -385,6 +501,8 @@ class CoreConfig(BaseSettings):
                 
         return self
 
+
+# Asset management configuration classes defined below
 
 # Deployment profile presets
 VOICE_PROFILE = ComponentConfig(

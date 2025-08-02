@@ -24,13 +24,29 @@ class VoskASRProvider(ASRProvider):
         
         Args:
             config: Provider configuration containing:
-                - model_paths: Dict mapping language codes to model paths
+                - model_paths: Dict mapping language codes to model paths (deprecated - uses asset manager)
                 - default_language: Default language code (default: 'ru')
                 - sample_rate: Audio sample rate (default: 16000)
                 - confidence_threshold: Minimum confidence for results (default: 0.7)
         """
         super().__init__(config)  # Proper ABC inheritance
-        self.model_paths = config.get("model_paths", {})
+        
+        # Asset management integration
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Handle model paths with asset management
+        legacy_model_paths = config.get("model_paths", {})
+        if legacy_model_paths:
+            self.model_paths = {lang: Path(path) for lang, path in legacy_model_paths.items()}
+            logger.warning("Using legacy model_paths config. Consider using IRENE_MODELS_ROOT environment variable.")
+        else:
+            # Use asset manager for standard model paths
+            self.model_paths = {
+                "ru": self.asset_manager.get_model_path("vosk", "ru_small"),
+                "en": self.asset_manager.get_model_path("vosk", "en_us")
+            }
+            
         self.default_language = config.get("default_language", "ru")
         self.sample_rate = config.get("sample_rate", 16000)
         self.confidence_threshold = config.get("confidence_threshold", 0.7)
@@ -41,11 +57,21 @@ class VoskASRProvider(ASRProvider):
         """Check if VOSK dependencies and models are available"""
         try:
             import vosk  # type: ignore
-            # Check if at least one model exists
+            # Check if at least one model exists or can be downloaded
             if not self.model_paths:
                 logger.warning("No VOSK model paths configured")
                 return False
-            return any(Path(path).exists() for path in self.model_paths.values())
+            
+            # Check for existing models or downloadable models via asset manager
+            for lang, path in self.model_paths.items():
+                if path.exists():
+                    return True
+                # Check if model can be downloaded via asset manager
+                model_id = f"{lang}_small" if lang == "ru" else lang + "_us"
+                if self.asset_manager.get_model_info("vosk", model_id):
+                    return True
+                    
+            return False
         except ImportError:
             logger.warning("VOSK library not available")
             return False
@@ -115,18 +141,41 @@ class VoskASRProvider(ASRProvider):
                 logger.error(f"VOSK streaming error: {e}")
     
     async def _load_model(self, language: str) -> None:
-        """Load VOSK model for specified language"""
+        """Load VOSK model for specified language using asset management"""
         if language not in self.model_paths:
             raise ValueError(f"No model path configured for language: {language}")
         
         model_path = self.model_paths[language]
-        if not Path(model_path).exists():
-            raise FileNotFoundError(f"VOSK model not found: {model_path}")
+        
+        # Download model if not present using asset manager
+        if not model_path.exists():
+            logger.info(f"VOSK model not found for {language}, attempting download...")
+            
+            try:
+                # Map language to asset manager model ID
+                model_id = f"{language}_small" if language == "ru" else language + "_us"
+                
+                # Get model info for logging
+                model_info = self.asset_manager.get_model_info("vosk", model_id)
+                if model_info:
+                    logger.info(f"Downloading VOSK model for {language} (size: {model_info.get('size', 'unknown')})")
+                
+                # Download using asset manager
+                downloaded_path = await self.asset_manager.download_model("vosk", model_id)
+                
+                # If downloaded to different location, update model path
+                if downloaded_path != model_path:
+                    self.model_paths[language] = downloaded_path
+                    model_path = downloaded_path
+                    
+            except Exception as e:
+                logger.error(f"Failed to download VOSK model for {language}: {e}")
+                raise FileNotFoundError(f"VOSK model not found and download failed: {model_path}")
         
         try:
             import vosk  # type: ignore
             # Load model in thread to avoid blocking
-            model = await asyncio.to_thread(vosk.Model, model_path)  # type: ignore
+            model = await asyncio.to_thread(vosk.Model, str(model_path))  # type: ignore
             self._models[language] = model
             logger.info(f"Loaded VOSK model for {language}: {model_path}")
         except Exception as e:

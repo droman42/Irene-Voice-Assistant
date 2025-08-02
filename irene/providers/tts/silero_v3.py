@@ -47,10 +47,20 @@ class SileroV3TTSProvider(TTSProvider):
         self._device = None
         self._torch = None
         
-        # Configuration values
-        self.model_path = config.get("model_path", "~/.cache/irene/models/silero_v3")
+        # Asset management integration
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Configuration values with asset management
+        legacy_model_path = config.get("model_path")
+        if legacy_model_path:
+            self.model_path = Path(legacy_model_path).expanduser()
+            logger.warning("Using legacy model_path config. Consider using IRENE_MODELS_ROOT environment variable.")
+        else:
+            self.model_path = self.asset_manager.config.silero_models_dir
+            
         self.model_url = config.get("model_url", "https://models.silero.ai/models/tts/ru/v3_1_ru.pt")
-        self.model_file = config.get("model_file", "silero_model_v3.pt")
+        self.model_file = self.model_path / config.get("model_file", "v3_ru.pt")
         self.default_speaker = config.get("default_speaker", "xenia")
         self.sample_rate = config.get("sample_rate", 24000)
         self.torch_device = config.get("torch_device", "cpu")
@@ -269,23 +279,39 @@ class SileroV3TTSProvider(TTSProvider):
                 logger.info(f"Cached Silero v3 model: {cache_key}")
     
     async def _load_model_async(self) -> None:
-        """Load Silero model asynchronously"""
+        """Load Silero model asynchronously using asset management"""
         if not self._torch:
             return
             
-        model_path = Path(self.model_file)
+        # Ensure model directory exists
+        self.model_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # Download model if not present
-        if not model_path.exists():
+        # Download model if not present using asset manager or legacy method
+        if not self.model_file.exists():
             logger.info("Downloading Silero v3 model...")
-            await asyncio.to_thread(self._download_model, model_path)
+            
+            # Get model info from asset manager
+            model_info = self.asset_manager.get_model_info("silero", "v3_ru")
+            if model_info:
+                logger.info(f"Downloading Silero v3 model (size: {model_info.get('size', 'unknown')})")
+            
+            try:
+                # Try asset manager download first
+                downloaded_path = await self.asset_manager.download_model("silero", "v3_ru")
+                if downloaded_path != self.model_file:
+                    # Copy to expected location if different
+                    import shutil
+                    shutil.copy2(downloaded_path, self.model_file)
+            except Exception as e:
+                logger.warning(f"Asset manager download failed, using legacy method: {e}")
+                await asyncio.to_thread(self._download_model, self.model_file)
             
         # Load model
-        logger.info("Loading Silero v3 model...")
-        await asyncio.to_thread(self._load_model, model_path)
+        logger.info(f"Loading Silero v3 model from {self.model_file}...")
+        await asyncio.to_thread(self._load_model, self.model_file)
         
     def _download_model(self, model_path: Path) -> None:
-        """Download model (called from thread)"""
+        """Download model using legacy method (called from thread)"""
         if not self._torch:
             return
             
@@ -294,6 +320,7 @@ class SileroV3TTSProvider(TTSProvider):
             logger.info(f"Silero v3 model downloaded to: {model_path}")
         except Exception as e:
             logger.error(f"Failed to download Silero v3 model: {e}")
+            raise
             raise
             
     def _load_model(self, model_path: Path) -> None:

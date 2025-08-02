@@ -1,0 +1,156 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - ENVIRONMENT CONFIGURATION
+# ============================================================
+# Copy this file to .env and customize for your setup
+
+# ============================================================
+# ASSET MANAGEMENT - Unified Model and Cache Storage
+# ============================================================
+
+# Root directories for all models, cache, and credentials
+# These will be used by all providers unless overridden
+IRENE_MODELS_ROOT=/data/models
+IRENE_CACHE_ROOT=/data/cache
+IRENE_CREDENTIALS_ROOT=/data/credentials
+
+# ============================================================
+# API CREDENTIALS - Cloud Service Authentication
+# ============================================================
+
+# OpenAI API (for GPT models and Whisper)
+# Get your API key from: https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Anthropic API (for Claude models)
+# Get your API key from: https://console.anthropic.com/
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# ElevenLabs API (for high-quality TTS)
+# Get your API key from: https://elevenlabs.io/
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+
+# VseGPT API (alternative LLM provider)
+# Get your API key from your VseGPT provider
+VSEGPT_API_KEY=your_vsegpt_api_key_here
+
+# Google Cloud (for Speech-to-Text and other services)
+# Path to your service account JSON file
+GOOGLE_APPLICATION_CREDENTIALS=/data/credentials/google-cloud-service-account.json
+# Your Google Cloud Project ID
+GOOGLE_CLOUD_PROJECT_ID=your_google_project_id
+
+# ============================================================
+# IRENE CORE CONFIGURATION
+# ============================================================
+
+# Basic application settings
+IRENE_DEBUG=false
+IRENE_LOG_LEVEL=INFO
+IRENE_NAME=Irene
+IRENE_VERSION=13.0.0
+IRENE_LANGUAGE=en-US
+IRENE_TIMEZONE=UTC
+
+# System directories (legacy - prefer asset management above)
+IRENE_DATA_DIRECTORY=./data
+IRENE_LOG_DIRECTORY=./logs
+IRENE_CACHE_DIRECTORY=./cache
+
+# Performance settings
+IRENE_MAX_CONCURRENT_COMMANDS=10
+IRENE_COMMAND_TIMEOUT_SECONDS=30.0
+IRENE_CONTEXT_TIMEOUT_MINUTES=30
+
+# ============================================================
+# COMPONENT CONFIGURATION
+# ============================================================
+
+# Enable/disable core components
+IRENE_COMPONENTS__TTS=true
+IRENE_COMPONENTS__ASR=true
+IRENE_COMPONENTS__LLM=true
+IRENE_COMPONENTS__AUDIO_OUTPUT=true
+IRENE_COMPONENTS__WEB_API=true
+
+# ============================================================
+# PLUGIN CONFIGURATION
+# ============================================================
+
+# Plugin directories (comma-separated)
+IRENE_PLUGINS__PLUGIN_DIRECTORIES=./irene/plugins/builtin,./plugins
+
+# Enable/disable builtin plugins
+IRENE_PLUGINS__BUILTIN_PLUGINS__UNIVERSAL_TTS_PLUGIN=true
+IRENE_PLUGINS__BUILTIN_PLUGINS__UNIVERSAL_ASR_PLUGIN=true
+IRENE_PLUGINS__BUILTIN_PLUGINS__UNIVERSAL_LLM_PLUGIN=true
+IRENE_PLUGINS__BUILTIN_PLUGINS__UNIVERSAL_AUDIO_PLUGIN=true
+
+# ============================================================
+# SECURITY CONFIGURATION
+# ============================================================
+
+# API authentication
+IRENE_SECURITY__ENABLE_AUTHENTICATION=false
+IRENE_SECURITY__API_KEYS=key1,key2,key3
+IRENE_SECURITY__ALLOWED_HOSTS=localhost,127.0.0.1
+IRENE_SECURITY__CORS_ORIGINS=*
+
+# ============================================================
+# METRICS AND MONITORING
+# ============================================================
+
+# Enable metrics collection
+IRENE_ENABLE_METRICS=false
+IRENE_METRICS_PORT=9090
+
+# Enable performance profiling (development only)
+IRENE_ENABLE_PROFILING=false
+
+# ============================================================
+# DOCKER DEPLOYMENT EXAMPLE
+# ============================================================
+
+# When using Docker, ensure these directories are mounted:
+# 
+# docker-compose.yml:
+# volumes:
+#   - ./data/models:/data/models
+#   - ./data/cache:/data/cache  
+#   - ./data/credentials:/data/credentials
+#
+# Or with docker run:
+# docker run -v ./data/models:/data/models \
+#            -v ./data/cache:/data/cache \
+#            -v ./data/credentials:/data/credentials \
+#            --env-file .env \
+#            irene-voice-assistant
+
+# ============================================================
+# PROVIDER-SPECIFIC OVERRIDES (Optional)
+# ============================================================
+
+# If you need different paths for specific providers, uncomment:
+# IRENE_WHISPER_MODELS_DIR=${IRENE_MODELS_ROOT}/whisper
+# IRENE_SILERO_MODELS_DIR=${IRENE_MODELS_ROOT}/silero  
+# IRENE_VOSK_MODELS_DIR=${IRENE_MODELS_ROOT}/vosk
+
+# Legacy provider configurations (deprecated - use asset management above)
+# These are maintained for backwards compatibility but will show warnings
+# IRENE_PROVIDERS__ASR__WHISPER__DOWNLOAD_ROOT=
+# IRENE_PROVIDERS__ASR__VOSK__MODEL_PATHS=
+# IRENE_PROVIDERS__TTS__SILERO_V3__MODEL_PATH=
+# IRENE_PROVIDERS__LLM__OPENAI__API_KEY_ENV=
+# IRENE_PROVIDERS__ASR__GOOGLE_CLOUD__CREDENTIALS_PATH=
+
+# ============================================================
+# DEVELOPMENT SETTINGS
+# ============================================================
+
+# Development mode settings
+# IRENE_DEVELOPMENT_MODE=true
+# IRENE_AUTO_RELOAD=true
+# IRENE_VERBOSE_LOGGING=true
+
+# Testing settings  
+# IRENE_TEST_MODE=true
+# IRENE_MOCK_PROVIDERS=true 

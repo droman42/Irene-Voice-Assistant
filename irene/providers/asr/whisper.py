@@ -27,13 +27,25 @@ class WhisperASRProvider(ASRProvider):
             config: Provider configuration containing:
                 - model_size: Whisper model size ('tiny', 'base', 'small', 'medium', 'large')
                 - device: Device to run on ('cpu', 'cuda')
-                - download_root: Directory for cached models
+                - download_root: Directory for cached models (deprecated - uses asset manager)
                 - default_language: Default language code (None for auto-detect)
         """
         super().__init__(config)  # Proper ABC inheritance
         self.model_size = config.get("model_size", "base")
         self.device = config.get("device", "cpu")
-        self.download_root = config.get("download_root", "~/.cache/irene/whisper")
+        
+        # Asset management integration
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Use asset manager for download root, fallback to config for backwards compatibility
+        legacy_download_root = config.get("download_root")
+        if legacy_download_root:
+            self.download_root = Path(legacy_download_root).expanduser()
+            logger.warning("Using legacy download_root config. Consider using IRENE_MODELS_ROOT environment variable.")
+        else:
+            self.download_root = self.asset_manager.config.whisper_models_dir
+            
         self.default_language = config.get("default_language", None)  # None = auto-detect
         self._model: Any = None  # Lazy-loaded Whisper model
         
@@ -118,23 +130,28 @@ class WhisperASRProvider(ASRProvider):
                 logger.error(f"Whisper final chunk error: {e}")
     
     async def _load_model(self) -> None:
-        """Load Whisper model"""
+        """Load Whisper model using asset management"""
         try:
             import whisper  # type: ignore
             
-            # Expand download root path
-            download_root = Path(self.download_root).expanduser()
-            download_root.mkdir(parents=True, exist_ok=True)
+            # Ensure download directory exists
+            self.download_root.mkdir(parents=True, exist_ok=True)
+            
+            # Check if we should use asset manager download (for future enhancement)
+            # For now, let whisper library handle download as before
+            model_info = self.asset_manager.get_model_info("whisper", self.model_size)
+            if model_info:
+                logger.info(f"Loading Whisper model {self.model_size} (size: {model_info.get('size', 'unknown')})")
             
             # Load model in thread to avoid blocking
             self._model = await asyncio.to_thread(
                 whisper.load_model,  # type: ignore
                 self.model_size,
                 device=self.device,
-                download_root=str(download_root)
+                download_root=str(self.download_root)
             )
             
-            logger.info(f"Loaded Whisper model: {self.model_size} on {self.device}")
+            logger.info(f"Loaded Whisper model: {self.model_size} on {self.device} at {self.download_root}")
             
         except Exception as e:
             logger.error(f"Failed to load Whisper model: {e}")
