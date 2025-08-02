@@ -71,7 +71,7 @@ class SoundDeviceAudioProvider(AudioProvider):
         if self._available and self._sd:
             try:
                 # Get default output device
-                default_device = self._sd.default.device[1]  # Output device
+                default_device = self._sd.default.device[1]  # type: ignore  # Output device
                 self._output_device = default_device
                 logger.debug(f"Using default audio output device: {default_device}")
             except Exception as e:
@@ -208,7 +208,7 @@ class SoundDeviceAudioProvider(AudioProvider):
         """Stop current audio playback"""
         if self._sd and self._current_playback:
             try:
-                self._sd.stop()
+                self._sd.stop()  # type: ignore
                 self._current_playback = None
                 logger.debug("Audio playback stopped")
             except Exception as e:
@@ -249,7 +249,7 @@ class SoundDeviceAudioProvider(AudioProvider):
         
         try:
             devices = []
-            device_list = self._sd.query_devices()
+            device_list = self._sd.query_devices()  # type: ignore
             
             for i, device in enumerate(device_list):
                 if device['max_output_channels'] > 0:  # Output device
@@ -258,7 +258,7 @@ class SoundDeviceAudioProvider(AudioProvider):
                         'name': device['name'],
                         'channels': device['max_output_channels'],
                         'sample_rate': device['default_samplerate'],
-                        'default': i == self._sd.default.device[1]
+                        'default': i == self._sd.default.device[1]  # type: ignore
                     })
             
             return devices
@@ -278,7 +278,7 @@ class SoundDeviceAudioProvider(AudioProvider):
                 device_id = int(device_id)
                 
             # Validate device exists
-            devices = self._sd.query_devices()
+            devices = self._sd.query_devices()  # type: ignore
             if isinstance(device_id, int) and (device_id < 0 or device_id >= len(devices)):
                 raise ValueError(f"Device ID {device_id} out of range")
                 
@@ -362,8 +362,8 @@ class SoundDeviceAudioProvider(AudioProvider):
             
         try:
             # Play audio and wait for completion
-            self._sd.play(audio_data, sample_rate, device=device)
-            self._sd.wait()  # Wait for playback to complete
+            self._sd.play(audio_data, sample_rate, device=device)  # type: ignore
+            self._sd.wait()  # type: ignore  # Wait for playback to complete
             
         except Exception as e:
             logger.error(f"Audio playback error: {e}")

@@ -67,9 +67,9 @@ class VseGPTLLMProvider(LLMProvider):
             system_prompt = system_prompt.format(target_language=target_language)
         
         try:
-            import openai
+            from openai import AsyncOpenAI  # type: ignore
             # VseGPT API call (OpenAI-compatible)
-            client = openai.AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+            client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
             
             response = await client.chat.completions.create(
                 model=model,
@@ -94,8 +94,8 @@ class VseGPTLLMProvider(LLMProvider):
         temperature = kwargs.get("temperature", self.temperature)
         
         try:
-            import openai
-            client = openai.AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+            from openai import AsyncOpenAI  # type: ignore
+            client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
             
             response = await client.chat.completions.create(
                 model=model,

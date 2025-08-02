@@ -64,8 +64,8 @@ class AnthropicLLMProvider(LLMProvider):
             system_prompt = system_prompt.format(target_language=target_language)
         
         try:
-            import anthropic
-            client = anthropic.AsyncAnthropic(api_key=self.api_key)
+            from anthropic import AsyncAnthropic  # type: ignore
+            client = AsyncAnthropic(api_key=self.api_key)
             
             response = await client.messages.create(
                 model=model,
@@ -90,8 +90,8 @@ class AnthropicLLMProvider(LLMProvider):
         temperature = kwargs.get("temperature", self.temperature)
         
         try:
-            import anthropic
-            client = anthropic.AsyncAnthropic(api_key=self.api_key)
+            from anthropic import AsyncAnthropic  # type: ignore
+            client = AsyncAnthropic(api_key=self.api_key)
             
             # Convert messages format for Anthropic (extract system message if present)
             system_message = ""

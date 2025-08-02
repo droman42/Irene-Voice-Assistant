@@ -43,12 +43,12 @@ class AudioPlayerAudioProvider(AudioProvider):
         
         # Try to import audioplayer
         try:
-            import audioplayer  # type: ignore
-            self._audioplayer = audioplayer
+            from audioplayer import AudioPlayer  # type: ignore
+            self._AudioPlayer = AudioPlayer
             self._available = True
             logger.debug("AudioPlayer audio provider: dependencies available")
         except ImportError as e:
-            self._audioplayer = None
+            self._AudioPlayer = None
             self._available = False
             logger.warning(f"AudioPlayer audio provider: dependencies missing - {e}")
     
@@ -58,7 +58,7 @@ class AudioPlayerAudioProvider(AudioProvider):
     
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using audioplayer."""
-        if not self._available or not self._audioplayer:
+        if not self._available or not self._AudioPlayer:
             raise RuntimeError("AudioPlayer audio backend not available")
             
         file_path = Path(file_path)
@@ -178,14 +178,14 @@ class AudioPlayerAudioProvider(AudioProvider):
     
     def _play_audio_blocking(self, file_path: str, volume: float) -> None:
         """Blocking audio playback (called from thread)"""
-        if not self._audioplayer:
+        if not self._AudioPlayer:
             return
             
         try:
             self._current_playback = file_path
             
             # Create AudioPlayer instance and play
-            player = self._audioplayer.AudioPlayer(file_path)
+            player = self._AudioPlayer(file_path)
             player.volume = int(volume * 100)  # AudioPlayer uses 0-100 range
             player.play(block=True)  # Block until playback completes
             

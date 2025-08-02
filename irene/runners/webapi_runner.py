@@ -516,15 +516,17 @@ class WebAPIRunner:
             }
         
         # Server configuration
-        config = uvicorn.Config(
-            app=self.app,
-            host=args.host,
-            port=args.port,
-            log_level=args.log_level.lower(),
-            reload=args.reload,
-            workers=args.workers if not args.reload else 1,
-            **ssl_config
-        )
+        config_kwargs = {
+            "app": self.app,
+            "host": args.host,
+            "port": args.port,
+            "log_level": args.log_level.lower(),
+            "reload": args.reload,
+            "workers": args.workers if not args.reload else 1,
+        }
+        config_kwargs.update(ssl_config)
+        
+        config = uvicorn.Config(**config_kwargs)  # type: ignore
         
         server = uvicorn.Server(config)
         

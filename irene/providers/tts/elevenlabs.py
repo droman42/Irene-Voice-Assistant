@@ -46,7 +46,7 @@ class ElevenLabsTTSProvider(TTSProvider):
             return False
             
         try:
-            import httpx
+            import httpx  # type: ignore
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.base_url}/voices",
@@ -73,23 +73,9 @@ class ElevenLabsTTSProvider(TTSProvider):
                 text, voice_id, stability, similarity_boost
             )
             
-            # Play using audio plugin (if available)
-            if hasattr(self, 'audio_plugin') and self.audio_plugin:
-                # Save to temporary file and play
-                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-                    temp_file.write(audio_data)
-                    temp_path = Path(temp_file.name)
-                
-                try:
-                    await self.audio_plugin.play_file(temp_path)
-                finally:
-                    # Clean up temporary file
-                    try:
-                        temp_path.unlink()
-                    except OSError:
-                        pass
-            else:
-                logger.warning("No audio plugin available for ElevenLabs playback")
+            # Note: Audio playback should be handled by the calling code
+            # TTS providers only generate audio, they don't play it
+            logger.info("ElevenLabs audio generated successfully. Use to_file() method to save audio.")
                 
         except Exception as e:
             logger.error(f"ElevenLabs speech generation failed: {e}")
@@ -134,7 +120,7 @@ class ElevenLabsTTSProvider(TTSProvider):
         }
         
         try:
-            import httpx
+            import httpx  # type: ignore
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     url, 

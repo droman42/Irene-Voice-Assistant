@@ -433,7 +433,7 @@ class PrepareNormalizer:
     async def _transcribe_latin_to_cyrillic(self, text: str) -> str:
         """Transcribe Latin text to Cyrillic using IPA"""
         try:
-            import eng_to_ipa as ipa
+            import eng_to_ipa as ipa  # type: ignore
         except ImportError:
             logger.warning("eng_to_ipa not available for Latin transcription")
             return text
@@ -515,7 +515,7 @@ class RunormNormalizer:
     async def _initialize_runorm(self) -> None:
         """Initialize RUNorm model"""
         try:
-            from runorm import RUNorm
+            from runorm import RUNorm  # type: ignore
             
             self._normalizer = RUNorm()
             await asyncio.to_thread(

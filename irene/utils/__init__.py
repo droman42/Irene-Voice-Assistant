@@ -14,7 +14,6 @@ from .audio_helpers import *
 
 __all__ = [
     # Component loading utilities
-    'ComponentLoader',
     'safe_import',
     'get_component_status', 
     'suggest_installation',
