@@ -49,6 +49,13 @@ class WhisperASRProvider(ASRProvider):
         self.default_language = config.get("default_language", None)  # None = auto-detect
         self._model: Any = None  # Lazy-loaded Whisper model
         
+        # Initialize model on startup if requested
+        preload_models = config.get("preload_models", False)
+        if preload_models:
+            # Schedule model loading for startup
+            import asyncio
+            asyncio.create_task(self.warm_up())
+        
     async def is_available(self) -> bool:
         """Check if Whisper dependencies are available"""
         try:
@@ -156,6 +163,17 @@ class WhisperASRProvider(ASRProvider):
         except Exception as e:
             logger.error(f"Failed to load Whisper model: {e}")
             raise
+    
+    async def warm_up(self) -> None:
+        """Warm up by preloading the Whisper model"""
+        try:
+            if not self._model:
+                logger.info(f"Warming up Whisper {self.model_size} model...")
+                await self._load_model()
+                logger.info(f"Whisper {self.model_size} model warmed up successfully")
+        except Exception as e:
+            logger.error(f"Failed to warm up Whisper model: {e}")
+            # Don't raise - let the provider work with lazy loading
     
     def get_parameter_schema(self) -> Dict[str, Any]:
         """Return schema for Whisper-specific parameters"""

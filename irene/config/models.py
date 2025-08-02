@@ -167,13 +167,15 @@ class UniversalASRConfig(BaseModel):
                 "enabled": True,
                 "model_paths": {},  # Deprecated - uses IRENE_MODELS_ROOT
                 "sample_rate": 16000,
-                "confidence_threshold": 0.7
+                "confidence_threshold": 0.7,
+                "preload_models": False  # Set to True to download and cache models on startup
             },
             "whisper": {
                 "enabled": False,
                 "model_size": "base",
                 "device": "cpu",
-                "download_root": ""  # Deprecated - uses IRENE_MODELS_ROOT
+                "download_root": "",  # Deprecated - uses IRENE_MODELS_ROOT
+                "preload_models": False  # Set to True to download and cache models on startup
             },
             "google_cloud": {
                 "enabled": False,
@@ -184,6 +186,9 @@ class UniversalASRConfig(BaseModel):
         },
         description="ASR provider configurations"
     )
+
+
+# TTS configuration will be added to existing UniversalTTSConfig class
 
 
 class UniversalLLMConfig(BaseModel):
@@ -369,6 +374,12 @@ class AssetConfig(BaseModel):
                 "en_us": {
                     "url": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
                     "size": "1.8GB", 
+                    "extract": True,
+                    "checksum": None
+                },
+                "tts": {
+                    "url": "https://alphacephei.com/vosk/models/vosk-tts-ru.zip",
+                    "size": "100MB",
                     "extract": True,
                     "checksum": None
                 }

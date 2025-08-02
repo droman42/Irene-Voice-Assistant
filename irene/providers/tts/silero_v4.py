@@ -72,6 +72,13 @@ class SileroV4TTSProvider(TTSProvider):
         except ImportError:
             self._available = False
             logger.warning("Silero v4 TTS provider dependencies not available (torch required)")
+        
+        # Initialize model on startup if requested
+        preload_models = config.get("preload_models", False)
+        if preload_models and self._available:
+            # Schedule model loading for startup
+            import asyncio
+            asyncio.create_task(self.warm_up())
     
     async def is_available(self) -> bool:
         """Check if provider dependencies are available and functional"""
@@ -128,6 +135,15 @@ class SileroV4TTSProvider(TTSProvider):
         except Exception as e:
             logger.error(f"Failed to generate Silero v4 speech: {e}")
             raise RuntimeError(f"TTS generation failed: {e}")
+    
+    async def warm_up(self) -> None:
+        """Warm up by preloading the Silero v4 model (placeholder)"""
+        try:
+            logger.info("Warming up Silero v4 TTS model...")
+            # Placeholder - in real implementation would load model
+            logger.info("Silero v4 TTS model warmed up successfully (placeholder)")
+        except Exception as e:
+            logger.error(f"Failed to warm up Silero v4 model: {e}")
     
     def get_parameter_schema(self) -> Dict[str, Any]:
         """Return schema for provider-specific parameters"""

@@ -53,8 +53,9 @@ When configured, the asset management system creates this structure:
 │   ├── v3_ru.pt
 │   └── v4_ru.pt
 ├── vosk/
-│   ├── ru_small/
-│   └── en_us/
+│   ├── ru_small/           # ASR model
+│   ├── en_us/              # ASR model
+│   └── tts/                # TTS model
 └── huggingface/                # Future expansion
 
 /data/cache/                     # IRENE_CACHE_ROOT
@@ -170,8 +171,11 @@ VOLUME ["/data/models", "/data/cache", "/data/credentials"]
    # Move existing Whisper models
    mv ~/.cache/whisper/* $IRENE_MODELS_ROOT/whisper/
    
-   # Move existing VOSK models
-   mv ./models/vosk-* $IRENE_MODELS_ROOT/vosk/
+   # Move existing VOSK ASR models
+   mv ./models/vosk-model-* $IRENE_MODELS_ROOT/vosk/
+   
+   # Move existing VOSK TTS models
+   mv ./models/vosk-tts* $IRENE_MODELS_ROOT/vosk/
    
    # Move existing Silero models
    mv ~/.cache/irene/models/silero* $IRENE_MODELS_ROOT/silero/
@@ -194,6 +198,7 @@ The system maintains backwards compatibility:
 - **Whisper ASR**: Uses `IRENE_MODELS_ROOT/whisper/`
 - **Silero TTS v3/v4**: Uses `IRENE_MODELS_ROOT/silero/`
 - **VOSK ASR**: Uses `IRENE_MODELS_ROOT/vosk/`
+- **VOSK TTS**: Uses `IRENE_MODELS_ROOT/vosk/`
 
 ### Cloud Providers
 - **OpenAI**: Uses `OPENAI_API_KEY`
@@ -234,11 +239,16 @@ The system includes a built-in model registry with information about available m
         }
     },
     "vosk": {
-        "ru_small": {
-            "url": "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip",
-            "size": "50MB",
-            "extract": True
-        }
+                 "ru_small": {
+             "url": "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip",
+             "size": "50MB",
+             "extract": True
+         },
+         "tts": {
+             "url": "https://alphacephei.com/vosk/models/vosk-tts-ru.zip",
+             "size": "100MB",
+             "extract": True
+         }
     }
 }
 ```

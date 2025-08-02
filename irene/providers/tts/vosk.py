@@ -32,8 +32,19 @@ class VoskTTSProvider(TTSProvider):
         super().__init__(config)
         self._available = False
         
-        # Configuration values
-        self.model_path = config.get("model_path", "./models/vosk-tts")
+        # Asset management integration
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Configuration values with asset management
+        legacy_model_path = config.get("model_path")
+        if legacy_model_path:
+            self.model_path = Path(legacy_model_path)
+            logger.warning("Using legacy model_path config. Consider using IRENE_MODELS_ROOT environment variable.")
+        else:
+            # Use asset manager for model path
+            self.model_path = self.asset_manager.get_model_path("vosk", "tts", "vosk-tts")
+            
         self.default_language = config.get("default_language", "ru")
         self.sample_rate = config.get("sample_rate", 22050)
         self.voice_speed = config.get("voice_speed", 1.0)
@@ -50,14 +61,26 @@ class VoskTTSProvider(TTSProvider):
         except ImportError:
             self._available = False
             logger.warning("Vosk TTS provider dependencies not available (vosk required)")
+        
+        # Initialize model on startup if requested
+        preload_models = config.get("preload_models", False)
+        if preload_models and self._available:
+            # Schedule model loading for startup
+            import asyncio
+            asyncio.create_task(self.warm_up())
     
     async def is_available(self) -> bool:
         """Check if provider dependencies are available and functional"""
         if not self._available:
             return False
         
-        # Check if model path exists
-        return Path(self.model_path).exists()
+        # Check if model path exists or can be downloaded
+        if self.model_path.exists():
+            return True
+            
+        # Check if model can be downloaded via asset manager
+        model_info = self.asset_manager.get_model_info("vosk", "tts")
+        return model_info is not None
     
     async def speak(self, text: str, **kwargs) -> None:
         """Convert text to speech and play it"""
@@ -85,9 +108,12 @@ class VoskTTSProvider(TTSProvider):
                 temp_path.unlink()
     
     async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
-        """Convert text to speech and save to audio file"""
+        """Convert text to speech and save to audio file using asset management"""
         if not self._available:
             raise RuntimeError("Vosk TTS provider not available")
+            
+        # Ensure model is available
+        await self._ensure_model_available()
             
         # Extract parameters
         language = kwargs.get('language', self.default_language)
@@ -111,6 +137,40 @@ class VoskTTSProvider(TTSProvider):
         except Exception as e:
             logger.error(f"Failed to generate Vosk TTS speech: {e}")
             raise RuntimeError(f"TTS generation failed: {e}")
+    
+    async def _ensure_model_available(self) -> None:
+        """Ensure VOSK TTS model is available, download if necessary"""
+        if self.model_path.exists():
+            return
+            
+        logger.info("VOSK TTS model not found, attempting download...")
+        
+        try:
+            # Get model info for logging
+            model_info = self.asset_manager.get_model_info("vosk", "tts")
+            if model_info:
+                logger.info(f"Downloading VOSK TTS model (size: {model_info.get('size', 'unknown')})")
+            
+            # Download using asset manager
+            downloaded_path = await self.asset_manager.download_model("vosk", "tts")
+            
+            # If downloaded to different location, update model path
+            if downloaded_path != self.model_path:
+                self.model_path = downloaded_path
+                
+        except Exception as e:
+            logger.error(f"Failed to download VOSK TTS model: {e}")
+            raise RuntimeError(f"VOSK TTS model not found and download failed: {self.model_path}")
+    
+    async def warm_up(self) -> None:
+        """Warm up by preloading the VOSK TTS model"""
+        try:
+            logger.info("Warming up VOSK TTS model...")
+            await self._ensure_model_available()
+            logger.info("VOSK TTS model warmed up successfully")
+        except Exception as e:
+            logger.error(f"Failed to warm up VOSK TTS model: {e}")
+            # Don't raise - let the provider work with lazy loading
     
     def get_parameter_schema(self) -> Dict[str, Any]:
         """Return schema for provider-specific parameters"""

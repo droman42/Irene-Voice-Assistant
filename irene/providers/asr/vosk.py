@@ -53,6 +53,13 @@ class VoskASRProvider(ASRProvider):
         self._models: Dict[str, Any] = {}  # Lazy-loaded VOSK models cache
         self._recognizers: Dict[str, Any] = {}  # Cached VOSK recognizers per language
         
+        # Initialize model on startup if requested
+        preload_models = config.get("preload_models", False)
+        if preload_models:
+            # Schedule model loading for startup
+            import asyncio
+            asyncio.create_task(self.warm_up())
+        
     async def is_available(self) -> bool:
         """Check if VOSK dependencies and models are available"""
         try:
@@ -196,6 +203,17 @@ class VoskASRProvider(ASRProvider):
         except Exception as e:
             logger.error(f"Failed to create VOSK recognizer for {language}: {e}")
             raise
+    
+    async def warm_up(self) -> None:
+        """Warm up by preloading the default language model"""
+        try:
+            logger.info(f"Warming up VOSK ASR model for default language: {self.default_language}")
+            await self._load_model(self.default_language)
+            await self._create_recognizer(self.default_language)
+            logger.info(f"VOSK ASR model for {self.default_language} warmed up successfully")
+        except Exception as e:
+            logger.error(f"Failed to warm up VOSK ASR model: {e}")
+            # Don't raise - let the provider work with lazy loading
     
     def get_parameter_schema(self) -> Dict[str, Any]:
         """Return schema for VOSK-specific parameters"""

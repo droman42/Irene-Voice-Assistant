@@ -87,6 +87,13 @@ class SileroV3TTSProvider(TTSProvider):
         except ImportError:
             self._available = False
             logger.warning("Silero v3 TTS provider dependencies not available (torch required)")
+        
+        # Initialize model on startup if requested
+        preload_models = config.get("preload_models", False)
+        if preload_models and self._available:
+            # Schedule model loading for startup
+            import asyncio
+            asyncio.create_task(self.warm_up())
     
     async def is_available(self) -> bool:
         """Check if provider dependencies are available and functional"""
@@ -335,6 +342,16 @@ class SileroV3TTSProvider(TTSProvider):
         except Exception as e:
             logger.error(f"Failed to load Silero v3 model: {e}")
             raise
+    
+    async def warm_up(self) -> None:
+        """Warm up by preloading the Silero v3 model"""
+        try:
+            logger.info("Warming up Silero v3 TTS model...")
+            await self._ensure_model_loaded()
+            logger.info("Silero v3 TTS model warmed up successfully")
+        except Exception as e:
+            logger.error(f"Failed to warm up Silero v3 model: {e}")
+            # Don't raise - let the provider work with lazy loading
             
     async def _normalize_text_async(self, text: str) -> str:
         """Normalize text asynchronously"""
