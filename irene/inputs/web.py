@@ -7,11 +7,13 @@ and web application integration. Now supports audio chunk processing via ASR.
 
 import asyncio
 import logging
-from typing import AsyncIterator, Dict, Any, Optional
+from typing import AsyncIterator, Dict, Any, Optional, cast
 import json
 import base64
 
 from .base import InputSource, ComponentNotAvailable
+from ..core.interfaces.asr import ASRPlugin
+from ..core.interfaces.llm import LLMPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +236,7 @@ class WebInput(InputSource):
             if not self.core:
                 raise ComponentNotAvailable("Core reference not available")
                 
-            asr_plugin = self.core.plugin_manager.get_plugin("universal_asr")
+            asr_plugin = self.core.plugin_manager.get_asr_plugin("universal_asr")
             if not asr_plugin:
                 raise ComponentNotAvailable("ASR plugin not available")
             
@@ -244,7 +246,9 @@ class WebInput(InputSource):
             enhance = message.get("enhance", False)
             
             # Transcribe audio using ASR plugin
-            text = await asr_plugin.transcribe_audio(
+            # Cast to ASRPlugin since we've already checked it's not None
+            asr_plugin_typed = cast(ASRPlugin, asr_plugin)
+            text = await asr_plugin_typed.transcribe_audio(
                 audio_data, language=language
             )
             
@@ -252,10 +256,12 @@ class WebInput(InputSource):
                 # Optional LLM enhancement
                 enhanced_text = None
                 if enhance:
-                    llm_plugin = self.core.plugin_manager.get_plugin("universal_llm")
+                    llm_plugin = self.core.plugin_manager.get_llm_plugin("universal_llm")
                     if llm_plugin:
                         try:
-                            enhanced_text = await llm_plugin.enhance_text(text, task="improve_speech_recognition")
+                            # Cast to LLMPlugin since we've already checked it's not None
+                            llm_plugin_typed = cast(LLMPlugin, llm_plugin)
+                            enhanced_text = await llm_plugin_typed.enhance_text(text, task="improve_speech_recognition")
                         except Exception as e:
                             logger.warning(f"LLM enhancement failed: {e}")
                 

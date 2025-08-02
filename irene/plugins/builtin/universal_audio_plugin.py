@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any, List, Optional, AsyncIterator
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File  # type: ignore
 from pydantic import BaseModel
 
 from ...core.interfaces.audio import AudioPlugin
@@ -130,10 +130,15 @@ class UniversalAudioPlugin(AudioPlugin, WebAPIPlugin, CommandPlugin):
             }
         
         # Update settings from config
-        if hasattr(config, 'default_provider'):
-            self.default_provider = config.default_provider
-        if hasattr(config, 'fallback_providers'):
-            self.fallback_providers = config.fallback_providers
+        if isinstance(config, dict):
+            self.default_provider = config.get("default_provider", self.default_provider)
+            self.fallback_providers = config.get("fallback_providers", self.fallback_providers)
+        else:
+            # Handle config object case
+            if hasattr(config, 'default_provider'):
+                self.default_provider = config.default_provider
+            if hasattr(config, 'fallback_providers'):
+                self.fallback_providers = config.fallback_providers
         
         # Instantiate enabled providers
         providers_config = getattr(config, 'providers', {})
@@ -310,14 +315,16 @@ class UniversalAudioPlugin(AudioPlugin, WebAPIPlugin, CommandPlugin):
             
             # Save uploaded file temporarily
             import tempfile
-            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as temp_file:
+            filename = file.filename or "audio_file"
+            suffix = Path(filename).suffix if filename else ".wav"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
                 content = await file.read()
                 temp_file.write(content)
                 temp_path = Path(temp_file.name)
             
             try:
                 # Build parameters
-                kwargs = {"provider": provider_name}
+                kwargs: Dict[str, Any] = {"provider": provider_name}
                 if volume is not None:
                     kwargs["volume"] = volume
                 if device is not None:
@@ -351,7 +358,7 @@ class UniversalAudioPlugin(AudioPlugin, WebAPIPlugin, CommandPlugin):
             if provider_name not in self.providers:
                 raise HTTPException(404, f"Provider '{provider_name}' not available")
             
-            kwargs = {"provider": provider_name}
+            kwargs: Dict[str, Any] = {"provider": provider_name}
             if volume is not None:
                 kwargs["volume"] = volume
             

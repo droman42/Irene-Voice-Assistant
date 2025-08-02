@@ -11,6 +11,8 @@ from .tts import TTSPlugin
 from .audio import AudioPlugin
 from .input import InputPlugin
 from .webapi import WebAPIPlugin
+from .asr import ASRPlugin
+from .llm import LLMPlugin
 
 __all__ = [
     "PluginInterface",
@@ -19,5 +21,7 @@ __all__ = [
     "TTSPlugin",
     "AudioPlugin", 
     "InputPlugin",
-    "WebAPIPlugin"
+    "WebAPIPlugin",
+    "ASRPlugin",
+    "LLMPlugin"
 ] 

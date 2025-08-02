@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "irene-voice-assistant"
 version = "13.0.0"
@@ -24,6 +28,23 @@ audio-input = [
     "soundfile>=0.12.0"
 ]
 
+# Advanced ASR providers
+advanced-asr = [
+    "openai-whisper>=20230314",
+    "torch>=1.13.0",  # Required by Whisper
+    "torchaudio>=0.13.0"  # Required by Whisper
+]
+
+# Enhanced audio input with cloud providers
+audio-input-enhanced = [
+    "irene-voice-assistant[audio-input,cloud-asr]"
+]
+
+# Complete audio input with all ASR providers
+audio-input-complete = [
+    "irene-voice-assistant[audio-input,cloud-asr,advanced-asr]"
+]
+
 # TTS output components
 tts = [
     "pyttsx3>=2.90",
@@ -42,6 +63,12 @@ web-api = [
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.20.0",
     "websockets>=11.0.0",
+]
+
+# Cloud ASR components
+cloud-asr = [
+    "google-cloud-speech>=2.20.0",
+    "google-auth>=2.17.0",
 ]
 
 # Configuration management
@@ -70,7 +97,7 @@ headless = [
 
 # All optional components  
 all = [
-    "irene-voice-assistant[voice]"  # voice already includes text-multilingual
+    "irene-voice-assistant[voice,cloud-asr,advanced-asr]"  # voice already includes text-multilingual
 ]
 
 # Legacy v12 compatibility
@@ -97,6 +124,23 @@ dev = [
     "isort>=5.0.0",
     "flake8>=4.0.0",
     "mypy>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["irene*"]
+exclude = [
+    "model*",
+    "media*", 
+    "mpcapi*",
+    "plugins*",
+    "eng_to_ipa*",
+    "mic_client*",
+    "plugins_vasi*",
+    "webapi_client*",
+    "options_docker*",
+    "docker_plugins*",
+    "plugins_inactive*"
 ]
 
 [tool.uv]

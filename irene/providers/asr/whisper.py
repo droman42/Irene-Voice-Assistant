@@ -35,12 +35,12 @@ class WhisperASRProvider(ASRProvider):
         self.device = config.get("device", "cpu")
         self.download_root = config.get("download_root", "~/.cache/irene/whisper")
         self.default_language = config.get("default_language", None)  # None = auto-detect
-        self._model = None  # Lazy-loaded model
+        self._model: Any = None  # Lazy-loaded Whisper model
         
     async def is_available(self) -> bool:
         """Check if Whisper dependencies are available"""
         try:
-            import whisper
+            import whisper  # type: ignore
             return True
         except ImportError:
             logger.warning("Whisper library not available")
@@ -120,7 +120,7 @@ class WhisperASRProvider(ASRProvider):
     async def _load_model(self) -> None:
         """Load Whisper model"""
         try:
-            import whisper
+            import whisper  # type: ignore
             
             # Expand download root path
             download_root = Path(self.download_root).expanduser()
@@ -128,7 +128,7 @@ class WhisperASRProvider(ASRProvider):
             
             # Load model in thread to avoid blocking
             self._model = await asyncio.to_thread(
-                whisper.load_model,
+                whisper.load_model,  # type: ignore
                 self.model_size,
                 device=self.device,
                 download_root=str(download_root)

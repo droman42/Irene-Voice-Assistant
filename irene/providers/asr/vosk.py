@@ -34,13 +34,13 @@ class VoskASRProvider(ASRProvider):
         self.default_language = config.get("default_language", "ru")
         self.sample_rate = config.get("sample_rate", 16000)
         self.confidence_threshold = config.get("confidence_threshold", 0.7)
-        self._models = {}  # Lazy-loaded models cache
-        self._recognizers = {}  # Cached recognizers per language
+        self._models: Dict[str, Any] = {}  # Lazy-loaded VOSK models cache
+        self._recognizers: Dict[str, Any] = {}  # Cached VOSK recognizers per language
         
     async def is_available(self) -> bool:
         """Check if VOSK dependencies and models are available"""
         try:
-            import vosk
+            import vosk  # type: ignore
             # Check if at least one model exists
             if not self.model_paths:
                 logger.warning("No VOSK model paths configured")
@@ -124,9 +124,9 @@ class VoskASRProvider(ASRProvider):
             raise FileNotFoundError(f"VOSK model not found: {model_path}")
         
         try:
-            import vosk
+            import vosk  # type: ignore
             # Load model in thread to avoid blocking
-            model = await asyncio.to_thread(vosk.Model, model_path)
+            model = await asyncio.to_thread(vosk.Model, model_path)  # type: ignore
             self._models[language] = model
             logger.info(f"Loaded VOSK model for {language}: {model_path}")
         except Exception as e:
@@ -139,9 +139,9 @@ class VoskASRProvider(ASRProvider):
             await self._load_model(language)
         
         try:
-            import vosk
+            import vosk  # type: ignore
             model = self._models[language]
-            recognizer = vosk.KaldiRecognizer(model, self.sample_rate)
+            recognizer = vosk.KaldiRecognizer(model, self.sample_rate)  # type: ignore
             self._recognizers[language] = recognizer
             logger.info(f"Created VOSK recognizer for {language}")
         except Exception as e:

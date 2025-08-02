@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 import logging
 
 from fastapi import APIRouter, HTTPException
-from ...core.interfaces.plugin import PluginInterface
+from ...core.interfaces.llm import LLMPlugin
 from ...core.interfaces.webapi import WebAPIPlugin
 from ...core.interfaces.command import CommandPlugin
 from ...core.context import Context
@@ -26,7 +26,7 @@ from ...providers.llm import (
 logger = logging.getLogger(__name__)
 
 
-class UniversalLLMPlugin(PluginInterface, CommandPlugin, WebAPIPlugin):
+class UniversalLLMPlugin(LLMPlugin, CommandPlugin, WebAPIPlugin):
     """
     Universal LLM Plugin - Language Model Coordinator
     

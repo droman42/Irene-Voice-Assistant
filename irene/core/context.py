@@ -10,7 +10,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, Any
+from typing import Optional, Any, Callable, Awaitable
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,11 @@ class Context:
     
     # Session variables
     variables: dict[str, Any] = field(default_factory=dict)
+    
+    # Context continuation for multi-turn conversations
+    continuation_handler: Optional[Callable[[str, 'Context'], Awaitable[Any]]] = None
+    continuation_timeout: Optional[int] = None
+    continuation_timer: Optional[asyncio.Task] = None
     
     def update_access_time(self) -> None:
         """Update last accessed timestamp"""
@@ -84,6 +89,71 @@ class Context:
         """Check if context has expired"""
         expiry_time = self.last_accessed + timedelta(minutes=timeout_minutes)
         return datetime.now() > expiry_time
+    
+    async def set_continuation(self, handler: Callable[[str, 'Context'], Awaitable[Any]], timeout: int = 20) -> None:
+        """
+        Set a continuation handler for multi-turn conversations.
+        
+        Args:
+            handler: Async function to handle subsequent commands
+            timeout: Timeout in seconds for the continuation
+        """
+        # Clear any existing continuation
+        await self.clear_continuation()
+        
+        self.continuation_handler = handler
+        self.continuation_timeout = timeout
+        
+        # Set up timeout timer
+        if timeout > 0:
+            self.continuation_timer = asyncio.create_task(self._continuation_timeout())
+        
+        self.update_access_time()
+        logger.debug(f"Context continuation set with {timeout}s timeout")
+    
+    async def clear_continuation(self) -> None:
+        """Clear the continuation handler and cancel timeout"""
+        if self.continuation_timer:
+            self.continuation_timer.cancel()
+            try:
+                await self.continuation_timer
+            except asyncio.CancelledError:
+                pass
+            self.continuation_timer = None
+        
+        self.continuation_handler = None
+        self.continuation_timeout = None
+        logger.debug("Context continuation cleared")
+    
+    async def _continuation_timeout(self) -> None:
+        """Handle continuation timeout"""
+        try:
+            if self.continuation_timeout:
+                await asyncio.sleep(self.continuation_timeout)
+                logger.debug("Context continuation timed out")
+                await self.clear_continuation()
+        except asyncio.CancelledError:
+            pass
+    
+    def has_continuation(self) -> bool:
+        """Check if context has an active continuation handler"""
+        return self.continuation_handler is not None
+    
+    async def handle_continuation(self, command: str) -> Any:
+        """
+        Handle a command using the continuation handler.
+        
+        Args:
+            command: The command to handle
+            
+        Returns:
+            Result from the continuation handler
+        """
+        if not self.continuation_handler:
+            raise ValueError("No continuation handler set")
+        
+        self.update_access_time()
+        return await self.continuation_handler(command, self)
 
 
 class ContextManager:
@@ -132,9 +202,12 @@ class ContextManager:
             context.update_access_time()
         return context
         
-    def remove_context(self, session_id: str) -> None:
+    async def remove_context(self, session_id: str) -> None:
         """Remove a context"""
         if session_id in self._contexts:
+            context = self._contexts[session_id]
+            # Clear any active continuation before removing
+            await context.clear_continuation()
             del self._contexts[session_id]
             
     def get_user_contexts(self, user_id: str) -> list[Context]:
@@ -151,7 +224,7 @@ class ContextManager:
                 ]
                 
                 for session_id in expired_sessions:
-                    self.remove_context(session_id)
+                    await self.remove_context(session_id)
                     
                 if expired_sessions:
                     print(f"Cleaned up {len(expired_sessions)} expired contexts")

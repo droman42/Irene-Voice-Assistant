@@ -21,7 +21,7 @@ from ...core.interfaces.webapi import WebAPIPlugin
 from ...core.context import Context
 from ...core.commands import CommandResult
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException  # type: ignore
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ class ConversationResponse(BaseModel):
     created_at: float
 
 
-class ConversationPlugin(PluginInterface, CommandPlugin, WebAPIPlugin):
+class ConversationPlugin(CommandPlugin, WebAPIPlugin, PluginInterface):
     """
     Conversation Plugin - Interactive LLM Chat
     
@@ -316,6 +316,9 @@ class ConversationPlugin(PluginInterface, CommandPlugin, WebAPIPlugin):
         
         try:
             # Get LLM response
+            if not self.llm_plugin:
+                raise Exception("LLM plugin not available")
+            
             llm_response = await self.llm_plugin.chat_completion(
                 messages=session.get_messages(),
                 provider=self._get_provider_for_model(session.model_preference),
@@ -447,11 +450,10 @@ class ConversationPlugin(PluginInterface, CommandPlugin, WebAPIPlugin):
     
     async def _set_conversation_context(self, context: Context) -> None:
         """Set context for conversation continuation"""
-        if hasattr(context, 'set_continuation'):
-            await context.set_continuation(
-                handler=self.handle_command,
-                timeout=self.config["session_timeout"]
-            )
+        await context.set_continuation(
+            handler=self.handle_command,
+            timeout=self.config["session_timeout"]
+        )
     
     async def _cleanup_old_sessions(self) -> None:
         """Remove old inactive sessions"""

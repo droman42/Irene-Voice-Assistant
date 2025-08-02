@@ -27,7 +27,7 @@ class TextOutput(OutputTarget):
         
         # Try to import colorama for colored output
         try:
-            import colorama
+            import colorama  # type: ignore
             colorama.init()
             self._colors_available = True
         except ImportError:
@@ -119,7 +119,7 @@ class TextOutput(OutputTarget):
     def _add_colors(self, text: str, response_type: str) -> str:
         """Add ANSI color codes based on response type"""
         try:
-            import colorama
+            import colorama  # type: ignore
             
             color_map = {
                 "error": colorama.Fore.RED,

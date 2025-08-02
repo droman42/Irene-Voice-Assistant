@@ -1,5 +1,5 @@
 {
-    "python.defaultInterpreter": "./.venv/bin/python",
+    "python.pythonPath": "./.venv/bin/python",
     "python.terminal.activateEnvironment": true,
     "python.linting.enabled": true,
     "python.linting.pylintEnabled": false,
@@ -14,5 +14,6 @@
         "./eng_to_ipa"
     ],
     "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "basic"
+    "python.analysis.typeCheckingMode": "basic",
+    "python.interpreter.path": "./.venv/bin/python"
 } 

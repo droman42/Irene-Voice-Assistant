@@ -12,8 +12,8 @@ import time
 import base64
 import logging
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect
-from ...core.interfaces.plugin import PluginInterface
+from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect  # type: ignore
+from ...core.interfaces.asr import ASRPlugin
 from ...core.interfaces.webapi import WebAPIPlugin
 from ...core.interfaces.command import CommandPlugin
 from ...core.context import Context
@@ -30,7 +30,7 @@ from ...providers.asr import (
 logger = logging.getLogger(__name__)
 
 
-class UniversalASRPlugin(PluginInterface, WebAPIPlugin, CommandPlugin):
+class UniversalASRPlugin(ASRPlugin, WebAPIPlugin, CommandPlugin):
     """
     Universal ASR Plugin - Speech Recognition Coordinator
     

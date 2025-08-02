@@ -7,7 +7,7 @@ plugin loading, initialization, and lifecycle management.
 
 import asyncio
 import logging
-from typing import Optional, Set, Type, Union, TypeVar, Generic
+from typing import Optional, Set, Type, Union, TypeVar, Generic, Any, cast
 from pathlib import Path
 
 from ..core.interfaces.plugin import PluginInterface, PluginManager
@@ -15,6 +15,8 @@ from ..core.interfaces.command import CommandPlugin
 from ..core.interfaces.tts import TTSPlugin
 from ..core.interfaces.audio import AudioPlugin
 from ..core.interfaces.input import InputPlugin
+from ..core.interfaces.asr import ASRPlugin
+from ..core.interfaces.llm import LLMPlugin
 from .registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
@@ -335,6 +337,71 @@ class AsyncPluginManager:
     def has_plugin(self, plugin_name: str) -> bool:
         """Check if a plugin is loaded"""
         return plugin_name in self._plugins
+    
+    # Typed plugin getters for better type safety
+    def get_asr_plugin(self, plugin_name: str = "universal_asr") -> Optional[ASRPlugin]:
+        """
+        Get ASR plugin with proper typing
+        
+        Args:
+            plugin_name: Name of the ASR plugin (default: "universal_asr")
+            
+        Returns:
+            ASR plugin instance with transcribe_audio method, or None
+        """
+        plugin = self._plugins.get(plugin_name)
+        # Runtime type check for safety - verify it has ASR capabilities
+        if plugin and hasattr(plugin, 'transcribe_audio'):
+            return cast(ASRPlugin, plugin)
+        return None
+    
+    def get_llm_plugin(self, plugin_name: str = "universal_llm") -> Optional[LLMPlugin]:
+        """
+        Get LLM plugin with proper typing
+        
+        Args:
+            plugin_name: Name of the LLM plugin (default: "universal_llm")
+            
+        Returns:
+            LLM plugin instance with enhance_text method, or None
+        """
+        plugin = self._plugins.get(plugin_name)
+        # Runtime type check for safety - verify it has LLM capabilities
+        if plugin and hasattr(plugin, 'enhance_text'):
+            return cast(LLMPlugin, plugin)  # Cast to Any for method access
+        return None
+    
+    def get_tts_plugin(self, plugin_name: str = "universal_tts") -> Optional[TTSPlugin]:
+        """
+        Get TTS plugin with proper typing
+        
+        Args:
+            plugin_name: Name of the TTS plugin (default: "universal_tts")
+            
+        Returns:
+            TTS plugin instance with speak method, or None
+        """
+        plugin = self._plugins.get(plugin_name)
+        # Runtime type check for safety - verify it has TTS capabilities
+        if plugin and hasattr(plugin, 'speak'):
+            return cast(TTSPlugin, plugin)
+        return None
+    
+    def get_audio_plugin(self, plugin_name: str = "universal_audio") -> Optional[AudioPlugin]:
+        """
+        Get Audio plugin with proper typing
+        
+        Args:
+            plugin_name: Name of the Audio plugin (default: "universal_audio")
+            
+        Returns:
+            Audio plugin instance with play_stream method, or None
+        """
+        plugin = self._plugins.get(plugin_name)
+        # Runtime type check for safety - verify it has Audio capabilities
+        if plugin and hasattr(plugin, 'play_stream'):
+            return cast(AudioPlugin, plugin)
+        return None
         
     def get_plugin_info(self, plugin_name: str) -> Optional[dict]:
         """Get plugin metadata"""

@@ -37,12 +37,12 @@ class GoogleCloudASRProvider(ASRProvider):
         self.default_language = config.get("default_language", "ru-RU")
         self.sample_rate_hertz = config.get("sample_rate_hertz", 16000)
         self.encoding = config.get("encoding", "LINEAR16")
-        self._client = None  # Lazy-loaded client
+        self._client: Any = None  # Lazy-loaded Google Cloud Speech client
         
     async def is_available(self) -> bool:
         """Check if Google Cloud dependencies and credentials are available"""
         try:
-            from google.cloud import speech
+            from google.cloud import speech  # type: ignore
             
             # Check if credentials file exists
             if self.credentials_path and Path(self.credentials_path).exists():
@@ -50,7 +50,7 @@ class GoogleCloudASRProvider(ASRProvider):
             
             # Check if application default credentials are available
             try:
-                import google.auth
+                import google.auth  # type: ignore
                 credentials, project = google.auth.default()
                 return credentials is not None
             except Exception:
@@ -152,7 +152,7 @@ class GoogleCloudASRProvider(ASRProvider):
     async def _initialize_client(self) -> None:
         """Initialize Google Cloud Speech client"""
         try:
-            from google.cloud import speech
+            from google.cloud import speech  # type: ignore
             
             # Set up credentials if provided
             if self.credentials_path:
