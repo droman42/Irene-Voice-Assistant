@@ -1,0 +1,80 @@
+{
+  "include": [
+    "irene",
+    "wake_word_training"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*"
+  ],
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Linux",
+  
+  // Relaxed type checking to match mypy.ini settings
+  "typeCheckingMode": "basic",
+  
+  // Disable strict checking
+  "strictListInference": false,
+  "strictDictionaryInference": false,
+  "strictSetInference": false,
+  "strictParameterNoneValue": false,
+  
+  // Disable warnings that mypy.ini disables
+  "reportMissingTypeStubs": false,
+  "reportUnknownParameterType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportMissingParameterType": false,
+  "reportMissingReturnType": false,
+  "reportUnusedImport": false,
+  "reportUnusedClass": false,
+  "reportUnusedFunction": false,
+  "reportUnusedVariable": false,
+  "reportDuplicateImport": false,
+  "reportOptionalSubscript": false,
+  "reportOptionalMemberAccess": false,
+  "reportOptionalCall": false,
+  "reportOptionalIterable": false,
+  "reportOptionalContextManager": false,
+  "reportOptionalOperand": false,
+  "reportTypedDictNotRequiredAccess": false,
+  "reportPrivateImportUsage": false,
+  "reportConstantRedefinition": false,
+  "reportIncompatibleMethodOverride": false,
+  "reportIncompatibleVariableOverride": false,
+  "reportOverlappingOverload": false,
+  "reportUntypedNamedTuple": false,
+  "reportUntypedClassDecorator": false,
+  "reportUntypedFunctionDecorator": false,
+  "reportUntypedBaseClass": false,
+  "reportArgumentType": false,
+  "reportAssignmentType": false,
+  "reportAttributeAccessIssue": false,
+  "reportCallIssue": false,
+  "reportGeneralTypeIssues": false,
+  "reportOperatorIssue": false,
+  "reportReturnType": false,
+  "reportIndexIssue": false,
+  
+  // Ignore missing imports for third-party libraries (matching mypy.ini)
+  "ignore": [
+    "**/anthropic/**",
+    "**/elevenlabs/**", 
+    "**/openai/**",
+    "**/sounddevice/**",
+    "**/vosk/**",
+    "**/pyttsx3/**",
+    "**/google/**",
+    "**/lingua_franca/**",
+    "**/pydantic/**",
+    "**/pydantic_settings/**",
+    "**/tensorflow/**",
+    "**/torch/**",
+    "**/librosa/**",
+    "**/matplotlib/**",
+    "**/pandas/**"
+  ]
+} 

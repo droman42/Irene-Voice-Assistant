@@ -53,9 +53,10 @@ This creates a complete node structure with:
 For each node, you need to train a custom wake word model:
 
 ```bash
-# Record samples (see ESP32/wakeword_training/README.md)
-cd ../../wakeword_training
-python scripts/record_samples.py --wake-word jarvis --samples 200
+# Record samples (see wake_word_training/README.md)
+# Install wake word training tools (if working in project directory)
+uv sync --extra wake-word-training
+irene-record-samples --wake_word jarvis --num_samples 200
 
 # Train model
 microwakeword-train \
@@ -311,4 +312,4 @@ For issues and questions:
 - Check the main Irene documentation
 - Review ESP-IDF documentation for hardware issues
 - Examine the firmware specification in `docs/irene_firmware.md`
-- Test with the wake word training tools in `ESP32/wakeword_training/` 
+- Test with the wake word training tools: `irene-record-samples`, `irene-train-wake-word`, `irene-validate-model` 

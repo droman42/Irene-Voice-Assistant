@@ -18,15 +18,19 @@ This guide walks through the complete process of training a custom wake word mod
 
 2. **Setup project environment**:
    ```bash
-   cd ESP32/wakeword_training
-   uv sync  # Install all dependencies
-   # Try to install microWakeWord (may fail on some systems due to webrtcvad)
-   uv pip install git+https://github.com/kahrendt/microWakeWord.git || echo "Using TensorFlow directly"
+   # Install wake word training dependencies (if working in project directory)
+   uv sync --extra wake-word-training
+   
+   # Or if installing as external package
+   # uv add irene-voice-assistant[wake-word-training]
+   
+   # Install microWakeWord (may fail on some systems due to webrtcvad)
+   uv add git+https://github.com/kahrendt/microWakeWord.git || echo "Using TensorFlow directly"
    ```
 
 3. **Verify audio setup**:
    ```bash
-   uv run python -c "import sounddevice; print(sounddevice.query_devices())"
+   python -c "import sounddevice; print(sounddevice.query_devices())"
    ```
 
 ## Step 1: Record Training Data
@@ -35,32 +39,32 @@ This guide walks through the complete process of training a custom wake word mod
 
 ```bash
 # Speaker 1 (50 samples)
-uv run record-samples --wake_word jarvis --speaker_name alice --num_samples 50
+irene-record-samples --wake_word jarvis --speaker_name alice --num_samples 50
 
 # Speaker 2 (50 samples)  
-uv run record-samples --wake_word jarvis --speaker_name bob --num_samples 50
+irene-record-samples --wake_word jarvis --speaker_name bob --num_samples 50
 
 # Speaker 3 (50 samples)
-uv run record-samples --wake_word jarvis --speaker_name charlie --num_samples 50
+irene-record-samples --wake_word jarvis --speaker_name charlie --num_samples 50
 
 # Speaker 4 (50 samples)
-uv run record-samples --wake_word jarvis --speaker_name diana --num_samples 50
+irene-record-samples --wake_word jarvis --speaker_name diana --num_samples 50
 ```
 
 ### Record negative samples (background noise)
 
 ```bash
 # Record 2 hours of idle room noise
-uv run record-samples --wake_word jarvis --record_negatives --duration 7200
+irene-record-samples --wake_word jarvis --record_negatives --duration 7200
 
 # Record 2 hours of conversational speech (avoid saying "jarvis")
-uv run record-samples --wake_word jarvis --record_negatives --duration 7200
+irene-record-samples --wake_word jarvis --record_negatives --duration 7200
 ```
 
 ### Check data readiness
 
 ```bash
-uv run record-samples --wake_word jarvis --summary
+irene-record-samples --wake_word jarvis --summary
 ```
 
 **Expected output:**
@@ -86,10 +90,10 @@ uv run record-samples --wake_word jarvis --summary
 
 ```bash
 # Train with default parameters (recommended)
-./scripts/train_model.sh jarvis
+irene-train-wake-word jarvis
 
 # Or train with custom parameters
-./scripts/train_model.sh jarvis --epochs 60 --batch_size 32
+irene-train-wake-word jarvis --epochs 60 --batch_size 32
 ```
 
 **Expected output:**
@@ -117,7 +121,7 @@ uv run record-samples --wake_word jarvis --summary
 ## Step 3: Validate the Model
 
 ```bash
-uv run validate-model models/jarvis_medium_20250131_143022.tflite
+irene-validate-model models/jarvis_medium_20250131_143022.tflite
 ```
 
 **Expected output:**
@@ -145,14 +149,31 @@ uv run validate-model models/jarvis_medium_20250131_143022.tflite
    Model is ready for firmware integration!
 ```
 
-## Step 4: Convert for ESP32 Firmware
+## Step 4: Convert for Target Platforms
+
+### Convert for ESP32 Firmware
 
 ```bash
 # Convert for kitchen node
-uv run convert-for-firmware \
+irene-convert-to-esp32 \
   models/jarvis_medium_20250131_143022.tflite \
   --node_name kitchen \
-  --output_dir firmware/
+  --output_dir outputs/esp32/
+```
+
+### Convert for Python VoiceTrigger (Optional)
+
+```bash
+# Convert to ONNX for OpenWakeWord provider
+irene-convert-to-onnx \
+  models/jarvis_medium_20250131_143022.tflite \
+  --output_dir outputs/onnx/
+
+# Optimize TFLite for Python microWakeWord provider
+irene-convert-to-tflite \
+  models/jarvis_medium_20250131_143022.tflite \
+  --optimize --quantize \
+  --output_dir outputs/python/
 ```
 
 **Expected output:**
@@ -218,7 +239,7 @@ uv run convert-for-firmware \
 ## File Structure After Training
 
 ```
-wakeword_training/
+wake_word_training/
 ├── data/
 │   ├── positive/
 │   │   ├── alice/          # 50 samples

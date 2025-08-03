@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     # Core async framework (minimal dependencies)
-    "python-dateutil>=2.6.0",
+    "python-dateutil>=2.8.0",  # Fixed: Updated to be compatible with pandas/matplotlib
     # Configuration and validation (now required)
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
@@ -57,7 +57,7 @@ audio-output = [
     "sounddevice>=0.4.0",
     "soundfile>=0.12.0",
     "audioplayer>=0.6.0",
-    "simpleaudio>=1.0.4",
+    # "simpleaudio>=1.0.4",  # Temporarily disabled due to compilation issues with custom OpenSSL
     "numpy>=1.21.0",
 ]
 
@@ -85,13 +85,53 @@ config-writing = [
     # tomli-w moved to core dependencies
 ]
 
-# Text processing and multilingual support
-text-multilingual = [ # Mycroft AI's multilingual text processing
-    "lingua-franca>=0.4.3",
+# Text processing and multilingual support - Fixed: Reference specific commit with python-dateutil fix
+text-multilingual = [
+    "lingua-franca @ git+https://github.com/MycroftAI/lingua-franca.git@5bfd75fe5996fd364102a0eec3f714c9ddc9275c",
     "runorm>=0.1.0",
     "eng-to-ipa>=0.0.2",
 ]
 
+# Wake word training and model development
+wake-word-training = [
+    # Audio processing and recording
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12.1",
+    "numpy>=1.21.0",
+    
+    # Machine learning (for microwakeword-train)
+    "tensorflow>=2.12.0",
+    "librosa>=0.10.0",
+    "scipy>=1.9.0",
+    
+    # Model conversion and export
+    "tf2onnx>=1.15.0",
+    "onnx>=1.14.0",
+    
+    # Data processing and visualization - Fixed: Removed restrictive matplotlib constraint
+    "pandas>=1.5.0",
+    "matplotlib>=3.6.0",  # Fixed: Removed upper bound constraint
+    "seaborn>=0.12.0",
+    
+    # Audio utilities
+    "pydub>=0.25.1",
+    
+    # Progress tracking and configuration
+    "tqdm>=4.64.0",
+    "pyyaml>=6.0",
+]
+
+# Development dependencies - Fixed: Removed duplication
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0", 
+    "black>=22.0.0",
+    "isort>=5.0.0",
+    "flake8>=4.0.0",
+    "mypy==1.15.0",  # Pinned to match wb-mqtt-bridge version
+]
+
+# Convenience groups - Fixed: Re-enabled with proper dependencies
 # Full voice assistant
 voice = [
     "irene-voice-assistant[audio-input,tts,audio-output,web-api,text-multilingual,config-writing]"
@@ -107,68 +147,34 @@ headless = [
     "irene-voice-assistant[config-writing]"
 ]
 
-# All optional components  
+# All optional components - Fixed: Re-enabled
 all = [
-    "irene-voice-assistant[voice,cloud-asr,advanced-asr,llm]"  # voice already includes text-multilingual
+    "irene-voice-assistant[voice,cloud-asr,advanced-asr,llm,wake-word-training]"
 ]
 
-# Legacy v12 compatibility
-v12-compat = [
-    "vosk>=0.3.45",
-    "vosk-tts>=0.3.52", 
-    "sounddevice",
-    "soundfile",
-    "audioplayer",
-    "pyttsx3>=2.90",
-    "requests", 
-    "wikipedia-api>=0.5.4",
-    "openai==0.28.0",
-    "elevenlabs==1.0.3",
-    "pyautogui",
-    "fsspec==2023.1.0",
-]
+[project.scripts]
+# Wake word training tools
+irene-record-samples = "wake_word_training.scripts.record_samples:main"
+irene-validate-model = "wake_word_training.scripts.validate_model:main"
+irene-train-wake-word = "wake_word_training.scripts.train_model:main"
 
-# Development dependencies
-dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0", 
-    "black>=22.0.0",
-    "isort>=5.0.0",
-    "flake8>=4.0.0",
-    "mypy>=1.0.0",
-]
+# Multi-target model converters
+irene-convert-to-esp32 = "wake_word_training.scripts.converters.to_esp32:main"
+irene-convert-to-onnx = "wake_word_training.scripts.converters.to_onnx:main"
+irene-convert-to-tflite = "wake_word_training.scripts.converters.to_tflite:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["irene*"]
-exclude = [
-    "model*",
-    "media*", 
-    "mpcapi*",
-    "plugins*",
-    "eng_to_ipa*",
-    "mic_client*",
-    "plugins_vasi*",
-    "webapi_client*",
-    "options_docker*",
-    "docker_plugins*",
-    "plugins_inactive*"
-]
+include = ["irene*", "wake_word_training*"]
+# Fixed: Removed references to non-existent directories
+exclude = []
 
-[tool.uv]
-dev-dependencies = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "black>=22.0.0", 
-    "isort>=5.0.0",
-    "flake8>=4.0.0",
-    "mypy>=0.900",
-]
-
+# Fixed: Removed duplicate dev-dependencies section
 [tool.black]
 line-length = 100
 target-version = ['py311']
 include = '\.pyi?$'
+# Fixed: Removed references to non-existent directories
 extend-exclude = '''
 /(
   # directories
@@ -180,7 +186,6 @@ extend-exclude = '''
   | \.venv
   | build
   | dist
-  | eng_to_ipa
 )/
 '''
 
@@ -194,20 +199,32 @@ use_parentheses = true
 ensure_newline_before_comments = true
 
 [tool.mypy]
+# Basic settings - detailed configuration in mypy.ini (matching wb-mqtt-bridge)
 python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-check_untyped_defs = true
-disallow_untyped_decorators = false
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-exclude = [
-    "eng_to_ipa/",
-    "model/",
+
+[tool.pyright]
+# Pylance configuration to match mypy.ini relaxed settings
+include = ["irene"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingTypeStubs = false
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportArgumentType = false
+reportAssignmentType = false
+reportAttributeAccessIssue = false
+reportGeneralTypeIssues = false
+reportIndexIssue = false
+
+[dependency-groups]
+dev = [
+    "mypy==1.15.0",
+    "types-beautifulsoup4>=4.12.0.20250516",
+    "types-pillow>=10.2.0.20240822",
+    "types-pyyaml>=6.0.12.20250516",
+    "types-requests>=2.32.4.20250611",
+    "types-setuptools>=80.9.0.20250801",
+    "types-urllib3>=1.26.25.14",
 ]

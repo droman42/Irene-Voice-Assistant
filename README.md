@@ -57,7 +57,10 @@ uv add irene-voice-assistant[headless]
 # 4. С мультиязычной поддержкой (lingua-franca)
 uv add irene-voice-assistant[text-multilingual]
 
-# 5. Полная установка (все опции)
+# 5. С инструментами обучения wake word (microWakeWord)
+uv add irene-voice-assistant[wake-word-training]
+
+# 6. Полная установка (все опции)
 uv add irene-voice-assistant[all]
 ```
 
@@ -135,6 +138,37 @@ print('Результат:', all_num_to_text(text))
 # Мультиязычная поддержка (с lingua-franca)
 uv add irene-voice-assistant[text-multilingual]  # только при необходимости
 ```
+
+## 🎯 **Wake Word Training (Обучение активации голоса)**
+
+### **Интегрированная система обучения**
+Обучайте собственные модели активации для улучшенного голосового взаимодействия:
+
+```bash
+# Установка с инструментами обучения (если работаете в проекте)
+uv sync --extra wake-word-training
+
+# Или как внешний пакет:
+# uv add irene-voice-assistant[wake-word-training]
+
+# Полный цикл создания wake word модели:
+irene-record-samples --wake_word irene --speaker_name your_name --num_samples 50
+irene-train-wake-word irene --epochs 55 --batch_size 16
+irene-validate-model models/irene_medium_*.tflite
+
+# Конвертация для разных платформ:
+irene-convert-to-esp32 models/irene_medium_*.tflite     # → ESP32 firmware 
+irene-convert-to-onnx models/irene_medium_*.tflite      # → OpenWakeWord (Python)
+irene-convert-to-tflite models/irene_medium_*.tflite    # → microWakeWord (Python)
+```
+
+**Поддерживаемые платформы:**
+- ✅ **ESP32 firmware** - C заголовки для встраиваемых устройств
+- ✅ **Python OpenWakeWord** - ONNX модели для OpenWakeWord provider
+- ✅ **Python microWakeWord** - TFLite модели для microWakeWord provider
+- ✅ **Унифицированное обучение** - одна система для всех платформ
+
+📖 **Документация**: `wake_word_training/README.md` и `wake_word_training/USAGE_EXAMPLE.md`
 
 ## 🏗️ **Современные раннеры v13**
 
