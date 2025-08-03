@@ -30,17 +30,74 @@
 
 **Что ожидается с VoiceTrigger:**
 ```
-🎤 Audio Input → 👂 Wake Word Detection → [TRIGGERED] → 🗣️ ASR → 📝 Text → ⚡ Command Processing
-                                      → [NOT TRIGGERED] → Continue listening
+🎤 Audio Input → 🎼 Workflow Orchestrator → 👂 Wake Word Detection → [TRIGGERED] → 🗣️ ASR → 📝 Text → ⚡ Command Processing
+                                       → [NOT TRIGGERED] → Continue listening
 ```
 
 ---
 
 ## 🏗️ **Архитектурное решение**
 
-### 1. Интеграция на уровне компонентов
+### 1. Чистая архитектура с разделением ответственности
 
-Следуя паттерну существующих компонентов в `irene/core/components.py`:
+Следуя принципам v13 архитектуры, **каждый слой имеет единственную ответственность**:
+
+```mermaid
+graph TB
+    subgraph "📥 Input Layer (Pure Audio Sources)"
+        Mic[MicrophoneInput<br/>Just captures audio]
+        WebAudio[WebAudioInput<br/>Just receives audio]
+        FileAudio[FileAudioInput<br/>Just reads audio]
+    end
+    
+    subgraph "🎯 Universal Plugins (Business Logic)"
+        VT[UniversalVoiceTriggerPlugin<br/>Audio → Wake Detection]
+        ASR[UniversalASRPlugin<br/>Audio → Text]
+        LLM[UniversalLLMPlugin<br/>Text → Response]
+        TTS[UniversalTTSPlugin<br/>Text → Audio]
+    end
+    
+    subgraph "🎼 Workflow Orchestration"
+        VAWorkflow[VoiceAssistantWorkflowPlugin<br/>Orchestrates complete pipeline]
+        ContWorkflow[ContinuousListeningWorkflowPlugin<br/>Direct ASR without wake word]
+    end
+    
+    subgraph "📤 Output Layer (Pure Output Targets)"
+        Console[Console Output]
+        Speaker[Audio Output]
+        WebOut[Web Response]
+    end
+    
+    Mic --> VAWorkflow
+    WebAudio --> VAWorkflow
+    FileAudio --> VAWorkflow
+    
+    Mic --> ContWorkflow
+    WebAudio --> ContWorkflow
+    
+    VAWorkflow --> VT
+    VAWorkflow --> ASR
+    VAWorkflow --> LLM
+    VAWorkflow --> TTS
+    
+    ContWorkflow --> ASR
+    ContWorkflow --> LLM
+    ContWorkflow --> TTS
+    
+    VAWorkflow --> Console
+    VAWorkflow --> Speaker
+    VAWorkflow --> WebOut
+    
+    ContWorkflow --> Console
+    ContWorkflow --> Speaker
+    ContWorkflow --> WebOut
+    
+    style VAWorkflow fill:#ffcdd2,stroke:#d32f2f,stroke-width:3px
+    style ContWorkflow fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    style VT fill:#ffecb3,stroke:#ff8f00,stroke-width:2px
+```
+
+### 2. Компонентная структура
 
 ```python
 class VoiceTriggerComponent(Component):
@@ -68,15 +125,16 @@ class VoiceTriggerComponent(Component):
         self.logger.info("Voice trigger component shutdown")
 ```
 
-### 2. Универсальная плагинная архитектура
-
-Следуя паттерну `Universal*Plugin`:
+### 3. Универсальная плагинная архитектура
 
 ```python
 # irene/plugins/builtin/universal_voice_trigger_plugin.py
-class UniversalVoiceTriggerPlugin(VoiceTriggerPlugin, WebAPIPlugin, CommandPlugin):
+class UniversalVoiceTriggerPlugin(VoiceTriggerPlugin, WebAPIPlugin):
     """
     Universal Voice Trigger Plugin - manages multiple wake word providers
+    
+    Pure business logic: Audio → Wake Word Detection Result
+    Agnostic to input sources and output consumers
     
     Providers:
     - OpenWakeWordProvider (рекомендуется)
@@ -84,56 +142,179 @@ class UniversalVoiceTriggerPlugin(VoiceTriggerPlugin, WebAPIPlugin, CommandPlugi
     - PicovoiceProvider (коммерческое качество)
     - PreciseProvider (Mozilla)
     """
+    
+    async def detect(self, audio_data: AudioData) -> WakeWordResult:
+        """Pure detection logic - no workflow knowledge"""
+        provider = self.get_current_provider()
+        return await provider.detect_wake_word(audio_data)
 ```
 
-### 3. Паттерн Provider
+### 4. Workflow Orchestration Plugin
 
 ```python
-# irene/providers/wake_word/
-├── __init__.py
-├── base.py                    # VoiceTriggerProvider ABC
-├── openwakeword.py           # OpenWakeWord provider (рекомендуется)
-├── microwakeword.py          # ESP32-совместимые модели
-├── picovoice.py              # Porcupine wake word
-└── precise.py                # Mozilla Precise
-```
-
-### 4. Интеграция с Input Manager
-
-**Модифицированный поток в `irene/inputs/microphone.py`:**
-
-```python
-class MicrophoneInput(InputSource):
-    def __init__(self, 
-                 asr_plugin: Optional[ASRPlugin] = None,
-                 voice_trigger_plugin: Optional[VoiceTriggerPlugin] = None):
-        self.asr_plugin = asr_plugin
-        self.voice_trigger_plugin = voice_trigger_plugin
-        self._voice_triggered = False
+# irene/plugins/builtin/voice_assistant_workflow_plugin.py
+class VoiceAssistantWorkflowPlugin(CommandPlugin):
+    """
+    Voice Assistant Workflow Orchestrator
+    
+    Coordinates: Audio Input → Voice Trigger → ASR → Command → Response
+    This is where the workflow logic lives, not in input sources!
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.voice_trigger = None  # Injected by dependency injection
+        self.asr = None           # Injected by dependency injection
+        self.llm = None           # Injected by dependency injection
+        self.tts = None           # Injected by dependency injection
         
-    async def listen(self) -> AsyncIterator[str]:
-        while self._listening:
-            audio_data = await self._get_audio_chunk()
-            
-            if self.voice_trigger_plugin:
-                # Сначала проверка wake word
-                is_triggered = await self.voice_trigger_plugin.detect(audio_data)
-                
-                if is_triggered:
-                    self._voice_triggered = True
-                    logger.info("Voice trigger detected!")
+    async def initialize(self):
+        """Initialize with injected universal plugins"""
+        # Dependency injection from PluginManager
+        self.voice_trigger = self.core.plugin_manager.get_plugin("universal_voice_trigger")
+        self.asr = self.core.plugin_manager.get_plugin("universal_asr")
+        self.llm = self.core.plugin_manager.get_plugin("universal_llm")
+        self.tts = self.core.plugin_manager.get_plugin("universal_tts")
+        
+    async def process_audio_stream(self, audio_stream: AsyncIterator[AudioData], context: RequestContext):
+        """Main workflow orchestration logic"""
+        
+        async for audio_data in audio_stream:
+            # Step 1: Voice trigger detection (if enabled)
+            if self.voice_trigger and not context.skip_wake_word:
+                wake_result = await self.voice_trigger.detect(audio_data)
+                if not wake_result.detected:
+                    continue  # Keep listening for wake word
                     
-                if self._voice_triggered:
-                    # Обработка с ASR до тишины/таймаута
-                    text = await self.asr_plugin.transcribe_audio(audio_data)
-                    if text.strip():
-                        yield text
-                        self._voice_triggered = False  # Сброс после команды
-            else:
-                # Непрерывный режим (текущее поведение)
-                text = await self.asr_plugin.transcribe_audio(audio_data)
-                if text.strip():
-                    yield text
+                self.logger.info(f"Wake word '{wake_result.word}' detected with confidence {wake_result.confidence}")
+                
+            # Step 2: Speech recognition
+            if self.asr:
+                text = await self.asr.transcribe(audio_data)
+                if not text.strip():
+                    continue
+                    
+            # Step 3: Command processing
+            response = await self.process_command(text, context)
+            
+            # Step 4: Output routing (based on context)
+            await self._route_response(response, context)
+            
+    async def _route_response(self, response: str, context: RequestContext):
+        """Route response to appropriate output channels"""
+        # TTS output (if audio response requested)
+        if self.tts and context.wants_audio_response:
+            audio_response = await self.tts.synthesize(response)
+            await self.core.output_manager.send_audio(audio_response, context)
+            
+        # Text output (console, web, etc.)
+        await self.core.output_manager.send_text(response, context)
+
+# irene/plugins/builtin/continuous_listening_workflow_plugin.py  
+class ContinuousListeningWorkflowPlugin(CommandPlugin):
+    """
+    Continuous Listening Workflow - direct ASR without wake word
+    Maintains current behavior for backward compatibility
+    """
+    
+    async def process_audio_stream(self, audio_stream: AsyncIterator[AudioData], context: RequestContext):
+        """Direct ASR workflow - no wake word detection"""
+        
+        async for audio_data in audio_stream:
+            # Direct speech recognition (current behavior)
+            if self.asr:
+                text = await self.asr.transcribe(audio_data)
+                if not text.strip():
+                    continue
+                    
+            # Command processing and response
+            response = await self.process_command(text, context)
+            await self._route_response(response, context)
+```
+
+### 5. Pure Input Sources
+
+```python
+# irene/inputs/microphone.py (CLEANED)
+class MicrophoneInput(InputSource):
+    """
+    Pure microphone input source - no workflow knowledge
+    Just captures and yields raw audio data
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self._audio_stream = None
+        
+    async def listen(self) -> AsyncIterator[AudioData]:
+        """Pure audio capture - no business logic"""
+        while self._listening:
+            try:
+                audio_chunk = await self._capture_audio()
+                yield AudioData(
+                    data=audio_chunk,
+                    timestamp=time.time(),
+                    sample_rate=self.config.sample_rate,
+                    channels=self.config.channels
+                )
+            except Exception as e:
+                self.logger.error(f"Audio capture error: {e}")
+                await asyncio.sleep(0.1)
+                
+    async def _capture_audio(self) -> bytes:
+        """Low-level audio capture implementation"""
+        # Just audio capture - no workflow orchestration
+        return await self._audio_stream.read()
+        
+    # NO knowledge of voice trigger, ASR, or workflow logic!
+```
+
+### 6. Input Manager Integration
+
+```python
+# irene/core/inputs.py (UPDATED)
+class InputManager:
+    """
+    Input manager coordinates between input sources and workflow plugins
+    Uses dependency injection to maintain loose coupling
+    """
+    
+    async def start_voice_assistant_mode(self):
+        """Start voice assistant with wake word detection"""
+        # Get workflow plugin
+        va_workflow = self.core.plugin_manager.get_plugin("voice_assistant_workflow")
+        if not va_workflow:
+            raise RuntimeError("VoiceAssistantWorkflowPlugin not available")
+            
+        # Get input source
+        mic_input = self._get_input_source("microphone")
+        if not mic_input:
+            raise RuntimeError("Microphone input not available")
+            
+        # Connect input stream to workflow
+        audio_stream = mic_input.listen()
+        context = RequestContext(
+            source="microphone",
+            wants_audio_response=True,
+            skip_wake_word=False
+        )
+        
+        # Start workflow processing
+        await va_workflow.process_audio_stream(audio_stream, context)
+        
+    async def start_continuous_mode(self):
+        """Start continuous listening without wake word"""
+        continuous_workflow = self.core.plugin_manager.get_plugin("continuous_listening_workflow")
+        mic_input = self._get_input_source("microphone")
+        
+        audio_stream = mic_input.listen()
+        context = RequestContext(
+            source="microphone", 
+            wants_audio_response=True,
+            skip_wake_word=True
+        )
+        
+        await continuous_workflow.process_audio_stream(audio_stream, context)
 ```
 
 ---
@@ -161,6 +342,16 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
     OpenWakeWord - Modern, accurate wake word detection
     Models: alexa, hey_jarvis, hey_irene (custom trainable)
     """
+    
+    async def detect_wake_word(self, audio_data: AudioData) -> WakeWordResult:
+        """Pure detection logic - agnostic to workflow"""
+        prediction = await self._model.predict(audio_data.data)
+        return WakeWordResult(
+            detected=prediction.score > self.threshold,
+            confidence=prediction.score,
+            word=prediction.word,
+            timestamp=audio_data.timestamp
+        )
 ```
 
 **Преимущества:**
@@ -245,6 +436,17 @@ wake_word_models = {
 provider = "vosk"                   # Отдельный провайдер
 model_path = "./models/vosk/ru_large"
 
+# НОВЫЙ: Workflow configuration
+[plugins.voice_assistant_workflow]
+enabled = true
+default_workflow = "voice_trigger"  # or "continuous"
+wake_word_timeout = 5.0
+response_timeout = 10.0
+
+[plugins.continuous_listening_workflow]
+enabled = true
+fallback_enabled = true             # Fallback when voice trigger unavailable
+
 [plugins.universal_voice_trigger]
 enabled = true
 default_provider = "openwakeword"
@@ -264,6 +466,9 @@ export IRENE_COMPONENTS__VOICE_TRIGGER__PROVIDER=openwakeword
 export IRENE_COMPONENTS__VOICE_TRIGGER__THRESHOLD=0.8
 export IRENE_COMPONENTS__VOICE_TRIGGER__WAKE_WORDS=irene,jarvis
 
+# Workflow настройки
+export IRENE_PLUGINS__VOICE_ASSISTANT_WORKFLOW__DEFAULT_WORKFLOW=voice_trigger
+
 # Пути к моделям
 export IRENE_COMPONENTS__VOICE_TRIGGER__MODEL_PATH=/opt/irene/models/wake_word/
 ```
@@ -276,74 +481,96 @@ export IRENE_COMPONENTS__VOICE_TRIGGER__MODEL_PATH=/opt/irene/models/wake_word/
 
 ```mermaid
 graph TB
-    subgraph "🎤 Audio Input"
-        Mic[Microphone Input]
-        WebAudio[Web Audio Input]
-        FileAudio[File Audio Input]
+    subgraph "📥 Pure Input Sources"
+        Mic[MicrophoneInput<br/>Audio capture only]
+        WebAudio[WebAudioInput<br/>Audio reception only]
+        FileAudio[FileAudioInput<br/>Audio reading only]
     end
     
-    subgraph "🎯 Voice Trigger Layer"
-        VT[VoiceTrigger Component]
-        OWW[OpenWakeWord Provider]
-        MWW[MicroWakeWord Provider]
-        PV[Porcupine Provider]
+    subgraph "🎼 Workflow Orchestration"
+        VAW[VoiceAssistantWorkflow<br/>Wake Word → ASR → Command]
+        CLW[ContinuousListeningWorkflow<br/>Direct ASR → Command]
     end
     
-    subgraph "🗣️ ASR Layer"
-        ASR[ASR Component]
-        VOSK[VOSK Provider]
-        Whisper[Whisper Provider]
+    subgraph "🎯 Universal Plugins (Pure Business Logic)"
+        VT[UniversalVoiceTrigger<br/>Audio → Wake Detection]
+        ASR[UniversalASR<br/>Audio → Text]
+        LLM[UniversalLLM<br/>Text → Response]
+        TTS[UniversalTTS<br/>Text → Audio]
     end
     
-    subgraph "⚡ Command Processing"
-        CMD[Command Processor]
-        Plugins[Command Plugins]
+    subgraph "🔧 Providers"
+        VT_Providers[OpenWakeWord<br/>MicroWakeWord<br/>Porcupine]
+        ASR_Providers[VOSK<br/>Whisper<br/>Google Cloud]
     end
     
-    Mic --> VT
-    WebAudio --> VT
-    FileAudio --> VT
+    subgraph "📤 Pure Output Targets"
+        Console[Console Output]
+        Speaker[Audio Output]
+        WebOut[Web Response]
+    end
     
-    VT --> OWW
-    VT --> MWW
-    VT --> PV
+    Mic --> VAW
+    Mic --> CLW
+    WebAudio --> VAW
+    FileAudio --> VAW
     
-    VT -->|Triggered| ASR
-    VT -->|Not Triggered| Mic
+    VAW --> VT
+    VAW --> ASR
+    VAW --> LLM
+    VAW --> TTS
     
-    ASR --> VOSK
-    ASR --> Whisper
+    CLW --> ASR
+    CLW --> LLM
+    CLW --> TTS
     
-    ASR --> CMD
-    CMD --> Plugins
+    VT --> VT_Providers
+    ASR --> ASR_Providers
     
-    style VT fill:#ffecb3,stroke:#ff8f00,stroke-width:3px
+    VAW --> Console
+    VAW --> Speaker
+    VAW --> WebOut
+    
+    CLW --> Console
+    CLW --> Speaker
+    CLW --> WebOut
+    
+    style VAW fill:#ffcdd2,stroke:#d32f2f,stroke-width:3px
+    style CLW fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    style VT fill:#ffecb3,stroke:#ff8f00,stroke-width:2px
     style ASR fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style CMD fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
 ```
 
 ### Последовательность обработки
 
 ```mermaid
 sequenceDiagram
-    participant Audio as 🎤 Audio Input
+    participant Input as 📥 Audio Input
+    participant Workflow as 🎼 VA Workflow
     participant VT as 🎯 VoiceTrigger
-    participant ASR as 🗣️ ASR Component
+    participant ASR as 🗣️ ASR Plugin
     participant CMD as ⚡ Command Processor
+    participant Output as 📤 Audio Output
     
-    loop Continuous Listening
-        Audio->>VT: Audio chunk
-        VT->>VT: Wake word detection
+    loop Continuous Audio Stream
+        Input->>Workflow: Audio chunk
+        Workflow->>VT: Check wake word
+        VT->>VT: Pure detection logic
         alt Wake word detected
-            VT->>ASR: Triggered - start transcription
-            ASR->>CMD: Transcribed text
-            CMD->>Audio: Command result
+            VT->>Workflow: Wake detected
+            Workflow->>ASR: Transcribe audio
+            ASR->>Workflow: Text result
+            Workflow->>CMD: Process command
+            CMD->>Workflow: Command result
+            Workflow->>Output: Route response
         else No wake word
-            VT->>Audio: Continue listening
+            VT->>Workflow: No wake word
+            Workflow->>Input: Continue listening
         end
     end
     
-    Note over VT,ASR: Voice trigger runs continuously<br/>ASR only when activated
+    Note over Workflow: Orchestration logic here<br/>NOT in input sources
+    Note over VT,ASR: Pure business logic<br/>Agnostic to workflow
 ```
 
 ---
@@ -373,6 +600,19 @@ async def list_providers():
 @app.post("/voice_trigger/threshold")
 async def set_threshold(threshold: float):
     """Update detection threshold"""
+
+# Workflow management endpoints
+@app.post("/workflow/start_voice_assistant")
+async def start_voice_assistant_mode():
+    """Start voice assistant workflow with wake word"""
+    
+@app.post("/workflow/start_continuous")
+async def start_continuous_mode():
+    """Start continuous listening workflow"""
+    
+@app.get("/workflow/status")
+async def workflow_status():
+    """Get current workflow status"""
 ```
 
 ---
@@ -385,25 +625,31 @@ async def set_threshold(threshold: float):
 3. ✅ Добавить voice trigger конфигурацию в `irene/config/models.py`
 4. ✅ Обновить `ComponentManager` для поддержки voice trigger
 
-### Phase 2: Provider Implementation
+### Phase 2: Workflow Orchestration
+1. 🔄 Создать `VoiceAssistantWorkflowPlugin` (НОВЫЙ ПРИОРИТЕТ)
+2. 🔄 Создать `ContinuousListeningWorkflowPlugin` для обратной совместимости
+3. 🔄 Обновить `InputManager` для workflow coordination
+4. 🔄 Добавить workflow конфигурацию
+
+### Phase 3: Provider Implementation
 1. 🔄 Реализовать `OpenWakeWordProvider` (приоритет)
 2. 🔄 Добавить `MicroWakeWordProvider` как альтернативу
 3. 🔄 Создать систему загрузки и кэширования моделей
 4. 🔄 Интегрировать с asset management системой
 
-### Phase 3: Integration
-1. 🔄 Модифицировать `MicrophoneInput` для поддержки voice trigger
-2. 🔄 Создать `UniversalVoiceTriggerPlugin`
-3. 🔄 Обновить `ComponentManager` и deployment profiles
-4. 🔄 Добавить voice trigger в input/output pipeline
+### Phase 4: Integration
+1. 🔄 Создать `UniversalVoiceTriggerPlugin`
+2. 🔄 Обновить `ComponentManager` и deployment profiles
+3. 🔄 Протестировать оба workflow режима
+4. 🔄 Обеспечить graceful fallback между режимами
 
-### Phase 4: Web API & Tools
+### Phase 5: Web API & Tools
 1. 🔄 Добавить voice trigger Web API эндпоинты
 2. 🔄 Создать инструменты обучения/тестирования wake word
-3. 🔄 Добавить voice trigger статус в health checks
-4. 🔄 Создать веб-интерфейс для управления voice trigger
+3. 🔄 Добавить workflow management API
+4. 🔄 Создать веб-интерфейс для управления workflows
 
-### Phase 5: ESP32 Integration
+### Phase 6: ESP32 Integration
 1. 🔄 Конвертация ESP32 TensorFlow Lite моделей в Python-совместимый формат
 2. 🔄 Общий пайплайн обучения wake word между ESP32 и Python
 3. 🔄 Унифицированный формат wake word моделей в экосистеме
@@ -439,6 +685,9 @@ python -m irene.runners.cli --check-voice-trigger
 
 # Показать статус voice trigger
 python -c "from irene.utils.loader import get_voice_trigger_status; print(get_voice_trigger_status())"
+
+# Проверить workflow плагины
+python -m irene.runners.cli --check-workflows
 ```
 
 ---
@@ -451,30 +700,47 @@ python -c "from irene.utils.loader import get_voice_trigger_status; print(get_vo
 # Обновленные deployment profiles в ComponentManager
 def get_deployment_profile(self) -> str:
     available = set(self._components.keys())
+    workflows = self._get_available_workflows()
     
     if {"microphone", "voice_trigger", "asr", "tts", "web_api"} <= available:
-        return "Smart Voice Assistant"      # НОВЫЙ: Voice trigger включен
+        if "voice_assistant_workflow" in workflows:
+            return "Smart Voice Assistant"      # НОВЫЙ: Voice trigger + workflow
+        else:
+            return "Voice Assistant (Basic)"   # Components но нет workflow
     elif {"microphone", "asr", "tts", "web_api"} <= available:
-        return "Continuous Voice Assistant" # Текущее поведение
+        if "continuous_listening_workflow" in workflows:
+            return "Continuous Voice Assistant" # Текущее поведение
+        else:
+            return "Voice Assistant (Limited)"
     elif {"voice_trigger", "web_api"} <= available:
         return "Voice Trigger API Server"   # НОВЫЙ: Только voice trigger API
     elif "web_api" in available:
         return "API Server"
     else:
         return "Headless"
+
+def _get_available_workflows(self) -> set[str]:
+    """Get available workflow plugins"""
+    workflows = set()
+    if self.core.plugin_manager.has_plugin("voice_assistant_workflow"):
+        workflows.add("voice_assistant_workflow")
+    if self.core.plugin_manager.has_plugin("continuous_listening_workflow"):
+        workflows.add("continuous_listening_workflow")
+    return workflows
 ```
 
 ---
 
-## 🎯 **Ключевые преимущества**
+## 🎯 **Ключевые преимущества ИСПРАВЛЕННОЙ архитектуры**
 
-1. **Производительность**: Wake word модель работает непрерывно, ASR только при необходимости
-2. **Точность**: Каждая модель оптимизирована для своей специфической задачи  
-3. **Эффективность ресурсов**: Маленькая wake word модель vs большая ASR модель
-4. **Гибкость**: Можно менять wake word модели без влияния на ASR
-5. **Мульти-устройственная консистентность**: Одинаковый опыт wake word на ESP32 и Python
-6. **Модульность**: Опциональный компонент с graceful degradation
-7. **Расширяемость**: Поддержка множественных провайдеров wake word
+1. **✅ Separation of Concerns**: Input sources чистые, workflow логика изолирована
+2. **✅ Loose Coupling**: Universal plugins агностичны к источникам и потребителям
+3. **✅ Testability**: Каждый слой тестируется независимо
+4. **✅ Reusability**: TTS/ASR плагины работают с любыми workflows
+5. **✅ Flexibility**: Легко добавлять новые workflow типы
+6. **✅ Maintainability**: Чистые границы между компонентами
+7. **✅ Backward Compatibility**: Continuous workflow сохраняет текущее поведение
+8. **✅ Graceful Degradation**: Система работает без voice trigger компонента
 
 ---
 
@@ -520,14 +786,16 @@ irene-convert-to-esp32 models/irene_medium_*.tflite   # → ESP32 firmware
 
 ## 📞 **Интеграция с существующей архитектурой**
 
-Этот компонент полностью соответствует принципам архитектуры Irene v13:
+Этот **ИСПРАВЛЕННЫЙ** компонент полностью соответствует принципам архитектуры Irene v13:
 
 - ✅ **Опциональные компоненты** с graceful degradation
-- ✅ **Universal Plugin + Provider** паттерн
+- ✅ **Universal Plugin + Provider** паттерн с чистым разделением
+- ✅ **Workflow Orchestration** как отдельный слой ответственности
 - ✅ **Асинхронная обработка** на всех уровнях
 - ✅ **Web API интеграция** с унифицированными эндпоинтами
 - ✅ **Конфигурируемость** через TOML/ENV
 - ✅ **Мультимодальность** (CLI, voice, web остаются доступными)
 - ✅ **Dependency Injection** и чистая архитектура
+- ✅ **Single Responsibility Principle** на каждом уровне
 
-Этот дизайн заполняет архитектурный пробел и приводит Python реализацию к функциональному паритету с ESP32 firmware, сохраняя при этом модульную, расширяемую архитектуру, которую подчеркивает v13. 
+Этот дизайн заполняет архитектурный пробел и приводит Python реализацию к функциональному паритету с ESP32 firmware, **сохраняя при этом чистую v13 архитектуру без нарушения принципов разделения ответственности**. 
