@@ -1,0 +1,98 @@
+#pragma once
+
+// Kitchen Node Configuration
+#define NODE_ID "kitchen"
+#define NODE_FIRMWARE_VERSION "1.0.0"
+#define NODE_HARDWARE_VERSION "ESP32-S3-R8"
+
+// Network Configuration
+#define WIFI_SSID "YourHomeNetwork"
+#define WIFI_PASSWORD "YourWiFiPassword"
+#define SERVER_URI "wss://assistant.lan/stt"
+
+// Wake Word Configuration
+#define WAKE_WORD "jarvis"
+#define WAKE_WORD_THRESHOLD 0.9f
+#define WAKE_WORD_MODEL_SIZE 140000  // ~140KB medium model
+
+// Audio Configuration
+#define AUDIO_SAMPLE_RATE 16000
+#define AUDIO_CHANNELS 1
+#define AUDIO_BITS_PER_SAMPLE 16
+#define AUDIO_FRAME_SIZE_MS 20
+#define AUDIO_FRAME_SIZE_SAMPLES (AUDIO_SAMPLE_RATE * AUDIO_FRAME_SIZE_MS / 1000)
+#define AUDIO_FRAME_SIZE_BYTES (AUDIO_FRAME_SIZE_SAMPLES * AUDIO_CHANNELS * AUDIO_BITS_PER_SAMPLE / 8)
+
+// Hardware Configuration
+#define I2S_NUM I2S_NUM_0
+#define I2S_BCK_IO GPIO_NUM_4
+#define I2S_WS_IO GPIO_NUM_5
+#define I2S_DI_IO GPIO_NUM_6
+#define I2S_DO_IO GPIO_NUM_7
+
+// ES8311 I2C Configuration
+#define I2C_SDA_IO GPIO_NUM_8
+#define I2C_SCL_IO GPIO_NUM_9
+#define ES8311_I2C_ADDR 0x18
+
+// Display Configuration
+#define DISPLAY_WIDTH 412
+#define DISPLAY_HEIGHT 412
+#define DISPLAY_SPI_HOST SPI2_HOST
+#define DISPLAY_MOSI_IO GPIO_NUM_11
+#define DISPLAY_SCLK_IO GPIO_NUM_12
+#define DISPLAY_CS_IO GPIO_NUM_10
+#define DISPLAY_DC_IO GPIO_NUM_13
+#define DISPLAY_RST_IO GPIO_NUM_14
+#define DISPLAY_BL_IO GPIO_NUM_15
+
+// Touch Configuration (FT6236)
+#define TOUCH_I2C_SDA_IO GPIO_NUM_16
+#define TOUCH_I2C_SCL_IO GPIO_NUM_17
+#define TOUCH_INT_IO GPIO_NUM_18
+#define TOUCH_I2C_ADDR 0x38
+
+// Button Configuration
+#define BUTTON_LEFT_IO GPIO_NUM_0
+#define BUTTON_RIGHT_IO GPIO_NUM_1
+
+// RTC Configuration (PCF85063)
+#define RTC_I2C_SDA_IO GPIO_NUM_19
+#define RTC_I2C_SCL_IO GPIO_NUM_20
+#define RTC_I2C_ADDR 0x51
+
+// LED Configuration
+#define STATUS_LED_IO GPIO_NUM_21
+
+// Performance Configuration
+#define CORE_AUDIO_TASK 0
+#define CORE_NETWORK_TASK 1
+#define CORE_UI_TASK 1
+#define CORE_WAKE_WORD_TASK 0
+
+#define PRIORITY_AUDIO_TASK 10
+#define PRIORITY_WAKE_WORD_TASK 9
+#define PRIORITY_NETWORK_TASK 8
+#define PRIORITY_UI_TASK 5
+#define PRIORITY_MONITOR_TASK 3
+
+// Memory Configuration
+#define STACK_SIZE_AUDIO_TASK 4096
+#define STACK_SIZE_WAKE_WORD_TASK 8192
+#define STACK_SIZE_NETWORK_TASK 8192
+#define STACK_SIZE_UI_TASK 6144
+#define STACK_SIZE_MONITOR_TASK 2048
+
+// Timing Configuration
+#define WAKE_WORD_DETECTION_INTERVAL_MS 30
+#define AUDIO_BUFFER_DURATION_MS 20
+#define STREAM_TIMEOUT_MS 8000
+#define SILENCE_TIMEOUT_MS 700
+#define COOLDOWN_DURATION_MS 400
+#define UI_UPDATE_INTERVAL_MS 50
+
+// Debug Configuration
+#define DEBUG_AUDIO_STATS 0
+#define DEBUG_WAKE_WORD_STATS 0
+#define DEBUG_NETWORK_STATS 0
+#define DEBUG_MEMORY_USAGE 0 

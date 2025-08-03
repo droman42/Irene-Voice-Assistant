@@ -1,0 +1,44 @@
+idf_component_register(
+    SRCS 
+    "src/audio/audio_manager.cpp"
+    "src/audio/vad_processor.cpp" 
+    "src/audio/wake_word_detector.cpp"
+    "src/network/tls_manager.cpp"
+    "src/network/websocket_client.cpp"
+    "src/network/wifi_manager.cpp"
+    "src/ui/display_manager.cpp"
+    "src/ui/ui_controller.cpp"
+    "src/ui/themes.cpp"
+    "src/hardware/i2s_driver.cpp"
+    "src/hardware/codec_es8311.cpp"
+    "src/hardware/touch_ft6236.cpp"
+    "src/hardware/rtc_pcf85063.cpp"
+    "src/core/state_machine.cpp"
+    "src/core/task_manager.cpp"
+    "src/core/config_manager.cpp"
+    "src/ota/ota_manager.cpp"
+    "src/utils/ring_buffer.cpp"
+    
+    INCLUDE_DIRS 
+    "include"
+    "include/audio"
+    "include/network" 
+    "include/ui"
+    "include/hardware"
+    "include/core"
+    "include/ota"
+    "include/utils"
+    
+    REQUIRES 
+    esp_wifi
+    esp_http_client
+    esp_https_ota
+    esp_websocket_client
+    driver
+    esp_timer
+    nvs_flash
+    mbedtls
+    lvgl
+    esp_lcd
+    esp_psram
+) 
