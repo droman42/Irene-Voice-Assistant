@@ -6,6 +6,7 @@ from .greetings import GreetingsIntentHandler
 from .timer import TimerIntentHandler
 from .datetime import DateTimeIntentHandler
 from .system import SystemIntentHandler
+from .train_schedule import TrainScheduleIntentHandler
 
 __all__ = [
     'IntentHandler',
@@ -13,5 +14,6 @@ __all__ = [
     'GreetingsIntentHandler',
     'TimerIntentHandler',
     'DateTimeIntentHandler',
-    'SystemIntentHandler'
+    'SystemIntentHandler',
+    'TrainScheduleIntentHandler'
 ] 

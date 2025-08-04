@@ -545,6 +545,17 @@ def create_default_config() -> CoreConfig:
 
 
 @dataclass
+class TrainScheduleConfig:
+    """Configuration for train schedule intent handler"""
+    enabled: bool = False
+    api_key: str = ""
+    from_station: str = "s9600681"  # Default Moscow Leningradsky
+    to_station: str = "s2000002"    # Default Sergiev Posad
+    max_results: int = 3
+    timeout_seconds: int = 10
+
+
+@dataclass
 class IntentsConfig:
     """Configuration for the intent system"""
     enabled: bool = True
@@ -552,6 +563,7 @@ class IntentsConfig:
     fallback_handler: str = "conversation"
     max_history_turns: int = 10
     session_timeout: int = 1800  # 30 minutes
+    train_schedule: TrainScheduleConfig = field(default_factory=TrainScheduleConfig)
 
 
 @dataclass  
