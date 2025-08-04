@@ -61,6 +61,13 @@ audio-output = [
     "numpy>=1.21.0",
 ]
 
+# Voice trigger (wake word detection)
+voice-trigger = [
+    "openwakeword>=0.6.0",
+    "numpy>=1.21.0",
+    "tflite-runtime>=2.12.0",  # Lightweight runtime for microWakeWord (~50MB vs ~800MB tensorflow)
+]
+
 # Web API components
 web-api = [
     "fastapi>=0.100.0",
@@ -134,7 +141,7 @@ dev = [
 # Convenience groups - Fixed: Re-enabled with proper dependencies
 # Full voice assistant
 voice = [
-    "irene-voice-assistant[audio-input,tts,audio-output,web-api,text-multilingual,config-writing]"
+    "irene-voice-assistant[audio-input,tts,audio-output,voice-trigger,web-api,text-multilingual,config-writing]"
 ]
 
 # API server only

@@ -1,0 +1,104 @@
+# Example configuration for microWakeWord voice trigger provider
+# Based on: https://github.com/kahrendt/microWakeWord
+# Runtime: Uses lightweight tflite-runtime (~50MB) instead of full TensorFlow (~800MB)
+
+# Core components configuration
+components:
+  voice_trigger: true
+  asr: true
+  tts: true
+  microphone: true
+  web_api: true
+
+# Voice trigger configuration with microWakeWord
+plugins:
+  voice_trigger:
+    enabled: true
+    default_provider: "microwakeword"
+    wake_words: ["irene"]
+    threshold: 0.85
+    fallback_providers: ["openwakeword"]
+    
+    providers:
+      # microWakeWord provider (custom trained models)
+      microwakeword:
+        enabled: true
+        model_path: "./models/irene_microwakeword.tflite"
+        feature_buffer_size: 49          # 49 * 10ms = 490ms context
+        detection_window_size: 3         # Require 3 consecutive detections
+        num_mfcc_features: 40            # 40 MFCC features per frame
+        stride_duration_ms: 10           # Feature extraction every 10ms
+        window_duration_ms: 30           # 30ms analysis window
+        
+        # Custom model mappings
+        available_models:
+          irene: "irene_microwakeword.tflite"
+          jarvis: "jarvis_microwakeword.tflite"
+          hey_irene: "hey_irene_microwakeword.tflite"
+      
+      # OpenWakeWord fallback provider
+      openwakeword:
+        enabled: true
+        inference_framework: "tflite"
+        chunk_size: 1280
+        model_paths:
+          irene: "./models/irene_openwakeword.onnx"
+          jarvis: "hey_jarvis_v0.1.onnx"
+
+# Audio configuration for optimal microWakeWord performance
+audio:
+  input:
+    sample_rate: 16000              # Required for microWakeWord
+    channels: 1                     # Mono audio
+    chunk_size: 1600               # 100ms chunks at 16kHz
+    format: "int16"                # 16-bit PCM
+    
+# Logging configuration for debugging
+logging:
+  level: INFO
+  loggers:
+    irene.components.voice_trigger_component:
+      level: DEBUG
+    irene.providers.voice_trigger.microwakeword:
+      level: DEBUG
+    irene.providers.voice_trigger.openwakeword:
+      level: INFO
+
+# Model paths (adjust to your setup)
+paths:
+  models_root: "./models"
+  voice_trigger_models: "./models/voice_trigger"
+  cache_dir: "./cache"
+
+# Performance tuning
+performance:
+  # microWakeWord is optimized for low latency
+  voice_trigger_timeout: 0.5      # Quick timeout for responsive detection
+  audio_buffer_duration: 1.0      # 1 second audio buffer
+  
+# Web API configuration
+web_api:
+  host: "0.0.0.0"
+  port: 8000
+  cors_enabled: true
+  
+  # Enable voice trigger endpoints
+  endpoints:
+    voice_trigger: true
+    voice_trigger_training: false   # Disable training endpoints in production
+
+# Environment-specific overrides
+environments:
+  development:
+    logging:
+      level: DEBUG
+    performance:
+      voice_trigger_timeout: 1.0    # More relaxed timeout for development
+      
+  production:
+    logging:
+      level: WARNING
+    performance:
+      voice_trigger_timeout: 0.3    # Faster response in production
+    web_api:
+      cors_enabled: false 

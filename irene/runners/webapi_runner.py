@@ -9,6 +9,7 @@ import asyncio
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 import json
@@ -149,6 +150,7 @@ class WebAPIRunner:
         self.app = None
         self.web_input = None
         self.web_output = None
+        self._start_time = time.time()  # Track start time for uptime calculation
         
     async def run(self, args: Optional[list[str]] = None) -> int:
         """Run Web API server mode"""
@@ -453,6 +455,12 @@ class WebAPIRunner:
                 "timestamp": asyncio.get_event_loop().time()
             }
         
+        # Mount component routers - NEW PHASE 4 FUNCTIONALITY
+        await self._mount_component_routers(app)
+        
+        # Intent management endpoints - NEW PHASE 4 FUNCTIONALITY  
+        await self._add_intent_management_endpoints(app)
+        
         # Component info endpoint
         @app.get("/components")
         async def get_component_info():
@@ -498,6 +506,432 @@ class WebAPIRunner:
                         pass
         
         return app
+    
+    async def _mount_component_routers(self, app):
+        """Mount component routers following the universal plugin pattern"""
+        if not self.core:
+            return
+        
+        try:
+            from ..core.interfaces.webapi import WebAPIPlugin
+            
+            # Get all components that implement WebAPIPlugin
+            web_components = []
+            
+            # Check if component manager has components that implement WebAPIPlugin
+            if hasattr(self.core, 'component_manager'):
+                try:
+                    available_components = await self.core.component_manager.get_available_components()
+                    for name, component in available_components.items():
+                        if isinstance(component, WebAPIPlugin):
+                            web_components.append((name, component))
+                except Exception as e:
+                    logger.warning(f"Could not get components from component manager: {e}")
+            
+            # Also check plugins that implement WebAPIPlugin
+            if hasattr(self.core, 'plugin_manager'):
+                for name, plugin in self.core.plugin_manager._plugins.items():
+                    if isinstance(plugin, WebAPIPlugin):
+                        web_components.append((name, plugin))
+            
+            # Mount each component's router
+            mounted_count = 0
+            for name, component in web_components:
+                try:
+                    router = component.get_router()
+                    if router:
+                        prefix = component.get_api_prefix()
+                        tags = component.get_api_tags()
+                        
+                        app.include_router(
+                            router,
+                            prefix=prefix,
+                            tags=tags
+                        )
+                        
+                        mounted_count += 1
+                        logger.info(f"Mounted {name} router at {prefix}")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to mount router for {name}: {e}")
+            
+            logger.info(f"Successfully mounted {mounted_count} component routers")
+            
+        except ImportError:
+            logger.warning("FastAPI not available, skipping router mounting")
+        except Exception as e:
+            logger.error(f"Error mounting component routers: {e}")
+    
+    async def _add_intent_management_endpoints(self, app):
+        """Add high-level intent management endpoints"""
+        try:
+            from fastapi import HTTPException  # type: ignore
+            from pydantic import BaseModel  # type: ignore
+            from typing import Dict, Any, Optional, List
+            
+            # Request/Response models for intent management
+            class IntentExecutionRequest(BaseModel):
+                text: str
+                session_id: str = "default"
+                context: Optional[Dict[str, Any]] = None
+                skip_wake_word: bool = True
+                
+            class IntentExecutionResponse(BaseModel):
+                success: bool
+                intent_name: str
+                confidence: float
+                response_text: str
+                metadata: Dict[str, Any]
+                error: Optional[str] = None
+                
+            class SystemCapabilitiesResponse(BaseModel):
+                version: str
+                components: Dict[str, Any]
+                intent_handlers: List[str]
+                nlu_providers: List[str]
+                voice_trigger_providers: List[str]
+                text_processing_providers: List[str]
+                workflows: List[str]
+                
+            @app.post("/intents/execute", response_model=IntentExecutionResponse)
+            async def execute_intent_directly(request: IntentExecutionRequest):
+                """Direct intent execution endpoint"""
+                try:
+                    if not self.core:
+                        raise HTTPException(status_code=503, detail="Assistant not initialized")
+                    
+                    # Check if we have a workflow manager available
+                    workflow_manager = getattr(self.core, 'workflow_manager', None)
+                    if not workflow_manager:
+                        # Fallback to legacy command processing
+                        await self.core.process_command(request.text)
+                        return IntentExecutionResponse(
+                            success=True,
+                            intent_name="legacy.command",
+                            confidence=1.0,
+                            response_text=f"Command '{request.text}' processed (legacy mode)",
+                            metadata={"processing_mode": "legacy"}
+                        )
+                    
+                    # Use the new intent system
+                    result = await workflow_manager.process_text_input(request.text, request.session_id)
+                    
+                    return IntentExecutionResponse(
+                        success=result.success,
+                        intent_name=request.text,  # Would need actual intent name from result
+                        confidence=result.confidence,
+                        response_text=result.text,
+                        metadata=result.metadata,
+                        error=result.error
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Intent execution error: {e}")
+                    return IntentExecutionResponse(
+                        success=False,
+                        intent_name="error",
+                        confidence=0.0,
+                        response_text="Sorry, there was an error processing your request.",
+                        metadata={},
+                        error=str(e)
+                    )
+            
+            @app.get("/intents/handlers")
+            async def get_intent_handlers():
+                """Get available intent handlers"""
+                try:
+                    # This would integrate with the intent registry
+                    # For now, return basic information
+                    handlers = [
+                        "conversation", "greetings", "timer", "datetime", "system"
+                    ]
+                    
+                    return {
+                        "handlers": handlers,
+                        "total": len(handlers),
+                        "description": "Available intent handlers in the system"
+                    }
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.get("/system/capabilities", response_model=SystemCapabilitiesResponse)
+            async def get_system_capabilities():
+                """Get comprehensive system capabilities"""
+                try:
+                    capabilities = {
+                        "version": "13.0.0",
+                        "components": {},
+                        "intent_handlers": ["conversation", "greetings", "timer"],
+                        "nlu_providers": ["rule_based", "spacy"],
+                        "voice_trigger_providers": ["openwakeword"],
+                        "text_processing_providers": ["unified", "number"],
+                        "workflows": ["voice_assistant", "continuous_listening"]
+                    }
+                    
+                    # Get component status if available
+                    if self.core and hasattr(self.core, 'component_manager'):
+                        try:
+                            component_status = await self.core.component_manager.get_available_components()
+                            capabilities["components"] = {
+                                name: {"available": True, "type": type(comp).__name__}
+                                for name, comp in component_status.items()
+                            }
+                        except Exception as e:
+                            logger.warning(f"Could not get component status: {e}")
+                    
+                    return SystemCapabilitiesResponse(**capabilities)
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.get("/system/status")
+            async def get_enhanced_system_status():
+                """Enhanced system status with intent system information"""
+                try:
+                    status = {
+                        "system": "healthy",
+                        "version": "13.0.0",
+                        "mode": "intent_system" if hasattr(self.core, 'workflow_manager') else "legacy",
+                        "timestamp": time.time(),
+                        "uptime": time.time() - getattr(self, '_start_time', time.time())
+                    }
+                    
+                    # Add component information
+                    if self.core:
+                        status["core"] = {
+                            "running": self.core.is_running,
+                            "input_sources": len(getattr(self.core.input_manager, '_sources', {})),
+                            "plugins": getattr(self.core.plugin_manager, 'plugin_count', 0)
+                        }
+                    
+                    # Add web client information  
+                    if self.web_output:
+                        status["web_clients"] = len(self.web_output._clients)
+                    
+                    return status
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            # Analytics and monitoring endpoints - NEW PHASE 4 FUNCTIONALITY
+            await self._add_analytics_endpoints(app)
+            
+            logger.info("Added intent management endpoints")
+            
+        except ImportError:
+            logger.warning("FastAPI not available for intent management endpoints")
+        except Exception as e:
+            logger.error(f"Error adding intent management endpoints: {e}")
+    
+    async def _add_analytics_endpoints(self, app):
+        """Add analytics and monitoring endpoints"""
+        try:
+            from fastapi import HTTPException  # type: ignore
+            from pydantic import BaseModel  # type: ignore
+            from typing import Dict, Any
+            
+            # Response models for analytics
+            class AnalyticsReportResponse(BaseModel):
+                timestamp: float
+                report_type: str
+                intents: Dict[str, Any]
+                sessions: Dict[str, Any]
+                system: Dict[str, Any]
+            
+            @app.get("/analytics/intents")
+            async def get_intent_analytics():
+                """Get intent recognition and execution analytics"""
+                try:
+                    # Check if we have analytics manager
+                    analytics_manager = getattr(self.core, 'analytics_manager', None)
+                    if not analytics_manager:
+                        return {
+                            "error": "Analytics not available",
+                            "message": "Analytics manager not initialized",
+                            "mock_data": {
+                                "total_intents_processed": 0,
+                                "unique_intent_types": 0,
+                                "average_confidence": 0.0,
+                                "overall_success_rate": 0.0
+                            }
+                        }
+                    
+                    return await analytics_manager.get_intent_analytics()
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.get("/analytics/sessions")
+            async def get_session_analytics():
+                """Get conversation session analytics"""
+                try:
+                    analytics_manager = getattr(self.core, 'analytics_manager', None)
+                    if not analytics_manager:
+                        return {
+                            "error": "Analytics not available",
+                            "message": "Analytics manager not initialized",
+                            "mock_data": {
+                                "active_sessions": 0,
+                                "total_sessions": 0,
+                                "average_session_duration": 0.0,
+                                "average_user_satisfaction": 0.8
+                            }
+                        }
+                    
+                    return await analytics_manager.get_session_analytics()
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.get("/analytics/performance")
+            async def get_system_performance():
+                """Get system performance metrics"""
+                try:
+                    analytics_manager = getattr(self.core, 'analytics_manager', None)
+                    if not analytics_manager:
+                        uptime = time.time() - self._start_time
+                        return {
+                            "error": "Analytics not available",
+                            "message": "Analytics manager not initialized",
+                            "basic_metrics": {
+                                "uptime_seconds": uptime,
+                                "web_clients": len(self.web_output._clients) if self.web_output else 0,
+                                "system_status": "running"
+                            }
+                        }
+                    
+                    return await analytics_manager.get_system_performance()
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.get("/analytics/report", response_model=AnalyticsReportResponse)
+            async def get_comprehensive_analytics_report():
+                """Get comprehensive analytics report"""
+                try:
+                    analytics_manager = getattr(self.core, 'analytics_manager', None)
+                    if not analytics_manager:
+                        # Return mock comprehensive report
+                        uptime = time.time() - self._start_time
+                        return AnalyticsReportResponse(
+                            timestamp=time.time(),
+                            report_type="mock_comprehensive_analytics",
+                            intents={
+                                "overview": {
+                                    "total_intents_processed": 0,
+                                    "unique_intent_types": 0,
+                                    "average_confidence": 0.0,
+                                    "overall_success_rate": 0.0
+                                }
+                            },
+                            sessions={
+                                "overview": {
+                                    "active_sessions": 0,
+                                    "total_sessions": 0,
+                                    "average_session_duration": 0.0,
+                                    "average_user_satisfaction": 0.8
+                                }
+                            },
+                            system={
+                                "system": {
+                                    "uptime_seconds": uptime,
+                                    "total_requests": 0,
+                                    "error_rate": 0.0
+                                }
+                            }
+                        )
+                    
+                    report = await analytics_manager.generate_analytics_report()
+                    return AnalyticsReportResponse(**report)
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.post("/analytics/session/{session_id}/satisfaction")
+            async def rate_session_satisfaction(session_id: str, satisfaction_score: float):
+                """Rate user satisfaction for a session (0.0-1.0)"""
+                try:
+                    if not 0.0 <= satisfaction_score <= 1.0:
+                        raise HTTPException(status_code=400, detail="Satisfaction score must be between 0.0 and 1.0")
+                    
+                    analytics_manager = getattr(self.core, 'analytics_manager', None)
+                    if analytics_manager:
+                        # Update session satisfaction if it exists
+                        if session_id in analytics_manager.session_metrics:
+                            analytics_manager.session_metrics[session_id].user_satisfaction_score = satisfaction_score
+                            return {
+                                "success": True,
+                                "session_id": session_id,
+                                "satisfaction_score": satisfaction_score
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "error": "Session not found",
+                                "session_id": session_id
+                            }
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Analytics not available"
+                        }
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.get("/metrics/prometheus")
+            async def get_prometheus_metrics():
+                """Get metrics in Prometheus format for monitoring systems"""
+                try:
+                    analytics_manager = getattr(self.core, 'analytics_manager', None)
+                    
+                    # Generate Prometheus-style metrics
+                    metrics_lines = [
+                        "# HELP irene_uptime_seconds Total uptime in seconds",
+                        "# TYPE irene_uptime_seconds counter",
+                        f"irene_uptime_seconds {time.time() - self._start_time}",
+                        "",
+                        "# HELP irene_web_clients Current number of web clients",
+                        "# TYPE irene_web_clients gauge",
+                        f"irene_web_clients {len(self.web_output._clients) if self.web_output else 0}",
+                        ""
+                    ]
+                    
+                    if analytics_manager:
+                        intent_analytics = await analytics_manager.get_intent_analytics()
+                        session_analytics = await analytics_manager.get_session_analytics()
+                        
+                        metrics_lines.extend([
+                            "# HELP irene_intents_total Total number of intents processed",
+                            "# TYPE irene_intents_total counter",
+                            f"irene_intents_total {intent_analytics['overview']['total_intents_processed']}",
+                            "",
+                            "# HELP irene_intent_confidence_avg Average intent confidence",
+                            "# TYPE irene_intent_confidence_avg gauge", 
+                            f"irene_intent_confidence_avg {intent_analytics['overview']['average_confidence']}",
+                            "",
+                            "# HELP irene_sessions_active Current active sessions",
+                            "# TYPE irene_sessions_active gauge",
+                            f"irene_sessions_active {session_analytics['overview']['active_sessions']}",
+                            "",
+                            "# HELP irene_sessions_total Total number of sessions",
+                            "# TYPE irene_sessions_total counter",
+                            f"irene_sessions_total {session_analytics['overview']['total_sessions']}",
+                            ""
+                        ])
+                    
+                    return {"content_type": "text/plain", "metrics": "\n".join(metrics_lines)}
+                    
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            logger.info("Added analytics and monitoring endpoints")
+            
+        except ImportError:
+            logger.warning("FastAPI not available for analytics endpoints")
+        except Exception as e:
+            logger.error(f"Error adding analytics endpoints: {e}")
     
     async def _start_server(self, args) -> int:
         """Start the FastAPI server with uvicorn"""

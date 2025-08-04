@@ -1,49 +1,52 @@
 """
 Microphone Input Source - Pure audio capture
 
-REFACTORED: Pure audio capture input source that delegates ASR processing
-to UniversalASRPlugin for clean separation of concerns.
+REFACTORED: Pure audio capture input source that provides only audio data.
+Follows the fundamental component pattern for clean separation of concerns.
 
-Responsibilities changed:
-- BEFORE: Audio capture + VOSK ASR processing
-- AFTER: Audio capture only, delegates ASR to UniversalASRPlugin
+Responsibilities:
+- Audio capture only - no business logic
+- Yields AudioData objects for pipeline processing  
+- Uses audio_helpers.py for audio device management
 """
 
 import asyncio
 import logging
 import queue
+import time
 from typing import AsyncIterator, Dict, Any, Optional
 from pathlib import Path
 
 from .base import InputSource, ComponentNotAvailable
+from ..intents.models import AudioData
+from ..utils.audio_helpers import get_default_audio_device, AudioFormatConverter
+from ..utils.loader import safe_import
 
 logger = logging.getLogger(__name__)
 
 
 class MicrophoneInput(InputSource):
     """
-    REFACTORED: Pure audio capture input source
+    Pure microphone input - only audio capture (enhanced with audio_helpers.py)
     
-    Responsibilities changed:
-    - BEFORE: Audio capture + VOSK ASR processing
-    - AFTER: Audio capture only, delegates ASR to UniversalASRPlugin
+    Responsibilities:
+    - Audio capture only - no business logic
+    - Yields AudioData objects for pipeline processing
+    - Uses existing audio infrastructure for device management
     """
     
-    def __init__(self, asr_plugin: Optional[Any] = None, device_id: Optional[int] = None,
-                 samplerate: int = 16000, blocksize: int = 8000):
-        """Initialize microphone input with optional ASR plugin injection
+    def __init__(self, device_id: Optional[int] = None, samplerate: int = 16000, blocksize: int = 8000):
+        """Initialize microphone input using existing audio infrastructure
         
         Args:
-            asr_plugin: UniversalASRPlugin instance for ASR processing
             device_id: Audio device ID (None for default)
-            samplerate: Audio sample rate in Hz
+            samplerate: Audio sample rate in Hz  
             blocksize: Audio block size for processing
         """
-        # Remove VOSK-specific parameters - now handled by ASR plugin
         self.device_id = device_id
         self.samplerate = samplerate
         self.blocksize = blocksize
-        self.asr_plugin = asr_plugin  # Injected ASR plugin
+        self.device = None  # Will be set during initialization
         self._listening = False
         self._audio_queue = None
         self._audio_stream = None
@@ -55,6 +58,19 @@ class MicrophoneInput(InputSource):
         except ImportError as e:
             logger.warning(f"Audio input dependencies not available: {e}")
             self._sd_available = False
+    
+    async def initialize(self):
+        """Initialize using existing audio infrastructure"""
+        # Device selection using audio_helpers.py
+        self.device = await get_default_audio_device()
+        if not self.device:
+            logger.warning("No specific audio input device found, using default")
+            
+        # Format validation using audio_helpers.py  
+        if not AudioFormatConverter.supports_format('wav'):
+            logger.warning("WAV format not supported, audio quality may be reduced")
+        
+        logger.info(f"Initialized microphone input with device: {self.device}")
         
     def is_available(self) -> bool:
         """Check if audio capture is available"""
@@ -178,52 +194,49 @@ class MicrophoneInput(InputSource):
         """Check if currently listening"""
         return self._listening
         
-    async def listen(self) -> AsyncIterator[str]:
+    async def listen(self) -> AsyncIterator[AudioData]:
         """
-        REFACTORED: Audio capture → ASR processing separation
+        Pure audio stream - no business logic
         
-        Now: Audio capture → UniversalASRPlugin → Text commands
+        Yields AudioData objects for pipeline processing
         """
         if not self._listening or not self._audio_queue:
             return
             
-        logger.info("Starting audio capture with ASR processing...")
+        logger.info("Starting pure audio capture...")
         
         while self._listening:
             try:
                 # Get audio data from queue
                 try:
-                    data = await asyncio.to_thread(self._audio_queue.get, timeout=1.0)
+                    audio_chunk = await asyncio.to_thread(self._audio_queue.get, timeout=1.0)
                 except queue.Empty:
                     await asyncio.sleep(0.1)
                     continue
                 
-                # Process audio with ASR plugin (NEW: clean separation)
-                if self.asr_plugin:
-                    try:
-                        text = await self.asr_plugin.transcribe_audio(data)
-                        if text.strip():
-                            logger.info(f"Speech recognized: '{text}'")
-                            yield text
-                    except Exception as e:
-                        logger.error(f"ASR processing error: {e}")
-                        await asyncio.sleep(0.1)
-                else:
-                    logger.warning("No ASR plugin available - audio captured but not processed")
-                    await asyncio.sleep(0.1)
+                # Yield pure AudioData object
+                yield AudioData(
+                    data=audio_chunk,
+                    timestamp=time.time(),
+                    sample_rate=self.samplerate,
+                    channels=1,  # Microphone is typically mono
+                    format="pcm16"
+                )
                 
             except Exception as e:
-                logger.error(f"Error in audio processing: {e}")
+                logger.error(f"Error in audio capture: {e}")
                 await asyncio.sleep(0.1)
                 
-    async def get_recognition_info(self) -> Dict[str, Any]:
-        """Get current recognition status and info"""
+    async def get_audio_info(self) -> Dict[str, Any]:
+        """Get current audio capture status and info"""
         return {
             "listening": self._listening,
-            "asr_plugin_available": self.asr_plugin is not None,
             "audio_stream_active": self._audio_stream is not None and self._audio_stream.active,
             "queue_size": self._audio_queue.qsize() if self._audio_queue else 0,
-            "audio_devices": self.list_audio_devices()
+            "audio_devices": self.list_audio_devices(),
+            "sample_rate": self.samplerate,
+            "device_id": self.device_id,
+            "device": self.device
         }
         
     async def _cleanup(self) -> None:

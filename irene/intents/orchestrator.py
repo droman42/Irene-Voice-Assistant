@@ -1,0 +1,179 @@
+"""Intent orchestration and execution."""
+
+import logging
+from typing import Dict, Any, Optional
+
+from .models import Intent, IntentResult, ConversationContext
+from .registry import IntentRegistry
+
+logger = logging.getLogger(__name__)
+
+
+class IntentOrchestrator:
+    """Central intent coordinator that routes intents to appropriate handlers."""
+    
+    def __init__(self, registry: IntentRegistry):
+        """
+        Initialize the intent orchestrator.
+        
+        Args:
+            registry: Intent registry containing available handlers
+        """
+        self.registry = registry
+        self.middleware: list = []
+        self.error_handlers: Dict[str, callable] = {}
+    
+    def add_middleware(self, middleware_func: callable):
+        """Add middleware function to process intents before execution."""
+        self.middleware.append(middleware_func)
+        logger.info(f"Added middleware: {middleware_func.__name__}")
+    
+    def add_error_handler(self, error_type: str, handler: callable):
+        """Add error handler for specific error types."""
+        self.error_handlers[error_type] = handler
+        logger.info(f"Added error handler for: {error_type}")
+    
+    async def execute_intent(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Execute an intent by routing it to the appropriate handler.
+        
+        Args:
+            intent: The recognized intent to execute
+            context: Conversation context for execution
+            
+        Returns:
+            IntentResult containing the response and metadata
+        """
+        try:
+            # Apply middleware processing
+            processed_intent = await self._apply_middleware(intent, context)
+            
+            # Find handler for the intent
+            handler = self.registry.get_handler(processed_intent)
+            if not handler:
+                logger.warning(f"No handler found for intent: {processed_intent.name}")
+                return self._create_error_result(
+                    f"I don't know how to handle that request.",
+                    "no_handler",
+                    processed_intent
+                )
+            
+            # Check if handler can handle this specific intent
+            if not await handler.can_handle(processed_intent):
+                logger.warning(f"Handler {handler.__class__.__name__} cannot handle intent: {processed_intent.name}")
+                return self._create_error_result(
+                    "I can't process that request right now.",
+                    "handler_unavailable", 
+                    processed_intent
+                )
+            
+            # Execute the intent
+            logger.info(f"Executing intent '{processed_intent.name}' with handler {handler.__class__.__name__}")
+            result = await handler.execute(processed_intent, context)
+            
+            # Update conversation context
+            context.add_user_turn(processed_intent)
+            context.add_assistant_turn(result)
+            
+            logger.info(f"Intent executed successfully: {processed_intent.name}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error executing intent '{intent.name}': {e}", exc_info=True)
+            
+            # Try error handlers
+            error_type = type(e).__name__
+            if error_type in self.error_handlers:
+                try:
+                    return await self.error_handlers[error_type](intent, context, e)
+                except Exception as handler_error:
+                    logger.error(f"Error handler failed: {handler_error}")
+            
+            # Generic error response
+            return self._create_error_result(
+                "I encountered an error processing your request. Please try again.",
+                "execution_error",
+                intent,
+                str(e)
+            )
+    
+    async def _apply_middleware(self, intent: Intent, context: ConversationContext) -> Intent:
+        """Apply middleware functions to process the intent."""
+        processed_intent = intent
+        
+        for middleware in self.middleware:
+            try:
+                processed_intent = await middleware(processed_intent, context)
+            except Exception as e:
+                logger.error(f"Middleware error in {middleware.__name__}: {e}")
+                # Continue with unprocessed intent if middleware fails
+        
+        return processed_intent
+    
+    def _create_error_result(self, 
+                           message: str, 
+                           error_type: str, 
+                           intent: Intent,
+                           error_details: Optional[str] = None) -> IntentResult:
+        """Create a standardized error result."""
+        return IntentResult(
+            text=message,
+            should_speak=True,
+            success=False,
+            error=error_type,
+            metadata={
+                "error_type": error_type,
+                "original_intent": intent.name,
+                "error_details": error_details
+            },
+            confidence=0.0
+        )
+    
+    async def get_capabilities(self) -> Dict[str, Any]:
+        """Get orchestrator capabilities and handler information."""
+        handlers = await self.registry.get_all_handlers()
+        
+        capabilities = {
+            "handlers": {},
+            "middleware_count": len(self.middleware),
+            "error_handlers": list(self.error_handlers.keys()),
+            "supported_domains": set(),
+            "supported_actions": set()
+        }
+        
+        for pattern, handler in handlers.items():
+            handler_info = {
+                "class": handler.__class__.__name__,
+                "pattern": pattern,
+                "available": await handler.is_available() if hasattr(handler, 'is_available') else True
+            }
+            
+            # Extract domain information if available
+            if hasattr(handler, 'supported_domains'):
+                domains = handler.supported_domains()
+                capabilities["supported_domains"].update(domains)
+                handler_info["domains"] = list(domains)
+            
+            if hasattr(handler, 'supported_actions'):
+                actions = handler.supported_actions()
+                capabilities["supported_actions"].update(actions)
+                handler_info["actions"] = list(actions)
+            
+            capabilities["handlers"][pattern] = handler_info
+        
+        # Convert sets to lists for JSON serialization
+        capabilities["supported_domains"] = list(capabilities["supported_domains"])
+        capabilities["supported_actions"] = list(capabilities["supported_actions"])
+        
+        return capabilities
+    
+    async def validate_intent(self, intent: Intent) -> bool:
+        """Validate if an intent can be executed."""
+        handler = self.registry.get_handler(intent)
+        if not handler:
+            return False
+        
+        try:
+            return await handler.can_handle(intent)
+        except Exception:
+            return False 

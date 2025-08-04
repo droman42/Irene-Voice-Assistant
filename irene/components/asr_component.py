@@ -1,5 +1,5 @@
 """
-Universal ASR Plugin
+ASR Component
 
 Speech Recognition Coordinator managing multiple ASR providers.
 Provides unified web API (/asr/*), voice commands, and multi-source audio processing.
@@ -13,14 +13,15 @@ import base64
 import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect  # type: ignore
-from ...core.interfaces.asr import ASRPlugin
-from ...core.interfaces.webapi import WebAPIPlugin
-from ...core.interfaces.command import CommandPlugin
-from ...core.context import Context
-from ...core.commands import CommandResult
+from .base import Component
+from ..core.interfaces.asr import ASRPlugin
+from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.interfaces.command import CommandPlugin
+from ..core.context import Context
+from ..core.commands import CommandResult
 
 # Import all ASR providers using ABC pattern
-from ...providers.asr import (
+from ..providers.asr import (
     ASRProvider,
     VoskASRProvider,
     WhisperASRProvider,
@@ -30,9 +31,9 @@ from ...providers.asr import (
 logger = logging.getLogger(__name__)
 
 
-class UniversalASRPlugin(ASRPlugin, WebAPIPlugin, CommandPlugin):
+class ASRComponent(Component, ASRPlugin, WebAPIPlugin, CommandPlugin):
     """
-    Universal ASR Plugin - Speech Recognition Coordinator
+    ASR Component - Speech Recognition Coordinator
     
     Manages multiple ASR providers and provides:
     - Unified web API (/asr/*)
@@ -40,6 +41,42 @@ class UniversalASRPlugin(ASRPlugin, WebAPIPlugin, CommandPlugin):
     - Multi-source audio processing (microphone, web, files)
     - Provider switching and fallbacks
     """
+    
+    @property
+    def name(self) -> str:
+        return "asr"
+        
+    @property
+    def version(self) -> str:
+        return "1.0.0"
+        
+    @property
+    def description(self) -> str:
+        return "ASR component coordinating multiple speech recognition providers"
+        
+    @property
+    def dependencies(self) -> List[str]:
+        return []  # No hard dependencies
+        
+    @property
+    def optional_dependencies(self) -> List[str]:
+        return ["vosk", "openai-whisper", "google-cloud-speech", "numpy", "soundfile"]
+        
+    @property
+    def enabled_by_default(self) -> bool:
+        return True
+        
+    @property  
+    def category(self) -> str:
+        return "asr"
+        
+    @property
+    def platforms(self) -> List[str]:
+        return []  # All platforms
+    
+    def get_dependencies(self) -> List[str]:
+        """Get list of dependencies for this component."""
+        return []  # No hard dependencies - matches existing @property
     
     def __init__(self):
         super().__init__()
@@ -54,14 +91,6 @@ class UniversalASRPlugin(ASRPlugin, WebAPIPlugin, CommandPlugin):
             "whisper": WhisperASRProvider,
             "google_cloud": GoogleCloudASRProvider,
         }
-        
-    @property
-    def name(self) -> str:
-        return "universal_asr"
-    
-    @property 
-    def version(self) -> str:
-        return "1.0.0"
         
     async def initialize(self, core) -> None:
         """Initialize ASR providers from configuration"""

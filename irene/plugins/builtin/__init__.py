@@ -22,19 +22,10 @@ def get_builtin_plugins() -> Dict[str, Type[PluginInterface]]:
     """
     
     # Define plugin modules and their main plugin classes
+    # Note: Universal plugins moved to components/, intent plugins moved to intents/handlers/
     plugin_modules = [
-        ("core_commands", "CoreCommandsPlugin"),
-        ("greetings_plugin", "GreetingsPlugin"), 
-        ("datetime_plugin", "DateTimePlugin"),
-        ("random_plugin", "RandomPlugin"),
-        ("timer_plugin", "AsyncTimerPlugin"),
-        # Universal Plugins (Phase 1, 2 & 4) - These replace all legacy plugins
-        ("universal_tts_plugin", "UniversalTTSPlugin"),
-        ("universal_audio_plugin", "UniversalAudioPlugin"),
-        ("universal_asr_plugin", "UniversalASRPlugin"),  # Phase 4
-        ("universal_llm_plugin", "UniversalLLMPlugin"),  # Phase 4
-        ("conversation_plugin", "ConversationPlugin"),   # Phase 4 - Interactive LLM Chat
-        ("async_service_demo", "AsyncServiceDemoPlugin"),
+        ("random_plugin", "RandomPlugin"),               # Keep as true plugin
+        ("async_service_demo", "AsyncServiceDemoPlugin"), # Keep as demo plugin
     ]
     
     plugins = {}

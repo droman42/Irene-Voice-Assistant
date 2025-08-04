@@ -1,5 +1,5 @@
 """
-Universal LLM Plugin
+LLM Component
 
 LLM Coordinator managing multiple LLM providers.
 Provides unified web API (/llm/*), voice commands, and text enhancement capabilities.
@@ -9,14 +9,15 @@ from typing import Dict, Any, List, Optional
 import logging
 
 from fastapi import APIRouter, HTTPException
-from ...core.interfaces.llm import LLMPlugin
-from ...core.interfaces.webapi import WebAPIPlugin
-from ...core.interfaces.command import CommandPlugin
-from ...core.context import Context
-from ...core.commands import CommandResult
+from .base import Component
+from ..core.interfaces.llm import LLMPlugin
+from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.interfaces.command import CommandPlugin
+from ..core.context import Context
+from ..core.commands import CommandResult
 
 # Import all LLM providers using ABC pattern
-from ...providers.llm import (
+from ..providers.llm import (
     LLMProvider,
     OpenAILLMProvider,
     VseGPTLLMProvider,
@@ -26,9 +27,9 @@ from ...providers.llm import (
 logger = logging.getLogger(__name__)
 
 
-class UniversalLLMPlugin(LLMPlugin, CommandPlugin, WebAPIPlugin):
+class LLMComponent(Component, LLMPlugin, CommandPlugin, WebAPIPlugin):
     """
-    Universal LLM Plugin - Language Model Coordinator
+    LLM Component - Language Model Coordinator
     
     Manages multiple LLM providers and provides:
     - Unified web API (/llm/*)
@@ -36,6 +37,42 @@ class UniversalLLMPlugin(LLMPlugin, CommandPlugin, WebAPIPlugin):
     - Text enhancement capabilities
     - Provider switching and fallbacks
     """
+    
+    @property
+    def name(self) -> str:
+        return "llm"
+        
+    @property
+    def version(self) -> str:
+        return "1.0.0"
+        
+    @property
+    def description(self) -> str:
+        return "LLM component coordinating multiple language model providers"
+        
+    @property
+    def dependencies(self) -> List[str]:
+        return []  # No hard dependencies
+        
+    @property
+    def optional_dependencies(self) -> List[str]:
+        return ["openai", "anthropic", "requests", "aiohttp"]
+        
+    @property
+    def enabled_by_default(self) -> bool:
+        return True
+        
+    @property  
+    def category(self) -> str:
+        return "llm"
+        
+    @property
+    def platforms(self) -> List[str]:
+        return []  # All platforms
+    
+    def get_dependencies(self) -> List[str]:
+        """Get list of dependencies for this component."""
+        return []  # No hard dependencies - matches existing @property
     
     def __init__(self):
         super().__init__()
@@ -49,14 +86,6 @@ class UniversalLLMPlugin(LLMPlugin, CommandPlugin, WebAPIPlugin):
             "vsegpt": VseGPTLLMProvider,
             "anthropic": AnthropicLLMProvider,
         }
-        
-    @property
-    def name(self) -> str:
-        return "universal_llm"
-    
-    @property 
-    def version(self) -> str:
-        return "1.0.0"
         
     async def initialize(self, core) -> None:
         """Initialize LLM providers from configuration"""

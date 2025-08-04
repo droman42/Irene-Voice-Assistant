@@ -1,7 +1,7 @@
 """
-Universal Audio Plugin - Audio coordinator managing multiple providers
+Audio Component - Audio coordinator managing multiple providers
 
-Implements the Universal Plugin pattern for audio playback functionality.
+Implements the fundamental component pattern for audio playback functionality.
 Manages multiple audio providers based on configuration and provides unified web APIs.
 """
 
@@ -13,14 +13,15 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File  # type: ignore
 from pydantic import BaseModel
 
-from ...core.interfaces.audio import AudioPlugin
-from ...core.interfaces.webapi import WebAPIPlugin
-from ...core.interfaces.command import CommandPlugin
-from ...core.context import Context
-from ...core.commands import CommandResult
+from .base import Component
+from ..core.interfaces.audio import AudioPlugin
+from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.interfaces.command import CommandPlugin
+from ..core.context import Context
+from ..core.commands import CommandResult
 
 # Import all audio providers
-from ...providers.audio import (
+from ..providers.audio import (
     AudioProvider,
     ConsoleAudioProvider,
     SoundDeviceAudioProvider,
@@ -40,9 +41,9 @@ class AudioPlayRequest(BaseModel):
     device: Optional[str] = None
 
 
-class UniversalAudioPlugin(AudioPlugin, WebAPIPlugin, CommandPlugin):
+class AudioComponent(Component, AudioPlugin, WebAPIPlugin, CommandPlugin):
     """
-    Universal Audio Plugin that manages multiple audio providers.
+    Audio Component that manages multiple audio providers.
     
     Features:
     - Configuration-driven provider instantiation
@@ -52,9 +53,13 @@ class UniversalAudioPlugin(AudioPlugin, WebAPIPlugin, CommandPlugin):
     - Runtime provider switching
     """
     
+    def get_dependencies(self) -> List[str]:
+        """Get list of dependencies for this component."""
+        return self.dependencies  # Use @property for consistency
+    
     @property
     def name(self) -> str:
-        return "universal_audio"
+        return "audio"
         
     @property
     def version(self) -> str:
@@ -62,7 +67,7 @@ class UniversalAudioPlugin(AudioPlugin, WebAPIPlugin, CommandPlugin):
         
     @property
     def description(self) -> str:
-        return "Universal audio plugin managing multiple audio backends"
+        return "Audio component managing multiple audio backends"
         
     @property
     def dependencies(self) -> list[str]:

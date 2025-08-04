@@ -1,7 +1,7 @@
 """
-Universal TTS Plugin - Coordinator for multiple TTS providers
+TTS Component - Coordinator for multiple TTS providers
 
-This plugin implements the Universal Plugin pattern from the refactoring plan.
+This component implements the fundamental component pattern from the refactoring plan.
 It manages multiple TTS providers through configuration-driven instantiation
 and provides unified web APIs and voice command interfaces.
 """
@@ -11,13 +11,14 @@ import logging
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
-from ...core.interfaces.tts import TTSPlugin
-from ...core.interfaces.webapi import WebAPIPlugin
-from ...core.interfaces.command import CommandPlugin
-from ...core.context import Context
-from ...core.commands import CommandResult
+from .base import Component
+from ..core.interfaces.tts import TTSPlugin
+from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.interfaces.command import CommandPlugin
+from ..core.context import Context
+from ..core.commands import CommandResult
 # Import all TTS providers
-from ...providers.tts import (
+from ..providers.tts import (
     TTSProvider,
     ConsoleTTSProvider,
     PyttsTTSProvider,
@@ -30,9 +31,9 @@ from ...providers.tts import (
 logger = logging.getLogger(__name__)
 
 
-class UniversalTTSPlugin(TTSPlugin, WebAPIPlugin, CommandPlugin):
+class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
     """
-    Universal TTS plugin that coordinates multiple TTS providers.
+    TTS component that coordinates multiple TTS providers.
     
     Features:
     - Configuration-driven provider instantiation
@@ -44,7 +45,7 @@ class UniversalTTSPlugin(TTSPlugin, WebAPIPlugin, CommandPlugin):
     
     @property
     def name(self) -> str:
-        return "universal_tts"
+        return "tts"
         
     @property
     def version(self) -> str:
@@ -52,7 +53,7 @@ class UniversalTTSPlugin(TTSPlugin, WebAPIPlugin, CommandPlugin):
         
     @property
     def description(self) -> str:
-        return "Universal TTS coordinator managing multiple TTS providers with unified API"
+        return "TTS component coordinating multiple TTS providers with unified API"
         
     @property
     def dependencies(self) -> list[str]:
@@ -73,6 +74,10 @@ class UniversalTTSPlugin(TTSPlugin, WebAPIPlugin, CommandPlugin):
     @property
     def platforms(self) -> list[str]:
         return []  # All platforms
+    
+    def get_dependencies(self) -> list[str]:
+        """Get list of dependencies for this component."""
+        return self.dependencies  # Use @property for consistency
         
     def __init__(self):
         super().__init__()

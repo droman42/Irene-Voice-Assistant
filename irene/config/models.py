@@ -11,6 +11,7 @@ import os
 from typing import Optional, Any, Dict, List
 from pathlib import Path
 from enum import Enum
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
@@ -541,6 +542,26 @@ HEADLESS_PROFILE = ComponentConfig(
 def create_default_config() -> CoreConfig:
     """Create a default configuration with sensible defaults"""
     return CoreConfig()
+
+
+@dataclass
+class IntentsConfig:
+    """Configuration for the intent system"""
+    enabled: bool = True
+    confidence_threshold: float = 0.7
+    fallback_handler: str = "conversation"
+    max_history_turns: int = 10
+    session_timeout: int = 1800  # 30 minutes
+
+
+@dataclass  
+class VoiceTriggerConfig:
+    """Configuration for voice trigger (wake word detection)"""
+    provider: str = "openwakeword"
+    wake_words: list[str] = field(default_factory=lambda: ["irene", "jarvis"])
+    threshold: float = 0.8
+    buffer_seconds: float = 1.0
+    timeout_seconds: float = 5.0
 
 
 def create_config_from_profile(profile_name: str) -> CoreConfig:

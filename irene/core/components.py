@@ -3,16 +3,27 @@ Component Management - Optional component loading and lifecycle
 
 Handles optional components with graceful dependency checking,
 automatic fallbacks, and component lifecycle management.
+Enhanced with existing utilities from loader.py.
 """
 
 import asyncio
 import logging
-from typing import Optional, Any, Type, TypeVar
+from typing import Optional, Any, Type, TypeVar, Dict
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
 from ..config.models import ComponentConfig
+from ..utils.loader import DependencyChecker, get_component_status
+from ..components import (
+    TTSComponent,
+    ASRComponent, 
+    LLMComponent,
+    AudioComponent,
+    VoiceTriggerComponent,
+    NLUComponent,
+    TextProcessorComponent
+)
 
 logger = logging.getLogger(__name__)
 
@@ -332,6 +343,7 @@ class ComponentManager:
     - Dependency checking and graceful fallbacks
     - Component lifecycle management
     - Deployment profile detection
+    - Enhanced with existing utilities from loader.py
     """
     
     def __init__(self, config: ComponentConfig):
@@ -339,6 +351,38 @@ class ComponentManager:
         self._components: dict[str, Component] = {}
         self._discovery_tasks: Optional[list[asyncio.Task]] = None
         self._initialized = False
+        self.dependency_checker = DependencyChecker()  # From loader.py
+    
+    def get_available_components(self) -> Dict[str, Type]:
+        """Get available fundamental components with dependency validation"""
+        components = {
+            "tts": TTSComponent,
+            "asr": ASRComponent, 
+            "llm": LLMComponent,
+            "audio": AudioComponent,
+            "voice_trigger": VoiceTriggerComponent,  # NEW
+            "nlu": NLUComponent,                     # NEW
+            "text_processor": TextProcessorComponent # NEW
+        }
+        
+        # Use loader.py to validate each component's dependencies
+        available = {}
+        for name, cls in components.items():
+            try:
+                component_instance = cls()
+                deps = component_instance.get_dependencies()
+                if self.dependency_checker.check(name, deps):
+                    available[name] = cls
+                else:
+                    logger.warning(f"Component {name} not available - missing dependencies: {deps}")
+            except Exception as e:
+                logger.error(f"Error checking component {name}: {e}")
+        
+        return available
+        
+    async def get_system_status(self) -> Dict[str, Any]:
+        """Get comprehensive system status using loader.py utilities"""
+        return get_component_status()  # From loader.py
         
     async def initialize_components(self) -> None:
         """Initialize all configured components using ComponentLoader"""
@@ -411,8 +455,12 @@ class ComponentManager:
         """Auto-detect current deployment profile based on available components"""
         available = set(self._components.keys())
         
-        if "microphone" in available and "tts" in available and "web_api" in available:
-            return "Voice Assistant"
+        # Check for new intelligent voice assistant profile
+        if ("voice_trigger" in available and "nlu" in available and 
+            "asr" in available and "tts" in available):
+            return "Smart Voice Assistant"  # New system
+        elif "microphone" in available and "tts" in available and "web_api" in available:
+            return "Voice Assistant (Legacy)"  # Current system
         elif "web_api" in available:
             return "API Server"
         elif available:
