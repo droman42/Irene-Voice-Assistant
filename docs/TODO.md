@@ -2,7 +2,44 @@
 
 This document tracks architectural improvements and refactoring tasks for the Irene Voice Assistant project.
 
-## 1. AudioComponent Command Handling Architecture Issue
+## 1. Review New Providers for Asset Management Compliance
+
+**Status:** Open  
+**Priority:** Medium  
+**Components:** All provider modules
+
+### Problem
+
+New providers need to be reviewed for compliance with the project's asset management guidelines to ensure consistent resource handling, model storage, and configuration management across the codebase.
+
+### Required Review Areas
+
+1. **Model Storage**: Verify providers follow the centralized model storage pattern defined via environment variables
+2. **Cache Management**: Ensure providers use the unified cache folder structure
+3. **Resource Cleanup**: Check for proper cleanup of temporary files and resources
+4. **Configuration Patterns**: Validate adherence to standard configuration schemas
+5. **Documentation**: Ensure provider documentation includes asset management details
+
+### Asset Management Guidelines
+
+Based on project memories:
+- All AI models and cache folders should be placed under a single root directory defined via environment variables in .env file
+- This allows for consistent configuration when mounting from Docker images
+- Providers should not create their own isolated storage patterns
+
+### Impact
+- Consistent resource management across all providers
+- Better Docker deployment support
+- Reduced storage fragmentation
+- Improved maintainability and debugging
+
+### Related Files
+- `docs/ASSET_MANAGEMENT.md` (asset management guidelines)
+- All provider modules in `irene/providers/`
+- `.env` configuration files
+- Docker configuration files
+
+## 2. AudioComponent Command Handling Architecture Issue
 
 **Status:** Open  
 **Priority:** Medium  
@@ -59,7 +96,7 @@ This is essentially intent recognition logic that should be in the intent system
 - `irene/core/components.py` (ComponentManager integration)
 - `irene/intents/handlers/` (intent system)
 
-## 2. Hardcoded Provider Loading Pattern
+## 3. Hardcoded Provider Loading Pattern
 
 **Status:** Open  
 **Priority:** High  
@@ -158,7 +195,7 @@ The codebase already has supporting utilities:
 - `irene/utils/loader.py` (existing dynamic loading utilities)
 - `irene/plugins/registry.py` (pattern for configuration-driven discovery)
 
-## 3. Disconnected NLU and Intent Handler Systems
+## 4. Disconnected NLU and Intent Handler Systems
 
 **Status:** Open  
 **Priority:** Medium  
