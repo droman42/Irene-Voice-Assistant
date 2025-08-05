@@ -10,6 +10,12 @@
 #include <cstring>
 #include <algorithm>
 
+// TensorFlow Lite Micro includes
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/schema/schema_generated.h"
+#include "tensorflow/lite/version.h"
+
 static const char* TAG = "WakeWordDetector";
 
 namespace irene {
@@ -19,7 +25,10 @@ WakeWordDetector::WakeWordDetector()
     , initialized_(false)
     , model_data_(nullptr)
     , model_size_(0)
+    , model_(nullptr)
     , interpreter_(nullptr)
+    , resolver_(nullptr)
+    , tensor_arena_(nullptr)
     , inference_buffer_(nullptr)
     , inference_buffer_size_(0)
     , last_confidence_(0.0f)
@@ -38,6 +47,7 @@ WakeWordDetector::WakeWordDetector()
 
 WakeWordDetector::~WakeWordDetector() {
     disable();
+    cleanup_tf_lite_model();
     
     if (audio_queue_) {
         vQueueDelete(audio_queue_);
@@ -95,9 +105,11 @@ ErrorCode WakeWordDetector::initialize(const WakeWordConfig& config,
         return ErrorCode::WAKE_WORD_FAILED;
     }
     
-    // Initialize TensorFlow Lite Micro (placeholder - actual implementation needed)
-    // This would include loading the model and setting up the interpreter
-    interpreter_ = reinterpret_cast<void*>(0x12345678); // Placeholder
+    // Initialize TensorFlow Lite Micro
+    if (!setup_tf_lite_model()) {
+        ESP_LOGE(TAG, "Failed to setup TensorFlow Lite model");
+        return ErrorCode::WAKE_WORD_FAILED;
+    }
     
     initialized_ = true;
     ESP_LOGI(TAG, "Wake word detector initialized successfully");
@@ -269,8 +281,8 @@ void WakeWordDetector::process_inference() {
         return; // Not enough data
     }
     
-    // Perform inference (placeholder - actual TF Lite implementation needed)
-    float confidence = run_inference_placeholder(inference_buffer_, inference_buffer_size_);
+    // Perform TensorFlow Lite inference
+    float confidence = run_inference(inference_buffer_, inference_buffer_size_);
     
     uint32_t inference_time = (esp_timer_get_time() - start_time) / 1000; // Convert to ms
     inference_count_++;
@@ -326,30 +338,133 @@ bool WakeWordDetector::validate_detection(float confidence) {
     return false;
 }
 
-float WakeWordDetector::run_inference_placeholder(const int16_t* audio_data, size_t samples) {
-    // Placeholder implementation - replace with actual TensorFlow Lite Micro inference
-    // This simulates the inference process and returns a confidence score
+bool WakeWordDetector::setup_tf_lite_model() {
+    ESP_LOGI(TAG, "Setting up TensorFlow Lite model...");
     
-    if (!audio_data || samples == 0) return 0.0f;
-    
-    // Simple energy-based detection as placeholder
-    int64_t energy = 0;
-    for (size_t i = 0; i < samples; i++) {
-        energy += abs(audio_data[i]);
+    // Load model from embedded data
+    model_ = tflite::GetModel(model_data_);
+    if (model_->version() != TFLITE_SCHEMA_VERSION) {
+        ESP_LOGE(TAG, "Model schema version %d not supported. Supported version is %d",
+                model_->version(), TFLITE_SCHEMA_VERSION);
+        return false;
     }
     
-    float normalized_energy = static_cast<float>(energy) / (samples * 32768.0f);
+    // Allocate tensor arena in PSRAM
+    tensor_arena_ = static_cast<uint8_t*>(
+        heap_caps_malloc(kTensorArenaSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+    );
     
-    // Simulate wake word detection with some randomness
-    float base_confidence = normalized_energy * 0.5f;
+    if (!tensor_arena_) {
+        ESP_LOGE(TAG, "Failed to allocate tensor arena (%d bytes) in PSRAM", kTensorArenaSize);
+        return false;
+    }
     
-    // Add some noise to simulate actual model behavior
-    static uint32_t seed = 12345;
-    seed = seed * 1103515245 + 12345; // Simple LCG
-    float noise = (seed % 1000) / 10000.0f - 0.05f; // -0.05 to +0.05
+    ESP_LOGI(TAG, "Allocated tensor arena: %d KB in PSRAM", kTensorArenaSize / 1024);
     
-    float confidence = base_confidence + noise;
-    return std::max(0.0f, std::min(1.0f, confidence));
+    // Create and configure operation resolver
+    resolver_ = new tflite::MicroMutableOpResolver<10>();
+    resolver_->AddConv2D();
+    resolver_->AddMaxPool2D();
+    resolver_->AddReshape();
+    resolver_->AddFullyConnected();
+    resolver_->AddSoftmax();
+    resolver_->AddDepthwiseConv2D();
+    resolver_->AddAdd();
+    resolver_->AddMul();
+    resolver_->AddQuantize();
+    resolver_->AddDequantize();
+    
+    // Create interpreter
+    static tflite::MicroInterpreter static_interpreter(
+        model_, *resolver_, tensor_arena_, kTensorArenaSize
+    );
+    interpreter_ = &static_interpreter;
+    
+    // Allocate tensors
+    TfLiteStatus allocate_status = interpreter_->AllocateTensors();
+    if (allocate_status != kTfLiteOk) {
+        ESP_LOGE(TAG, "AllocateTensors() failed with status: %d", allocate_status);
+        return false;
+    }
+    
+    // Log tensor information
+    TfLiteTensor* input = interpreter_->input(0);
+    TfLiteTensor* output = interpreter_->output(0);
+    
+    ESP_LOGI(TAG, "Model input shape: [%d, %d, %d, %d]", 
+             input->dims->data[0], input->dims->data[1], 
+             input->dims->data[2], input->dims->data[3]);
+    ESP_LOGI(TAG, "Model input type: %d", input->type);
+    ESP_LOGI(TAG, "Model output shape: [%d]", output->dims->data[0]);
+    ESP_LOGI(TAG, "Model output type: %d", output->type);
+    
+    ESP_LOGI(TAG, "TensorFlow Lite model setup complete");
+    return true;
+}
+
+void WakeWordDetector::cleanup_tf_lite_model() {
+    if (resolver_) {
+        delete resolver_;
+        resolver_ = nullptr;
+    }
+    
+    if (tensor_arena_) {
+        heap_caps_free(tensor_arena_);
+        tensor_arena_ = nullptr;
+    }
+    
+    model_ = nullptr;
+    interpreter_ = nullptr;
+}
+
+float WakeWordDetector::run_inference(const int16_t* audio_data, size_t samples) {
+    if (!interpreter_ || !audio_data || samples == 0) {
+        return 0.0f;
+    }
+    
+    // Get input tensor
+    TfLiteTensor* input = interpreter_->input(0);
+    if (!input || input->bytes == 0) {
+        ESP_LOGE(TAG, "Invalid input tensor");
+        return 0.0f;
+    }
+    
+    // Prepare input data - convert int16 to float and normalize
+    float* input_data = input->data.f;
+    size_t input_samples = input->bytes / sizeof(float);
+    
+    // Copy and normalize audio data (assuming 16-bit PCM -> float32 normalized)
+    size_t copy_samples = std::min(samples, input_samples);
+    for (size_t i = 0; i < copy_samples; i++) {
+        input_data[i] = static_cast<float>(audio_data[i]) / 32768.0f;
+    }
+    
+    // Zero-pad if necessary
+    for (size_t i = copy_samples; i < input_samples; i++) {
+        input_data[i] = 0.0f;
+    }
+    
+    // Run inference
+    TfLiteStatus invoke_status = interpreter_->Invoke();
+    if (invoke_status != kTfLiteOk) {
+        ESP_LOGE(TAG, "Invoke() failed with status: %d", invoke_status);
+        return 0.0f;
+    }
+    
+    // Get output
+    TfLiteTensor* output = interpreter_->output(0);
+    if (!output || output->bytes == 0) {
+        ESP_LOGE(TAG, "Invalid output tensor");
+        return 0.0f;
+    }
+    
+    // Extract confidence score (assuming single output float)
+    float confidence = output->data.f[0];
+    
+    // Clamp confidence to valid range
+    confidence = std::max(0.0f, std::min(1.0f, confidence));
+    
+    return confidence;
 }
 
 } // namespace irene 

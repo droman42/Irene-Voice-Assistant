@@ -41,4 +41,5 @@ idf_component_register(
     lvgl
     esp_lcd
     esp_psram
+    esp-tflite-micro
 ) 

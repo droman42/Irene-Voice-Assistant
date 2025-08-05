@@ -4,6 +4,12 @@
 #include <functional>
 #include <memory>
 
+// TensorFlow Lite Micro includes
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/schema/schema_generated.h"
+#include "tensorflow/lite/version.h"
+
 namespace irene {
 
 /**
@@ -54,6 +60,11 @@ private:
     bool validate_detection(float confidence);
     static void wake_word_task_wrapper(void* arg);
     
+    // TensorFlow Lite inference methods
+    bool setup_tf_lite_model();
+    float run_inference(const int16_t* audio_data, size_t samples);
+    void cleanup_tf_lite_model();
+    
     WakeWordConfig config_;
     bool enabled_;
     bool initialized_;
@@ -61,7 +72,13 @@ private:
     // Model data (stored in PSRAM)
     const uint8_t* model_data_;
     size_t model_size_;
-    void* interpreter_;  // TensorFlow Lite Micro interpreter
+    
+    // TensorFlow Lite Micro components
+    const tflite::Model* model_;
+    tflite::MicroInterpreter* interpreter_;
+    tflite::MicroMutableOpResolver<10>* resolver_;
+    uint8_t* tensor_arena_;
+    static constexpr size_t kTensorArenaSize = 160 * 1024; // 160KB for medium model
     
     // Audio buffering
     std::unique_ptr<class RingBuffer> audio_buffer_;
