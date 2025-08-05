@@ -47,6 +47,8 @@ class AssetManager:
             return provider_dir / f"{model_id}.pt"
         elif provider == "vosk":
             return provider_dir / model_id
+        elif provider == "openwakeword":
+            return provider_dir / f"{model_id}.onnx"
         else:
             return provider_dir / model_id
     
@@ -125,6 +127,11 @@ class AssetManager:
         if provider == "whisper" and model_info["url"] == "auto":
             # Let whisper library handle download
             logger.info(f"Whisper model will be auto-downloaded by library: {model_id}")
+            return model_path
+        
+        if provider == "openwakeword" and model_info["url"] == "auto":
+            # Let OpenWakeWord library handle download
+            logger.info(f"OpenWakeWord model will be auto-downloaded by library: {model_id}")
             return model_path
         
         # Download the model

@@ -384,6 +384,29 @@ class AssetConfig(BaseModel):
                     "extract": True,
                     "checksum": None
                 }
+            },
+            "openwakeword": {
+                "alexa_v0.1": {
+                    "url": "auto",
+                    "size": "~10MB",
+                    "format": "onnx",
+                    "checksum": None,
+                    "description": "Pre-trained model for 'alexa' wake word"
+                },
+                "hey_jarvis_v0.1": {
+                    "url": "auto", 
+                    "size": "~10MB",
+                    "format": "onnx",
+                    "checksum": None,
+                    "description": "Pre-trained model for 'hey jarvis' wake phrase"
+                },
+                "hey_mycroft_v0.1": {
+                    "url": "auto",
+                    "size": "~10MB",
+                    "format": "onnx", 
+                    "checksum": None,
+                    "description": "Pre-trained model for 'hey mycroft' wake phrase"
+                }
             }
         }
     )
@@ -400,6 +423,10 @@ class AssetConfig(BaseModel):
     @property
     def vosk_models_dir(self) -> Path:
         return self.models_root / "vosk"
+        
+    @property
+    def voice_trigger_models_dir(self) -> Path:
+        return self.models_root / "voice_trigger"
         
     @property
     def downloads_cache_dir(self) -> Path:
@@ -431,6 +458,7 @@ class AssetConfig(BaseModel):
             self.whisper_models_dir,
             self.silero_models_dir,
             self.vosk_models_dir,
+            self.voice_trigger_models_dir,
             self.downloads_cache_dir,
             self.runtime_cache_dir,
             self.tts_cache_dir,

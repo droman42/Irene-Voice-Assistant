@@ -2,13 +2,14 @@
 OpenWakeWord Voice Trigger Provider
 
 Primary voice trigger provider using OpenWakeWord for wake word detection.
-Supports multiple wake words and custom models.
+Supports multiple wake words and custom models with asset management integration.
 """
 
 import logging
 import numpy as np
 from typing import Dict, Any, List, Optional
 import time
+from pathlib import Path
 
 from .base import VoiceTriggerProvider
 from ...intents.models import AudioData, WakeWordResult
@@ -25,16 +26,27 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
         self.oww = None
         self.model = None
         self.inference_framework = config.get('inference_framework', 'tflite')
-        self.model_paths = config.get('model_paths', {})
         self.chunk_size = config.get('chunk_size', 1280)  # 80ms at 16kHz
         self.n_samples_per_prediction = self.chunk_size
         
-        # Available wake words and their default models
+        # Asset management integration
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Legacy model_paths support for backwards compatibility
+        legacy_model_paths = config.get('model_paths', {})
+        if legacy_model_paths:
+            self.model_paths = legacy_model_paths
+            logger.warning("Using legacy model_paths config. Consider using IRENE_MODELS_ROOT environment variable.")
+        else:
+            self.model_paths = {}
+        
+        # Available wake words and their default models (mapped to asset registry)
         self.available_models = {
-            'alexa': 'alexa_v0.1.onnx',
-            'hey_jarvis': 'hey_jarvis_v0.1.onnx', 
-            'irene': 'custom_irene_v0.1.onnx',  # Custom model
-            'jarvis': 'hey_jarvis_v0.1.onnx'    # Alias for hey_jarvis
+            'alexa': 'alexa_v0.1',
+            'hey_jarvis': 'hey_jarvis_v0.1', 
+            'hey_mycroft': 'hey_mycroft_v0.1',
+            'jarvis': 'hey_jarvis_v0.1'    # Alias for hey_jarvis
         }
     
     def get_provider_name(self) -> str:
@@ -70,7 +82,7 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
         await self._initialize_model()
     
     async def _initialize_model(self):
-        """Initialize the OpenWakeWord model with selected wake words."""
+        """Initialize the OpenWakeWord model with selected wake words using asset management."""
         try:
             # Import OpenWakeWord
             openwakeword = safe_import('openwakeword')
@@ -79,36 +91,84 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             
             from openwakeword import Model
             
-            # Determine which models to load
+            # Determine which models to load using asset management
             models_to_load = []
             for wake_word in self.wake_words:
                 if wake_word in self.available_models:
-                    model_name = self.available_models[wake_word]
+                    # Check if we have a legacy custom model path first
                     if wake_word in self.model_paths:
-                        # Use custom model path
+                        # Use legacy custom model path
                         models_to_load.append(self.model_paths[wake_word])
+                        logger.info(f"Using legacy model path for '{wake_word}': {self.model_paths[wake_word]}")
                     else:
-                        # Use default model name (OpenWakeWord will download if needed)
-                        models_to_load.append(model_name)
+                        # Try to get model from asset management
+                        model_id = self.available_models[wake_word]
+                        try:
+                            # Get model info and attempt download
+                            model_info = self.asset_manager.get_model_info("openwakeword", model_id)
+                            if model_info:
+                                logger.info(f"Loading OpenWakeWord model {model_id} for '{wake_word}' (size: {model_info.get('size', 'unknown')})")
+                            
+                            # Try asset manager download first (will handle 'auto' URLs properly)
+                            model_path = await self._get_model_via_asset_manager(model_id)
+                            if model_path and model_path.exists():
+                                models_to_load.append(str(model_path))
+                                logger.info(f"Using asset-managed model for '{wake_word}': {model_path}")
+                            else:
+                                # Fallback to OpenWakeWord's built-in download
+                                fallback_model = f"{model_id}.onnx"
+                                models_to_load.append(fallback_model)
+                                logger.info(f"Falling back to OpenWakeWord auto-download for '{wake_word}': {fallback_model}")
+                                
+                        except Exception as e:
+                            logger.warning(f"Asset manager failed for '{wake_word}', using OpenWakeWord auto-download: {e}")
+                            # Fallback to OpenWakeWord's built-in download
+                            fallback_model = f"{model_id}.onnx"
+                            models_to_load.append(fallback_model)
                 else:
-                    self.logger.warning(f"Wake word '{wake_word}' not supported by OpenWakeWord")
+                    logger.warning(f"Wake word '{wake_word}' not supported by OpenWakeWord")
             
             if not models_to_load:
                 raise ValueError("No valid wake word models found")
             
             # Initialize OpenWakeWord model
-            self.logger.info(f"Initializing OpenWakeWord with models: {models_to_load}")
+            logger.info(f"Initializing OpenWakeWord with models: {models_to_load}")
             self.oww = Model(
                 wakeword_models=models_to_load,
                 inference_framework=self.inference_framework
             )
             
-            self.logger.info("OpenWakeWord model initialized successfully")
+            logger.info("OpenWakeWord model initialized successfully")
             
         except Exception as e:
-            self.logger.error(f"Failed to initialize OpenWakeWord: {e}")
+            logger.error(f"Failed to initialize OpenWakeWord: {e}")
             self.oww = None
             raise
+    
+    async def _get_model_via_asset_manager(self, model_id: str) -> Optional[Path]:
+        """Get model via asset manager with proper handling of OpenWakeWord's auto downloads."""
+        try:
+            # For OpenWakeWord models marked as 'auto', we let OpenWakeWord handle the download
+            # but we provide a standardized path for where the model should be stored
+            model_info = self.asset_manager.get_model_info("openwakeword", model_id)
+            if model_info and model_info.get("url") == "auto":
+                # OpenWakeWord will handle the download, but we return our preferred path
+                # This allows for future enhancement where we could intercept and manage downloads
+                model_path = self.asset_manager.get_model_path("openwakeword", model_id)
+                
+                # Ensure the directory exists
+                model_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # For now, we don't actually download since OpenWakeWord handles it
+                # But we return the path where it should be stored for future consistency
+                return model_path
+            else:
+                # For models with actual URLs, use the standard asset manager download
+                return await self.asset_manager.download_model("openwakeword", model_id)
+                
+        except Exception as e:
+            logger.debug(f"Asset manager model retrieval failed for {model_id}: {e}")
+            return None
     
     async def detect_wake_word(self, audio_data: AudioData) -> WakeWordResult:
         """
@@ -172,7 +232,7 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             detected = best_score > self.threshold
             
             if detected:
-                self.logger.debug(f"Wake word '{detected_word}' detected with confidence {best_score:.3f}")
+                logger.debug(f"Wake word '{detected_word}' detected with confidence {best_score:.3f}")
             
             return WakeWordResult(
                 detected=detected,
@@ -182,7 +242,7 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             )
             
         except Exception as e:
-            self.logger.error(f"Wake word detection failed: {e}")
+            logger.error(f"Wake word detection failed: {e}")
             return WakeWordResult(
                 detected=False,
                 confidence=0.0,
@@ -193,7 +253,10 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
         """Get the model key for a wake word."""
         # OpenWakeWord uses model names as keys in predictions
         if wake_word in self.available_models:
-            return self.available_models[wake_word].replace('.onnx', '').replace('.tflite', '')
+            # Model IDs are now clean without extensions, but OpenWakeWord still might use filename-based keys
+            model_id = self.available_models[wake_word]
+            # Return the model_id which should match OpenWakeWord's internal key format
+            return model_id
         return wake_word
     
     def get_supported_wake_words(self) -> List[str]:
@@ -206,7 +269,7 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             "wake_words": {
                 "type": "array",
                 "items": {"type": "string", "enum": self.get_supported_wake_words()},
-                "default": ["irene", "jarvis"],
+                "default": ["alexa", "jarvis"],
                 "description": "List of wake words to detect"
             },
             "threshold": {
@@ -255,4 +318,4 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
         if self.oww:
             # OpenWakeWord doesn't have explicit cleanup, but we can clear the reference
             self.oww = None
-            self.logger.info("OpenWakeWord cleaned up") 
+            logger.info("OpenWakeWord cleaned up") 

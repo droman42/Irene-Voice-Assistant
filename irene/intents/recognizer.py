@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any, Optional
 
 from .models import Intent, ConversationContext
-from ..providers.base import Provider
+from ..providers.base import ProviderBase
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +14,12 @@ class IntentRecognizer:
     
     def __init__(self):
         """Initialize the intent recognizer."""
-        self.providers: Dict[str, Provider] = {}
+        self.providers: Dict[str, ProviderBase] = {}
         self.default_provider: Optional[str] = None
         self.confidence_threshold: float = 0.7
         self.fallback_intent: str = "conversation.general"
     
-    def add_provider(self, name: str, provider: Provider):
+    def add_provider(self, name: str, provider: ProviderBase):
         """Add an NLU provider."""
         self.providers[name] = provider
         if self.default_provider is None:

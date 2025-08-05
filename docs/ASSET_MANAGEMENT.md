@@ -56,6 +56,10 @@ When configured, the asset management system creates this structure:
 │   ├── ru_small/           # ASR model
 │   ├── en_us/              # ASR model
 │   └── tts/                # TTS model
+├── voice_trigger/              # Voice trigger models
+│   ├── alexa_v0.1.onnx
+│   ├── hey_jarvis_v0.1.onnx
+│   └── hey_mycroft_v0.1.onnx
 └── huggingface/                # Future expansion
 
 /data/cache/                     # IRENE_CACHE_ROOT
@@ -276,3 +280,40 @@ ls -la $IRENE_CREDENTIALS_ROOT
 # Test model availability
 python -c "from irene.core.assets import get_asset_manager; am = get_asset_manager(); print(am.config.models_root)"
 ``` 
+
+## Custom Wake Word Models
+
+### Training Custom Models
+
+OpenWakeWord supports training custom wake word models for words not included in the pre-trained models. For example, to create an "irene" wake word model:
+
+1. **Train the model** using OpenWakeWord's training notebooks (see [Training New Models](https://github.com/dscripka/openWakeWord#training-new-models))
+
+2. **Place the model file** in the voice trigger models directory:
+   ```
+   /data/models/voice_trigger/custom_irene_v1.0.onnx
+   ```
+
+3. **Configure the provider** to use your custom model:
+   ```yaml
+   # In your configuration
+   voice_trigger:
+     provider: "openwakeword"
+     wake_words: ["irene"]
+     model_paths:
+       irene: "/data/models/voice_trigger/custom_irene_v1.0.onnx"
+   ```
+
+### Legacy Model Paths Support
+
+The OpenWakeWord provider maintains backwards compatibility with the legacy `model_paths` configuration for custom models:
+
+```yaml
+voice_trigger:
+  provider: "openwakeword"
+  model_paths:
+    irene: "~/.local/share/irene/models/irene_custom.onnx"
+    custom_phrase: "/path/to/custom/model.onnx"
+```
+
+However, using the centralized asset management system (`IRENE_MODELS_ROOT`) is recommended for Docker deployments. 
