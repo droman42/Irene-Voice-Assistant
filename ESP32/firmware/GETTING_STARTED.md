@@ -58,19 +58,13 @@ For each node, you need to train a custom wake word model:
 uv sync --extra wake-word-training
 irene-record-samples --wake_word jarvis --num_samples 200
 
-# Train model
-microwakeword-train \
-    --wake_word "jarvis" \
-    --positive_dir data/positive \
-    --negative_dir data/negative \
-    --model_size medium \
-    --batch_norm \
+# Train ESP32-compatible model
+irene-train-wake-word jarvis \
     --epochs 55 \
-    --sample_rate 16000 \
-    --output models/jarvis_medium.tflite
+    --batch_size 16 \
+    --model_size medium
 
-# Convert for firmware
-xxd -i models/jarvis_medium.tflite > ../firmware/nodes/kitchen/main/models/jarvis_medium.tflite
+# The model will be saved as: models/jarvis_medium_YYYYMMDD_HHMMSS.tflite
 ```
 
 ### 4. Build and Flash

@@ -57,7 +57,7 @@ uv add irene-voice-assistant[headless]
 # 4. С мультиязычной поддержкой (lingua-franca)
 uv add irene-voice-assistant[text-multilingual]
 
-# 5. С инструментами обучения wake word (microWakeWord)
+# 5. С инструментами обучения wake word (TensorFlow)
 uv add irene-voice-assistant[wake-word-training]
 
 # 6. Полная установка (все опции)

@@ -158,17 +158,19 @@ FreeRTOS
 2. **Train**
 
    ```bash
-    microwakeword-train \
-    --wake_word "jarvis" \
-    --positive_dir data/pos \
-    --negative_dir data/neg \
-    --model_size medium \
-    --batch_norm \
+    # Using the integrated Irene trainer
+    irene-train-wake-word jarvis \
     --epochs 55 \
-    --sample_rate 16000 \
-    --output medium_jarvis.tflite
+    --batch_size 16 \
+    --model_size medium
+    
+    # Or directly with Python
+    python wake_word_training/scripts/tensorflow_trainer.py jarvis \
+    --epochs 55 \
+    --batch_size 16 \
+    --model_size medium
    ```
-The --model_size medium flag switches to 12-layer net; adding --batch_norm speeds convergence.
+The ESP32-compatible TensorFlow trainer automatically enforces the 140KB size limit and produces models optimized for microcontroller deployment.
 
 2.1 **Validation targets**
 

@@ -24,8 +24,9 @@ This guide walks through the complete process of training a custom wake word mod
    # Or if installing as external package
    # uv add irene-voice-assistant[wake-word-training]
    
-   # Install microWakeWord (may fail on some systems due to webrtcvad)
-   uv add git+https://github.com/kahrendt/microWakeWord.git || echo "Using TensorFlow directly"
+   # Verify TensorFlow installation
+   python -c "import tensorflow; print('TensorFlow:', tensorflow.__version__)"
+   python -c "import librosa; print('Librosa:', librosa.__version__)"
    ```
 
 3. **Verify audio setup**:
@@ -94,28 +95,51 @@ irene-train-wake-word jarvis
 
 # Or train with custom parameters
 irene-train-wake-word jarvis --epochs 60 --batch_size 32
+
+# Or run directly with python
+python scripts/tensorflow_trainer.py jarvis --epochs 55 --batch_size 16
 ```
 
 **Expected output:**
 ```
-🎯 Wake Word Training - microWakeWord medium-12-bn
-==================================================
+🎯 ESP32-Compatible Wake Word Training
+====================================
 
 🔍 Checking training data...
-✅ Found 200 positive samples
-✅ Found 4 speakers
-✅ Found 2 negative sample files
+📄 Found 200 positive samples
+📄 Found 500 negative samples
 
-📁 Preparing training environment...
-📝 Model will be saved to: models/jarvis_medium_20250131_143022.tflite
+📊 Loading and preprocessing training data...
+Training set: 560 samples
+Validation set: 140 samples
+Feature shape: (560, 49, 40)
 
-🚀 Starting model training...
-[Training progress...]
+🏗️ Building ESP32-compatible model architecture...
+Model parameters: 45,234
+Estimated size: 176.9 KB
+⚠️  Warning: Model size (176.9 KB) exceeds ESP32 limit (140 KB)
 
-🎉 Training completed successfully!
-📁 Model saved: models/jarvis_medium_20250131_143022.tflite
-📏 Model size: 138 KB
-✅ Model size fits ESP32 flash budget
+🚀 Starting training...
+Epoch 1/55: loss: 0.6234 - accuracy: 0.6429 - val_loss: 0.5891 - val_accuracy: 0.7143
+...
+Epoch 55/55: loss: 0.1234 - accuracy: 0.9643 - val_loss: 0.1456 - val_accuracy: 0.9500
+
+🔄 Converting to TensorFlow Lite for ESP32...
+📏 TFLite model size: 132.1 KB
+✅ TFLite model fits ESP32 constraints (140 KB limit)
+
+✅ ESP32-compatible training completed successfully!
+📦 TFLite model: models/jarvis_medium_20250113_143000.tflite
+📦 Keras model: models/jarvis_medium_20250113_143000.h5
+📝 Config: configs/jarvis_medium_20250113_143000_config.yaml
+🎯 Validation accuracy: 0.950
+📏 Model size: 132.1 KB (ESP32 limit: 140 KB)
+
+🚀 ESP32 Integration:
+   1. Convert to C header: python converters/to_esp32.py models/jarvis_medium_20250113_143000.tflite
+   2. Copy header to ESP32 firmware
+   3. Expected inference time: ~25ms on ESP32-S3
+   4. Expected memory usage: ~70KB PSRAM
 ```
 
 ## Step 3: Validate the Model
