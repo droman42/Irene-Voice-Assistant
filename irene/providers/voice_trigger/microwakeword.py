@@ -31,6 +31,7 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
     - Low-power optimized for microcontrollers
     - Custom model support
     - Real-time audio processing at 16kHz
+    - Asset management integration for model downloads
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -40,18 +41,22 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
         self.input_details = None
         self.output_details = None
         
+        # Asset management integration
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
         # microWakeWord specific configuration
-        self.model_path = config.get('model_path')
+        self.model_path = config.get('model_path')  # Legacy path support
         self.feature_buffer_size = config.get('feature_buffer_size', 49)  # 49 * 10ms = 490ms
         self.stride_duration_ms = config.get('stride_duration_ms', 10)
         self.window_duration_ms = config.get('window_duration_ms', 30)
         self.num_mfcc_features = config.get('num_mfcc_features', 40)
         self.detection_window_size = config.get('detection_window_size', 3)  # Consecutive detections needed
         
-        # Model configuration
+        # Model configuration - supports both legacy and asset-managed models
         self.available_models = config.get('available_models', {
             'irene': 'irene_model.tflite',
-            'jarvis': 'jarvis_model.tflite',
+            'jarvis': 'jarvis_model.tflite', 
             'hey_irene': 'hey_irene_model.tflite'
         })
         
@@ -84,9 +89,9 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
                 self._set_status(self.status.__class__.UNAVAILABLE, "numpy package not installed")
                 return False
             
-            # Check if model file exists
+            # Check if model file exists (legacy path) or can be obtained via asset manager
             if self.model_path and not Path(self.model_path).exists():
-                self._set_status(self.status.__class__.UNAVAILABLE, f"Model file not found: {self.model_path}")
+                self._set_status(self.status.__class__.UNAVAILABLE, f"Legacy model file not found: {self.model_path}")
                 return False
             
             # Try to initialize the model
@@ -121,7 +126,7 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
                 logger.info("Using tensorflow.lite (full package ~800MB)")
             
             # Load model
-            model_path = self._get_model_path()
+            model_path = await self._get_model_path()
             if not model_path or not Path(model_path).exists():
                 raise FileNotFoundError(f"Model file not found: {model_path}")
             
@@ -156,17 +161,59 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
             self.interpreter = None
             raise
     
-    def _get_model_path(self) -> Optional[str]:
-        """Get the model path for the current wake words."""
+    async def _get_model_path(self) -> Optional[str]:
+        """Get the model path using asset management or legacy configuration."""
+        # Support legacy model_path configuration first
         if self.model_path:
-            return self.model_path
+            legacy_path = Path(self.model_path)
+            if legacy_path.exists():
+                logger.info(f"Using legacy model path: {self.model_path}")
+                return str(legacy_path)
+            else:
+                logger.warning(f"Legacy model path not found: {self.model_path}")
         
-        # Try to find a model for the first wake word
+        # Try to find a model for the first wake word via asset management
         for wake_word in self.wake_words:
             if wake_word in self.available_models:
-                return self.available_models[wake_word]
+                model_id = self.available_models[wake_word]
+                
+                try:
+                    # Get model info from asset manager  
+                    model_info = self.asset_manager.get_model_info("microwakeword", model_id)
+                    if model_info:
+                        logger.info(f"Loading microWakeWord model {model_id} for '{wake_word}' (size: {model_info.get('size', 'unknown')})")
+                    
+                    # Try asset manager download first
+                    model_path = await self._get_model_via_asset_manager(model_id)
+                    if model_path and model_path.exists():
+                        logger.info(f"Using asset-managed model for '{wake_word}': {model_path}")
+                        return str(model_path)
+                    else:
+                        # Fallback to checking if it's a direct path in available_models
+                        fallback_path = Path(model_id)
+                        if fallback_path.exists():
+                            logger.info(f"Using direct model path for '{wake_word}': {model_id}")
+                            return str(fallback_path)
+                        
+                except Exception as e:
+                    logger.warning(f"Asset manager failed for '{wake_word}', trying direct path: {e}")
+                    # Fallback to direct path interpretation
+                    fallback_path = Path(model_id)
+                    if fallback_path.exists():
+                        logger.info(f"Using direct model path for '{wake_word}': {model_id}")
+                        return str(fallback_path)
         
         return None
+    
+    async def _get_model_via_asset_manager(self, model_id: str) -> Optional[Path]:
+        """Download model via asset manager."""
+        try:
+            # Use asset manager to download model
+            model_path = await self.asset_manager.download_model("microwakeword", model_id)
+            return model_path
+        except Exception as e:
+            logger.warning(f"Asset manager download failed for model {model_id}: {e}")
+            return None
     
     async def detect_wake_word(self, audio_data: AudioData) -> WakeWordResult:
         """
@@ -236,7 +283,7 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
                     'provider': 'microwakeword',
                     'inference_time_ms': self.inference_time_ms,
                     'consecutive_detections': sum(self.detection_buffer),
-                    'model_path': self._get_model_path()
+                    'model_path': await self._get_model_path()
                 }
             )
             
@@ -334,11 +381,11 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
             },
             "model_path": {
                 "type": "string",
-                "description": "Path to TensorFlow Lite model file (.tflite)"
+                "description": "Legacy: Path to TensorFlow Lite model file (.tflite). Use asset management instead."
             },
             "available_models": {
                 "type": "object",
-                "description": "Mapping of wake words to model files",
+                "description": "Mapping of wake words to model IDs (for asset management) or file paths",
                 "additionalProperties": {"type": "string"}
             },
             "feature_buffer_size": {
@@ -374,6 +421,8 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
             "streaming": True,
             "offline": True,
             "low_power": True,
+            "asset_management": True,
+            "huggingface_models": True,  # For future implementation
             "feature_extraction": "mfcc",
             "sample_rates": [16000],
             "formats": ["pcm16"],
@@ -392,7 +441,7 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
             "average_inference_time_ms": self.inference_time_ms,
             "feature_buffer_size": self.feature_buffer_size,
             "model_loaded": self.interpreter is not None,
-            "model_path": self._get_model_path()
+            "model_path": None  # Will be async, handled in metadata
         }
     
     async def cleanup(self) -> None:

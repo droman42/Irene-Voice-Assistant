@@ -407,6 +407,29 @@ class AssetConfig(BaseModel):
                     "checksum": None,
                     "description": "Pre-trained model for 'hey mycroft' wake phrase"
                 }
+            },
+            "microwakeword": {
+                "irene_model": {
+                    "url": "local",  # Local model to be provided
+                    "size": "~5MB",
+                    "format": "tflite",
+                    "checksum": None,
+                    "description": "Custom microWakeWord model for 'irene' wake word"
+                },
+                "jarvis_model": {
+                    "url": "local",  # Local model to be provided
+                    "size": "~5MB", 
+                    "format": "tflite",
+                    "checksum": None,
+                    "description": "Custom microWakeWord model for 'jarvis' wake word"
+                },
+                "hey_irene_model": {
+                    "url": "local",  # Local model to be provided
+                    "size": "~5MB",
+                    "format": "tflite",
+                    "checksum": None,
+                    "description": "Custom microWakeWord model for 'hey irene' wake phrase"
+                }
             }
         }
     )
@@ -427,6 +450,10 @@ class AssetConfig(BaseModel):
     @property
     def voice_trigger_models_dir(self) -> Path:
         return self.models_root / "voice_trigger"
+        
+    @property
+    def microwakeword_models_dir(self) -> Path:
+        return self.models_root / "microwakeword"
         
     @property
     def downloads_cache_dir(self) -> Path:

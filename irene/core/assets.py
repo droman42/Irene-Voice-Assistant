@@ -49,6 +49,8 @@ class AssetManager:
             return provider_dir / model_id
         elif provider == "openwakeword":
             return provider_dir / f"{model_id}.onnx"
+        elif provider == "microwakeword":
+            return provider_dir / f"{model_id}.tflite"
         else:
             return provider_dir / model_id
     
@@ -132,6 +134,13 @@ class AssetManager:
         if provider == "openwakeword" and model_info["url"] == "auto":
             # Let OpenWakeWord library handle download
             logger.info(f"OpenWakeWord model will be auto-downloaded by library: {model_id}")
+            return model_path
+        
+        if provider == "microwakeword" and model_info["url"] == "local":
+            # Local model - should be provided manually to the models directory
+            logger.info(f"microWakeWord model should be provided locally: {model_path}")
+            if not model_path.exists():
+                raise FileNotFoundError(f"Local microWakeWord model not found: {model_path}")
             return model_path
         
         # Download the model
