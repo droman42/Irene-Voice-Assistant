@@ -180,8 +180,56 @@ The ESP32-compatible TensorFlow trainer automatically enforces the 140KB size li
 | **False Accepts** | ≤ 2 per hour on 3 h negative stream       |
 | **Wake latency**  | ≤ 140 ms (averaged) on ESP32-S3 @ 240 MHz |
 
+2.2 **INT8 Validation Pass Requirements**
 
-2.2 **Integrating the larger model**
+After INT8 quantization and optimization, the model must be re-validated to ensure it still meets the firmware acceptance criteria. This validation is critical because quantization can impact accuracy and detection thresholds.
+
+**Validation Protocol:**
+1. **Threshold Re-tuning**: INT8 models may require adjusted confidence thresholds due to quantization effects on the output distribution
+   - Run systematic threshold sweep from 0.3 to 0.8 in 0.05 increments
+   - Select optimal threshold that maximizes recall while maintaining false accept rate
+   - Document threshold change from FP32 baseline (expected: ±0.1-0.2)
+
+2. **Recall Validation**: Test with same 200 positive samples used for FP32 validation
+   - **Target**: ≥95% recall (≥190/200 detections)
+   - **Method**: Automated batch processing through ESP32 firmware
+   - **Environment**: Target room acoustics with background noise
+
+3. **False Accept Validation**: Extended negative stream testing
+   - **Target**: ≤2 false accepts per hour over 3-hour continuous stream
+   - **Test data**: Mix of silence, conversation, music, and environmental noise
+   - **Method**: Continuous ESP32 deployment logging all detections
+
+4. **Latency Validation**: Real-time performance on target hardware
+   - **Target**: ≤140ms average detection latency (≤25ms inference + ≤115ms trigger duration)
+   - **Method**: High-resolution timing on ESP32-S3 @ 240MHz
+   - **Include**: MFCC preprocessing overhead (INT8 optimization should reduce this)
+
+**Acceptance Criteria:**
+- All three metrics must pass simultaneously
+- If any metric fails, requires model re-training or threshold adjustment
+- Document performance delta from FP32 baseline (expected degradation: <2% recall, <10% latency increase)
+
+**Validation Log Requirements:**
+```
+=== INT8 Model Validation Report ===
+Model: kitchen_ww_model_int8.tflite (140KB)
+Threshold: 0.65 (adjusted from FP32: 0.55)
+
+Recall Test (200 samples):
+✓ PASS: 196/200 detected (98.0% recall)
+
+False Accept Test (3h stream):
+✓ PASS: 1 false accept (0.33/hour rate)  
+
+Latency Test (100 detections):
+✓ PASS: 128ms average (18ms inference + 110ms trigger)
+
+Result: ACCEPTED for deployment
+```
+
+
+2.3 **Integrating the larger model**
 
 * Convert to C array → ww_model_medium.h.
 * Place model tensor + layer weights in PSRAM:

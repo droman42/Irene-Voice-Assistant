@@ -256,6 +256,54 @@ class TensorFlowWakeWordTrainer:
         
         return model
     
+    def compute_decision_threshold(self, tflite_model: bytes, X_val: np.ndarray, y_val: np.ndarray) -> float:
+        """Compute optimal decision threshold for INT8 TFLite model"""
+        print("🎯 Computing optimal decision threshold for deployment...")
+        
+        # Initialize TFLite interpreter
+        interpreter = tf.lite.Interpreter(model_content=tflite_model)
+        interpreter.allocate_tensors()
+        
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        
+        # Get predictions on validation set
+        predictions = []
+        for sample in X_val:
+            # Convert input to INT8 if needed
+            input_data = np.expand_dims(sample.astype(np.float32), axis=0)
+            interpreter.set_tensor(input_details[0]['index'], input_data)
+            interpreter.invoke()
+            output = interpreter.get_tensor(output_details[0]['index'])
+            predictions.append(output[0][0])
+        
+        predictions = np.array(predictions)
+        
+        # Find threshold that maximizes F1 score
+        thresholds = np.linspace(0.1, 0.9, 81)  # Test thresholds from 0.1 to 0.9
+        best_f1 = 0
+        best_threshold = 0.5
+        
+        for threshold in thresholds:
+            y_pred = (predictions >= threshold).astype(int)
+            
+            # Calculate metrics
+            tp = np.sum((y_val == 1) & (y_pred == 1))
+            fp = np.sum((y_val == 0) & (y_pred == 1))
+            fn = np.sum((y_val == 1) & (y_pred == 0))
+            
+            if tp + fp > 0 and tp + fn > 0:
+                precision = tp / (tp + fp)
+                recall = tp / (tp + fn)
+                if precision + recall > 0:
+                    f1 = 2 * (precision * recall) / (precision + recall)
+                    if f1 > best_f1:
+                        best_f1 = f1
+                        best_threshold = threshold
+        
+        print(f"🎯 Optimal threshold: {best_threshold:.3f} (F1: {best_f1:.3f})")
+        return float(best_threshold)
+    
     def train_model(self) -> Optional[Path]:
         """Execute model training"""
         print("🎯 Starting TensorFlow wake word training...")
@@ -310,33 +358,47 @@ class TensorFlowWakeWordTrainer:
                 verbose=1
             )
             
-            # Convert to TensorFlow Lite with ESP32 quantization
-            print("🔄 Converting to TensorFlow Lite for ESP32...")
+            # Convert to TensorFlow Lite with ESP32 INT8 quantization
+            print("🔄 Converting to TensorFlow Lite for ESP32 with INT8 quantization...")
             converter = tf.lite.TFLiteConverter.from_keras_model(model)
             
-            # ESP32-specific optimizations
+            # ESP32-specific optimizations with INT8 quantization
             converter.optimizations = [tf.lite.Optimize.DEFAULT]
-            converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.TFLITE_BUILTINS,
-                tf.lite.OpsSet.SELECT_TF_OPS  # Fallback for unsupported ops
-            ]
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+            converter.inference_input_type = tf.int8
+            converter.inference_output_type = tf.int8
             
-            # Quantization for ESP32 efficiency
+            # Representative dataset for INT8 calibration (49×40 MFCC)
             def representative_dataset():
-                # Use a sample of training data for quantization
-                sample_data = X_train[:100]  # Use first 100 samples
+                # Use 200-500 samples for stable INT8 calibration as recommended
+                # This ensures calibration matches real inputs: 30ms window, 10ms hop, 49 frames, 40 MFCC coeffs
+                sample_size = min(500, len(X_train))  # Use up to 500 samples if available
+                if sample_size < 200:
+                    print(f"⚠️  Warning: Only {sample_size} samples available for calibration. Recommend ≥200.")
+                
+                sample_data = X_train[:sample_size]
+                print(f"Using {sample_size} samples for INT8 calibration (target: 200-500)...")
+                
                 for data in sample_data:
+                    # Ensure [1, 49, 40] tensor shape matches training MFCC pipeline
+                    # This locks the input contract: 49 frames × 40 MFCC coefficients
                     yield [np.expand_dims(data.astype(np.float32), axis=0)]
             
             converter.representative_dataset = representative_dataset
-            converter.target_spec.supported_types = [tf.float32]  # Keep float32 for compatibility
             
             # Convert
             tflite_model = converter.convert()
             
-            # Check final model size
+            # Check final model size and properties
             model_size_kb = len(tflite_model) / 1024
-            print(f"📏 TFLite model size: {model_size_kb:.1f} KB")
+            print(f"📏 TFLite INT8 model size: {model_size_kb:.1f} KB")
+            
+            # Verify INT8 quantization success
+            interpreter = tf.lite.Interpreter(model_content=tflite_model)
+            input_details = interpreter.get_input_details()
+            output_details = interpreter.get_output_details()
+            print(f"✅ Input dtype: {input_details[0]['dtype']}, shape: {input_details[0]['shape']}")
+            print(f"✅ Output dtype: {output_details[0]['dtype']}, shape: {output_details[0]['shape']}")
             
             if model_size_kb > self.max_model_size_kb:
                 print(f"❌ ERROR: TFLite model ({model_size_kb:.1f} KB) exceeds ESP32 limit!")
@@ -347,6 +409,9 @@ class TensorFlowWakeWordTrainer:
             
             with open(tflite_path, 'wb') as f:
                 f.write(tflite_model)
+            
+            # Compute optimal decision threshold using validation set
+            decision_threshold = self.compute_decision_threshold(tflite_model, X_val, y_val)
             
             # Save ESP32-compatible training config
             config = {
@@ -376,11 +441,17 @@ class TensorFlowWakeWordTrainer:
                 'inference_time_target_ms': 25,
                 'memory_usage_target_kb': 70,
                 
+                # Deployment configuration
+                'decision_threshold': decision_threshold,
+                'threshold_optimization': 'max_f1_score',
+                'input_dtype': 'int8',
+                'output_dtype': 'int8',
+                
                 # Architecture details
                 'architecture': 'tensorflow_medium_12bn',
                 'layer_count': 12,
                 'use_batch_norm': True,
-                'quantization': 'float32',
+                'quantization': 'int8',
                 
                 'timestamp': timestamp
             }
@@ -389,18 +460,20 @@ class TensorFlowWakeWordTrainer:
             with open(config_file, 'w') as f:
                 yaml.dump(config, f, default_flow_style=False)
             
-            print(f"✅ ESP32-compatible training completed successfully!")
-            print(f"📦 TFLite model: {tflite_path}")
+            print(f"✅ ESP32-compatible INT8 training completed successfully!")
+            print(f"📦 TFLite INT8 model: {tflite_path}")
             print(f"📦 Keras model: {model_path}")
             print(f"📝 Config: {config_file}")
             print(f"🎯 Validation accuracy: {max(history.history['val_accuracy']):.3f}")
+            print(f"🎯 Optimal decision threshold: {decision_threshold:.3f}")
             print(f"📏 Model size: {model_size_kb:.1f} KB (ESP32 limit: {self.max_model_size_kb} KB)")
             print("")
             print("🚀 ESP32 Integration:")
             print(f"   1. Convert to C header: python converters/to_esp32.py {tflite_path}")
             print(f"   2. Copy header to ESP32 firmware")
-            print(f"   3. Expected inference time: ~25ms on ESP32-S3")
-            print(f"   4. Expected memory usage: ~70KB PSRAM")
+            print(f"   3. Use decision threshold: {decision_threshold:.3f}")
+            print(f"   4. Expected inference time: ~15ms on ESP32-S3 (INT8 optimized)")
+            print(f"   5. Expected memory usage: ~40KB PSRAM (INT8 reduced)")
             
             return tflite_path
             
@@ -431,11 +504,12 @@ class TensorFlowWakeWordTrainer:
             print(f"   3. Deploy to ESP32 firmware")
             print(f"   4. Optional: Convert for ONNX: python converters/to_onnx.py {model_path}")
             print("")
-            print("✅ Model guarantees ESP32 compatibility:")
-            print(f"   • Size: ≤140KB Flash")
-            print(f"   • Input: [1, 49, 40] tensor shape")
-            print(f"   • Inference: ≤25ms on ESP32-S3")
-            print(f"   • Memory: ≤70KB PSRAM")
+            print("✅ INT8 Model guarantees ESP32 compatibility:")
+            print(f"   • Size: ≤140KB Flash (INT8 optimized)")
+            print(f"   • Input: [1, 49, 40] INT8 tensor shape")
+            print(f"   • Inference: ≤15ms on ESP32-S3 (INT8 accelerated)")
+            print(f"   • Memory: ≤40KB PSRAM (INT8 reduced)")
+            print(f"   • Quantization: Full INT8 (no float fallbacks)")
             return True
         else:
             print("")

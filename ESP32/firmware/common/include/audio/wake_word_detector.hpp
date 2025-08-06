@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/types.hpp"
+#include "audio/mfcc_frontend.hpp"
 #include <functional>
 #include <memory>
 
@@ -13,8 +14,9 @@
 namespace irene {
 
 /**
- * Wake word detection using microWakeWord "medium-12-bn" model
- * Runs inference on PSRAM-resident model with per-node training
+ * Wake word detection using INT8 quantized TensorFlow Lite model
+ * Features MFCC frontend (49x40) and INT8 inference for optimal performance
+ * Runs on PSRAM-resident model with per-node training
  */
 class WakeWordDetector {
 public:
@@ -62,8 +64,12 @@ private:
     
     // TensorFlow Lite inference methods
     bool setup_tf_lite_model();
-    float run_inference(const int16_t* audio_data, size_t samples);
+    float run_inference(const float* mfcc_features, size_t feature_count);
     void cleanup_tf_lite_model();
+    void perform_sanity_checks();
+    
+    // MFCC processing methods
+    bool process_mfcc_features();
     
     WakeWordConfig config_;
     bool enabled_;
@@ -76,14 +82,22 @@ private:
     // TensorFlow Lite Micro components
     const tflite::Model* model_;
     tflite::MicroInterpreter* interpreter_;
-    tflite::MicroMutableOpResolver<10>* resolver_;
+    tflite::MicroMutableOpResolver<9>* resolver_;
     uint8_t* tensor_arena_;
-    static constexpr size_t kTensorArenaSize = 160 * 1024; // 160KB for medium model
+    static constexpr size_t kTensorArenaSize = 160 * 1024; // 160KB initial size for INT8 model
+                                                                       // Can be reduced gradually (128KB->96KB) after validation
     
-    // Audio buffering
+    // MFCC frontend for feature extraction
+    std::unique_ptr<MFCCFrontend> mfcc_frontend_;
+    
+    // Audio buffering (legacy - now handled by MFCC frontend)
     std::unique_ptr<class RingBuffer> audio_buffer_;
     int16_t* inference_buffer_;
     size_t inference_buffer_size_;
+    
+    // Feature buffers for INT8 processing
+    std::unique_ptr<float[]> mfcc_features_;       // 49x40 MFCC features
+    std::unique_ptr<int8_t[]> quantized_features_; // Quantized input for model
     
     // Detection state
     float last_confidence_;
