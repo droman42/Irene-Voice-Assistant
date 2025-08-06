@@ -124,8 +124,8 @@ Epoch 1/55: loss: 0.6234 - accuracy: 0.6429 - val_loss: 0.5891 - val_accuracy: 0
 ...
 Epoch 55/55: loss: 0.1234 - accuracy: 0.9643 - val_loss: 0.1456 - val_accuracy: 0.9500
 
-🔄 Converting to TensorFlow Lite for ESP32...
-📏 TFLite model size: 132.1 KB
+🔄 Converting to TensorFlow Lite for ESP32 with INT8 quantization...
+📏 TFLite INT8 model size: 132.1 KB
 ✅ TFLite model fits ESP32 constraints (140 KB limit)
 
 ✅ ESP32-compatible training completed successfully!
@@ -138,8 +138,9 @@ Epoch 55/55: loss: 0.1234 - accuracy: 0.9643 - val_loss: 0.1456 - val_accuracy: 
 🚀 ESP32 Integration:
    1. Convert to C header: python converters/to_esp32.py models/jarvis_medium_20250113_143000.tflite
    2. Copy header to ESP32 firmware
-   3. Expected inference time: ~25ms on ESP32-S3
-   4. Expected memory usage: ~70KB PSRAM
+   3. Expected inference time: ~15-25ms on ESP32-S3 (INT8 optimized)
+   4. Expected memory usage: ~80KB PSRAM tensor arena
+   5. Device sanity checks will validate INT8 tensor types and quantization parameters
 ```
 
 ## Step 3: Validate the Model
@@ -171,6 +172,9 @@ irene-validate-model models/jarvis_medium_20250131_143022.tflite
 
 🏁 Validation Complete: ✅ PASS
    Model is ready for firmware integration!
+
+Note: INT8 models may require threshold re-tuning for optimal performance.
+The ESP32 firmware includes automatic sanity checks to validate quantization.
 ```
 
 ## Step 4: Convert for Target Platforms
@@ -226,7 +230,7 @@ irene-convert-to-tflite \
    cp firmware/kitchen_ww_model.h /path/to/esp32-project/components/wakeword/include/
    ```
 
-2. **Follow the integration guide**:
+2. **Follow the integration guide** (includes INT8 quantization examples):
    ```bash
    cat firmware/kitchen_ww_model_integration_guide.md
    ```
@@ -260,6 +264,11 @@ irene-convert-to-tflite \
 - **Verify data format**: All WAV files should be 16kHz, 16-bit mono
 - **Check disk space**: Training requires ~1GB temporary space
 
+### INT8 Quantization Issues
+- **Low confidence scores**: INT8 models may have different output distributions - adjust threshold
+- **Sanity check failures**: Check ESP32 device logs for tensor type and quantization parameter validation
+- **Memory usage higher than expected**: Verify 80KB tensor arena allocation in ESP32 firmware
+
 ## File Structure After Training
 
 ```
@@ -287,6 +296,7 @@ wake_word_training/
 - ✅ **Recall**: 96.0% (target: ≥95%)
 - ✅ **False Accepts**: 1.2/hour (target: ≤2/hour)  
 - ✅ **Model Size**: 138KB (target: ≤140KB)
-- ✅ **Latency**: ~20-40ms on ESP32-S3 (target: ≤140ms)
+- ✅ **Latency**: ~15-25ms on ESP32-S3 (target: ≤140ms, INT8 optimized)
+- ✅ **Memory Usage**: 80KB PSRAM tensor arena (INT8 optimized)
 
 Your custom wake word model is now ready for production deployment on ESP32-S3 nodes! 

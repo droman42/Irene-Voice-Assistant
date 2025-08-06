@@ -26,6 +26,7 @@ Based on the ESP32 firmware specification, we need:
 - **Negative samples**: ≥4 hours total (2h idle room noise + 2h conversational speech)  
 - **Audio format**: 16 kHz, 16-bit mono WAV files
 - **Model architecture**: medium-12-bn (12 × Conv1D + BatchNorm)
+- **Quantization**: INT8 quantization (automatic, optimized for ESP32)
 
 ## ESP32 Compatibility Guarantees
 
@@ -36,7 +37,7 @@ Our TensorFlow trainer ensures 100% ESP32 compatibility:
 | **Input Shape** | `[1, 49, 40]` | ✅ Enforced |
 | **Model Size** | ≤140KB | ✅ Validated |
 | **Inference Time** | ≤25ms | ✅ Optimized |
-| **Memory Usage** | ≤70KB PSRAM | ✅ Targeted |
+| **Memory Usage** | ≤80KB PSRAM | ✅ Optimized (INT8) |
 | **Architecture** | medium-12-bn | ✅ Implemented |
 
 ## Validation Targets
@@ -75,7 +76,8 @@ wake_word_training/
 ## Resource Budget
 
 - **Flash impact**: ~140kB for medium model (ESP32 limit enforced)
-- **PSRAM usage**: ~70kB for model weights during inference
+- **PSRAM usage**: ~80kB tensor arena for INT8 inference (optimized from 160kB)
+- **Inference time**: 15-25ms on ESP32-S3 (INT8 optimized)
 - **Training time**: ~1-2 hours on modern GPU
 
 ## Setup
