@@ -20,13 +20,9 @@ from ..core.interfaces.command import CommandPlugin
 from ..core.context import Context
 from ..core.commands import CommandResult
 
-# Import all ASR providers using ABC pattern
-from ..providers.asr import (
-    ASRProvider,
-    VoskASRProvider,
-    WhisperASRProvider,
-    GoogleCloudASRProvider
-)
+# Import ASR provider base class and dynamic loader
+from ..providers.asr import ASRProvider
+from ..utils.loader import dynamic_loader
 
 logger = logging.getLogger(__name__)
 
@@ -85,21 +81,25 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin, CommandPlugin):
         self.default_language = "ru"
         self.core = None  # Store core reference for LLM integration
         
-        # Provider class mapping
-        self._provider_classes = {
-            "vosk": VoskASRProvider,
-            "whisper": WhisperASRProvider,
-            "google_cloud": GoogleCloudASRProvider,
-        }
+        # Dynamic provider discovery from entry-points (replaces hardcoded classes)
+        self._provider_classes: Dict[str, type] = {}
         
     async def initialize(self, core) -> None:
         """Initialize ASR providers from configuration"""
         try:
             self.core = core  # Store core reference
+            
             config = getattr(core.config.plugins, "universal_asr", {})
             
             # Initialize enabled providers with ABC error handling
             providers_config = config.get("providers", {})
+            
+            # Discover only enabled providers from entry-points (configuration-driven filtering)
+            enabled_providers = [name for name, provider_config in providers_config.items() 
+                                if provider_config.get("enabled", False)]
+            
+            self._provider_classes = dynamic_loader.discover_providers("irene.providers.asr", enabled_providers)
+            logger.info(f"Discovered {len(self._provider_classes)} enabled ASR providers: {list(self._provider_classes.keys())}")
             
             for provider_name, provider_class in self._provider_classes.items():
                 provider_config = providers_config.get(provider_name, {})

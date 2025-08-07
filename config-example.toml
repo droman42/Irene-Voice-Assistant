@@ -1,0 +1,411 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - COMPREHENSIVE CONFIGURATION EXAMPLE
+# ============================================================
+# This file demonstrates all configuration capabilities implemented
+# in Irene Voice Assistant v13 with entry-points based dynamic discovery
+# and configuration-driven provider filtering.
+
+# ============================================================
+# CORE SYSTEM CONFIGURATION
+# ============================================================
+[core]
+name = "Irene"
+version = "13.0.0"
+debug = false
+log_level = "INFO"
+language = "en-US"
+timezone = "UTC"
+
+# Runtime performance settings
+max_concurrent_commands = 10
+command_timeout_seconds = 30.0
+context_timeout_minutes = 30
+
+# Monitoring and metrics
+enable_metrics = false
+metrics_port = 9090
+enable_profiling = false
+
+# ============================================================
+# ASSET MANAGEMENT - Unified Model and Cache Storage
+# ============================================================
+[assets]
+# Root directories for all models, cache, and data
+# Can be overridden by environment variables:
+# IRENE_MODELS_ROOT, IRENE_CACHE_ROOT, etc.
+models_root = "./models"
+cache_root = "./cache"
+data_root = "./data"
+credentials_root = "./credentials"
+
+# Legacy paths (deprecated but supported)
+# data_directory = "./data"
+# log_directory = "./logs"  
+# cache_directory = "./cache"
+
+# ============================================================
+# COMPONENT SYSTEM - Dynamic Component Loading
+# ============================================================
+[components]
+# Enable/disable core components (supports selective builds)
+enabled = ["audio", "tts", "asr", "llm", "voice_trigger"]
+disabled = ["nlu", "text_processor"]  # Explicitly disabled components
+
+# Component discovery configuration
+auto_discover = true
+discovery_paths = ["irene.components", "custom.components"]
+
+# Web API settings (when web_api component is enabled)
+[components.web]
+host = "127.0.0.1"
+port = 5003
+cors_origins = ["*"]
+enable_auth = false
+
+# ============================================================
+# WORKFLOW SYSTEM - Configurable Workflow Loading  
+# ============================================================
+[workflows]
+# Which workflows to load and default workflow
+enabled = ["voice_assistant", "continuous_listening"]
+disabled = ["text_only", "api_only"]
+default = "voice_assistant"
+
+# Workflow discovery configuration
+auto_discover = true
+discovery_paths = ["irene.workflows", "custom.workflows"]
+
+# ============================================================
+# INPUT SYSTEM - Multiple Configurable Inputs
+# ============================================================
+[inputs]
+# Which input sources are active
+enabled = ["microphone", "web", "cli"]
+disabled = ["file", "keyboard"]
+default = "microphone"
+
+# Input discovery configuration
+auto_discover = true
+discovery_paths = ["irene.inputs", "custom.inputs"]
+
+# ============================================================
+# INTENT SYSTEM - Dynamic Handler Loading
+# ============================================================
+[intents]
+enabled = true
+confidence_threshold = 0.7
+fallback_handler = "conversation"
+
+[intents.handlers]
+# Which handler domains/types to load
+enabled = ["timer", "greetings", "conversation", "system", "datetime"]
+disabled = ["train_schedule", "complex_queries"]
+
+# Intent handler discovery configuration
+auto_discover = true
+discovery_paths = ["irene.intents.handlers", "custom.intents.handlers"]
+
+# ============================================================
+# PLUGIN SYSTEM - Fully Dynamic (No Builtin vs External Distinction)
+# ============================================================
+[plugins]
+enabled = ["random_plugin", "async_service_demo"]
+disabled = ["deprecated_plugin"]
+
+# Unified plugin discovery
+auto_discover = true
+discovery_paths = [
+    "irene.plugins.builtin",   # Former "builtin" plugins
+    "irene.plugins.external",  # External plugins  
+    "plugins",                 # Local plugin directory
+    "~/.irene/plugins"         # User plugin directory
+]
+
+# ============================================================
+# PROVIDER CONFIGURATIONS - Entry-Points Based Discovery
+# ============================================================
+# Each provider section demonstrates configuration-driven filtering
+# Only enabled providers are discovered and loaded via entry-points
+
+# ============================================================
+# AUDIO OUTPUT PROVIDERS
+# ============================================================
+[plugins.universal_audio]
+enabled = true
+default_provider = "sounddevice"
+fallback_providers = ["console"]
+concurrent_playback = false
+
+[plugins.universal_audio.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+
+[plugins.universal_audio.providers.sounddevice]
+enabled = true
+# device = ""  # empty = default device
+sample_rate = 44100
+channels = 2
+latency = "low"
+
+[plugins.universal_audio.providers.audioplayer]
+enabled = false
+volume = 1.0
+
+[plugins.universal_audio.providers.aplay]
+enabled = false
+device = "default"
+
+[plugins.universal_audio.providers.simpleaudio]
+enabled = false
+
+# ============================================================
+# TEXT-TO-SPEECH PROVIDERS
+# ============================================================
+[plugins.universal_tts]
+enabled = true
+default_provider = "elevenlabs"
+fallback_providers = ["console"]
+lazy_loading = true
+concurrent_initialization = true
+
+[plugins.universal_tts.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+
+[plugins.universal_tts.providers.elevenlabs]
+enabled = true
+# API key from environment: ELEVENLABS_API_KEY
+voice = "Rachel"
+model = "eleven_multilingual_v2"
+stability = 0.5
+similarity_boost = 0.75
+style = 0.0
+use_speaker_boost = true
+
+[plugins.universal_tts.providers.pyttsx]
+enabled = false
+rate = 150
+volume = 0.9
+# voice = ""  # empty = default voice
+
+[plugins.universal_tts.providers.silero_v3]
+enabled = false
+language = "en"
+model = "v3_en"
+speaker = "en_0"
+sample_rate = 48000
+
+[plugins.universal_tts.providers.silero_v4]
+enabled = false
+language = "en"
+model = "v4_en"
+speaker = "en_0"
+sample_rate = 48000
+
+[plugins.universal_tts.providers.vosk_tts]
+enabled = false
+
+# ============================================================
+# AUTOMATIC SPEECH RECOGNITION PROVIDERS
+# ============================================================
+[plugins.universal_asr]
+enabled = true
+default_provider = "whisper"
+default_language = "en"
+
+[plugins.universal_asr.providers.vosk]
+enabled = false
+# model_path = ""  # empty = auto-download
+language = "en-us"
+sample_rate = 16000
+
+[plugins.universal_asr.providers.whisper]
+enabled = true
+# API key from environment: OPENAI_API_KEY
+model = "whisper-1"
+language = "en"
+temperature = 0.0
+response_format = "text"
+
+[plugins.universal_asr.providers.google_cloud]
+enabled = false
+# Credentials from environment: GOOGLE_APPLICATION_CREDENTIALS
+language = "en-US"
+model = "latest_long"
+use_enhanced = true
+
+# ============================================================
+# LARGE LANGUAGE MODEL PROVIDERS
+# ============================================================
+[plugins.universal_llm]
+enabled = true
+default_provider = "openai"
+default_task = "improve_speech_recognition"
+
+[plugins.universal_llm.providers.openai]
+enabled = true
+# API key from environment: OPENAI_API_KEY
+default_model = "gpt-4"
+max_tokens = 150
+temperature = 0.3
+
+[plugins.universal_llm.providers.anthropic]
+enabled = false
+# API key from environment: ANTHROPIC_API_KEY
+default_model = "claude-3-haiku-20240307"
+max_tokens = 150
+temperature = 0.3
+
+[plugins.universal_llm.providers.vsegpt]
+enabled = false
+# API key from environment: VSEGPT_API_KEY
+default_model = "openai/gpt-4o-mini"
+max_tokens = 150
+temperature = 0.3
+
+# ============================================================
+# VOICE TRIGGER / WAKE WORD PROVIDERS
+# ============================================================
+[plugins.voice_trigger]
+enabled = true
+default_provider = "openwakeword"
+fallback_providers = ["openwakeword"]
+wake_words = ["irene", "jarvis"]
+threshold = 0.8
+
+[plugins.voice_trigger.providers.openwakeword]
+enabled = true
+inference_framework = "tflite"
+chunk_size = 1280
+# model_path = ""  # empty = use built-in models
+custom_model_paths = {}
+
+[plugins.voice_trigger.providers.microwakeword]
+enabled = false
+model_path = "./models/microwakeword/custom_irene.tflite"
+feature_buffer_size = 49
+detection_window_size = 3
+threshold = 0.85
+
+# ============================================================
+# NATURAL LANGUAGE UNDERSTANDING PROVIDERS
+# ============================================================
+[plugins.universal_nlu]
+enabled = false  # Component disabled in main config
+confidence_threshold = 0.7
+fallback_intent = "conversation.general"
+
+[plugins.universal_nlu.providers.rule_based]
+enabled = true
+
+[plugins.universal_nlu.providers.spacy]
+enabled = false
+model_name = "en_core_web_sm"
+
+# ============================================================
+# TEXT PROCESSING PROVIDERS  
+# ============================================================
+[plugins.universal_text_processor]
+enabled = false  # Component disabled in main config
+
+[plugins.universal_text_processor.providers.unified_processor]
+enabled = true
+
+[plugins.universal_text_processor.providers.number_processor]
+enabled = true
+
+# ============================================================
+# SECURITY CONFIGURATION
+# ============================================================
+[security]
+enable_auth = false
+api_keys = []
+allowed_hosts = ["localhost", "127.0.0.1"]
+cors_origins = ["*"]
+
+# Rate limiting
+enable_rate_limiting = false
+rate_limit_requests_per_minute = 60
+
+# ============================================================
+# BUILD CONFIGURATION - For Minimal Builds (Future TODO #3)
+# ============================================================
+[build]
+profile = "full"  # full | minimal | api-only | voice-only
+include_only_enabled = true
+exclude_disabled_dependencies = true
+lazy_imports = true
+
+# ============================================================
+# DEVELOPMENT AND DEBUGGING
+# ============================================================
+[development]
+auto_reload = false
+verbose_logging = false
+test_mode = false
+mock_providers = false
+
+# Performance profiling (development only)
+enable_profiling = false
+profile_output_dir = "./profiles"
+
+# ============================================================
+# ADVANCED RUNTIME SETTINGS
+# ============================================================
+[runtime]
+# Memory management
+max_cache_size_mb = 512
+cleanup_interval_seconds = 300
+
+# Threading and concurrency
+max_worker_threads = 4
+async_timeout_seconds = 30.0
+
+# Provider lifecycle
+provider_startup_timeout = 10.0
+provider_health_check_interval = 60.0
+
+# ============================================================
+# LOGGING CONFIGURATION
+# ============================================================
+[logging]
+level = "INFO"
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+file_logging = false
+log_file = "./logs/irene.log"
+max_log_files = 5
+max_log_size_mb = 10
+
+# Component-specific log levels
+[logging.components]
+"irene.components.tts_component" = "DEBUG"
+"irene.components.asr_component" = "INFO"
+"irene.utils.loader" = "DEBUG"
+
+# ============================================================
+# EXAMPLE DEPLOYMENT SCENARIOS
+# ============================================================
+
+# To use this configuration for different scenarios, modify these sections:
+
+# 1. MINIMAL CLI-ONLY DEPLOYMENT:
+#    [components] enabled = []
+#    [inputs] enabled = ["cli"]
+#    [plugins] universal_* all disabled
+
+# 2. WEB API ONLY DEPLOYMENT:
+#    [components] enabled = ["tts", "asr", "llm"]
+#    [components.web] enable
+#    [inputs] enabled = ["web"]
+
+# 3. FULL VOICE ASSISTANT:
+#    [components] enabled = ["audio", "tts", "asr", "llm", "voice_trigger"]
+#    [inputs] enabled = ["microphone", "web"]
+#    All relevant providers enabled
+
+# 4. DEVELOPMENT/TESTING:
+#    [development] auto_reload = true, verbose_logging = true
+#    [logging] level = "DEBUG"
+#    Console providers enabled for all components 

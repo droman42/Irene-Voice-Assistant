@@ -20,15 +20,9 @@ from ..core.interfaces.command import CommandPlugin
 from ..core.context import Context
 from ..core.commands import CommandResult
 
-# Import all audio providers
-from ..providers.audio import (
-    AudioProvider,
-    ConsoleAudioProvider,
-    SoundDeviceAudioProvider,
-    AudioPlayerAudioProvider,
-    AplayAudioProvider,
-    SimpleAudioProvider
-)
+# Import audio provider base class and dynamic loader
+from ..providers.audio import AudioProvider
+from ..utils.loader import dynamic_loader
 
 logger = logging.getLogger(__name__)
 
@@ -100,14 +94,8 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin, CommandPlugin):
         self.default_provider: str = "console"
         self.fallback_providers: List[str] = ["console"]
         
-        # Provider class mapping
-        self._provider_classes = {
-            "console": ConsoleAudioProvider,
-            "sounddevice": SoundDeviceAudioProvider,
-            "audioplayer": AudioPlayerAudioProvider,
-            "aplay": AplayAudioProvider,
-            "simpleaudio": SimpleAudioProvider
-        }
+        # Dynamic provider discovery from entry-points (replaces hardcoded classes)
+        self._provider_classes: Dict[str, type] = {}
         
         # Runtime state
         self._current_provider = None
@@ -116,7 +104,7 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin, CommandPlugin):
         """Initialize the universal audio plugin"""
         await super().initialize(core)
         
-        # Get configuration
+        # Get configuration first to determine enabled providers
         config = getattr(core.config.plugins, 'universal_audio', None)
         if not config:
             # Create default config if missing
@@ -147,6 +135,20 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin, CommandPlugin):
         
         # Instantiate enabled providers
         providers_config = getattr(config, 'providers', {})
+        if isinstance(config, dict):
+            providers_config = config.get('providers', {})
+        
+        # Discover only enabled providers from entry-points (configuration-driven filtering)
+        enabled_providers = [name for name, provider_config in providers_config.items() 
+                            if provider_config.get("enabled", False)]
+        
+        # Always include console as fallback if not already included
+        if "console" not in enabled_providers and providers_config.get("console", {}).get("enabled", True):
+            enabled_providers.append("console")
+            
+        self._provider_classes = dynamic_loader.discover_providers("irene.providers.audio", enabled_providers)
+        logger.info(f"Discovered {len(self._provider_classes)} enabled audio providers: {list(self._provider_classes.keys())}")
+        
         enabled_count = 0
         
         for provider_name, provider_class in self._provider_classes.items():
@@ -169,11 +171,17 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin, CommandPlugin):
         if not self.providers:
             logger.warning("No audio providers available, creating console provider as fallback")
             try:
-                console_provider = ConsoleAudioProvider({"enabled": True, "color_output": True})
-                self.providers["console"] = console_provider
-                self.default_provider = "console"
-                self.fallback_providers = ["console"]
-                enabled_count = 1
+                # Use entry-points discovery for fallback provider
+                console_class = dynamic_loader.get_provider_class("irene.providers.audio", "console")
+                if console_class:
+                    console_provider = console_class({"enabled": True, "color_output": True})
+                    self.providers["console"] = console_provider
+                    self.default_provider = "console"
+                    self.fallback_providers = ["console"]
+                    enabled_count = 1
+                else:
+                    logger.error("Console audio provider not found in entry-points")
+                    raise RuntimeError("No audio providers available")
             except Exception as e:
                 logger.error(f"Failed to create fallback console audio provider: {e}")
                 raise RuntimeError("No audio providers available")

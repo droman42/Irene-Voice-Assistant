@@ -170,6 +170,94 @@ irene-convert-to-esp32 = "wake_word_training.scripts.converters.to_esp32:main"
 irene-convert-to-onnx = "wake_word_training.scripts.converters.to_onnx:main"
 irene-convert-to-tflite = "wake_word_training.scripts.converters.to_tflite:main"
 
+# ============================================================
+# ENTRY-POINTS CATALOG - Provider Discovery System
+# ============================================================
+# Entry-points catalog for dynamic provider discovery.
+# This replaces hardcoded _provider_classes dictionaries and enables:
+# - Configuration-driven loading
+# - External package extensibility
+# - Build-time optimization
+# - Dynamic discovery without hardcoded imports
+
+[project.entry-points."irene.providers.audio"]
+console = "irene.providers.audio.console:ConsoleAudioProvider"
+sounddevice = "irene.providers.audio.sounddevice:SoundDeviceAudioProvider"
+audioplayer = "irene.providers.audio.audioplayer:AudioPlayerAudioProvider"
+aplay = "irene.providers.audio.aplay:AplayAudioProvider"
+simpleaudio = "irene.providers.audio.simpleaudio:SimpleAudioProvider"
+
+[project.entry-points."irene.providers.tts"]
+console = "irene.providers.tts.console:ConsoleTTSProvider"
+pyttsx = "irene.providers.tts.pyttsx:PyttsTTSProvider"
+silero_v3 = "irene.providers.tts.silero_v3:SileroV3TTSProvider"
+silero_v4 = "irene.providers.tts.silero_v4:SileroV4TTSProvider"
+vosk_tts = "irene.providers.tts.vosk:VoskTTSProvider"
+elevenlabs = "irene.providers.tts.elevenlabs:ElevenLabsTTSProvider"
+
+[project.entry-points."irene.providers.asr"]
+vosk = "irene.providers.asr.vosk:VoskASRProvider"
+whisper = "irene.providers.asr.whisper:WhisperASRProvider"
+google_cloud = "irene.providers.asr.google_cloud:GoogleCloudASRProvider"
+
+[project.entry-points."irene.providers.llm"]
+openai = "irene.providers.llm.openai:OpenAILLMProvider"
+vsegpt = "irene.providers.llm.vsegpt:VseGPTLLMProvider"
+anthropic = "irene.providers.llm.anthropic:AnthropicLLMProvider"
+
+[project.entry-points."irene.providers.voice_trigger"]
+openwakeword = "irene.providers.voice_trigger.openwakeword:OpenWakeWordProvider"
+microwakeword = "irene.providers.voice_trigger.microwakeword:MicroWakeWordProvider"
+
+[project.entry-points."irene.providers.nlu"]
+rule_based = "irene.providers.nlu.rule_based:RuleBasedNLUProvider"
+spacy = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
+
+[project.entry-points."irene.providers.text_processing"]
+unified_processor = "irene.providers.text_processing.unified_processor:UnifiedTextProcessor"
+number_processor = "irene.providers.text_processing.number_processor:NumberTextProcessor"
+
+[project.entry-points."irene.components"]
+tts = "irene.components.tts_component:TTSComponent"
+asr = "irene.components.asr_component:ASRComponent"
+llm = "irene.components.llm_component:LLMComponent"
+audio = "irene.components.audio_component:AudioComponent"
+voice_trigger = "irene.components.voice_trigger_component:VoiceTriggerComponent"
+nlu = "irene.components.nlu_component:NLUComponent"
+text_processor = "irene.components.text_processor_component:TextProcessorComponent"
+
+[project.entry-points."irene.workflows"]
+voice_assistant = "irene.workflows.voice_assistant:VoiceAssistantWorkflow"
+continuous_listening = "irene.workflows.continuous_listening:ContinuousListeningWorkflow"
+
+[project.entry-points."irene.intents.handlers"]
+conversation = "irene.intents.handlers.conversation:ConversationIntentHandler"
+greetings = "irene.intents.handlers.greetings:GreetingsIntentHandler"
+timer = "irene.intents.handlers.timer:TimerIntentHandler"
+datetime = "irene.intents.handlers.datetime:DateTimeIntentHandler"
+system = "irene.intents.handlers.system:SystemIntentHandler"
+train_schedule = "irene.intents.handlers.train_schedule:TrainScheduleIntentHandler"
+
+[project.entry-points."irene.inputs"]
+cli = "irene.inputs.cli:CLIInput"
+microphone = "irene.inputs.microphone:MicrophoneInput"
+web = "irene.inputs.web:WebInput"
+
+[project.entry-points."irene.outputs"]
+text = "irene.outputs.text:TextOutput"
+tts = "irene.outputs.tts:TTSOutput"
+web = "irene.outputs.web:WebOutput"
+
+[project.entry-points."irene.plugins.builtin"]
+random_plugin = "irene.plugins.builtin.random_plugin:RandomPlugin"
+async_service_demo = "irene.plugins.builtin.async_service_demo:AsyncServiceDemoPlugin"
+
+[project.entry-points."irene.runners"]
+cli = "irene.runners.cli:CLIRunner"
+vosk = "irene.runners.vosk_runner:VoskRunner"
+webapi = "irene.runners.webapi_runner:WebAPIRunner"
+settings = "irene.runners.settings_runner:SettingsManagerRunner"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["irene*", "wake_word_training*"]

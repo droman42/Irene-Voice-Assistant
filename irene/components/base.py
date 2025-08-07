@@ -12,8 +12,9 @@ class Component(ABC):
     
     def __init__(self):
         """Initialize the component."""
-        self.name = self.__class__.__name__
-        self.logger = logging.getLogger(f"{__name__}.{self.name}")
+        # Use property-compatible name access for logging
+        component_name = getattr(self, 'name', self.__class__.__name__)
+        self.logger = logging.getLogger(f"{__name__}.{component_name}")
         self.providers: Dict[str, Any] = {}
         self.default_provider: Optional[str] = None
         self.initialized = False

@@ -5,7 +5,7 @@ Helper functions for graceful component loading and dependency management.
 """
 
 import logging
-from typing import Optional, Any, Callable, TypeVar
+from typing import Optional, Any, Callable, TypeVar, Dict, Type, List
 from functools import wraps
 
 logger = logging.getLogger(__name__)
@@ -106,6 +106,137 @@ class DependencyChecker:
 
 # Global dependency checker instance
 dependency_checker = DependencyChecker()
+
+
+# ============================================================
+# ENTRY-POINTS DISCOVERY SYSTEM - Phase 2 Implementation
+# ============================================================
+# Entry-points based loader that replaces hardcoded _provider_classes
+# Enables configuration-driven loading and external package extensibility
+
+try:
+    # Modern approach for Python 3.10+
+    from importlib.metadata import entry_points
+except ImportError:
+    # Fallback for older Python versions  
+    entry_points = None
+    try:
+        from importlib_metadata import entry_points  # type: ignore
+    except ImportError:
+        # Ultimate fallback using pkg_resources
+        try:
+            import pkg_resources  # type: ignore
+        except ImportError:
+            pkg_resources = None
+
+
+class DynamicLoader:
+    """
+    Entry-points based loader with configuration filtering.
+    
+    Replaces hardcoded _provider_classes dictionaries in components with
+    dynamic discovery from entry-points + configuration-driven filtering.
+    """
+    
+    def __init__(self):
+        self._cache: Dict[str, Dict[str, Type]] = {}
+        
+    def discover_providers(self, namespace: str, enabled: List[str] = None) -> Dict[str, Type]:
+        """
+        Discover providers via entry-points with optional configuration filtering.
+        
+        Args:
+            namespace: Entry-points namespace (e.g., 'irene.providers.tts')
+            enabled: Optional list of enabled provider names for filtering
+            
+        Returns:
+            Dictionary mapping provider names to their classes
+        """
+        # Use cache if available
+        cache_key = f"{namespace}:{','.join(enabled or [])}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+            
+        discovered = {}
+        
+        try:
+            # Use modern importlib.metadata if available
+            if entry_points and hasattr(entry_points, 'select'):
+                # Python 3.10+ style
+                eps = entry_points(group=namespace)
+            elif entry_points:
+                # Python 3.8-3.9 style  
+                eps = entry_points().get(namespace, [])
+            elif 'pkg_resources' in globals() and pkg_resources:
+                # Fallback to pkg_resources
+                eps = pkg_resources.iter_entry_points(namespace)
+            else:
+                # No entry-points mechanism available
+                logger.warning(f"No entry-points mechanism available for namespace '{namespace}'")
+                return {}
+                
+            for entry_point in eps:
+                # Filter by enabled list if provided
+                if enabled and entry_point.name not in enabled:
+                    continue
+                    
+                try:
+                    provider_class = entry_point.load()
+                    discovered[entry_point.name] = provider_class
+                    logger.debug(f"Loaded provider '{entry_point.name}' from entry-point")
+                    
+                except ImportError as e:
+                    logger.warning(f"Provider '{entry_point.name}' not available (import failed): {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Failed to load provider '{entry_point.name}': {e}")
+                    continue
+                    
+        except Exception as e:
+            logger.error(f"Entry-points discovery failed for namespace '{namespace}': {e}")
+            # Graceful fallback - return empty dict to allow component initialization
+            return {}
+            
+        # Cache the result
+        self._cache[cache_key] = discovered
+        
+        logger.info(f"Discovered {len(discovered)} providers in namespace '{namespace}': {list(discovered.keys())}")
+        return discovered
+        
+    def get_provider_class(self, namespace: str, provider_name: str) -> Optional[Type]:
+        """
+        Get a specific provider class by name from entry-points.
+        
+        Args:
+            namespace: Entry-points namespace
+            provider_name: Name of the provider to load
+            
+        Returns:
+            Provider class or None if not found
+        """
+        providers = self.discover_providers(namespace)
+        return providers.get(provider_name)
+        
+    def list_available_providers(self, namespace: str) -> List[str]:
+        """
+        List all available provider names in a namespace.
+        
+        Args:
+            namespace: Entry-points namespace
+            
+        Returns:
+            List of available provider names
+        """
+        providers = self.discover_providers(namespace)
+        return list(providers.keys())
+        
+    def clear_cache(self):
+        """Clear the discovery cache"""
+        self._cache.clear()
+
+
+# Global dynamic loader instance
+dynamic_loader = DynamicLoader()
 
 
 def get_component_status() -> dict[str, dict[str, Any]]:

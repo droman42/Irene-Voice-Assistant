@@ -16,13 +16,9 @@ from ..core.interfaces.command import CommandPlugin
 from ..core.context import Context
 from ..core.commands import CommandResult
 
-# Import all LLM providers using ABC pattern
-from ..providers.llm import (
-    LLMProvider,
-    OpenAILLMProvider,
-    VseGPTLLMProvider,
-    AnthropicLLMProvider
-)
+# Import LLM provider base class and dynamic loader
+from ..providers.llm import LLMProvider
+from ..utils.loader import dynamic_loader
 
 logger = logging.getLogger(__name__)
 
@@ -80,12 +76,8 @@ class LLMComponent(Component, LLMPlugin, CommandPlugin, WebAPIPlugin):
         self.default_provider = "openai"
         self.default_task = "improve"
         
-        # Provider class mapping
-        self._provider_classes = {
-            "openai": OpenAILLMProvider,
-            "vsegpt": VseGPTLLMProvider,
-            "anthropic": AnthropicLLMProvider,
-        }
+        # Dynamic provider discovery from entry-points (replaces hardcoded classes)
+        self._provider_classes: Dict[str, type] = {}
         
     async def initialize(self, core) -> None:
         """Initialize LLM providers from configuration"""
@@ -94,6 +86,13 @@ class LLMComponent(Component, LLMPlugin, CommandPlugin, WebAPIPlugin):
             
             # Initialize enabled providers with ABC error handling
             providers_config = config.get("providers", {})
+            
+            # Discover only enabled providers from entry-points (configuration-driven filtering)
+            enabled_providers = [name for name, provider_config in providers_config.items() 
+                                if provider_config.get("enabled", False)]
+            
+            self._provider_classes = dynamic_loader.discover_providers("irene.providers.llm", enabled_providers)
+            logger.info(f"Discovered {len(self._provider_classes)} enabled LLM providers: {list(self._provider_classes.keys())}")
             
             for provider_name, provider_class in self._provider_classes.items():
                 provider_config = providers_config.get(provider_name, {})

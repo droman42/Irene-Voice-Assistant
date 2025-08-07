@@ -14,12 +14,9 @@ from ..intents.models import AudioData, WakeWordResult
 from ..utils.audio_helpers import calculate_audio_buffer_size, validate_audio_file
 from ..utils.loader import DependencyChecker, safe_import
 
-# Import all voice trigger providers
-from ..providers.voice_trigger import (
-    VoiceTriggerProvider,
-    OpenWakeWordProvider,
-    MicroWakeWordProvider  # Uses lightweight tflite-runtime (~50MB)
-)
+# Voice trigger provider base class and dynamic loader
+from ..providers.voice_trigger import VoiceTriggerProvider
+from ..utils.loader import DependencyChecker, safe_import, dynamic_loader
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +37,8 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         self.default_provider = "openwakeword"
         self.fallback_providers = ["openwakeword"]
         
-        # Provider class mapping
-        self._provider_classes = {
-            "openwakeword": OpenWakeWordProvider,
-            "microwakeword": MicroWakeWordProvider
-        }
+        # Dynamic provider discovery from entry-points (replaces hardcoded classes)
+        self._provider_classes: Dict[str, type] = {}
         
     @property
     def name(self) -> str:
@@ -86,7 +80,7 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         """Initialize the voice trigger component with provider loading."""
         await super().initialize(core)
         
-        # Get configuration
+        # Get configuration first to determine enabled providers
         config = getattr(core.config.plugins, 'voice_trigger', None) if core else None
         if not config:
             # Create default config if missing
@@ -130,6 +124,20 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         
         # Instantiate enabled providers
         providers_config = getattr(config, 'providers', {})
+        if isinstance(config, dict):
+            providers_config = config.get('providers', {})
+        
+        # Discover only enabled providers from entry-points (configuration-driven filtering)
+        enabled_providers = [name for name, provider_config in providers_config.items() 
+                            if provider_config.get("enabled", False)]
+        
+        # Always include openwakeword as fallback if not already included
+        if "openwakeword" not in enabled_providers and providers_config.get("openwakeword", {}).get("enabled", True):
+            enabled_providers.append("openwakeword")
+            
+        self._provider_classes = dynamic_loader.discover_providers("irene.providers.voice_trigger", enabled_providers)
+        logger.info(f"Discovered {len(self._provider_classes)} enabled voice trigger providers: {list(self._provider_classes.keys())}")
+        
         enabled_count = 0
         
         for provider_name, provider_class in self._provider_classes.items():
@@ -168,12 +176,15 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
                     "channels": 1,
                     "inference_framework": "tflite"
                 }
-                openwakeword_provider = OpenWakeWordProvider(fallback_config)
-                if await openwakeword_provider.is_available():
-                    self.providers["openwakeword"] = openwakeword_provider
-                    self.default_provider = "openwakeword"
-                    self.fallback_providers = ["openwakeword"]
-                    enabled_count = 1
+                # Use entry-points discovery for fallback provider
+                openwakeword_class = dynamic_loader.get_provider_class("irene.providers.voice_trigger", "openwakeword")
+                if openwakeword_class:
+                    openwakeword_provider = openwakeword_class(fallback_config)
+                    if await openwakeword_provider.is_available():
+                        self.providers["openwakeword"] = openwakeword_provider
+                        self.default_provider = "openwakeword"
+                        self.fallback_providers = ["openwakeword"]
+                        enabled_count = 1
                     logger.info("Created fallback OpenWakeWord provider")
                 else:
                     logger.warning("No voice trigger providers available")

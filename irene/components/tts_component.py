@@ -17,16 +17,9 @@ from ..core.interfaces.webapi import WebAPIPlugin
 from ..core.interfaces.command import CommandPlugin
 from ..core.context import Context
 from ..core.commands import CommandResult
-# Import all TTS providers
-from ..providers.tts import (
-    TTSProvider,
-    ConsoleTTSProvider,
-    PyttsTTSProvider,
-    SileroV3TTSProvider,
-    SileroV4TTSProvider,
-    VoskTTSProvider,
-    ElevenLabsTTSProvider  # Phase 4 addition
-)
+# Import TTS provider base class and dynamic loader
+from ..providers.tts import TTSProvider
+from ..utils.loader import dynamic_loader
 
 logger = logging.getLogger(__name__)
 
@@ -89,21 +82,14 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
         self._provider_configs: Dict[str, Dict[str, Any]] = {}  # Cache provider configs
         self._lazy_loading_enabled: bool = True  # Feature flag for lazy loading
         
-        # Define available provider classes
-        self._provider_classes = {
-            "silero_v3": SileroV3TTSProvider,
-            "silero_v4": SileroV4TTSProvider,
-            "pyttsx": PyttsTTSProvider,
-            "console": ConsoleTTSProvider,
-            "vosk_tts": VoskTTSProvider,
-            "elevenlabs": ElevenLabsTTSProvider  # Phase 4 addition
-        }
+        # Dynamic provider discovery from entry-points (replaces hardcoded classes)
+        self._provider_classes: Dict[str, type] = {}
         
     async def initialize(self, core) -> None:
         """Initialize providers with concurrent loading and lazy loading support"""
         self.core = core
         
-        # Get configuration
+        # Get configuration first to determine enabled providers
         config = getattr(core.config.plugins, 'universal_tts', {})
         
         # Default configuration if not provided
@@ -130,6 +116,17 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
         
         # Cache provider configurations for lazy loading
         self._provider_configs = config.get("providers", {})
+        
+        # Discover only enabled providers from entry-points (configuration-driven filtering)
+        enabled_providers = [name for name, provider_config in self._provider_configs.items() 
+                            if provider_config.get("enabled", False)]
+        
+        # Always include console as fallback if not already included
+        if "console" not in enabled_providers and self._provider_configs.get("console", {}).get("enabled", True):
+            enabled_providers.append("console")
+            
+        self._provider_classes = dynamic_loader.discover_providers("irene.providers.tts", enabled_providers)
+        logger.info(f"Discovered {len(self._provider_classes)} enabled TTS providers: {list(self._provider_classes.keys())}")
         
         if self._lazy_loading_enabled:
             # Lazy loading: Only load essential providers immediately
@@ -277,9 +274,14 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
     async def _load_fallback_provider(self) -> None:
         """Load fallback console provider if no providers are available"""
         try:
-            console_provider = ConsoleTTSProvider({"enabled": True, "color_output": True})
-            self.providers["console"] = console_provider
-            logger.info("Fallback: Loaded console TTS provider")
+            # Use entry-points discovery for fallback provider
+            console_class = dynamic_loader.get_provider_class("irene.providers.tts", "console")
+            if console_class:
+                console_provider = console_class({"enabled": True, "color_output": True})
+                self.providers["console"] = console_provider
+                logger.info("Fallback: Loaded console TTS provider via entry-points")
+            else:
+                logger.error("Console TTS provider not found in entry-points")
         except Exception as e:
             logger.error(f"Failed to load fallback console provider: {e}")
     

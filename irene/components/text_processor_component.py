@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import ConversationContext
+from ..utils.loader import dynamic_loader
 from ..utils.text_processing import (
     TextProcessor, 
     NumberNormalizer, 
@@ -27,8 +28,72 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     
     def __init__(self):
         super().__init__()
-        # Use existing TextProcessor with all normalizers
+        # Legacy processor for backward compatibility
         self.processor = TextProcessor()
+        self._provider_classes: Dict[str, type] = {}
+        
+    async def initialize(self, core) -> None:
+        """Initialize text processing providers with configuration-driven filtering"""
+        await super().initialize(core)
+        
+        # Get configuration first to determine enabled providers
+        config = getattr(core.config.plugins, 'universal_text_processor', {})
+        
+        # Default configuration if not provided
+        if not config:
+            config = {
+                "enabled": True,
+                "providers": {
+                    "unified_processor": {
+                        "enabled": True
+                    },
+                    "number_processor": {
+                        "enabled": True
+                    }
+                }
+            }
+        
+        # Get provider configurations
+        providers_config = config.get("providers", {})
+        
+        # Discover only enabled providers from entry-points (configuration-driven filtering)
+        enabled_providers = [name for name, provider_config in providers_config.items() 
+                            if provider_config.get("enabled", False)]
+        
+        # Always include unified_processor as fallback if not already included
+        if "unified_processor" not in enabled_providers and providers_config.get("unified_processor", {}).get("enabled", True):
+            enabled_providers.append("unified_processor")
+            
+        self._provider_classes = dynamic_loader.discover_providers("irene.providers.text_processing", enabled_providers)
+        logger.info(f"Discovered {len(self._provider_classes)} enabled text processing providers: {list(self._provider_classes.keys())}")
+        
+        # Initialize enabled providers
+        enabled_count = 0
+        for provider_name, provider_class in self._provider_classes.items():
+            provider_config = providers_config.get(provider_name, {})
+            if provider_config.get("enabled", False):
+                try:
+                    provider = provider_class(provider_config)
+                    if hasattr(provider, 'is_available'):
+                        if await provider.is_available():
+                            self.providers[provider_name] = provider
+                            enabled_count += 1
+                            logger.info(f"Loaded text processing provider: {provider_name}")
+                        else:
+                            logger.warning(f"Text processing provider {provider_name} not available (dependencies missing)")
+                    else:
+                        self.providers[provider_name] = provider
+                        enabled_count += 1
+                        logger.info(f"Loaded text processing provider: {provider_name}")
+                except Exception as e:
+                    logger.error(f"Failed to load text processing provider {provider_name}: {e}")
+        
+        # Set default provider if not set
+        if not self.default_provider and self.providers:
+            self.default_provider = next(iter(self.providers.keys()))
+            logger.info(f"Set default text processing provider to: {self.default_provider}")
+        
+        logger.info(f"Text processing component initialized with {enabled_count} providers")
         
     @property
     def name(self) -> str:
@@ -68,7 +133,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         
     async def improve(self, text: str, context: ConversationContext, stage: str = "general") -> str:
         """
-        Improve text using existing normalizers based on processing stage.
+        Improve text using discovered providers or fallback to legacy processor.
         Stages: 'asr_output', 'general', 'tts_input'
         
         Args:
@@ -80,6 +145,12 @@ class TextProcessorComponent(Component, WebAPIPlugin):
             Processed text
         """
         try:
+            # Try to use discovered providers first
+            provider = self.get_current_provider()
+            if provider and hasattr(provider, 'process'):
+                return await provider.process(text, stage)
+            
+            # Fallback to legacy processor for backward compatibility
             return await self.processor.process_pipeline(text, stage)
         except Exception as e:
             logger.error(f"Text processing error: {e}")

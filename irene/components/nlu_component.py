@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import Intent, ConversationContext
+from ..utils.loader import dynamic_loader
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,77 @@ class NLUComponent(Component, WebAPIPlugin):
         super().__init__()
         self.confidence_threshold = 0.7
         self.fallback_intent = "conversation.general"
+        self._provider_classes: Dict[str, type] = {}
+    
+    async def initialize(self, core) -> None:
+        """Initialize NLU providers with configuration-driven filtering"""
+        await super().initialize(core)
+        
+        # Get configuration first to determine enabled providers
+        config = getattr(core.config.plugins, 'universal_nlu', {})
+        
+        # Default configuration if not provided
+        if not config:
+            config = {
+                "enabled": True,
+                "confidence_threshold": 0.7,
+                "fallback_intent": "conversation.general",
+                "providers": {
+                    "rule_based": {
+                        "enabled": True
+                    },
+                    "spacy": {
+                        "enabled": False,
+                        "model_name": "en_core_web_sm"
+                    }
+                }
+            }
+        
+        # Update component settings from config
+        self.confidence_threshold = config.get("confidence_threshold", 0.7)
+        self.fallback_intent = config.get("fallback_intent", "conversation.general")
+        
+        # Get provider configurations
+        providers_config = config.get("providers", {})
+        
+        # Discover only enabled providers from entry-points (configuration-driven filtering)
+        enabled_providers = [name for name, provider_config in providers_config.items() 
+                            if provider_config.get("enabled", False)]
+        
+        # Always include rule_based as fallback if not already included
+        if "rule_based" not in enabled_providers and providers_config.get("rule_based", {}).get("enabled", True):
+            enabled_providers.append("rule_based")
+            
+        self._provider_classes = dynamic_loader.discover_providers("irene.providers.nlu", enabled_providers)
+        logger.info(f"Discovered {len(self._provider_classes)} enabled NLU providers: {list(self._provider_classes.keys())}")
+        
+        # Initialize enabled providers
+        enabled_count = 0
+        for provider_name, provider_class in self._provider_classes.items():
+            provider_config = providers_config.get(provider_name, {})
+            if provider_config.get("enabled", False):
+                try:
+                    provider = provider_class(provider_config)
+                    if hasattr(provider, 'is_available'):
+                        if await provider.is_available():
+                            self.providers[provider_name] = provider
+                            enabled_count += 1
+                            logger.info(f"Loaded NLU provider: {provider_name}")
+                        else:
+                            logger.warning(f"NLU provider {provider_name} not available (dependencies missing)")
+                    else:
+                        self.providers[provider_name] = provider
+                        enabled_count += 1
+                        logger.info(f"Loaded NLU provider: {provider_name}")
+                except Exception as e:
+                    logger.error(f"Failed to load NLU provider {provider_name}: {e}")
+        
+        # Set default provider if not set
+        if not self.default_provider and self.providers:
+            self.default_provider = next(iter(self.providers.keys()))
+            logger.info(f"Set default NLU provider to: {self.default_provider}")
+        
+        logger.info(f"NLU component initialized with {enabled_count} providers")
     
     @property
     def name(self) -> str:
