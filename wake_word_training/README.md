@@ -74,22 +74,22 @@ graph TB
 ```mermaid
 graph TD
     subgraph "Модель medium-12-bn"
-        A[Входные MFCC<br/>[1, 49, 40]] --> B[Conv1D Block 1<br/>filters: 8]
-        B --> C[BatchNorm + ReLU]
-        C --> D[Conv1D Block 2<br/>filters: 16]
-        D --> E[BatchNorm + ReLU]
-        E --> F[Conv1D Block 3<br/>filters: 16]
-        F --> G[BatchNorm + ReLU]
+        A["Входные MFCC<br/>(1, 49, 40)"] --> B["Conv1D Block 1<br/>filters: 8"]
+        B --> C["BatchNorm + ReLU"]
+        C --> D["Conv1D Block 2<br/>filters: 16"]
+        D --> E["BatchNorm + ReLU"]
+        E --> F["Conv1D Block 3<br/>filters: 16"]
+        F --> G["BatchNorm + ReLU"]
         G --> H["... 9 дополнительных блоков"]
-        H --> I[Conv1D Block 12<br/>filters: 32]
-        I --> J[GlobalAveragePooling1D]
-        J --> K[Dense Layer<br/>units: 1]
-        K --> L[Sigmoid<br/>Выход [0,1]]
+        H --> I["Conv1D Block 12<br/>filters: 32"]
+        I --> J["GlobalAveragePooling1D"]
+        J --> K["Dense Layer<br/>units: 1"]
+        K --> L["Sigmoid<br/>Выход (0,1)"]
     end
     
     subgraph "Обработка Аудио"
-        M[16kHz Аудио] --> N[MFCC Экстракция<br/>40 коэффициентов]
-        N --> O[Окно 490мс<br/>49 фреймов]
+        M["16kHz Аудио"] --> N["MFCC Экстракция<br/>40 коэффициентов"]
+        N --> O["Окно 490мс<br/>49 фреймов"]
         O --> A
     end
     
