@@ -343,6 +343,7 @@ graph TB
         F[ESP32 Nodes<br/>Kitchen, Bedroom, etc.]
         G[Python Провайдеры<br/>OpenWakeWord/microWakeWord]
         H[Irene Core<br/>VoiceTrigger Component]
+        I[Irene Core<br/>VoiceAssistant Workflow]
     end
     
     A --> B
@@ -353,7 +354,8 @@ graph TB
     D --> G
     E --> G
     G --> H
-    F --> H
+    F --> I
+    H --> I
     
     style A fill:#e3f2fd
     style H fill:#e8f5e8
