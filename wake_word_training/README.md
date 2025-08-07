@@ -230,16 +230,13 @@ graph LR
         C[ESP32 C Header]
     end
     
-    subgraph "Voice Trigger Провайдеры"
-        D[microWakeWordProvider]
-        E[OpenWakeWordProvider]
-    end
-    
     subgraph "ESP32 Прошивка"
         F[WakeWordDetector]
     end
     
     subgraph "Irene Компоненты"
+        D[microWakeWordProvider]
+        E[OpenWakeWordProvider]
         G[VoiceTriggerComponent]
         H[Voice Assistant Workflow]
     end
