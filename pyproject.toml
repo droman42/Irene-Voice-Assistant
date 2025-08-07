@@ -214,8 +214,11 @@ rule_based = "irene.providers.nlu.rule_based:RuleBasedNLUProvider"
 spacy = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
 
 [project.entry-points."irene.providers.text_processing"]
-unified_processor = "irene.providers.text_processing.unified_processor:UnifiedTextProcessor"
-number_processor = "irene.providers.text_processing.number_processor:NumberTextProcessor"
+# Stage-specific providers (TODO #2 implementation)
+asr_text_processor = "irene.providers.text_processing.asr_text_processor:ASRTextProcessor"
+general_text_processor = "irene.providers.text_processing.general_text_processor:GeneralTextProcessor"
+tts_text_processor = "irene.providers.text_processing.tts_text_processor:TTSTextProcessor"
+number_text_processor = "irene.providers.text_processing.number_text_processor:NumberTextProcessor"
 
 [project.entry-points."irene.components"]
 tts = "irene.components.tts_component:TTSComponent"

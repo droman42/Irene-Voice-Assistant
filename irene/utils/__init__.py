@@ -12,6 +12,11 @@ from .logging import *
 from .text_processing import *
 from .audio_helpers import *
 
+# New modular text normalizers (preferred imports)
+from .text_normalizers import NumberNormalizer as _NumberNormalizer
+from .text_normalizers import PrepareNormalizer as _PrepareNormalizer  
+from .text_normalizers import RunormNormalizer as _RunormNormalizer
+
 __all__ = [
     # Component loading utilities
     'safe_import',

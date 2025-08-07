@@ -310,11 +310,28 @@ model_name = "en_core_web_sm"
 [plugins.universal_text_processor]
 enabled = false  # Component disabled in main config
 
-[plugins.universal_text_processor.providers.unified_processor]
-enabled = true
+# Stage-specific providers (TODO #2 implementation)
+[plugins.universal_text_processor.providers.asr_text_processor]
+enabled = true  # ASR output cleanup - fast, minimal processing
+language = "ru"
 
-[plugins.universal_text_processor.providers.number_processor]
-enabled = true
+[plugins.universal_text_processor.providers.general_text_processor]
+enabled = true  # General text processing - balanced processing
+language = "ru"
+
+[plugins.universal_text_processor.providers.tts_text_processor]
+enabled = false  # TTS input preparation - resource-intensive processing
+language = "ru"
+# Optional: custom prepare options
+# prepare_options = { changeNumbers = "process", changeLatin = "process" }
+# Optional: custom runorm options  
+# runorm_options = { modelSize = "small", device = "cpu" }
+
+[plugins.universal_text_processor.providers.number_text_processor]
+enabled = true  # Pure number operations - cross-stage compatible
+language = "ru"
+# Optional: custom number options
+# number_options = { decimal_places = 2, handle_percentages = true }
 
 # ============================================================
 # SECURITY CONFIGURATION
