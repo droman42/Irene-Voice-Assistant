@@ -2,96 +2,268 @@
 
 This document tracks architectural improvements and refactoring tasks for the Irene Voice Assistant project.
 
-## 1. Hardcoded Provider Loading Pattern
+## 1. Comprehensive Hardcoded Loading Pattern Elimination
 
-**Status:** Open  
+**Status:** Design Complete - Ready for Implementation  
 **Priority:** Critical  
-**Components:** All universal components (`audio`, `llm`, `tts`, `asr`)
+**Components:** All subsystems (components, providers, workflows, intents, inputs, plugins)
 
-### Problem
+### Problem Analysis (Comprehensive Discovery)
 
-All components use explicit imports and hardcoded provider mappings instead of configuration-driven loading, violating the Open/Closed Principle:
+The hardcoded loading problem is **systemic** and affects every major subsystem:
 
-1. **Explicit Import Dependencies**: Every component imports ALL available providers at module level:
-   ```python
-   # Import all audio providers
-   from ..providers.audio import (
-       AudioProvider,
-       ConsoleAudioProvider,
-       SoundDeviceAudioProvider,
-       AudioPlayerAudioProvider,
-       AplayAudioProvider,
-       SimpleAudioProvider
-   )
-   ```
+1. **Provider Loading Pattern** (Original): All components (`audio`, `llm`, `tts`, `asr`, `voice_trigger`)
+   - Explicit imports of ALL providers at module level
+   - Hardcoded `_provider_classes` dictionaries in each component
+   - Duplicated loading logic across components
 
-2. **Hardcoded Provider Mappings**: Each component maintains hardcoded dictionaries:
-   ```python
-   self._provider_classes = {
-       "console": ConsoleAudioProvider,
-       "sounddevice": SoundDeviceAudioProvider,
-       "audioplayer": AudioPlayerAudioProvider,
-       "aplay": AplayAudioProvider,
-       "simpleaudio": SimpleAudioProvider
-   }
-   ```
+2. **Component Loading Pattern** (Critical): `irene/core/components.py` (lines 356-366)
+   - Hardcoded component dictionary directly affects build system optimization
+   - All components loaded regardless of configuration needs
 
-3. **Duplicated Loading Logic**: Nearly identical provider instantiation code across all components
+3. **Workflow Loading Pattern** (Critical): `irene/core/workflow_manager.py` (lines 57-75)
+   - Hardcoded workflow instantiation prevents workflow-specific builds
+   - No configuration-driven workflow selection
 
-### Current Issues
+4. **Intent Handler Loading Pattern** (Critical): `irene/intents/handlers/__init__.py`
+   - Explicit imports of ALL handlers prevents domain-specific builds
+   - Manual handler registration required
 
-- **Tight Coupling**: Components must know about ALL providers at compile time
-- **Import-Time Loading**: All provider modules imported even if unused
-- **Extension Difficulties**: External plugins cannot easily add new providers
-- **Maintenance Overhead**: Adding providers requires code changes in multiple places
-- **Scalability Problems**: Provider lists become unwieldy as ecosystem grows
+5. **Plugin Loading Pattern** (Partially Dynamic): `irene/plugins/builtin/__init__.py`
+   - Hardcoded plugin module lists, but better than others
+   - Artificial distinction between builtin and external plugins
 
-### Proposed Solution: Configuration-Driven Provider System
+6. **Runner Loading Pattern**: `irene/runners/__init__.py`
+   - Hardcoded runner imports affect deployment flexibility
 
-**Phase 1: Dynamic Provider Discovery**
-- Create provider registry system similar to existing `PluginRegistry`
-- Use existing `safe_import()` utility from `loader.py` for dynamic loading
-- Define provider configuration schema in config files
+7. **Input/Output Loading Pattern**: Various runners
+   - Hardcoded input/output source creation
+   - No multi-input configuration support
 
-**Phase 2: Provider Registration API**
-```python
-# Configuration-based
-providers:
-  audio:
-    - name: "console"
-      module: "irene.providers.audio.console"
-      class: "ConsoleAudioProvider"
-      enabled: true
+### **APPROVED SOLUTION: Entry-Points + Configuration-Driven Architecture**
 
-# Or decorator-based registration
-@register_audio_provider("sounddevice")
-class SoundDeviceAudioProvider(AudioProvider):
-    pass
+#### **Core Design Principles**
+1. **Entry-Points Discovery** - Use Python setuptools entry-points as provider catalog
+2. **Configuration-First Runtime** - TOML config controls what gets loaded from catalog
+3. **Build-Time Optimization** - Selective module inclusion based on enabled providers
+4. **External Extensibility** - Third-party packages contribute via their own entry-points
+5. **Unified Plugin System** - No distinction between builtin and external plugins
+6. **Minimal Deployments** - Only enabled components included in builds
+
+#### **Extended TOML Configuration Schema**
+
+```toml
+# ============================================================
+# COMPONENT SYSTEM - Dynamic Component Loading
+# ============================================================
+[components]
+# Enable/disable core components (supports no-TTS flows)
+enabled = ["audio", "tts", "asr", "llm"]  # No voice_trigger = no wake word flow
+disabled = ["nlu", "text_processor"]      # Explicitly disabled
+
+# Component discovery configuration
+auto_discover = true
+discovery_paths = ["irene.components", "custom.components"]
+
+# ============================================================
+# WORKFLOW SYSTEM - Configurable Workflow Loading
+# ============================================================
+[workflows]
+# Which workflows to load and which one to start by default
+enabled = ["voice_assistant", "continuous_listening"]
+disabled = ["text_only", "api_only"]
+default = "voice_assistant"  # Which workflow starts by default
+
+auto_discover = true
+discovery_paths = ["irene.workflows", "custom.workflows"]
+
+# ============================================================
+# INPUT SYSTEM - Multiple Configurable Inputs
+# ============================================================
+[inputs]
+# Which input sources are active
+enabled = ["microphone", "web", "cli"]
+disabled = ["file", "keyboard"]
+default = "microphone"
+
+auto_discover = true
+discovery_paths = ["irene.inputs", "custom.inputs"]
+
+# ============================================================
+# INTENT SYSTEM - Dynamic Handler Loading
+# ============================================================
+[intents]
+enabled = true
+confidence_threshold = 0.7
+fallback_handler = "conversation"
+
+[intents.handlers]
+# Which handler domains/types to load
+enabled = ["timer", "weather", "conversation", "system"]
+disabled = ["train_schedule", "complex_queries"]
+
+auto_discover = true
+discovery_paths = ["irene.intents.handlers", "custom.intents.handlers"]
+
+# ============================================================
+# PLUGIN SYSTEM - Fully Dynamic (No Builtin vs External Distinction)
+# ============================================================
+[plugins]
+enabled = ["random_plugin", "async_service_demo", "weather_plugin"]
+disabled = ["deprecated_plugin"]
+
+# Unified plugin discovery
+auto_discover = true
+discovery_paths = [
+    "irene.plugins.builtin",   # Former "builtin" plugins
+    "irene.plugins.external",  # External plugins  
+    "plugins",                 # Local plugin directory
+    "~/.irene/plugins"         # User plugin directory
+]
+
+# ============================================================
+# PROVIDER SYSTEM - Configuration-Driven Provider Loading
+# ============================================================
+[providers.audio]
+enabled = ["sounddevice", "console"]
+default = "sounddevice"
+fallback_providers = []  # APPROVED: Empty list = no fallbacks
+
+[providers.tts]
+enabled = ["elevenlabs"]
+default = "elevenlabs"
+fallback_providers = []  # No fallbacks - fail if unavailable
+
+[providers.llm]
+enabled = ["openai", "anthropic"]
+default = "openai"
+fallback_providers = []  # No fallbacks
+
+# ============================================================
+# BUILD CONFIGURATION - For Minimal Builds (TODO #2 Support)
+# ============================================================
+[build]
+profile = "full"  # full | minimal | api-only | voice-only
+include_only_enabled = true
+exclude_disabled_dependencies = true
+lazy_imports = true
 ```
 
-**Phase 3: Lazy Loading**
-- Load providers only when needed
-- Cache provider instances efficiently
-- Support hot-swapping of providers
+#### **Implementation Strategy**
 
-### Benefits
-- **Loose Coupling**: Components discover providers through configuration
-- **External Extensibility**: Plugins can register new providers
-- **Performance**: Lazy loading reduces startup overhead
-- **Maintainability**: No code changes needed to add providers
-- **Testability**: Easy to mock/substitute providers
+**Phase 1: Entry-Points Catalog Setup**
+```python
+# Add to pyproject.toml - Provider Catalog
+[project.entry-points."irene.providers.audio"]
+sounddevice = "irene.providers.audio.sounddevice:SoundDeviceAudioProvider"
+console = "irene.providers.audio.console:ConsoleAudioProvider"
+aplay = "irene.providers.audio.aplay:AplayAudioProvider"
 
-### Existing Infrastructure
-The codebase already has supporting utilities:
-- `PluginRegistry` (dynamic discovery pattern)
-- `safe_import()` (graceful dynamic imports)
-- `DependencyChecker` (provider availability validation)
+[project.entry-points."irene.providers.tts"]
+elevenlabs = "irene.providers.tts.elevenlabs:ElevenLabsTTSProvider"
+silero_v4 = "irene.providers.tts.silero_v4:SileroV4TTSProvider"
 
-### Impact
-- **Breaking Change**: Provider loading mechanism changes
-- **Migration Needed**: All components require refactoring
-- **Configuration Changes**: Provider configs need restructuring
-- **Plugin API**: New provider registration system
+[project.entry-points."irene.intents.handlers"]
+timer = "irene.intents.handlers.timer:TimerIntentHandler"
+conversation = "irene.intents.handlers.conversation:ConversationIntentHandler"
+```
+
+**Phase 2: Entry-Points Discovery Loader**
+```python
+class DynamicLoader:
+    """Entry-points based loader with configuration filtering"""
+    
+    def discover_providers(self, namespace: str, enabled: List[str]) -> Dict[str, Type]:
+        """Discover providers via entry-points + config filtering"""
+        discovered = {}
+        for entry_point in pkg_resources.iter_entry_points(namespace):
+            if entry_point.name in enabled:
+                try:
+                    provider_class = entry_point.load()
+                    discovered[entry_point.name] = provider_class
+                except ImportError as e:
+                    logger.warning(f"Provider {entry_point.name} not available: {e}")
+        return discovered
+```
+
+**Phase 3: Build System Integration**
+- Analyze config.toml + entry-points to determine required modules
+- Create selective builds including only enabled providers
+- Support multiple build profiles (minimal, full, specialized)
+
+**Phase 4: Remove Hardcoded _provider_classes**
+- Replace hardcoded dictionaries with entry-point discovery
+- Components become pure coordinators without hardcoded imports
+- Maintain backward compatibility during transition
+
+#### **No Fallbacks Configuration (APPROVED)**
+```toml
+# Option 1 (APPROVED): Empty fallback lists
+[providers.audio]
+enabled = ["sounddevice"]
+default = "sounddevice"
+fallback_providers = []  # No fallbacks - fail if sounddevice unavailable
+
+[providers.tts]
+enabled = ["elevenlabs"]
+default = "elevenlabs"
+fallback_providers = []  # No fallbacks - fail if elevenlabs unavailable
+```
+
+### **Entry-Points + Build System Integration Benefits**
+
+Entry-points catalog + configuration enables sophisticated build optimization:
+
+**Entry-Points Provide Discovery Catalog:**
+```toml
+# pyproject.toml - All possible providers
+[project.entry-points."irene.providers.audio"]
+sounddevice = "irene.providers.audio.sounddevice:SoundDeviceAudioProvider"
+console = "irene.providers.audio.console:ConsoleAudioProvider"
+aplay = "irene.providers.audio.aplay:AplayAudioProvider"
+# ... 10+ more audio providers available
+```
+
+**Configuration Controls Runtime + Build:**
+```toml
+# config-audio-only.toml - Minimal deployment
+[components]
+enabled = ["audio"]
+
+[providers.audio]
+enabled = ["console"]  # Only console provider included in build
+
+# Result: Build includes only console audio provider module
+# All other audio providers excluded from deployment
+```
+
+**Multi-Profile Build Strategy:**
+```toml
+# config-full.toml - Development build
+[providers.audio]
+enabled = ["sounddevice", "console", "aplay"]  # Multiple providers
+
+# config-production.toml - Production build  
+[providers.audio]
+enabled = ["sounddevice"]  # Single provider only
+```
+
+### **Implementation Priority (Recommended)**
+1. **Entry-Points Catalog Setup** (P0) - Add provider entry-points to pyproject.toml
+2. **Entry-Points Discovery** (P0) - Replace hardcoded _provider_classes with entry-point loading
+3. **Build System Integration** (P1) - Analyze entry-points + config for selective builds
+4. **Intent Handler Entry-Points** (P1) - Extend entry-points to intent handlers
+5. **External Package Support** (P2) - Document and test third-party entry-points
+6. **Multi-Profile Builds** (P2) - Support different deployment configurations
+
+### **Benefits**
+- **Standard Python Pattern**: Uses setuptools entry-points for discovery
+- **External Extensibility**: Third-party packages add providers via their own entry-points
+- **Build Optimization**: Entry-points catalog + config enables selective module inclusion
+- **No Hardcoded Imports**: Components no longer need _provider_classes dictionaries
+- **Runtime Flexibility**: Configuration controls what gets loaded from entry-points catalog
+- **Development Experience**: Clear catalog of all available providers in pyproject.toml
+- **Deployment Efficiency**: Multiple build profiles for different use cases
 
 ### Related Files
 - `irene/components/audio_component.py` (lines 24-31, 104-110)
@@ -101,107 +273,120 @@ The codebase already has supporting utilities:
 - `irene/utils/loader.py` (existing dynamic loading utilities)
 - `irene/plugins/registry.py` (pattern for configuration-driven discovery)
 
-## 2. Target Build System: Minimal Container and Service Builds
+## 2. Entry-Points Based Build System: Minimal Container and Service Builds
 
 **Status:** Open  
 **Priority:** Critical  
-**Components:** Build system, Docker configuration, Service installation
+**Components:** Build system, Docker configuration, Service installation, Entry-points integration
 
 ### Problem
 
-The project needs a sophisticated build system that creates minimal deployments based on TOML configuration, including only the required Irene modules and their dependencies. This is critical for both Docker container size optimization and lean service installations.
+The project needs a sophisticated build system that creates minimal deployments by analyzing entry-points catalog + TOML configuration to include only required Irene modules and their dependencies. This leverages TODO #1's entry-points architecture for both discovery and selective builds.
 
 ### Current State
 
 - ✅ Project configuration through TOML files exists
-- ❌ TOML configuration compliance needs full verification
-- ❌ No selective module inclusion based on configuration
+- ❌ Entry-points catalog not established in pyproject.toml
+- ❌ Build system doesn't analyze entry-points + configuration
 - ❌ Docker builds include all modules regardless of usage
-- ❌ No service installation script with selective components
+- ❌ No multi-profile build support for different deployments
 
 ### Required Implementation
 
-**Phase 1: TOML Configuration Verification**
-- Audit existing TOML configuration system for completeness
-- Verify all components, providers, and dependencies are properly declared
-- Ensure configuration accurately reflects module requirements
-- Validate dependency mapping between components and providers
+**Phase 1: Entry-Points Build Analysis**
+- Establish entry-points catalog in pyproject.toml for all providers/components
+- Create build analyzer that reads config.toml + entry-points metadata
+- Map enabled providers to their entry-point module paths
+- Generate inclusion/exclusion manifests for builds
 
-**Phase 2: Selective Build System**
-- Create Python script for analyzing TOML configuration
-- Implement dependency resolution for selected components
-- Build module inclusion/exclusion logic based on configuration
-- Generate minimal file trees for target deployments
-
-**Phase 3: Docker Build Integration**
+**Phase 2: Configuration-Driven Module Selection**
 ```python
-# Example configuration-driven inclusion
-[components]
-enabled = ["audio", "llm", "asr"]  # TTS excluded
-providers.audio = ["sounddevice", "console"]
-providers.llm = ["openai"]
-providers.asr = ["whisper"]
-
-# Result: TTS component and all TTS providers excluded from build
+# Build system analyzes this flow:
+# config.toml: [providers.audio] enabled = ["sounddevice"]
+# pyproject.toml: sounddevice = "irene.providers.audio.sounddevice:SoundDeviceAudioProvider"  
+# Result: Include "irene.providers.audio.sounddevice" module, exclude all others
 ```
 
-**Phase 4: Service Installation Script**
-- Bash script for minimal service installations
-- Selective component installation based on configuration
-- Dependency management for lean deployments
-- Runtime configuration validation
+**Phase 3: Multi-Profile Build System**
+```python
+# Different build profiles from different configs
+def create_build_profiles():
+    profiles = {
+        "minimal": analyze_build("config-minimal.toml"),      # Single providers only
+        "full": analyze_build("config-full.toml"),           # All providers  
+        "docker": analyze_build("config-docker.toml"),       # Container optimized
+        "api-only": analyze_build("config-api-only.toml"),   # No audio components
+    }
+    return profiles
+```
 
-**Phase 5: Binary Dependency Management**
-- Install or build binary dependencies (binary libraries) alongside Python dependencies
-- Platform-specific binary resolution (Linux, macOS, Windows)
-- Native library compilation and linking for audio/ML components
-- System package management integration (apt, yum, brew, etc.)
-- Cross-compilation support for different architectures
+**Phase 4: Docker Integration with Entry-Points**
+- Multi-stage Docker builds based on entry-points analysis
+- Layer optimization with selective provider inclusion
+- Build argument support for different configuration profiles
+- Container size optimization through precise module selection
+
+**Phase 5: External Package Integration**
+- Support third-party packages that contribute entry-points
+- Include external provider modules in selective builds
+- Dependency resolution across core + external entry-points
+- Validation of external entry-point compatibility
 
 ### Technical Architecture
 
-**Build Process Flow**
+**Entry-Points Build Process Flow**
 ```
-TOML Config → Dependency Analyzer → Module Selector → Build Generator
-     ↓              ↓                    ↓              ↓
-Configuration   Resolve deps      Include/exclude   Docker/Service
-validation      recursively       modules           build artifacts
+Config TOML + Entry-Points → Build Analyzer → Module Selector → Multi-Profile Builder
+     ↓                           ↓                ↓                    ↓
+[providers.audio]           Map enabled      Include/exclude    Minimal builds per
+enabled=["sounddevice"] →   to entry-points →   modules    →    profile configuration
 ```
 
 **Key Components**
-1. **Configuration Parser**: Parse and validate TOML build specifications
-2. **Dependency Resolver**: Map component dependencies recursively
-3. **Module Selector**: Determine which files/directories to include
-4. **Build Generator**: Create Docker files and installation scripts
-5. **Validation Engine**: Verify build completeness and runtime requirements
+1. **Entry-Points Analyzer**: Read pyproject.toml entry-points catalog
+2. **Configuration Parser**: Parse enabled providers from config.toml
+3. **Module Mapper**: Map enabled providers to their entry-point module paths
+4. **Build Profiler**: Create different build configurations (minimal, full, docker)
+5. **Selective Packager**: Generate builds with only required modules
 
 ### Implementation Examples
 
-**Minimal Audio-Only Build**
+**Entry-Points Catalog (pyproject.toml)**
 ```toml
-[build.target]
-name = "irene-audio-only"
-components = ["audio"]
-providers.audio = ["sounddevice"]
-workflows = ["continuous_listening"]
+# Complete provider catalog
+[project.entry-points."irene.providers.audio"]
+sounddevice = "irene.providers.audio.sounddevice:SoundDeviceAudioProvider"
+console = "irene.providers.audio.console:ConsoleAudioProvider"
 
-# Results in container with only:
-# - Audio component and sounddevice provider
-# - Core engine and workflow manager
-# - No TTS, LLM, ASR, or NLU components
+[project.entry-points."irene.providers.tts"]
+elevenlabs = "irene.providers.tts.elevenlabs:ElevenLabsTTSProvider"
+console = "irene.providers.tts.console:ConsoleTTSProvider"
 ```
 
-**Complete Assistant Build**
+**Minimal Audio-Only Build (config-minimal.toml)**
 ```toml
-[build.target]
-name = "irene-full-assistant"
-components = ["audio", "tts", "llm", "asr", "voice_trigger"]
-providers.audio = ["sounddevice", "console"]
-providers.tts = ["elevenlabs", "console"]
-providers.llm = ["openai", "anthropic"]
-providers.asr = ["whisper"]
-providers.voice_trigger = ["microwakeword"]
-workflows = ["voice_assistant"]
+[components]
+enabled = ["audio"]  # Only audio component
+
+[providers.audio]
+enabled = ["console"]  # Only console audio provider
+
+# Build result: Includes only these modules:
+# - irene.core.*
+# - irene.components.audio_component
+# - irene.providers.audio.console
+# All other providers/components excluded
+```
+
+**Full Development Build (config-full.toml)**
+```toml
+[providers.audio]
+enabled = ["sounddevice", "console"]  # Multiple audio providers
+
+[providers.tts]
+enabled = ["elevenlabs", "console"]   # Multiple TTS providers
+
+# Build result: Includes all enabled provider modules
 ```
 
 ### Build Outputs
@@ -224,46 +409,46 @@ workflows = ["voice_assistant"]
 
 ### Benefits
 
+- **Entry-Points Integration**: Seamless integration with TODO #1's discovery architecture
+- **Precise Module Selection**: Only modules for enabled providers included in builds
+- **External Package Support**: Third-party entry-points automatically supported
+- **Multi-Profile Deployments**: Different builds for different use cases
 - **Container Optimization**: Dramatically reduced Docker image sizes
-- **Security**: Smaller attack surface with fewer installed components
-- **Performance**: Faster startup times with fewer modules to load
-- **Deployment Flexibility**: Multiple specialized builds for different use cases
-- **Resource Efficiency**: Lower memory and storage requirements
-- **Maintenance**: Easier updates for targeted deployments
+- **Standard Python Pattern**: Uses established setuptools conventions
 
 ### Technical Challenges
 
-1. **Dependency Resolution**: Complex inter-module dependencies need accurate mapping
-2. **Binary Dependency Management**: Cross-platform compilation, linking, and distribution of native libraries
-3. **Runtime Validation**: Ensure minimal builds are functionally complete
-4. **Configuration Complexity**: TOML specifications must be comprehensive yet intuitive
-5. **Build Automation**: Integration with CI/CD pipelines
-6. **Platform Compatibility**: Handle different architectures and operating systems
-7. **Testing**: Validate all possible component combinations across platforms
+1. **Entry-Points Metadata**: Ensure accurate mapping from entry-points to module paths
+2. **Inter-Module Dependencies**: Handle dependencies between core modules and providers
+3. **External Package Discovery**: Detect and include third-party entry-points correctly
+4. **Build Profile Validation**: Ensure each build profile is functionally complete
+5. **Entry-Points Loading**: Handle ImportError when modules missing from minimal builds
+6. **Configuration Complexity**: Balance comprehensive catalogs with simple configurations
+7. **CI/CD Integration**: Automated testing of multiple build profiles
 
 ### Existing Infrastructure to Leverage
 
-- Current TOML configuration system
-- Existing dependency checking utilities in `utils/loader.py`
-- Plugin registry patterns for dynamic loading
-- Component manager architecture
-- Docker configuration foundation
+- Current TOML configuration system in `irene/config/`
+- Existing `safe_import()` utilities in `utils/loader.py` for handling missing modules
+- Component manager architecture can coordinate entry-points discovery
+- Docker configuration foundation in root `Dockerfile`
+- Python setuptools entry-points standard pattern
 
 ### Impact
 
-- **Breaking Change**: Build process fundamentally changes
-- **Deployment Revolution**: Multiple specialized deployment options
-- **Development Workflow**: New build validation requirements
-- **Configuration Management**: Enhanced TOML specification needed
-- **CI/CD Updates**: Build pipeline modifications required
+- **Moderate Breaking Change**: Entry-points addition + build system creation
+- **Enhanced Extensibility**: Third-party packages can contribute providers seamlessly
+- **Development Workflow**: Clear entry-points catalog + multi-profile builds
+- **Deployment Optimization**: Precisely sized builds for different use cases
+- **CI/CD Enhancement**: Automated testing of minimal and full builds
 
 ### Related Files
 
-- `pyproject.toml` (current configuration)
-- `Dockerfile` (current Docker build)
-- `irene/utils/loader.py` (dependency utilities)
-- `irene/core/components.py` (component management)
-- `irene/plugins/registry.py` (dynamic loading patterns)
+- `pyproject.toml` (entry-points catalog to be added)
+- `Dockerfile` (Docker build integration)
+- `irene/utils/loader.py` (safe_import utilities for missing modules)
+- `irene/core/components.py` (component coordination with entry-points)
+- `irene/config/models.py` (configuration parsing)
 - Build automation scripts (to be created)
 
 ## 3. AudioComponent Command Handling Architecture Issue
