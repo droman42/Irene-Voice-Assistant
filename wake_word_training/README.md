@@ -249,7 +249,7 @@ graph LR
     C --> F
     D --> G
     E --> G
-    F --> G
+    F --> H
     G --> H
     
     style G fill:#e8f5e8
