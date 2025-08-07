@@ -1107,4 +1107,432 @@ fallback_only = true
 ### Related Files
 
 - `irene/intents/handlers/base.py` (intent handler base class)
-- `irene/providers/nlu/rule_based.py`
+- `irene/providers/nlu/rule_based.py` (keyword matching implementation)
+- `irene/providers/nlu/spacy_provider.py` (semantic fallback)
+- `irene/providers/text_processing/unified_processor.py` (existing text processing)
+- `irene/providers/text_processing/number_processor.py` (number processing)
+- `irene/intents/recognizer.py` (NLU coordination and plugin chain)
+- `irene/intents/registry.py` (intent handler registration)
+- Russian morphology utility (to be created)
+
+---
+
+## 7. Named Client Support for Contextual Command Processing
+
+**Status:** Open  
+**Priority:** Medium  
+**Components:** Workflow system, RequestContext, Voice trigger, Intent system
+
+### Problem
+
+The current system lacks support for named clients (device identification) that would allow the same command to behave differently based on the source device. This is essential for multi-device deployments where business logic needs to interpret commands contextually based on the originating client.
+
+### Current Architecture Limitations
+
+**Generic Request Context:**
+```python
+class RequestContext:
+    def __init__(self,
+                 source: str = "unknown",        # Generic source name
+                 session_id: str = "default",    # Session ID
+                 # No client/device identification
+```
+
+**Missing Components:**
+- No client identifier propagation from VoiceTrigger
+- No business logic interpretation of client identifiers
+- No contextual command routing based on source device
+- No standardized client naming scheme
+
+### Proposed Solution: Named Client Architecture
+
+**Phase 1: Client Identification Infrastructure**
+- Extend `RequestContext` with client identifier support
+- Add client ID propagation from voice trigger to intent execution
+- Create client registry and metadata management
+- Implement client-aware intent routing
+
+**Phase 2: VoiceTrigger Integration**
+```python
+# VoiceTrigger passes client identifier
+class WakeWordResult:
+    def __init__(self, 
+                 detected: bool,
+                 confidence: float,
+                 word: str,
+                 client_id: Optional[str] = None):  # NEW: Client identifier
+```
+
+**Phase 3: Intent Context Awareness**
+```python
+# Enhanced RequestContext
+class RequestContext:
+    def __init__(self,
+                 source: str = "unknown",
+                 session_id: str = "default", 
+                 client_id: Optional[str] = None,     # NEW: Named client
+                 client_metadata: Optional[Dict] = None,  # NEW: Client data
+                 wants_audio: bool = False,
+                 skip_wake_word: bool = False,
+                 metadata: Optional[Dict[str, Any]] = None):
+```
+
+**Phase 4: Business Logic Integration**
+```python
+# Intent handlers become client-aware
+class IntentHandler(ABC):
+    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        # Access client information for contextual processing
+        client_id = context.request_context.client_id
+        client_metadata = context.request_context.client_metadata
+        
+        # Same command, different behavior based on client
+        if intent.action == "close_curtains":
+            return await self._handle_curtains_for_client(client_id)
+```
+
+### Technical Implementation
+
+**Client Registry System**
+```python
+class ClientRegistry:
+    """Registry for managing named clients and their metadata"""
+    
+    def register_client(self, client_id: str, metadata: Dict[str, Any]):
+        """Register a named client with metadata"""
+        
+    def get_client_metadata(self, client_id: str) -> Optional[Dict[str, Any]]:
+        """Get metadata for a named client"""
+        
+    def update_client_status(self, client_id: str, status: Dict[str, Any]):
+        """Update client status information"""
+```
+
+**Workflow Integration**
+- Voice trigger components pass client identifiers
+- Workflows propagate client context through pipeline
+- Intent orchestrator provides client-aware routing
+- Intent handlers receive client information for business logic
+
+### Use Cases Enabled
+
+**Multi-Device Scenarios:**
+- Same voice command behaves differently in different rooms
+- Device-specific capabilities and configurations
+- Contextual responses based on client location
+- Client-specific user preferences and settings
+
+**Example: Contextual Commands**
+```python
+# Command: "Turn on the lights"
+# kitchen_device -> Controls kitchen lights
+# bedroom_device -> Controls bedroom lights  
+# living_room_device -> Controls living room lights
+```
+
+### Benefits
+
+- **Contextual Intelligence**: Same commands work differently based on source
+- **Multi-Device Support**: Natural scaling to multiple voice endpoints
+- **Business Logic Flexibility**: Intent handlers can implement client-specific behavior
+- **Future Extensibility**: Foundation for smart home, IoT, and enterprise scenarios
+- **Backwards Compatibility**: Optional client ID doesn't break existing workflows
+
+### Configuration Example
+
+```toml
+[clients]
+# Client registry configuration
+kitchen = { type = "room", location = "kitchen", capabilities = ["lighting", "music"] }
+bedroom = { type = "room", location = "bedroom", capabilities = ["lighting", "climate"] }
+office = { type = "workspace", location = "office", capabilities = ["lighting", "presentation"] }
+
+[voice_trigger]
+# Client ID can be configured per voice trigger instance
+client_id = "kitchen"  # This device represents the kitchen
+
+[intents.handlers]
+# Intent handlers can access client information
+contextual_routing = true
+```
+
+### Impact
+
+- **Workflow Changes**: RequestContext and workflow pipeline modifications
+- **Intent System**: Enhanced context propagation and handler capabilities
+- **Voice Trigger**: Client ID integration in wake word detection
+- **Configuration**: Client registry and mapping configuration
+- **Backward Compatibility**: Existing implementations continue to work with null client_id
+
+### Related Files
+
+- `irene/workflows/base.py` (RequestContext enhancement)
+- `irene/intents/models.py` (Intent and context models)
+- `irene/intents/orchestrator.py` (client-aware routing)
+- `irene/intents/handlers/base.py` (intent handler base class)
+- `irene/providers/voice_trigger/base.py` (voice trigger client ID support)
+- `irene/core/workflow_manager.py` (workflow context management)
+
+## 8. Review New Providers for Asset Management Compliance
+
+**Status:** Open  
+**Priority:** Medium  
+**Components:** All provider modules
+
+### Problem
+
+New providers need to be reviewed for compliance with the project's asset management guidelines to ensure consistent resource handling, model storage, and configuration management across the codebase.
+
+### Required Review Areas
+
+1. **Model Storage**: Verify providers follow the centralized model storage pattern defined via environment variables
+2. **Cache Management**: Ensure providers use the unified cache folder structure
+3. **Resource Cleanup**: Check for proper cleanup of temporary files and resources
+4. **Configuration Patterns**: Validate adherence to standard configuration schemas
+5. **Documentation**: Ensure provider documentation includes asset management details
+
+### Asset Management Guidelines
+
+Based on project memories:
+- All AI models and cache folders should be placed under a single root directory defined via environment variables in .env file
+- This allows for consistent configuration when mounting from Docker images
+- Providers should not create their own isolated storage patterns
+
+### Impact
+- Consistent resource management across all providers
+- Better Docker deployment support
+- Reduced storage fragmentation
+- Improved maintainability and debugging
+
+### Related Files
+- `docs/ASSET_MANAGEMENT.md` (asset management guidelines)
+- All provider modules in `irene/providers/`
+- `.env` configuration files
+- Docker configuration files
+
+## 9. MicroWakeWord Hugging Face Integration
+
+**Status:** Open  
+**Priority:** Medium  
+**Component:** `irene/providers/voice_trigger/microwakeword.py`
+
+### Problem
+
+The MicroWakeWordProvider has been integrated with asset management but still needs Hugging Face model download support for seamless model distribution and updates.
+
+### Current State
+
+- ✅ Asset management integration completed
+- ✅ Local model support with `url: "local"` configuration
+- ✅ Legacy model path backward compatibility
+- ❌ Hugging Face model download not implemented
+
+### Required Implementation
+
+1. **Hugging Face Integration**: Add support for downloading models from Hugging Face Hub
+2. **Model Registry Updates**: Update `microwakeword` section in model registry with actual Hugging Face model URLs
+3. **Download Validation**: Implement model validation and checksum verification
+4. **Documentation**: Update configuration examples with Hugging Face model IDs
+
+### Technical Details
+
+**Asset Manager Changes:**
+- Add Hugging Face URL pattern recognition in `_download_model_impl`
+- Support `huggingface://organization/model-name` URL format
+- Integrate with `huggingface_hub` library for downloads
+
+**Configuration Updates:**
+```yaml
+microwakeword:
+  irene_model:
+    url: "huggingface://irene-ai/microwakeword-irene-v1"
+    size: "5MB"
+    format: "tflite"
+    description: "Official microWakeWord model for 'irene'"
+```
+
+### Dependencies
+
+- `huggingface_hub` library for model downloads
+- Model validation utilities
+- Checksum verification support
+
+### Benefits
+
+- Seamless model distribution and updates
+- Centralized model hosting on Hugging Face
+- Version control for model releases
+- Community model sharing capabilities
+
+### Related Files
+
+- `irene/providers/voice_trigger/microwakeword.py` (provider implementation)
+- `irene/core/assets.py` (asset manager)
+- `irene/config/models.py` (model registry)
+- `docs/ASSET_MANAGEMENT.md` (asset management documentation)
+
+## 10. Binary WebSocket Optimization for External Devices
+
+**Status:** Open  
+**Priority:** Low  
+**Components:** WebSocket endpoints, ESP32 integration, Audio streaming
+
+### Problem
+
+While Irene already supports WebSocket-initiated ASR workflows for external devices like ESP32 through base64-encoded audio chunks, the current implementation could be optimized for binary streaming to reduce latency and improve performance for continuous audio streams from external hardware.
+
+### Current State
+
+- ✅ WebSocket ASR support via `/ws` and `/asr/stream` endpoints
+- ✅ ESP32 can stream audio and receive transcriptions
+- ✅ Voice trigger bypass with `ContinuousListeningWorkflow`
+- ❌ Base64 encoding adds unnecessary overhead for binary audio data
+- ❌ No ESP32-specific optimized endpoints
+- ❌ No binary WebSocket support for raw PCM streaming
+
+### Proposed Enhancement
+
+**Phase 1: Binary WebSocket Endpoint**
+- Add dedicated binary WebSocket endpoint for external devices
+- Support raw PCM audio data (16kHz, 16-bit, mono)
+- Eliminate base64 encoding/decoding overhead
+- Optimize for continuous audio streaming
+
+**Phase 2: ESP32-Specific Protocol**
+```javascript
+// Enhanced binary streaming protocol
+WebSocket: /ws/audio/binary
+- Audio session initiation and configuration
+- Raw PCM binary frames
+- Stream control messages (start/stop/pause)
+- Audio format negotiation
+```
+
+**Phase 3: Session Management**
+- Audio session lifecycle management
+- Quality monitoring and adaptive streaming
+- Connection recovery and reconnection logic
+- Multi-device session support
+
+### Technical Implementation
+
+**Binary WebSocket Endpoint**
+```python
+@app.websocket("/ws/audio/binary")
+async def binary_audio_stream(websocket: WebSocket):
+    """Optimized binary audio streaming for ESP32/external devices"""
+    await websocket.accept()
+    
+    # Session setup
+    config = await websocket.receive_json()  # Initial config
+    
+    try:
+        while True:
+            # Receive raw PCM binary data
+            audio_data = await websocket.receive_bytes()
+            
+            # Direct ASR processing (no base64 overhead)
+            text = await asr.transcribe_audio(audio_data)
+            
+            # Send binary or JSON response
+            if text.strip():
+                await websocket.send_json({
+                    "type": "transcription",
+                    "text": text,
+                    "timestamp": time.time()
+                })
+```
+
+**ESP32 Integration Benefits**
+- **Reduced Latency**: Direct binary streaming vs base64 encoding
+- **Lower CPU Usage**: No encoding/decoding overhead on ESP32
+- **Better Performance**: Optimized for continuous audio streams
+- **Memory Efficiency**: Smaller memory footprint for audio buffers
+
+### Current ESP32 Compatibility
+
+The existing ESP32 firmware already supports:
+- WebSocket connectivity with TLS
+- Raw PCM audio streaming
+- Audio session management
+- Binary data transmission
+
+### Benefits
+
+- **Performance**: Significantly reduced latency for real-time audio
+- **Efficiency**: Lower CPU and memory usage on both ESP32 and server
+- **Scalability**: Better support for multiple simultaneous ESP32 devices
+- **Battery Life**: Reduced processing overhead improves ESP32 battery efficiency
+- **Quality**: Higher audio quality with direct binary transmission
+
+### Impact
+
+- **Low Breaking Change**: Additive enhancement to existing WebSocket support
+- **Backward Compatibility**: Existing base64 endpoints remain unchanged
+- **Optional Enhancement**: ESP32 devices can choose optimal endpoint
+- **Infrastructure**: Minimal changes to existing workflow system
+
+### Related Files
+
+- `irene/runners/webapi_runner.py` (WebSocket endpoint definitions)
+- `irene/components/asr_component.py` (ASR WebSocket endpoints)
+- `irene/inputs/web.py` (WebSocket audio handling)
+- `ESP32/firmware/common/src/network/network_manager.cpp` (ESP32 audio streaming)
+- `ESP32/firmware/common/src/audio/audio_manager.cpp` (ESP32 audio processing)
+
+## 14. ESP32 INT8 Wake Word Model Migration
+
+**Status:** Completed  
+**Priority:** High  
+**Components:** ESP32 firmware, wake word training pipeline
+
+### Problem
+
+ESP32 wake word detection was using FP32 models with higher memory usage and slower inference. INT8 quantization provides better performance and resource efficiency for microcontroller deployment.
+
+### Solution Implemented
+
+Completed full INT8 migration with the following improvements:
+
+#### C1) Integration Guide Updates
+- ✅ Updated `wake_word_training/scripts/converters/to_esp32.py` 
+- ✅ Added MFCC preprocessing documentation in generated integration guide
+- ✅ Corrected INT8 quantization examples (input->data.int8, dequantization formulas)
+- ✅ Removed FP32 assumptions from template code
+
+#### C2) Device Sanity Checklist
+- ✅ Added `perform_sanity_checks()` method to `wake_word_detector.cpp`
+- ✅ Logs input/output tensor types, scales, and zero points at boot
+- ✅ Reports tensor dimensions and arena memory utilization
+- ✅ Performs zero-input stability test to detect model bias issues
+- ✅ Validates tensor shapes match MFCC frontend expectations
+
+#### C3) Validation Requirements Documentation
+- ✅ Updated `ESP32/docs/irene_firmware.md` with INT8 validation protocol
+- ✅ Defined threshold re-tuning requirements for quantized models
+- ✅ Specified validation metrics: ≥95% recall, ≤2 false accepts/hour, ≤140ms latency
+- ✅ Added validation log format and acceptance criteria
+- ✅ Documented expected performance delta from FP32 baseline
+
+### Benefits
+
+- **Memory Efficiency**: Reduced PSRAM usage from 160KB to 80KB tensor arena
+- **Performance**: 15-25ms inference time vs 30-40ms for FP32 models
+- **Debugging**: Comprehensive sanity checks for faster troubleshooting
+- **Validation**: Systematic testing protocol ensures deployment quality
+- **Documentation**: Clear integration guide with INT8-specific examples
+
+### Impact
+
+- **Low Breaking Change**: Existing model training pipeline preserved
+- **Hardware Optimization**: Better utilization of ESP32-S3 resources
+- **Quality Assurance**: Robust validation prevents deployment issues
+- **Developer Experience**: Improved debugging and integration documentation
+
+### Related Files
+
+- `wake_word_training/scripts/converters/to_esp32.py` (INT8 integration guide)
+- `ESP32/firmware/common/src/audio/wake_word_detector.cpp` (sanity checks)
+- `ESP32/firmware/common/include/audio/wake_word_detector.hpp` (method declarations)
+- `ESP32/docs/irene_firmware.md` (validation requirements)
+- `wake_word_training/scripts/tensorflow_trainer.py` (INT8 model training)
