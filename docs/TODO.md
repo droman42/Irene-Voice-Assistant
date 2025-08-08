@@ -572,181 +572,293 @@ number_processor = NumberTextProcessor()    # Pure numbers - cross-compatible
 ## 3. Entry-Points Based Build System: Minimal Container and Service Builds
 
 **Status:** Ready for Implementation (Foundation Complete via TODO #1)  
-**Priority:** Critical (Blocked by TODO #2 text processing providers)  
-**Components:** Build system, Docker configuration, Service installation, Entry-points integration
+**Priority:** Critical (Foundation complete, implementation ready)  
+**Components:** Runtime build tool, Multi-platform Docker, Service installation, GitHub Actions CI/CD
 
 ### Problem
 
 The project needs a sophisticated build system that creates minimal deployments by analyzing entry-points catalog + TOML configuration to include only required Irene modules and their dependencies. This leverages TODO #1's entry-points architecture for both discovery and selective builds.
 
+### Solution: Runtime Build Tool Integration (APPROVED)
+
+**Design Decision**: Use runtime build tool analysis within Docker and system installation processes, not static file generation.
+
 ### Current State
 
-- ✅ Project configuration through TOML files exists
-- ❌ Entry-points catalog not established in pyproject.toml
-- ❌ Build system doesn't analyze entry-points + configuration
-- ❌ Docker builds include all modules regardless of usage
-- ❌ No multi-profile build support for different deployments
+- ✅ Entry-points catalog established in pyproject.toml (77 entry-points)
+- ✅ Dynamic discovery system implemented (`DynamicLoader`)
+- ✅ Configuration-driven provider filtering implemented
+- ❌ Runtime build analyzer tool not implemented
+- ❌ Current Dockerfile is legacy and needs complete redesign
+- ❌ No multi-platform Docker support (x86_64 + ARMv7)
+- ❌ No GitHub Actions workflow for automated builds
 
 ### Required Implementation
 
-**Phase 1: Entry-Points Build Analysis** ✅ **FOUNDATION COMPLETE** 
-- ✅ Entry-points catalog established in pyproject.toml (77 entry-points)
-- ✅ Dynamic discovery system implemented (`DynamicLoader`)
-- ❌ Build analyzer to read config.toml + entry-points metadata
-- ❌ Map enabled providers to their entry-point module paths  
-- ❌ Generate inclusion/exclusion manifests for builds
+**Phase 1: Runtime Build Analyzer Tool** (Priority: High)
+- ❌ Create `irene/tools/build_analyzer.py` - core analysis engine
+- ❌ Configuration parser for TOML + entry-points metadata analysis
+- ❌ Binary dependency mapping for system packages (libportaudio2, libsndfile1, etc.)
+- ❌ Module inclusion/exclusion logic based on enabled providers
+- ❌ Build requirements validation and conflict detection
+- ❌ Profile discovery: scan `configs/` directory for available `.toml` files
 
-**Phase 2: Configuration-Driven Module Selection**
+**Phase 2: Multi-Platform Docker Infrastructure** (Priority: High)
+- ❌ Create `configs/` directory with standard configuration profiles
+- ❌ Complete redesign of Dockerfile from scratch (current is legacy garbage)
+- ❌ `Dockerfile.x86_64` - Ubuntu desktop/server optimized build
+- ❌ `Dockerfile.armv7` - Small image for ARMv7 platform (Raspberry Pi, embedded)
+- ❌ Runtime build tool integration with `--build-arg CONFIG_PROFILE=<filename>`
+- ❌ Multi-stage builds: builder (dependencies) + runtime (minimal)
+
+**Phase 3: System Installation Scripts** (Priority: Medium)
+- ❌ `install-irene.sh` - Universal installation script with profile support
+- ❌ Profile selection: `./install-irene.sh <profile_name>` uses `configs/<profile_name>.toml`
+- ❌ Platform detection (Ubuntu, Debian, CentOS, macOS)
+- ❌ Runtime dependency analysis and system package installation
+- ❌ UV package manager integration for Python dependencies
+- ❌ Service file generation for systemd/other init systems
+
+**Phase 4: GitHub Actions CI/CD** (Priority: Medium) 
+- ❌ **Selective Workflow Strategy**: Create workflows only for production profiles
+- ❌ `.github/workflows/docker-minimal.yml` - Minimal deployment builds (x86_64 + ARMv7)
+- ❌ `.github/workflows/docker-full.yml` - Full development builds (release only)
+- ❌ `.github/workflows/docker-api-only.yml` - API-only server builds
+- ❌ Automated ARMv7 builds using buildx cross-compilation
+- ❌ Container registry publishing (Docker Hub, GitHub Container Registry)
+- ❌ Build validation and testing for each platform/profile combination
+
+**Phase 5: External Package Integration** (Priority: Low)
+- ❌ Third-party entry-points discovery and inclusion
+- ❌ External package dependency resolution
+- ❌ Build profile validation for external providers
+- ❌ Documentation for third-party provider integration
+
+### Technical Architecture: Runtime Build Tool Integration
+
+**Runtime Analysis Flow**
+```
+TOML Config + Entry-Points → Runtime Analyzer → Dependency Resolver → Platform Builder
+     ↓                           ↓                     ↓                    ↓
+[providers.audio]           Map to modules       Generate deps       Docker/System
+enabled=["sounddevice"] →   + binary deps    →   (system + python) → specific builds
+```
+
+**Core Build Tool Components**
 ```python
-# Build system analyzes this flow:
-# config.toml: [providers.audio] enabled = ["sounddevice"]
-# pyproject.toml: sounddevice = "irene.providers.audio.sounddevice:SoundDeviceAudioProvider"  
-# Result: Include "irene.providers.audio.sounddevice" module, exclude all others
+class IreneBuildAnalyzer:
+    def analyze_runtime_requirements(self, config_path: str) -> BuildRequirements
+    def list_available_profiles(self) -> List[str]  # Scans configs/ directory
+    def generate_docker_commands(self, requirements: BuildRequirements) -> List[str]
+    def generate_system_install_commands(self, requirements: BuildRequirements) -> List[str]
+    def validate_build_profile(self, requirements: BuildRequirements) -> ValidationResult
 ```
 
-**Phase 3: Multi-Profile Build System**
-```python
-# Different build profiles from different configs
-def create_build_profiles():
-    profiles = {
-        "minimal": analyze_build("config-minimal.toml"),      # Single providers only
-        "full": analyze_build("config-full.toml"),           # All providers  
-        "docker": analyze_build("config-docker.toml"),       # Container optimized
-        "api-only": analyze_build("config-api-only.toml"),   # No audio components
-    }
-    return profiles
-```
-
-**Phase 4: Docker Integration with Entry-Points**
-- Multi-stage Docker builds based on entry-points analysis
-- Layer optimization with selective provider inclusion
-- Build argument support for different configuration profiles
-- Container size optimization through precise module selection
-
-**Phase 5: External Package Integration**
-- Support third-party packages that contribute entry-points
-- Include external provider modules in selective builds
-- Dependency resolution across core + external entry-points
-- Validation of external entry-point compatibility
-
-### Technical Architecture
-
-**Entry-Points Build Process Flow**
-```
-Config TOML + Entry-Points → Build Analyzer → Module Selector → Multi-Profile Builder
-     ↓                           ↓                ↓                    ↓
-[providers.audio]           Map enabled      Include/exclude    Minimal builds per
-enabled=["sounddevice"] →   to entry-points →   modules    →    profile configuration
-```
-
-**Key Components**
-1. **Entry-Points Analyzer**: Read pyproject.toml entry-points catalog
-2. **Configuration Parser**: Parse enabled providers from config.toml
-3. **Module Mapper**: Map enabled providers to their entry-point module paths
-4. **Build Profiler**: Create different build configurations (minimal, full, docker)
-5. **Selective Packager**: Generate builds with only required modules
+**Platform-Specific Integration Points**
+1. **Docker Integration**: `RUN python -m irene.tools.build_analyzer --config configs/${CONFIG_PROFILE}.toml`
+2. **System Installation**: `./install-irene.sh minimal` (uses `configs/minimal.toml`)
+3. **Profile Discovery**: `python -m irene.tools.build_analyzer --list-profiles`
+4. **CI/CD Validation**: `python -m irene.tools.build_analyzer --validate-all-profiles`
+5. **Development**: `python -m irene.tools.build_analyzer --config configs/development.toml --dry-run`
 
 ### Implementation Examples
 
-**Entry-Points Catalog (pyproject.toml)**
-```toml
-# Complete provider catalog
-[project.entry-points."irene.providers.audio"]
-sounddevice = "irene.providers.audio.sounddevice:SoundDeviceAudioProvider"
-console = "irene.providers.audio.console:ConsoleAudioProvider"
+**Runtime Docker Integration with Configuration Profiles**
+```dockerfile
+# Dockerfile.x86_64 - Ubuntu desktop/server optimized
+FROM python:3.11-slim as builder
 
-[project.entry-points."irene.providers.tts"]
-elevenlabs = "irene.providers.tts.elevenlabs:ElevenLabsTTSProvider"
-console = "irene.providers.tts.console:ConsoleTTSProvider"
+# Install build tool and configuration profiles
+COPY tools/ /build-tools/
+COPY configs/ /build-tools/configs/
+COPY pyproject.toml /build-tools/
+
+# Runtime analysis of selected configuration profile
+ARG CONFIG_PROFILE=minimal
+RUN python /build-tools/build_analyzer.py \
+    --config /build-tools/configs/${CONFIG_PROFILE}.toml \
+    --generate-requirements /tmp/requirements.txt \
+    --generate-system-deps /tmp/system-deps.txt
+
+# Install only required system dependencies  
+RUN apt-get update && apt-get install -y $(cat /tmp/system-deps.txt)
+
+# Install only required Python packages
+RUN uv add --requirements /tmp/requirements.txt
+
+FROM python:3.11-slim as runtime
+COPY --from=builder /root/.local /root/.local
+# ... copy only analyzed modules
 ```
 
-**Minimal Audio-Only Build (config-minimal.toml)**
-```toml
-[components]
-enabled = ["audio"]  # Only audio component
+**Multi-Platform Docker Builds with Profile Selection**
+```bash
+# Different profiles using same Dockerfile template
+docker build -f Dockerfile.x86_64 --build-arg CONFIG_PROFILE=minimal -t irene:minimal-x86 .
+docker build -f Dockerfile.armv7 --build-arg CONFIG_PROFILE=embedded-armv7 -t irene:embedded-arm .
+docker build -f Dockerfile.x86_64 --build-arg CONFIG_PROFILE=full -t irene:full-x86 .
+docker build -f Dockerfile.x86_64 --build-arg CONFIG_PROFILE=api-only -t irene:api-only .
 
-[providers.audio]
-enabled = ["console"]  # Only console audio provider
-
-# Build result: Includes only these modules:
-# - irene.core.*
-# - irene.components.audio_component
-# - irene.providers.audio.console
-# All other providers/components excluded
+# Available profiles automatically discovered from configs/ directory
+docker run --rm irene:minimal-x86 python -m irene.tools.build_analyzer --list-profiles
 ```
 
-**Full Development Build (config-full.toml)**
-```toml
-[providers.audio]
-enabled = ["sounddevice", "console"]  # Multiple audio providers
+**System Installation with Profile-Based Configuration**
+```bash
+#!/bin/bash
+# install-irene.sh - Universal installation script with profile support
 
-[providers.tts]
-enabled = ["elevenlabs", "console"]   # Multiple TTS providers
+PROFILE=${1:-minimal}
 
-# Build result: Includes all enabled provider modules
+# Validate profile exists
+if [ ! -f "configs/${PROFILE}.toml" ]; then
+    echo "❌ Profile '${PROFILE}' not found in configs/ directory"
+    echo "📋 Available profiles:"
+    python -m irene.tools.build_analyzer --list-profiles
+    exit 1
+fi
+
+# Runtime analysis of selected profile
+python -m irene.tools.build_analyzer \
+    --config "configs/${PROFILE}.toml" \
+    --generate-system-deps /tmp/system-deps.txt \
+    --generate-python-deps /tmp/python-deps.txt
+
+# Install system dependencies
+echo "🔧 Installing system dependencies for profile: ${PROFILE}"
+sudo apt-get update
+sudo apt-get install -y $(cat /tmp/system-deps.txt)
+
+# Install Python dependencies with UV
+echo "🐍 Installing Python dependencies..."
+uv sync --extra-from-file /tmp/python-deps.txt
+
+echo "✅ Installation complete for profile: ${PROFILE}"
 ```
 
-### Build Outputs
+### Multi-Platform Docker Strategy
 
-**Docker Build**
-- Minimal Dockerfile with only required dependencies
-- Binary dependency compilation and installation in container layers
-- Optimized layer structure for caching (separate layers for binary deps)
-- Runtime environment with selected components only
-- Significantly reduced container size
-- Multi-stage builds for binary compilation vs runtime
+**Dockerfile.x86_64 Features**
+- Ubuntu-based optimized for desktop/server deployments
+- Full system package availability (libportaudio2, libsndfile1, etc.)
+- Support for heavy ML models (tensorflow, torch) when needed
+- Optimized layer caching for faster CI/CD builds
+- Multi-stage builds: builder (deps + compilation) + runtime (minimal)
 
-**Service Installation**
-- Bash script for targeted service deployment
-- System dependency installation (only required packages)
-- Binary library compilation and linking
-- Platform-specific native dependency resolution
-- Configuration template generation
-- Service file creation with minimal footprint
+**Dockerfile.armv7 Features**  
+- Alpine or minimal Debian base for smallest possible image
+- Cross-compilation support for ARM binary dependencies
+- Optimized for embedded/IoT deployments (Raspberry Pi)
+- Reduced package selection (prefer lightweight alternatives)
+- Memory and storage constrained environment optimization
+
+**GitHub Actions Integration - Selective Workflow Strategy**
+```yaml
+# .github/workflows/docker-minimal.yml - Production minimal builds
+name: Build Minimal Docker Images
+on: [push, pull_request]
+jobs:
+  build:
+    strategy:
+      matrix:
+        platform: [x86_64, armv7]
+        include:
+          - platform: x86_64
+            dockerfile: Dockerfile.x86_64
+            config_profile: minimal
+          - platform: armv7
+            dockerfile: Dockerfile.armv7
+            config_profile: embedded-armv7
+    steps:
+      - name: Build
+        run: docker build -f ${{ matrix.dockerfile }} 
+             --build-arg CONFIG_PROFILE=${{ matrix.config_profile }}
+
+# .github/workflows/docker-full.yml - Full builds (releases only)
+name: Build Full Docker Images  
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+# ... similar structure with full profile
+```
 
 ### Benefits
 
-- **Entry-Points Integration**: Seamless integration with TODO #1's discovery architecture
-- **Precise Module Selection**: Only modules for enabled providers included in builds
-- **External Package Support**: Third-party entry-points automatically supported
-- **Multi-Profile Deployments**: Different builds for different use cases
-- **Container Optimization**: Dramatically reduced Docker image sizes
-- **Standard Python Pattern**: Uses established setuptools conventions
+- **Runtime Flexibility**: Configuration changes don't require regenerating Docker/bash files
+- **Multi-Platform Support**: Native x86_64 and ARMv7 optimized builds
+- **Precise Dependency Resolution**: Only required system + Python packages included
+- **CI/CD Automation**: GitHub Actions for automated multi-platform builds
+- **Container Size Optimization**: Dramatically reduced image sizes (especially ARMv7)
+- **Entry-Points Integration**: Leverages TODO #1's 77-entry-point discovery system
+- **External Package Support**: Third-party providers automatically supported
+- **Development Experience**: Single tool handles Docker, system installation, and validation
 
 ### Technical Challenges
 
-1. **Entry-Points Metadata**: Ensure accurate mapping from entry-points to module paths
-2. **Inter-Module Dependencies**: Handle dependencies between core modules and providers
-3. **External Package Discovery**: Detect and include third-party entry-points correctly
-4. **Build Profile Validation**: Ensure each build profile is functionally complete
-5. **Entry-Points Loading**: Handle ImportError when modules missing from minimal builds
-6. **Configuration Complexity**: Balance comprehensive catalogs with simple configurations
-7. **CI/CD Integration**: Automated testing of multiple build profiles
+1. **Binary Dependency Mapping**: Accurate mapping of providers to system packages (libportaudio2, etc.)
+2. **Cross-Platform Compilation**: ARMv7 cross-compilation for audio libraries and ML models
+3. **Runtime Performance**: Build analyzer tool must be fast enough for CI/CD usage
+4. **Docker Layer Optimization**: Efficient caching and minimal layer sizes for both platforms
+5. **GitHub Actions ARM Support**: Proper configuration for ARMv7 builds using buildx
+6. **Build Profile Validation**: Ensure each platform/profile combination is functionally complete
+7. **Legacy Dockerfile Migration**: Complete replacement of current Docker infrastructure
+8. **UV Integration**: Seamless integration with UV package manager in containers
 
 ### Existing Infrastructure to Leverage
 
-- Current TOML configuration system in `irene/config/`
-- Existing `safe_import()` utilities in `utils/loader.py` for handling missing modules
-- Component manager architecture can coordinate entry-points discovery
-- Docker configuration foundation in root `Dockerfile`
-- Python setuptools entry-points standard pattern
+- ✅ **Entry-points catalog** (77 entry-points) established in `pyproject.toml`
+- ✅ **Dynamic discovery system** (`DynamicLoader`) for runtime provider loading
+- ✅ **TOML configuration system** in `irene/config/` for profile management
+- ✅ **UV package manager** integration throughout project [[memory:5070430]]
+- ✅ **Asset management** system with environment variable support [[memory:5019230]]
+- ✅ **Component architecture** with graceful dependency handling
+- ❌ **Current Dockerfile** (legacy, needs complete replacement)
 
 ### Impact
 
-- **Moderate Breaking Change**: Entry-points addition + build system creation
-- **Enhanced Extensibility**: Third-party packages can contribute providers seamlessly
-- **Development Workflow**: Clear entry-points catalog + multi-profile builds
-- **Deployment Optimization**: Precisely sized builds for different use cases
-- **CI/CD Enhancement**: Automated testing of minimal and full builds
+- **Major Infrastructure Change**: Complete Docker and build system redesign
+- **Multi-Platform Support**: Native ARMv7 + x86_64 optimized builds
+- **CI/CD Transformation**: GitHub Actions for automated multi-platform builds
+- **Deployment Optimization**: Precisely sized builds for different use cases (minimal containers)
+- **Developer Experience**: Unified tool for Docker, system installation, and validation
+- **Breaking Change**: Current Dockerfile users must migrate to new multi-platform approach
+
+### Configuration Profiles Strategy
+
+**Standard Profile Set:**
+```
+configs/
+├── minimal.toml          # Ultra-lightweight (console providers only)
+├── full.toml             # Complete development setup  
+├── api-only.toml         # Web API server without audio
+├── embedded-armv7.toml   # Raspberry Pi/IoT optimized
+├── server-x86.toml       # Server deployment optimized
+├── development.toml      # All tools + debug settings
+└── voice.toml            # Voice assistant development
+```
+
+**Usage Examples:**
+- **Docker**: `docker build --build-arg CONFIG_PROFILE=minimal`
+- **System Install**: `./install-irene.sh embedded-armv7`
+- **Development**: `python -m irene.runners.cli --config configs/development.toml`
+- **CI/CD**: Selective workflows for production profiles only
 
 ### Related Files
 
-- `pyproject.toml` (entry-points catalog to be added)
-- `Dockerfile` (Docker build integration)
-- `irene/utils/loader.py` (safe_import utilities for missing modules)
-- `irene/core/components.py` (component coordination with entry-points)
-- `irene/config/models.py` (configuration parsing)
-- Build automation scripts (to be created)
+- ❌ `configs/` directory (standard configuration profiles - to be created)
+- ❌ `irene/tools/build_analyzer.py` (core runtime build tool - to be created)
+- ❌ `Dockerfile.x86_64` (Ubuntu-based Docker build - complete redesign)
+- ❌ `Dockerfile.armv7` (ARMv7-optimized Docker build - to be created)
+- ❌ `install-irene.sh` (universal system installation script - to be created)
+- ❌ `.github/workflows/docker-minimal.yml` (minimal deployment CI/CD - to be created)
+- ❌ `.github/workflows/docker-full.yml` (full development CI/CD - to be created)
+- ❌ `.github/workflows/docker-api-only.yml` (API-only CI/CD - to be created)
+- ✅ `pyproject.toml` (77 entry-points catalog established)
+- ✅ `irene/utils/loader.py` (DynamicLoader for runtime discovery)
+- ✅ `irene/config/models.py` (TOML configuration parsing)
+- ❌ `Dockerfile` (legacy - to be removed after migration)
 
 ## 4. AudioComponent Command Handling Architecture Issue
 
@@ -1482,7 +1594,7 @@ The existing ESP32 firmware already supports:
 
 ## 14. ESP32 INT8 Wake Word Model Migration
 
-**Status:** Completed  
+**Status:** ✅ **COMPLETED**  
 **Priority:** High  
 **Components:** ESP32 firmware, wake word training pipeline
 
