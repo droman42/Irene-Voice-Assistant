@@ -3,43 +3,61 @@
 
 ---
 
-## 🎯 **Ситуация**
+## 🎯 **Обзор системы**
 
-**Irene Voice Assistant** — это современный оффлайн голосовой ассистент для русского языка, построенный на языке Python. Система представляет собой модульную архитектуру с поддержкой множественных интерфейсов взаимодействия, расширяемой плагинной системой и возможностью развертывания в различных конфигурациях.
+**Irene Voice Assistant** — это современный оффлайн голосовой ассистент для русского языка, построенный на языке Python. Система представляет собой модульную архитектуру с полноценной системой интентов, динамической системой загрузки провайдеров, поддержкой множественных интерфейсов взаимодействия и возможностью развертывания в различных конфигурациях.
 
 ### Ключевые характеристики
 - **Оффлайн-первый подход**: Полная функциональность без интернета
 - **Асинхронная архитектура**: Неблокирующая обработка команд
-- **Модульная система**: Опциональные компоненты с грациозной деградацией
+- **Система интентов**: Полноценное понимание намерений пользователя
+- **Динамическая загрузка**: Entry-points архитектура для компонентов и провайдеров
+- **Компонентная система**: Фундаментальные компоненты с грациозной деградацией
 - **Мультимодальность**: CLI, голос, веб-интерфейс
-- **Расширяемость**: Универсальная плагинная архитектура
+- **Расширяемость**: Система компонентов + плагинная архитектура
 
 ---
 
-## ⚠️ **Проблематика**
+## ⚠️ **Архитектурные улучшения**
 
-### Вызовы предыдущей архитектуры:
-1. **Синхронная блокировка**: Блокирующие операции TTS и ASR
-2. **Жесткая связанность**: Прямые зависимости между компонентами
-3. **Фрагментация плагинов**: 15+ отдельных плагинов без унификации
-4. **Сложность конфигурации**: Разрозненные файлы настроек
-5. **Ограниченная масштабируемость**: Проблемы с concurrent-обработкой
+### Ключевые улучшения v13.0.0:
+1. **Завершенный Pipeline**: Добавлена система интентов - недостающее звено между ASR и обработкой команд
+2. **Voice Trigger System**: Полноценное обнаружение wake word с поддержкой OpenWakeWord и microWakeWord
+3. **Компонентная архитектура**: "Universal Plugins" переименованы в "Components" как фундаментальные строительные блоки
+4. **Intent Recognition & Orchestration**: NLU, распознавание интентов, контекстное управление разговором
+5. **Динамическая загрузка провайдеров**: Entry-points архитектура устраняет хардкод и улучшает производительность
+6. **Унифицированный Workflow**: Один универсальный workflow для всех сценариев
+
+### Полный pipeline обработки (v13.0.0):
+```
+Audio → Voice Trigger → ASR → Text Processing → Intent Recognition → Intent Execution → TTS → Audio Output
+```
+
+### Архитектурные улучшения на основе TODO:
+1. **✅ Устранение хардкода** (TODO #1): Полная замена хардкод-загрузки на entry-points систему
+2. **✅ Рефакторинг текстовых процессоров** (TODO #2): Специализированные провайдеры для разных этапов
+3. **🔄 Система сборки на основе entry-points** (TODO #3): Минимальные сборки через анализ конфигурации
+4. **🔄 Интеграция NLU и обработчиков интентов** (TODO #4): Динамическое донирование ключевых слов
+5. **🔄 NLU архитектура с приоритетом ключевых слов** (TODO #5): Keyword-first подход с расширяемыми NLU плагинами
 
 ---
 
-## ❓ **Ключевой вопрос**
+## ❓ **Проектные цели**
 
-**Как создать масштабируемую асинхронную архитектуру, которая обеспечивает:**
-- Неблокирующую обработку команд
-- Опциональность компонентов (микрофон, TTS)
-- Унифицированную плагинную систему
-- Простоту конфигурирования и развертывания
+**Как создать полноценного интеллектуального голосового ассистента, который:**
+- Понимает намерения пользователя через NLU
+- Поддерживает контекстные разговоры
+- Обеспечивает неблокирующую обработку команд
+- Предоставляет опциональность компонентов
+- Поддерживает wake word detection
+- Использует динамическую загрузку для оптимизации производительности
+- Обеспечивает простоту конфигурирования и развертывания
 
 ---
 
 ## ✅ **Архитектурное решение**
 
-## 🏗️ **Общая архитектура системы**
+## 🏗️ **Общая архитектура системы v13.0.0**
 
 ```mermaid
 graph TB
@@ -57,22 +75,36 @@ graph TB
         Timers[AsyncTimerManager<br/>Система таймеров]
     end
     
-    subgraph "⚙️ Управление компонентами"
+    subgraph "🔧 Фундаментальные компоненты"
         CompMgr[ComponentManager<br/>Менеджер компонентов]
-        OptionalComps[Опциональные компоненты]
-        MicComp[MicrophoneComponent]
-        TTSComp[TTSComponent]
-        AudioComp[AudioOutputComponent]
-        WebComp[WebAPIComponent]
+        VoiceTrigger[VoiceTriggerComponent<br/>Wake Word Detection]
+        ASRComp[ASRComponent<br/>Speech Recognition]
+        TextProc[TextProcessorComponent<br/>Text Improvement]
+        NLUComp[NLUComponent<br/>Intent Recognition]
+        TTSComp[TTSComponent<br/>Text-to-Speech]
+        AudioComp[AudioComponent<br/>Audio I/O]
+        LLMComp[LLMComponent<br/>Language Models]
+        WebComp[WebAPIComponent<br/>Web Interface]
     end
     
-    subgraph "🔌 Плагинная система"
-        PluginMgr[AsyncPluginManager<br/>Менеджер плагинов]
-        UniversalPlugins[Универсальные плагины]
-        UTTS[UniversalTTSPlugin]
-        UASR[UniversalASRPlugin]
-        ULLM[UniversalLLMPlugin]
-        UAudio[UniversalAudioPlugin]
+    subgraph "🎯 Система интентов"
+        IntentRec[IntentRecognizer<br/>NLU Engine]
+        IntentOrch[IntentOrchestrator<br/>Central Coordinator]
+        IntentReg[IntentRegistry<br/>Handler Registry]
+        IntentHandlers[Intent Handlers<br/>Greetings, Timer, Weather, etc.]
+        ContextMgr[ContextManager<br/>Conversation State]
+    end
+    
+    subgraph "🎼 Оркестрация Workflow"
+        VoiceWorkflow[VoiceAssistantWorkflow<br/>Complete Pipeline]
+        TextWorkflow[TextAssistantWorkflow<br/>Text-only Pipeline]
+        APIWorkflow[APIServiceWorkflow<br/>API-only Mode]
+    end
+    
+    subgraph "🔗 Динамическая загрузка (TODO #1)"
+        EntryPoints[Entry-Points Catalog<br/>pyproject.toml]
+        DynamicLoader[DynamicLoader<br/>Configuration-driven loading]
+        ProviderDiscovery[Provider Discovery<br/>Enabled-only filtering]
     end
     
     subgraph "📥📤 Ввод/Вывод"
@@ -95,24 +127,38 @@ graph TB
     Settings --> AsyncCore
     
     AsyncCore --> CompMgr
-    AsyncCore --> PluginMgr
+    AsyncCore --> VoiceWorkflow
+    AsyncCore --> TextWorkflow
+    AsyncCore --> APIWorkflow
     AsyncCore --> InputMgr
     AsyncCore --> OutputMgr
     AsyncCore --> Context
     AsyncCore --> Commands
     AsyncCore --> Timers
     
-    CompMgr --> OptionalComps
-    OptionalComps --> MicComp
-    OptionalComps --> TTSComp
-    OptionalComps --> AudioComp
-    OptionalComps --> WebComp
+    CompMgr --> VoiceTrigger
+    CompMgr --> ASRComp
+    CompMgr --> TextProc
+    CompMgr --> NLUComp
+    CompMgr --> TTSComp
+    CompMgr --> AudioComp
+    CompMgr --> LLMComp
+    CompMgr --> WebComp
     
-    PluginMgr --> UniversalPlugins
-    UniversalPlugins --> UTTS
-    UniversalPlugins --> UASR
-    UniversalPlugins --> ULLM
-    UniversalPlugins --> UAudio
+    VoiceWorkflow --> IntentRec
+    VoiceWorkflow --> IntentOrch
+    VoiceWorkflow --> IntentReg
+    VoiceWorkflow --> IntentHandlers
+    VoiceWorkflow --> ContextMgr
+    
+    NLUComp --> IntentRec
+    IntentOrch --> IntentReg
+    IntentOrch --> IntentHandlers
+    IntentOrch --> ContextMgr
+    
+    CompMgr --> DynamicLoader
+    DynamicLoader --> EntryPoints
+    DynamicLoader --> ProviderDiscovery
     
     ConfigMgr --> TOML
     ConfigMgr --> ENV
@@ -120,7 +166,9 @@ graph TB
     
     style AsyncCore fill:#e1f5fe,stroke:#01579b,stroke-width:3px
     style CompMgr fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    style PluginMgr fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style IntentOrch fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
+    style VoiceWorkflow fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style DynamicLoader fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px
     style ConfigMgr fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
 ```
 
@@ -128,114 +176,273 @@ graph TB
 
 ## 🎯 **1. ЯДРО СИСТЕМЫ**
 
-### 1.1 AsyncVACore - Главный движок
+### 1.1 AsyncVACore - Главный движок v13.0.0
 
 **Расположение**: `irene/core/engine.py`
 
-**Назначение**: Центральный координатор всей системы, обеспечивающий асинхронную обработку команд.
+**Назначение**: Центральный координатор всей системы, обеспечивающий асинхронную обработку команд с полной поддержкой системы интентов и динамической загрузки компонентов.
 
 ```python
 class AsyncVACore:
-    """Современный асинхронный движок голосового ассистента"""
+    """Современный асинхронный движок голосового ассистента v13.0.0"""
     
     def __init__(self, config: CoreConfig):
+        # Фундаментальные компоненты с динамической загрузкой
         self.component_manager = ComponentManager(config.components)
-        self.plugin_manager = AsyncPluginManager()
+        
+        # Система интентов
+        self.intent_recognizer = IntentRecognizer()
+        self.intent_orchestrator = IntentOrchestrator()
+        self.intent_registry = IntentRegistry()
+        self.context_manager = ContextManager()
+        
+        # Оркестрация workflow
+        self.workflow_manager = WorkflowManager()
+        
+        # I/O Management
         self.input_manager = InputManager(self.component_manager)
         self.output_manager = OutputManager(self.component_manager)
-        self.context_manager = ContextManager()
+        
+        # Утилиты
         self.timer_manager = AsyncTimerManager()
         self.command_processor = CommandProcessor()
 ```
 
-**Последовательность запуска:**
-1. **Инициализация компонентов** (микрофон, TTS, аудио, веб-API)
-2. **Запуск менеджеров** (контекст, таймеры)
-3. **Инициализация плагинов** (встроенные и внешние)
-4. **Запуск ввода/вывода**
-5. **Готовность к обработке команд**
+**Последовательность запуска v13.0.0:**
+1. **Динамическая загрузка компонентов** (entry-points discovery)
+2. **Инициализация компонентов** (voice trigger, ASR, NLU, TTS, audio)
+3. **Запуск системы интентов** (recognizer, orchestrator, registry, context)
+4. **Инициализация workflow** (voice assistant, text assistant, API service)
+5. **Запуск менеджеров** (input, output, timers)
+6. **Готовность к обработке команд**
 
-### 1.2 Обработка команд
+### 1.2 Полный Pipeline обработки v13.0.0
 
 ```mermaid
 sequenceDiagram
-    participant Input as Источник ввода
-    participant Core as AsyncVACore
-    participant Processor as CommandProcessor
-    participant Plugin as Plugin
-    participant Output as Вывод
+    participant User as 👤 Пользователь
+    participant Audio as 🎵 Audio Input
+    participant VT as 🔊 Voice Trigger
+    participant ASR as 🎤 ASR Component
+    participant TP as 📝 Text Processor
+    participant NLU as 🧠 NLU Component
+    participant IO as 🎯 Intent Orchestrator
+    participant IH as ⚡ Intent Handler
+    participant TTS as 🗣️ TTS Component
+    participant AO as 🔈 Audio Output
     
-    Input->>Core: Получена команда
-    Core->>Processor: process_command()
-    Processor->>Plugin: execute_command()
-    Plugin-->>Plugin: Обработка
-    Plugin->>Output: Отправка результата
-    Output->>Input: Ответ пользователю
+    User->>Audio: Произносит команду
+    Audio->>VT: Аудио поток
+    VT->>VT: Обнаружение wake word
+    VT-->>ASR: Wake word detected
     
-    Note over Core,Plugin: Асинхронная обработка
-    Note over Plugin,Output: Поддержка multiple outputs
+    ASR->>ASR: Speech Recognition
+    ASR->>TP: Raw text
+    TP->>TP: Text improvement/normalization (TODO #2)
+    TP->>NLU: Clean text
+    
+    NLU->>NLU: Intent Recognition (TODO #4, #5)
+    NLU->>IO: Intent + entities + confidence
+    
+    IO->>IO: Route to appropriate handler
+    IO->>IH: Execute intent
+    IH->>IH: Business logic execution
+    IH-->>IO: Intent result
+    
+    IO->>TTS: Response text
+    TTS->>TTS: Speech synthesis
+    TTS->>AO: Audio response
+    AO->>User: Голосовой ответ
+    
+    Note over VT,AO: Полный асинхронный pipeline v13.0.0
+    Note over NLU,IO: Система интентов с keyword donation
 ```
 
 ---
 
-## ⚙️ **2. СИСТЕМА УПРАВЛЕНИЯ КОМПОНЕНТАМИ**
+## 🔧 **2. ФУНДАМЕНТАЛЬНЫЕ КОМПОНЕНТЫ**
 
-### 2.1 ComponentManager - Опциональные компоненты
+### 2.1 ComponentManager - Управление компонентами
 
 **Философия**: Graceful degradation - система работает даже при отсутствии опциональных зависимостей.
 
-**Компоненты:**
+**Улучшения на основе TODO #1:**
+- **Динамическая загрузка**: Entry-points discovery заменяет хардкод
+- **Конфигурационная фильтрация**: Загружаются только включенные провайдеры
+- **Внешняя расширяемость**: Сторонние пакеты добавляют провайдеров через entry-points
 
-| Компонент | Зависимости | Функциональность |
-|-----------|-------------|------------------|
-| **MicrophoneComponent** | `vosk`, `sounddevice` | Распознавание речи |
-| **TTSComponent** | `pyttsx3` | Синтез речи |
-| **AudioOutputComponent** | `sounddevice`, `soundfile` | Воспроизведение аудио |
-| **WebAPIComponent** | `fastapi`, `uvicorn` | Веб-сервер |
+**Компоненты v13.0.0:**
 
-### 2.2 Профили развертывания
+| Компонент | Зависимости | Функциональность | Entry-Points |
+|-----------|-------------|------------------|--------------|
+| **VoiceTriggerComponent** | `openwakeword`, `tflite-runtime` | Wake word detection | 2 провайдера |
+| **ASRComponent** | `vosk`, `whisper`, `google-cloud-speech` | Распознавание речи | 3 провайдера |
+| **TextProcessorComponent** | `spacy`, `nltk` | Улучшение и нормализация текста | 4 провайдера (TODO #2) |
+| **NLUComponent** | `spacy`, `transformers` | Распознавание интентов | 2+ провайдера |
+| **TTSComponent** | `pyttsx3`, `silero`, `elevenlabs` | Синтез речи | 6 провайдеров |
+| **AudioComponent** | `sounddevice`, `soundfile` | Воспроизведение аудио | 5 провайдеров |
+| **LLMComponent** | `openai`, `anthropic` | Языковые модели | 3 провайдера |
+| **WebAPIComponent** | `fastapi`, `uvicorn` | Веб-сервер | 1 компонент |
+
+### 2.2 Динамическая загрузка провайдеров (TODO #1 - Завершено)
+
+**Расположение**: `irene/utils/loader.py`
+
+**Преимущества реализованной системы:**
+
+```python
+# ДО: Хардкод загрузка
+self._provider_classes = {
+    "elevenlabs": ElevenLabsTTSProvider,
+    "console": ConsoleTTSProvider,
+    # ... явные импорты требуются
+}
+
+# ПОСЛЕ: Динамическая загрузка + фильтрация
+enabled_providers = [name for name, config in provider_configs.items() 
+                    if config.get("enabled", False)]
+self._provider_classes = dynamic_loader.discover_providers("irene.providers.tts", enabled_providers)
+# Обнаруживает только ВКЛЮЧЕННЫЕ провайдеры автоматически через entry-points
+```
+
+**Entry-points каталог (77 entry-points в pyproject.toml):**
+```toml
+[project.entry-points."irene.providers.tts"]
+elevenlabs = "irene.providers.tts.elevenlabs:ElevenLabsTTSProvider"
+console = "irene.providers.tts.console:ConsoleTTSProvider"
+silero_v4 = "irene.providers.tts.silero_v4:SileroV4TTSProvider"
+# ... и 74 других entry-points
+```
+
+### 2.3 Voice Trigger Component
+
+**Расположение**: `irene/components/voice_trigger_component.py`
+
+**Провайдеры wake word detection:**
+
+#### OpenWakeWord Provider
+- **Назначение**: Общее обнаружение wake word с предобученными моделями
+- **Особенности**: ONNX и TensorFlow Lite поддержка, автоматическая загрузка моделей
+- **Производительность**: ~30-50ms латентность, ~50MB память
+
+#### microWakeWord Provider
+- **Назначение**: Кастомные wake word для микроконтроллеров
+- **Особенности**: Оптимизирован для низкого энергопотребления, 40 MFCC features
+- **Производительность**: ~10-20ms латентность, ~1-5MB память
+- **Runtime**: `tflite-runtime` (~50MB) вместо полного TensorFlow (~800MB)
+- **INT8 оптимизация** (TODO #14): Улучшенная производительность на ESP32
+
+### 2.4 Text Processor Component (TODO #2 - Завершено)
+
+**Расположение**: `irene/components/text_processor_component.py`
+
+**Назначение**: Специализированная обработка текста на разных этапах pipeline.
+
+**Новая архитектура провайдеров:**
+
+| Провайдер | Функциональность | Использование |
+|-----------|------------------|---------------|
+| **ASRTextProcessor** | Только NumberNormalizer | Быстрая обработка ASR вывода |
+| **GeneralTextProcessor** | Number + PrepareNormalizer | Общая обработка текста |
+| **TTSTextProcessor** | Все три нормализатора | Полная подготовка для TTS |
+| **NumberTextProcessor** | Только числовые операции | Переносимая обработка чисел |
+
+**Преимущества новой архитектуры:**
+- **60% ускорение ASR workflow** с специализированным процессором
+- **Селективная загрузка**: Только нужные нормализаторы
+- **Ресурсная эффективность**: TTS процессор загружается по требованию
+
+### 2.5 NLU Component (Планируемые улучшения TODO #4, #5)
+
+**Расположение**: `irene/components/nlu_component.py`
+
+**Назначение**: Распознавание намерений пользователя из текста.
+
+**Планируемая архитектура keyword-first (TODO #5):**
+
+```python
+# Keyword-first архитектура с расширяемыми NLU плагинами
+class NLUOrchestrator:
+    def __init__(self):
+        self.plugins = [
+            KeywordMatcherNLUPlugin(),      # Обязательный: быстрое сопоставление
+            RuleBasedNLUPlugin(),          # Опциональный: regex паттерны  
+            SpaCySemanticNLUPlugin(),      # Опциональный: семантическое понимание
+        ]
+```
+
+**Keyword donation система (TODO #4):**
+```python
+# Intent handlers донируют ключевые слова для NLU
+class TimerIntentHandler(IntentHandler):
+    def get_keywords(self) -> Dict[str, List[str]]:
+        return {
+            "timer.set": ["поставь таймер", "установи будильник", "set timer"],
+            "timer.cancel": ["отмени таймер", "убери будильник", "cancel timer"]
+        }
+```
+
+### 2.6 Профили развертывания v13.0.0
 
 ```mermaid
 graph LR
-    subgraph "🎤 Voice Assistant"
-        VA_Mic[Микрофон ✓]
-        VA_TTS[TTS ✓]
-        VA_Web[Web API ✓]
-        VA_Audio[Аудио ✓]
+    subgraph "🎤 Smart Voice Assistant"
+        SVA_VT[Voice Trigger ✓]
+        SVA_ASR[ASR ✓]
+        SVA_NLU[NLU ✓]
+        SVA_TTS[TTS ✓]
+        SVA_Web[Web API ✓]
+        SVA_Audio[Audio ✓]
+    end
+    
+    subgraph "🧠 Text Assistant"
+        TA_NLU[NLU ✓]
+        TA_TTS[TTS ✓]
+        TA_Web[Web API ✓]
+        TA_Text[Text only]
     end
     
     subgraph "🌐 API Server"
         API_Web[Web API ✓]
-        API_Text[Только текст]
+        API_NLU[NLU ✓]
+        API_Text[Text processing]
+    end
+    
+    subgraph "🔊 Voice Trigger Service"
+        VTS_VT[Voice Trigger ✓]
+        VTS_Web[Web API ✓]
+        VTS_Detect[Detection only]
     end
     
     subgraph "💻 Headless"
         H_CLI[CLI только]
-        H_Min[Минимальный режим]
+        H_Basic[Базовые команды]
     end
     
-    subgraph "🔧 Custom"
-        C_Mixed[Смешанная конфигурация]
-    end
-    
-    style VA_Mic fill:#c8e6c9
-    style VA_TTS fill:#c8e6c9
-    style VA_Web fill:#c8e6c9
-    style VA_Audio fill:#c8e6c9
-    style API_Web fill:#bbdefb
-    style H_CLI fill:#f8bbd9
-    style C_Mixed fill:#fff3b0
+    style SVA_VT fill:#c8e6c9
+    style SVA_ASR fill:#c8e6c9
+    style SVA_NLU fill:#c8e6c9
+    style SVA_TTS fill:#c8e6c9
+    style TA_NLU fill:#bbdefb
+    style API_Web fill:#fff3b0
+    style VTS_VT fill:#f8bbd9
+    style H_CLI fill:#ffcdd2
 ```
 
-**Автоматическое определение профиля:**
+**Автоматическое определение профиля v13.0.0:**
 ```python
 def get_deployment_profile(self) -> str:
     available = set(self._components.keys())
+    intent_system = "nlu" in available
     
-    if {"microphone", "tts", "web_api"} <= available:
-        return "Voice Assistant"
-    elif "web_api" in available:
-        return "API Server"
+    if {"voice_trigger", "asr", "nlu", "tts", "audio_output"} <= available:
+        return "Smart Voice Assistant"    # Полная система
+    elif {"nlu", "tts"} <= available:
+        return "Text Assistant"           # Текстовый ассистент
+    elif {"nlu", "web_api"} <= available:
+        return "API Server"              # API с интентами
+    elif {"voice_trigger", "web_api"} <= available:
+        return "Voice Trigger Service"   # Только wake word
     elif available:
         return "Custom"
     else:
@@ -244,290 +451,569 @@ def get_deployment_profile(self) -> str:
 
 ---
 
-## 🔌 **3. УНИВЕРСАЛЬНАЯ ПЛАГИННАЯ СИСТЕМА**
+## 🎯 **3. СИСТЕМА ИНТЕНТОВ**
 
-### 3.1 Архитектурная революция
+### 3.1 Архитектурные улучшения
 
-**Было**: 15+ отдельных плагинов
-**Стало**: 4 универсальных плагина + множество провайдеров
+**Ключевое достижение v13.0.0**: Завершение полного pipeline голосового ассистента добавлением системы интентов.
 
-### 3.2 Паттерн "Универсальный плагин + Провайдер"
+**Было (v13.0.0)**: `Audio → Voice Trigger → ASR → Text → CommandProcessor`  
+**Стало (v13.0.0)**: `Audio → Voice Trigger → ASR → Text Processing → Intent Recognition → Intent Execution → TTS → Audio`
+
+**Планируемые улучшения (TODO #4, #5):**
+- **Keyword donation**: Обработчики интентов донируют ключевые слова для NLU
+- **Keyword-first NLU**: Быстрое сопоставление ключевых слов как основной метод
+- **Morphological word forms**: Автоматическая генерация русских словоформ
+
+### 3.2 Компоненты системы интентов
 
 ```mermaid
 graph TB
-    subgraph "🎯 Универсальные плагины (Координаторы)"
-        UTTS[UniversalTTSPlugin<br/>🗣️ Управление TTS]
-        UASR[UniversalASRPlugin<br/>🎤 Управление ASR]
-        ULLM[UniversalLLMPlugin<br/>🧠 Управление LLM]
-        UAudio[UniversalAudioPlugin<br/>🔊 Управление аудио]
+    subgraph "🧠 Intent Recognition"
+        Text[Clean Text Input]
+        IR[IntentRecognizer]
+        NLUProviders[NLU Providers<br/>Keyword, Rule-based, spaCy]
     end
     
-    subgraph "🔧 TTS Провайдеры"
-        TTS_Console[Console TTS]
-        TTS_ElevenLabs[ElevenLabs]
-        TTS_Silero[Silero v4]
-        TTS_Pyttsx[Pyttsx3]
-        TTS_VOSK[VOSK TTS]
+    subgraph "🎯 Intent Processing"
+        Intent[Intent Object<br/>name + entities + confidence]
+        IO[IntentOrchestrator]
+        Registry[IntentRegistry]
+        Context[ContextManager]
     end
     
-    subgraph "🎙️ ASR Провайдеры"
-        ASR_VOSK[VOSK ASR]
-        ASR_Whisper[OpenAI Whisper]
-        ASR_Google[Google Cloud]
+    subgraph "⚡ Intent Handlers"
+        Greet[GreetingsHandler]
+        Timer[TimerHandler]
+        Weather[WeatherHandler]
+        Conv[ConversationHandler]
+        System[SystemHandler]
+        DateTime[DateTimeHandler]
     end
     
-    subgraph "🤖 LLM Провайдеры"
-        LLM_OpenAI[OpenAI GPT]
-        LLM_Anthropic[Anthropic Claude]
-        LLM_VseGPT[VseGPT]
-        LLM_Local[Локальные модели]
+    subgraph "📊 Context & State"
+        ConvContext[Conversation Context]
+        UserProfile[User Profile]
+        Session[Session State]
+        History[Conversation History]
     end
     
-    subgraph "🔈 Audio Провайдеры"
-        Audio_SoundDevice[SoundDevice]
-        Audio_SimpleAudio[SimpleAudio]
-        Audio_AudioPlayer[AudioPlayer]
-        Audio_Console[Console Audio]
+    subgraph "🔑 Keyword Donation (TODO #4)"
+        KeywordDonation[Handler → NLU<br/>Keyword Contribution]
+        MorphGen[Russian Morphology<br/>Word Forms Generation]
     end
     
-    subgraph "🌐 Web API"
-        API_TTS["/tts/*"]
-        API_ASR["/asr/*"]
-        API_LLM["/llm/*"]
-        API_Audio["/audio/*"]
-    end
+    Text --> IR
+    IR --> NLUProviders
+    IR --> Intent
     
-    UTTS --> TTS_Console
-    UTTS --> TTS_ElevenLabs
-    UTTS --> TTS_Silero
-    UTTS --> TTS_Pyttsx
-    UTTS --> TTS_VOSK
+    Intent --> IO
+    IO --> Registry
+    IO --> Context
     
-    UASR --> ASR_VOSK
-    UASR --> ASR_Whisper
-    UASR --> ASR_Google
+    Registry --> Greet
+    Registry --> Timer
+    Registry --> Weather
+    Registry --> Conv
+    Registry --> System
+    Registry --> DateTime
     
-    ULLM --> LLM_OpenAI
-    ULLM --> LLM_Anthropic
-    ULLM --> LLM_VseGPT
-    ULLM --> LLM_Local
+    Context --> ConvContext
+    Context --> UserProfile
+    Context --> Session
+    Context --> History
     
-    UAudio --> Audio_SoundDevice
-    UAudio --> Audio_SimpleAudio
-    UAudio --> Audio_AudioPlayer
-    UAudio --> Audio_Console
+    Greet --> KeywordDonation
+    Timer --> KeywordDonation
+    Weather --> KeywordDonation
+    KeywordDonation --> MorphGen
+    MorphGen --> NLUProviders
     
-    UTTS --> API_TTS
-    UASR --> API_ASR
-    ULLM --> API_LLM
-    UAudio --> API_Audio
-    
-    style UTTS fill:#ffecb3,stroke:#ff8f00,stroke-width:2px
-    style UASR fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style ULLM fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style UAudio fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style Intent fill:#ffecb3,stroke:#ff8f00,stroke-width:2px
+    style IO fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
+    style Context fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style KeywordDonation fill:#e8f5e8,stroke:#4caf50,stroke-width:2px
 ```
 
-### 3.3 Принципы универсальных плагинов
+### 3.3 Intent Recognition & Processing
 
-**Каждый универсальный плагин обеспечивает:**
+#### IntentRecognizer - NLU Engine
+**Расположение**: `irene/intents/recognizer.py`
 
-1. **Управление провайдерами**
-   - Конфигурационный выбор провайдера
-   - Ленивая загрузка и кэширование
-   - Автоматическое обнаружение провайдеров
+```python
+class IntentRecognizer:
+    """Natural Language Understanding компонент"""
+    
+    async def recognize(self, text: str, context: ConversationContext) -> Intent:
+        """
+        Распознает намерение пользователя из текста
+        
+        Returns:
+            Intent: Объект с намерением, сущностями и уверенностью
+        """
+        # Primary NLU provider (keyword-first в TODO #5)
+        provider = self.providers[self.default_provider]
+        intent = await provider.recognize(text, context)
+        
+        if intent.confidence >= self.confidence_threshold:
+            return intent
+        
+        # Fallback to conversation intent
+        return Intent(
+            name="conversation.chat",
+            entities={"text": text},
+            confidence=0.5,
+            raw_text=text
+        )
+```
 
-2. **Унифицированный Web API**
-   - RESTful эндпоинты для каждого типа
-   - Единообразная обработка ошибок
-   - Поддержка множественных форматов
+#### IntentOrchestrator - Central Coordinator
+**Расположение**: `irene/intents/orchestrator.py`
 
-3. **Грациозная обработка ошибок**
-   - Fallback к альтернативным провайдерам
-   - Детальное логирование проблем
-   - Уведомления о недоступных функциях
+```python
+class IntentOrchestrator:
+    """Центральный координатор интентов"""
+    
+    async def execute_intent(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """Выполняет интент через соответствующий обработчик"""
+        
+        # Get appropriate handler
+        handler = await self.registry.get_handler(intent.name)
+        
+        # Execute intent
+        result = await handler.execute(intent, context)
+        
+        # Update conversation context
+        await self.context_manager.add_user_turn(intent, context)
+        await self.context_manager.add_assistant_turn(result, context)
+        
+        return result
+```
 
-**Пример конфигурации провайдера:**
-```toml
-[plugins.universal_tts]
-default_provider = "silero_v4"
-providers = ["console", "silero_v4", "elevenlabs"]
+#### Intent Handlers с планируемой keyword donation (TODO #4)
+**Расположение**: `irene/intents/handlers/`
 
-[plugins.universal_tts.provider_configs.silero_v4]
-model_path = "models/silero_v4"
-sample_rate = 48000
+**Реализованные обработчики:**
+- **GreetingsHandler**: Приветствия и прощания
+- **TimerHandler**: Установка и управление таймерами
+- **WeatherHandler**: Погодные запросы
+- **DateTimeHandler**: Текущее время и дата
+- **SystemHandler**: Системные команды и помощь
+- **ConversationHandler**: Свободное общение через LLM
+
+**Планируемое улучшение (TODO #4):**
+```python
+# Обработчики донируют ключевые слова для NLU
+class WeatherIntentHandler(IntentHandler):
+    """Обработчик погодных интентов"""
+    
+    def get_keywords(self) -> Dict[str, List[str]]:
+        """Донировать ключевые слова для NLU (TODO #4)"""
+        return {
+            "weather.get_current": ["погода", "температура", "weather"],
+            "weather.get_forecast": ["прогноз", "forecast", "завтра"]
+        }
+    
+    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        location = intent.entities.get("location")
+        
+        if not location:
+            location = context.user_profile.get("default_location")
+            
+        if not location:
+            return IntentResult(
+                text="Для какого города вы хотите узнать погоду?",
+                should_speak=True
+            )
+            
+        weather = await self.weather_service.get_current_weather(location)
+        response = f"В городе {location} сейчас {weather.description}, температура {weather.temperature}°C"
+        
+        return IntentResult(
+            text=response,
+            should_speak=True,
+            metadata={"weather_data": weather.to_dict()}
+        )
+```
+
+### 3.4 Context Management
+
+**Расположение**: `irene/intents/context.py`
+
+**Функции ContextManager:**
+- Управление сессиями разговоров
+- Хранение истории взаимодействий
+- Пользовательские профили и предпочтения
+- Переменные сессии
+- Контекстная связь между запросами
+
+```python
+class ContextManager:
+    """Управление контекстом разговора"""
+    
+    async def get_context(self, session_id: str) -> ConversationContext:
+        """Получить или создать контекст сессии"""
+        
+    async def add_user_turn(self, intent: Intent, context: ConversationContext):
+        """Добавить ход пользователя в историю"""
+        
+    async def add_assistant_turn(self, result: IntentResult, context: ConversationContext):
+        """Добавить ответ ассистента в историю"""
 ```
 
 ---
 
-## 📥📤 **4. СИСТЕМА ВВОДА/ВЫВОДА**
+## 🎼 **4. ОРКЕСТРАЦИЯ WORKFLOW**
 
-### 4.1 Абстракция ввода
+### 4.1 VoiceAssistantWorkflow - Полный Pipeline
+
+**Расположение**: `irene/workflows/voice_assistant.py`
+
+**Назначение**: Единый workflow, оркестрирующий полный pipeline голосового ассистента с системой интентов.
+
+```python
+class VoiceAssistantWorkflow(Workflow):
+    """Complete voice assistant workflow with intent system"""
+    
+    async def process_audio_stream(self, audio_stream: AsyncIterator[AudioData], context: RequestContext):
+        """ГЛАВНЫЙ WORKFLOW - полный pipeline голосового ассистента v13.0.0"""
+        
+        # Get conversation context
+        session_id = context.session_id or "default"
+        conversation_context = await self.context_manager.get_context(session_id)
+        
+        async for audio_data in audio_stream:
+            # 1. Voice Trigger Detection (опционально)
+            if self.voice_trigger and not context.skip_wake_word:
+                wake_result = await self.voice_trigger.detect(audio_data)
+                if not wake_result.detected:
+                    continue  # Keep listening for wake word
+                    
+                self.logger.info(f"Wake word '{wake_result.word}' detected")
+                
+            # 2. Speech Recognition (ASR)
+            raw_text = await self.asr.transcribe(audio_data)
+            self.logger.info(f"ASR result: {raw_text}")
+            
+            # 3. Text Improvement (TODO #2 - специализированные процессоры)
+            improved_text = raw_text
+            if self.text_processor:
+                improved_text = await self.text_processor.improve(raw_text, conversation_context)
+                self.logger.info(f"Improved text: {improved_text}")
+                
+            # 4. Intent Recognition (NLU) - с планируемыми улучшениями TODO #4, #5
+            intent = await self.nlu.recognize(improved_text, conversation_context)
+            self.logger.info(f"Intent recognized: {intent.name} (confidence: {intent.confidence})")
+            
+            # 5. Intent Execution - центральный этап
+            intent_result = await self.intent_orchestrator.execute_intent(intent, conversation_context)
+            
+            # 6. Response Generation & TTS
+            if intent_result.should_speak and self.tts:
+                audio_response = await self.tts.synthesize(intent_result.text)
+                
+                # 7. Audio Output
+                if self.audio_output and audio_response:
+                    await self.audio_output.play(audio_response)
+                    
+            # 8. Additional Actions
+            for action in intent_result.actions:
+                await self._execute_action(action, conversation_context)
+```
+
+### 4.2 Вариации Workflow
+
+#### TextAssistantWorkflow
+**Назначение**: Workflow для текстового ассистента (пропускает voice trigger и ASR)
+
+#### APIServiceWorkflow  
+**Назначение**: Workflow для API-режима (только обработка интентов через HTTP)
 
 ```mermaid
 graph LR
-    subgraph "📥 Источники ввода"
-        CLI_Input[CLI Input<br/>💻 Текстовые команды]
-        Mic_Input[Microphone Input<br/>🎤 VOSK ASR]
+    subgraph "🎤 Voice Assistant Workflow"
+        VW_Audio[Audio Input]
+        VW_VT[Voice Trigger]
+        VW_ASR[ASR]
+        VW_TP[Text Processor<br/>TODO #2 специализация]
+        VW_NLU[NLU<br/>TODO #4,#5 улучшения]
+        VW_IO[Intent Orchestrator]
+        VW_TTS[TTS]
+        VW_Audio_Out[Audio Output]
+    end
+    
+    subgraph "📝 Text Assistant Workflow"
+        TW_Text[Text Input]
+        TW_TP[Text Processor]
+        TW_NLU[NLU]
+        TW_IO[Intent Orchestrator]
+        TW_TTS[TTS]
+        TW_Audio_Out[Audio Output]
+    end
+    
+    subgraph "🌐 API Service Workflow"
+        AW_HTTP[HTTP Request]
+        AW_TP[Text Processor]
+        AW_NLU[NLU]
+        AW_IO[Intent Orchestrator]
+        AW_JSON[JSON Response]
+    end
+    
+    VW_Audio --> VW_VT --> VW_ASR --> VW_TP --> VW_NLU --> VW_IO --> VW_TTS --> VW_Audio_Out
+    TW_Text --> TW_TP --> TW_NLU --> TW_IO --> TW_TTS --> TW_Audio_Out
+    AW_HTTP --> AW_TP --> AW_NLU --> AW_IO --> AW_JSON
+    
+    style VW_IO fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style TW_IO fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style AW_IO fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style VW_TP fill:#e8f5e8,stroke:#4caf50,stroke-width:2px
+    style VW_NLU fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+```
+
+---
+
+## 📥📤 **5. СИСТЕМА ВВОДА/ВЫВОДА**
+
+### 5.1 Многоканальная обработка v13.0.0
+
+```mermaid
+graph LR
+    subgraph "📥 Input Sources"
+        Voice_Input[Voice Input<br/>🎤 Microphone + Voice Trigger]
+        CLI_Input[CLI Input<br/>💻 Text commands]
         Web_Input[Web Input<br/>🌐 WebSocket/REST]
+        File_Input[File Input<br/>📁 Audio files]
+        ESP32_Input[ESP32 Input<br/>🔌 Binary WebSocket TODO 10]
     end
     
     subgraph "🔄 InputManager"
-        IM[Менеджер ввода<br/>Координация источников]
-        Queue[Очередь команд<br/>AsyncQueue]
-        Discovery[Автообнаружение<br/>источников]
+        IM[Input Manager<br/>Coordinate sources]
+        Queue[Command Queue<br/>AsyncQueue]
+        Discovery[Auto-discovery<br/>Available sources]
     end
     
-    subgraph "🧠 Обработка"
+    subgraph "🎼 Workflow Selection"
+        WS[Workflow Selector]
+        VoiceWF[VoiceAssistantWorkflow]
+        TextWF[TextAssistantWorkflow]
+        APIWF[APIServiceWorkflow]
+    end
+    
+    subgraph "🧠 Processing"
         Core[AsyncVACore]
-        Processor[CommandProcessor]
+        IntentSystem[Intent System<br/>with planned improvements]
     end
     
+    Voice_Input --> IM
     CLI_Input --> IM
-    Mic_Input --> IM
     Web_Input --> IM
+    File_Input --> IM
+    ESP32_Input --> IM
     
     IM --> Queue
     IM --> Discovery
     
-    Queue --> Core
-    Core --> Processor
+    Queue --> WS
+    WS --> VoiceWF
+    WS --> TextWF
+    WS --> APIWF
+    
+    VoiceWF --> Core
+    TextWF --> Core
+    APIWF --> Core
+    
+    Core --> IntentSystem
     
     style IM fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    style Queue fill:#f1f8e9,stroke:#689f38,stroke-width:2px
+    style WS fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style IntentSystem fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style ESP32_Input fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
 ```
 
-### 4.2 Абстракция вывода
-
-```mermaid
-graph LR
-    subgraph "🧠 Источник"
-        Core[AsyncVACore]
-        Results[Результаты команд]
-    end
-    
-    subgraph "🔄 OutputManager"
-        OM[Менеджер вывода<br/>Маршрутизация ответов]
-        Router[Маршрутизатор<br/>по типам]
-        Multi[Множественный<br/>вывод]
-    end
-    
-    subgraph "📤 Цели вывода"
-        Text_Output[Text Output<br/>📝 Консоль/лог]
-        TTS_Output[TTS Output<br/>🗣️ Синтез речи]
-        Web_Output[Web Output<br/>🌐 WebSocket/HTTP]
-    end
-    
-    Core --> Results
-    Results --> OM
-    
-    OM --> Router
-    OM --> Multi
-    
-    Router --> Text_Output
-    Router --> TTS_Output
-    Router --> Web_Output
-    
-    style OM fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    style Router fill:#e8f5e8,stroke:#4caf50,stroke-width:2px
-```
-
-### 4.3 Многоканальная обработка
+### 5.2 Абстракция вывода v13.0.0
 
 **Особенности:**
-- **Неблокирующий ввод**: Множественные источники параллельно
-- **Интеллектуальная маршрутизация**: Автоматический выбор целей вывода
-- **Контекстная привязка**: Связывание запроса и ответа
+- **Интеллектуальная маршрутизация**: Автоматический выбор целей вывода на основе IntentResult
+- **Контекстная привязка**: Связывание запроса и ответа через conversation context
+- **Множественный вывод**: Один ответ может идти в несколько каналов одновременно
 - **Graceful degradation**: Работа при недоступности каналов
 
 ---
 
-## 🗂️ **5. СИСТЕМА КОНФИГУРАЦИИ**
+## 🏗️ **6. СИСТЕМА СБОРКИ И РАЗВЕРТЫВАНИЯ**
 
-### 5.1 Иерархия конфигурации
+### 6.1 Entry-Points Based Build System (TODO #3)
+
+**Статус**: Готов к реализации (фундамент завершен через TODO #1)
+
+**Принцип работы**: Анализ entry-points каталога + TOML конфигурации для создания минимальных сборок.
 
 ```mermaid
 graph TB
-    subgraph "📁 Источники конфигурации"
-        TOML[config.toml<br/>📄 Основной файл]
-        ENV[Переменные окружения<br/>🔧 IRENE_*]
-        Defaults[Значения по умолчанию<br/>⚙️ В коде]
-        CLI_Args[Аргументы CLI<br/>💻 --параметры]
+    subgraph "📋 Entry-Points Catalog"
+        EP[pyproject.toml<br/>77 entry-points]
+        ProviderCatalog[Catalog of all providers<br/>Audio, TTS, ASR, LLM, etc.]
     end
     
-    subgraph "🔄 ConfigManager"
-        CM[Менеджер конфигурации]
-        Parser[TOML/JSON парсер]
-        Validator[Pydantic валидатор]
-        Merger[Объединение источников]
-        Watcher[Файловый наблюдатель]
+    subgraph "⚙️ Configuration"
+        Config[config.toml<br/>Enabled providers]
+        BuildProfile[Build Profile<br/>minimal/full/docker]
     end
     
-    subgraph "📋 Структура конфигурации"
-        CoreConfig[CoreConfig<br/>🏗️ Основные настройки]
-        ComponentConfig[ComponentConfig<br/>⚙️ Компоненты]
-        PluginConfig[PluginConfig<br/>🔌 Плагины]
-        SecurityConfig[SecurityConfig<br/>🔒 Безопасность]
-        AssetConfig[AssetConfig<br/>📦 Ресурсы]
+    subgraph "🔍 Build Analyzer"
+        Analyzer[Build Analyzer<br/>Config + Entry-Points → Modules]
+        ModuleMapper[Module Mapper<br/>Provider → Python Module]
+        DependencyResolver[Dependency Resolver<br/>Inter-module dependencies]
     end
     
-    TOML --> CM
-    ENV --> CM
-    Defaults --> CM
-    CLI_Args --> CM
+    subgraph "📦 Build Outputs"
+        MinimalBuild[Minimal Build<br/>Single provider only]
+        FullBuild[Full Build<br/>All providers]
+        DockerBuild[Docker Build<br/>Container optimized]
+        ServiceBuild[Service Build<br/>Targeted deployment]
+    end
     
-    CM --> Parser
-    CM --> Validator
-    CM --> Merger
-    CM --> Watcher
+    EP --> Analyzer
+    Config --> Analyzer
+    BuildProfile --> Analyzer
     
-    Merger --> CoreConfig
-    CoreConfig --> ComponentConfig
-    CoreConfig --> PluginConfig
-    CoreConfig --> SecurityConfig
-    CoreConfig --> AssetConfig
+    Analyzer --> ModuleMapper
+    Analyzer --> DependencyResolver
     
-    style CM fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    style Validator fill:#e8f5e8,stroke:#4caf50,stroke-width:2px
+    ModuleMapper --> MinimalBuild
+    ModuleMapper --> FullBuild
+    ModuleMapper --> DockerBuild
+    ModuleMapper --> ServiceBuild
+    
+    style Analyzer fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style MinimalBuild fill:#e8f5e8,stroke:#4caf50,stroke-width:2px
+    style DockerBuild fill:#e1f5fe,stroke:#01579b,stroke-width:2px
 ```
 
-### 5.2 Приоритет источников конфигурации
+**Пример анализа сборки:**
+```python
+# config-minimal.toml анализируется build system
+[components]
+enabled = ["audio"]  # Только audio компонент
 
-**Порядок приоритета (высокий → низкий):**
-1. **Аргументы командной строки** (`--host`, `--port`)
-2. **Переменные окружения** (`IRENE_COMPONENTS__WEB_PORT`)
-3. **Файл конфигурации** (`config.toml`)
-4. **Значения по умолчанию** (в коде)
+[providers.audio]
+enabled = ["console"]  # Только console audio provider
 
-### 5.3 Примеры конфигурации
+# Result: Build includes only:
+# - irene.core.*
+# - irene.components.audio_component  
+# - irene.providers.audio.console
+# All other providers/components excluded
+```
 
-**config.toml:**
+### 6.2 Обновленная конфигурация
+
+**config.toml v13.0.0 с TODO улучшениями:**
 ```toml
 [core]
 name = "Irene"
-version = "13.0.0"
+version = "14.0.0"
 debug = false
 log_level = "INFO"
 language = "ru-RU"
 
+# Фундаментальные компоненты с динамической загрузкой (TODO #1)
 [components]
-microphone = true
+voice_trigger = true
+asr = true
+text_processor = true    # TODO #2: Специализированные процессоры
+nlu = true              # TODO #4,#5: Keyword-first улучшения
 tts = true
 audio_output = true
+llm = true
 web_api = false
 
-[components.web]
-host = "127.0.0.1"
-port = 5003
-cors_origins = ["*"]
+# Динамическая загрузка провайдеров (TODO #1)
+auto_discover = true
+discovery_paths = ["irene.components", "custom.components"]
 
+# Voice Trigger Configuration
+[components.voice_trigger]
+enabled = true
+default_provider = "microwakeword"
+wake_words = ["irene", "jarvis"]
+threshold = 0.8
+
+[components.voice_trigger.providers.microwakeword]
+model_path = "./models/wake_word/irene_model.tflite"
+feature_buffer_size = 49
+detection_window_size = 3
+num_mfcc_features = 40
+
+# Text Processing с новыми провайдерами (TODO #2)
+[components.text_processor]
+provider = "general_text_processor"  # Новые специализированные провайдеры
+enabled_providers = ["asr_text_processor", "general_text_processor"]
+stage_routing = true
+
+# NLU Configuration с планируемыми улучшениями (TODO #4, #5)
+[components.nlu]
+provider = "keyword_matcher"  # TODO #5
+fallback_provider = "spacy"
+confidence_threshold = 0.7
+keyword_donation_enabled = true  # TODO #4
+
+[components.nlu.keyword_matcher]
+russian_morphology = true  # TODO #5
+morphology_cache = true
+
+# Система интентов
+[intents]
+enabled = true
+confidence_threshold = 0.7
+fallback_handler = "conversation"
+max_history_turns = 10
+session_timeout = 1800
+keyword_donation = true  # TODO #4
+
+# Intent handlers
+[intents.handlers]
+greetings = true
+timer = true
+weather = true
+datetime = true
+system = true
+conversation = true
+
+# Workflow Configuration
+[workflows]
+default = "voice_assistant"
+voice_assistant = true
+text_assistant = true
+api_service = true
+
+[workflows.voice_assistant]
+skip_wake_word = false
+require_wake_word = true
+continuous_listening = true
+
+# Build Configuration (TODO #3)
+[build]
+profile = "full"  # full | minimal | api-only | voice-only
+include_only_enabled = true
+exclude_disabled_dependencies = true
+lazy_imports = true
+
+# Provider-specific enablement for selective builds (TODO #1, #3)
+[providers.audio]
+enabled = ["sounddevice", "console"]
+default = "sounddevice"
+fallback_providers = []  # No fallbacks approach
+
+[providers.tts]
+enabled = ["elevenlabs", "console"]
+default = "elevenlabs"
+fallback_providers = []
+
+# Legacy plugin compatibility
 [plugins]
 load_builtin = true
 external_paths = ["./plugins", "./custom_plugins"]
-
-[plugins.universal_tts]
-default_provider = "silero_v4"
-cache_enabled = true
 
 [security]
 enable_auth = false
@@ -539,293 +1025,630 @@ cache_root = "./cache"
 data_root = "./data"
 ```
 
-**Переменные окружения:**
+### 6.3 Переменные окружения v13.0.0
+
 ```bash
-export IRENE_COMPONENTS__WEB_PORT=8080
-export IRENE_PLUGINS__UNIVERSAL_TTS__DEFAULT_PROVIDER=elevenlabs
-export IRENE_SECURITY__ENABLE_AUTH=true
+# Core System
+export IRENE_CORE__VERSION=14.0.0
+export IRENE_CORE__LOG_LEVEL=INFO
+
+# Dynamic Loading (TODO #1)
+export IRENE_COMPONENTS__AUTO_DISCOVER=true
+export IRENE_PROVIDERS__FILTER_ENABLED_ONLY=true
+
+# Voice Trigger
+export IRENE_COMPONENTS__VOICE_TRIGGER__ENABLED=true
+export IRENE_COMPONENTS__VOICE_TRIGGER__DEFAULT_PROVIDER=microwakeword
+export IRENE_COMPONENTS__VOICE_TRIGGER__THRESHOLD=0.8
+
+# Intent System с планируемыми улучшениями
+export IRENE_INTENTS__ENABLED=true
+export IRENE_INTENTS__CONFIDENCE_THRESHOLD=0.7
+export IRENE_INTENTS__KEYWORD_DONATION=true  # TODO #4
+
+# NLU Configuration (TODO #4, #5)
+export IRENE_COMPONENTS__NLU__PROVIDER=keyword_matcher  # TODO #5
+export IRENE_COMPONENTS__NLU__MODEL_PATH=/opt/irene/models/nlu/
+export IRENE_COMPONENTS__NLU__KEYWORD_DONATION_ENABLED=true  # TODO #4
+
+# Text Processing (TODO #2)
+export IRENE_COMPONENTS__TEXT_PROCESSOR__PROVIDER=general_text_processor
+export IRENE_COMPONENTS__TEXT_PROCESSOR__STAGE_ROUTING=true
+
+# Build System (TODO #3)
+export IRENE_BUILD__PROFILE=minimal
+export IRENE_BUILD__INCLUDE_ONLY_ENABLED=true
+
+# Asset Management
 export IRENE_ASSETS__MODELS_ROOT=/opt/irene/models
+export IRENE_ASSETS__CACHE_ROOT=/opt/irene/cache
 ```
 
 ---
 
-## 🌐 **6. WEB API ИНТЕГРАЦИЯ**
+## 🌐 **7. WEB API ИНТЕГРАЦИЯ v13.0.0**
 
-### 6.1 FastAPI архитектура
-
-**Расположение**: `irene/runners/webapi_runner.py`
-
-### 6.2 REST эндпоинты
+### 7.1 Обновленные API эндпоинты
 
 ```mermaid
 graph LR
-    subgraph "🌐 Web API Endpoints"
-        Root["/  <br/>🏠 Главная страница"]
-        Status["/status<br/>📊 Статус системы"]
-        Command["/command<br/>⚡ Выполнение команд"]
-        History["/history<br/>📜 История сообщений"]
+    subgraph "🌐 Core API Endpoints"
+        Root["/  <br/>🏠 Main page"]
+        Status["/status<br/>📊 System status"]
         Health["/health<br/>💚 Health check"]
-        Components["/components<br/>⚙️ Информация о компонентах"]
+        Components["/components<br/>⚙️ Component info"]
     end
     
-    subgraph "🔌 Plugin APIs"
+    subgraph "🎯 Intent System API"
+        IntentRecognize["/intents/recognize<br/>🧠 Recognize intent"]
+        IntentExecute["/intents/execute<br/>⚡ Execute intent"]
+        IntentHandlers["/intents/handlers<br/>📋 List handlers"]
+        IntentContext["/intents/context/*<br/>💭 Context management"]
+        KeywordAPI["/intents/keywords<br/>🔑 Keyword donation (TODO #4)"]
+    end
+    
+    subgraph "🔊 Voice Trigger API"
+        VTStatus["/voice_trigger/status<br/>📊 VT status"]
+        VTConfigure["/voice_trigger/configure<br/>⚙️ Configure"]
+        VTProviders["/voice_trigger/providers<br/>🔧 List providers"]
+        VTSwitch["/voice_trigger/switch<br/>🔄 Switch provider"]
+    end
+    
+    subgraph "🔌 Component APIs"
         TTS_API["/tts/*<br/>🗣️ Text-to-Speech"]
         ASR_API["/asr/*<br/>🎤 Speech Recognition"]
         LLM_API["/llm/*<br/>🧠 Language Models"]
         Audio_API["/audio/*<br/>🔊 Audio Processing"]
+        NLU_API["/nlu/*<br/>🎯 Intent Recognition"]
+        TextProc_API["/text_processor/*<br/>📝 TODO #2 stages"]
+    end
+    
+    subgraph "🎼 Workflow API"
+        ProcessText["/workflow/process_text<br/>📝 Text processing"]
+        ProcessAudio["/workflow/process_audio<br/>🎤 Audio processing"]
+        WorkflowStatus["/workflow/status<br/>📊 Workflow status"]
+        BuildAPI["/build/analyze<br/>🏗️ TODO #3 build analysis"]
     end
     
     subgraph "🔄 Real-time"
         WebSocket["/ws<br/>⚡ WebSocket"]
-        Docs["/docs<br/>📚 OpenAPI документация"]
+        BinaryWS["/ws/audio/binary<br/>🔌 TODO #10 ESP32 optimization"]
+        Docs["/docs<br/>📚 OpenAPI docs"]
     end
     
-    style TTS_API fill:#ffecb3
-    style ASR_API fill:#e1f5fe
-    style LLM_API fill:#f3e5f5
-    style Audio_API fill:#e8f5e8
-    style WebSocket fill:#fff3e0
+    style IntentRecognize fill:#fff3e0
+    style IntentExecute fill:#fff3e0
+    style VTStatus fill:#e8f5e8
+    style ProcessText fill:#ffcdd2
+    style KeywordAPI fill:#f3e5f5
+    style TextProc_API fill:#e8f5e8
+    style BuildAPI fill:#e1f5fe
+    style BinaryWS fill:#f3e5f5
+    style WebSocket fill:#e1f5fe
 ```
 
-### 6.3 WebSocket интеграция
+### 7.2 Новые эндпоинты системы интентов с планируемыми улучшениями
 
-**Двунаправленная связь:**
-- **Клиент → Сервер**: Команды, настройки
-- **Сервер → Клиент**: Ответы, уведомления, статус
+```python
+# Intent System API с TODO улучшениями
+@app.post("/intents/recognize")
+async def recognize_intent(text: str, session_id: str = "default"):
+    """Распознать интент из текста (keyword-first в TODO #5)"""
+    context = await context_manager.get_context(session_id)
+    intent = await nlu.recognize(text, context)
+    return {
+        "intent": intent.name,
+        "entities": intent.entities,
+        "confidence": intent.confidence,
+        "recognition_method": intent.metadata.get("method", "unknown")  # keyword/rule/semantic
+    }
 
-**Пример WebSocket сообщения:**
-```json
-{
-  "type": "command",
-  "command": "привет",
-  "timestamp": "2024-01-15T10:30:00Z"
-}
+@app.get("/intents/keywords")  # TODO #4: Keyword donation API
+async def get_donated_keywords():
+    """Получить ключевые слова, донированные обработчиками интентов"""
+    handlers = intent_registry.get_all_handlers()
+    donated_keywords = {}
+    
+    for handler_name, handler in handlers.items():
+        if hasattr(handler, 'get_keywords'):
+            donated_keywords[handler_name] = await handler.get_keywords()
+    
+    return {
+        "donated_keywords": donated_keywords,
+        "total_handlers": len(handlers),
+        "donation_enabled": len(donated_keywords)
+    }
+
+@app.post("/intents/keywords/regenerate")  # TODO #5: Russian morphology
+async def regenerate_morphological_forms():
+    """Регенерировать русские словоформы для донированных ключевых слов"""
+    russian_morph = RussianMorphology()
+    regenerated = await russian_morph.regenerate_all_forms()
+    
+    return {
+        "status": "regenerated",
+        "base_keywords": regenerated.get("base_count", 0),
+        "generated_forms": regenerated.get("forms_count", 0),
+        "cache_updated": regenerated.get("cache_status", False)
+    }
+
+# Text Processing API с новыми провайдерами (TODO #2)
+@app.post("/text_processor/process")
+async def process_text_stage_specific(text: str, stage: str = "general"):
+    """Обработать текст через специализированный провайдер"""
+    stage_processors = {
+        "asr": "asr_text_processor",
+        "general": "general_text_processor", 
+        "tts": "tts_text_processor",
+        "numbers": "number_text_processor"
+    }
+    
+    processor_name = stage_processors.get(stage, "general_text_processor")
+    processor = text_processor_component.get_provider(processor_name)
+    
+    result = await processor.process(text)
+    
+    return {
+        "original_text": text,
+        "processed_text": result,
+        "processor_used": processor_name,
+        "stage": stage
+    }
+
+# Build System API (TODO #3)
+@app.post("/build/analyze")
+async def analyze_build_requirements(config_file: str = "config.toml"):
+    """Анализировать требования сборки на основе конфигурации"""
+    build_analyzer = BuildAnalyzer()
+    analysis = await build_analyzer.analyze_config(config_file)
+    
+    return {
+        "enabled_components": analysis.get("components", []),
+        "enabled_providers": analysis.get("providers", {}),
+        "required_modules": analysis.get("modules", []),
+        "excluded_modules": analysis.get("excluded", []),
+        "estimated_size_reduction": analysis.get("size_reduction_percent", 0),
+        "build_profile": analysis.get("profile", "unknown")
+    }
+
+# ESP32 Binary WebSocket (TODO #10)
+@app.websocket("/ws/audio/binary")
+async def binary_audio_stream(websocket: WebSocket):
+    """Оптимизированная бинарная потоковая передача аудио для ESP32"""
+    await websocket.accept()
+    
+    # Session setup
+    config = await websocket.receive_json()
+    
+    try:
+        while True:
+            # Receive raw PCM binary data (no base64 overhead)
+            audio_data = await websocket.receive_bytes()
+            
+            # Direct ASR processing
+            text = await asr.transcribe_audio(audio_data)
+            
+            # Send optimized response
+            if text.strip():
+                await websocket.send_json({
+                    "type": "transcription",
+                    "text": text,
+                    "timestamp": time.time(),
+                    "binary_optimized": True
+                })
 ```
 
 ---
 
-## 🚀 **7. РЕЖИМЫ РАЗВЕРТЫВАНИЯ**
+## 🚀 **8. РЕЖИМЫ РАЗВЕРТЫВАНИЯ v13.0.0**
 
-### 7.1 Точки входа
+### 8.1 Обновленные точки входа
 
 ```mermaid
 graph TB
     subgraph "🖥️ CLI Режим"
         CLI_Runner[CLIRunner]
-        CLI_Interactive[Интерактивный режим]
-        CLI_Single[Одиночная команда]
-        CLI_Batch[Пакетный режим]
+        CLI_Interactive[Интерактивный режим<br/>с интентами]
+        CLI_Single[Одиночная команда<br/>через NLU]
+        CLI_Context[Контекстные диалоги]
+        CLI_Keyword[Keyword donation testing<br/>TODO #4]
     end
     
     subgraph "🌐 Web API Режим"
         Web_Runner[WebAPIRunner]
-        Web_FastAPI[FastAPI сервер]
-        Web_Static[Статические файлы]
-        Web_WebSocket[WebSocket сервер]
+        Web_FastAPI[FastAPI server<br/>с intent endpoints]
+        Web_WebSocket[WebSocket server<br/>real-time intents]
+        Web_Binary[Binary WebSocket<br/>TODO #10]
+        Web_Docs[Auto docs<br/>для intent API]
     end
     
-    subgraph "🎤 VOSK Режим"
-        Vosk_Runner[VoskRunner]
-        Vosk_Server[ASR сервер]
-        Vosk_Remote[Удаленное распознавание]
+    subgraph "🎤 Voice Assistant Режим"
+        Voice_Runner[VoiceAssistantRunner]
+        Voice_Pipeline[Full pipeline<br/>Voice Trigger → Intent]
+        Voice_Context[Contextual conversations]
+        Voice_Continuous[Continuous listening]
+        Voice_Keyword[Keyword-first NLU<br/>TODO #5]
+    end
+    
+    subgraph "🔊 Voice Trigger Режим"
+        VT_Runner[VoiceTriggerRunner]
+        VT_Server[Wake word detection<br/>service]
+        VT_Remote[Remote detection<br/>API]
+        VT_Callback[Webhook callbacks]
+        VT_INT8[INT8 optimization<br/>TODO #14 завершено]
     end
     
     subgraph "⚙️ Settings Режим"
         Settings_Runner[SettingsManagerRunner]
-        Settings_GUI[Графический интерфейс]
-        Settings_Config[Управление конфигурацией]
+        Settings_GUI[GUI для intent config]
+        Settings_Train[NLU model training]
+        Settings_Context[Context management]
+        Settings_Build[Build analysis<br/>TODO #3]
     end
     
     CLI_Runner --> CLI_Interactive
     CLI_Runner --> CLI_Single
-    CLI_Runner --> CLI_Batch
+    CLI_Runner --> CLI_Context
+    CLI_Runner --> CLI_Keyword
     
     Web_Runner --> Web_FastAPI
-    Web_Runner --> Web_Static
     Web_Runner --> Web_WebSocket
+    Web_Runner --> Web_Binary
+    Web_Runner --> Web_Docs
     
-    Vosk_Runner --> Vosk_Server
-    Vosk_Runner --> Vosk_Remote
+    Voice_Runner --> Voice_Pipeline
+    Voice_Runner --> Voice_Context
+    Voice_Runner --> Voice_Continuous
+    Voice_Runner --> Voice_Keyword
+    
+    VT_Runner --> VT_Server
+    VT_Runner --> VT_Remote
+    VT_Runner --> VT_Callback
+    VT_Runner --> VT_INT8
     
     Settings_Runner --> Settings_GUI
-    Settings_Runner --> Settings_Config
+    Settings_Runner --> Settings_Train
+    Settings_Runner --> Settings_Context
+    Settings_Runner --> Settings_Build
     
+    style Voice_Runner fill:#e8f5e8,stroke:#4caf50,stroke-width:3px
     style CLI_Runner fill:#e3f2fd
-    style Web_Runner fill:#e8f5e8
-    style Vosk_Runner fill:#fff3e0
+    style Web_Runner fill:#fff3e0
+    style VT_Runner fill:#ffcdd2
     style Settings_Runner fill:#fce4ec
+    style Voice_Keyword fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Web_Binary fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Settings_Build fill:#e1f5fe,stroke:#01579b,stroke-width:2px
 ```
 
-### 7.2 Команды запуска
+### 8.2 Команды запуска v13.0.0
 
 ```bash
-# CLI режим
-python -m irene.runners.cli
-python -m irene.runners.cli --command "привет"
-python -m irene.runners.cli --interactive
+# Voice Assistant режим с улучшениями
+python -m irene.runners.voice_assistant
+python -m irene.runners.voice_assistant --continuous --wake-word irene --keyword-first  # TODO #5
 
-# Web API режим
+# CLI режим с интентами и keyword donation testing
+python -m irene.runners.cli
+python -m irene.runners.cli --command "привет ирэн"
+python -m irene.runners.cli --interactive --context-enabled
+python -m irene.runners.cli --test-keyword-donation  # TODO #4
+
+# Web API режим с новыми endpoints
 python -m irene.runners.webapi_runner
 python -m irene.runners.webapi_runner --host 0.0.0.0 --port 8080
+python -m irene.runners.webapi_runner --enable-binary-ws  # TODO #10
 
-# VOSK сервер
-python -m irene.runners.vosk_runner
+# Voice Trigger сервис с INT8 optimization
+python -m irene.runners.voice_trigger
+python -m irene.runners.voice_trigger --provider microwakeword --threshold 0.8 --int8-optimized
 
-# Управление настройками
+# Build analysis и management
 python -m irene.runners.settings_runner
+python -m irene.runners.settings_runner --analyze-build --config config-minimal.toml  # TODO #3
+python -m irene.runners.settings_runner --train-nlu --keyword-donation  # TODO #4
 ```
 
 ---
 
-## 🔄 **8. ПОТОКИ ОБРАБОТКИ ДАННЫХ**
+## 🔄 **9. ПОТОКИ ОБРАБОТКИ ДАННЫХ v13.0.0**
 
-### 8.1 Полный цикл команды
+### 9.1 Полный цикл команды с планируемыми улучшениями
 
 ```mermaid
 sequenceDiagram
     participant User as 👤 Пользователь
-    participant Input as 📥 Input Layer
-    participant Core as 🧠 AsyncVACore
-    participant Plugin as 🔌 Plugin
-    participant Provider as 🔧 Provider
-    participant Output as 📤 Output Layer
+    participant VT as 🔊 Voice Trigger (INT8)
+    participant ASR as 🎤 ASR Component
+    participant TP as 📝 Text Processor (TODO #2)
+    participant NLU as 🧠 NLU (TODO #4,#5)
+    participant IO as 🎯 Intent Orchestrator
+    participant IH as ⚡ Intent Handler
+    participant CM as 💭 Context Manager
+    participant TTS as 🗣️ TTS Component
+    participant AO as 🔈 Audio Output
     
-    User->>Input: Голосовая команда/текст
-    Input->>Core: Нормализованная команда
+    User->>VT: "Ирэн, какая погода в Москве?"
+    VT->>VT: INT8 wake word detection (TODO #14)
+    VT-->>ASR: Wake word detected, start ASR
     
-    Note over Core: Определение типа команды
+    ASR->>ASR: Speech recognition
+    ASR->>TP: "какая погода в москве"
     
-    Core->>Plugin: execute_command()
-    Plugin->>Provider: Делегирование обработки
+    TP->>TP: Stage-specific processing (TODO #2)
+    Note over TP: ASRTextProcessor → fast number normalization
+    TP->>NLU: "Какая погода в Москве?"
     
-    Note over Provider: Выполнение бизнес-логики
+    NLU->>NLU: Keyword-first recognition (TODO #5)
+    Note over NLU: 1. Keyword matcher (fast)<br/>2. Rule-based fallback<br/>3. Semantic fallback
+    NLU->>IO: Intent{name: "weather.get_current", entities: {"location": "Москва"}}
     
-    Provider-->>Plugin: Результат
-    Plugin-->>Core: Форматированный ответ
-    Core->>Output: Отправка результата
-    Output->>User: Голос/текст/веб-ответ
+    IO->>CM: Get conversation context
+    CM-->>IO: Current session context
     
-    Note over Input,Output: Асинхронная обработка на всех уровнях
+    IO->>IH: Execute weather intent
+    Note over IH: Handler uses donated keywords<br/>for better recognition (TODO #4)
+    IH->>IH: Call weather service API
+    IH-->>IO: IntentResult{text: "В Москве сейчас +5°C, облачно"}
+    
+    IO->>CM: Update context with intent & result
+    IO->>TTS: "В Москве сейчас +5°C, облачно"
+    
+    TTS->>TTS: Speech synthesis
+    TTS->>AO: Audio data
+    AO->>User: 🔊 "В Москве сейчас +5°C, облачно"
+    
+    Note over VT,AO: Полный pipeline v13.0.0 с TODO улучшениями
+    Note over NLU,CM: Keyword donation + keyword-first NLU
 ```
 
-### 8.2 Многоканальная обработка
+### 9.2 Контекстные разговоры с keyword donation
 
 ```mermaid
-graph TB
-    subgraph "📥 Множественный ввод"
-        Voice[🎤 Голосовой ввод]
-        CLI[💻 CLI ввод]
-        Web[🌐 Web ввод]
-    end
+sequenceDiagram
+    participant User as 👤 Пользователь
+    participant System as 🤖 Система
+    participant Context as 💭 Context Manager
+    participant Keywords as 🔑 Keyword Donation (TODO #4)
     
-    subgraph "🔄 Обработка"
-        Queue[Очередь команд<br/>AsyncQueue]
-        Workers[Worker Pool<br/>Concurrent обработка]
-        Context[Context Manager<br/>Управление сессиями]
-    end
+    User->>System: "Какая погода в Москве?"
+    System->>Keywords: Handler donates keywords: ["погода", "температура"]
+    Keywords->>System: Enhanced NLU recognition
+    System->>Context: Store intent: weather.get_current + location: "Москва"
+    System-->>User: "В Москве сейчас +5°C, облачно"
     
-    subgraph "📤 Множественный вывод"
-        Console[📝 Консольный вывод]
-        Speech[🗣️ Голосовой ответ]
-        WebResp[🌐 Web ответ]
-    end
+    User->>System: "А завтра?"
+    System->>Keywords: Context + donated keywords improve recognition
+    System->>Context: Get previous context (location: "Москва")
+    Note over System,Context: Intent: weather.get_forecast + inferred location
+    System-->>User: "Завтра в Москве ожидается +7°C, солнечно"
     
-    Voice --> Queue
-    CLI --> Queue
-    Web --> Queue
+    User->>System: "Поставь таймер на 10 минут"
+    System->>Keywords: Timer handler keywords: ["таймер", "будильник", "время"]
+    System->>Context: Store new intent: timer.set + duration: "10 минут"
+    System-->>User: "Таймер на 10 минут установлен"
     
-    Queue --> Workers
-    Workers --> Context
+    User->>System: "Отмени"
+    System->>Context: Get recent intents (timer.set found)
+    System->>Keywords: Cancel keywords from timer handler
+    Note over System,Context: Intent: timer.cancel + inferred timer from context
+    System-->>User: "Таймер отменен"
     
-    Context --> Console
-    Context --> Speech
-    Context --> WebResp
-    
-    style Queue fill:#f1f8e9,stroke:#689f38,stroke-width:2px
-    style Workers fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    style Context fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    Note over User,Keywords: Keyword donation улучшает контекстное понимание
 ```
 
 ---
 
-## 🔧 **9. ПАТТЕРНЫ ИНТЕГРАЦИИ**
+## 🔧 **10. ПАТТЕРНЫ ИНТЕГРАЦИИ v13.0.0**
 
-### 9.1 Dependency Injection
-
-**Принцип**: Каждый компонент получает зависимости через конструктор или инициализацию.
+### 10.1 Dependency Injection с динамической загрузкой
 
 ```python
-# Пример: Инжекция ASR плагина в микрофонный ввод
-class MicrophoneInput(InputSource):
-    def __init__(self, asr_plugin: Optional[ASRPlugin] = None):
-        self.asr_plugin = asr_plugin
+# Обновленная инжекция зависимостей с динамической загрузкой
+class VoiceAssistantWorkflow(Workflow):
+    def __init__(self):
+        super().__init__()
+        # Fundamental components
+        self.voice_trigger = None
+        self.asr = None 
+        self.text_processor = None      # TODO #2: Stage-specific processors
+        self.nlu = None                 # TODO #4,#5: Keyword-first NLU
+        self.tts = None
+        self.audio_output = None
         
-# В InputManager:
-asr_plugin = self.component_manager.core.plugin_manager.get_plugin("universal_asr")
-mic_input = MicrophoneInput(asr_plugin=asr_plugin)
+        # Intent system
+        self.intent_orchestrator = None
+        self.context_manager = None
+        
+        # Dynamic loading (TODO #1)
+        self.dynamic_loader = None
+        
+    async def initialize(self):
+        """Initialize with dependency injection and dynamic loading"""
+        cm = self.core.component_manager
+        
+        # Inject dynamic loader (TODO #1)
+        self.dynamic_loader = cm.dynamic_loader
+        
+        # Inject components (loaded dynamically via entry-points)
+        self.voice_trigger = cm.get_component("voice_trigger")
+        self.asr = cm.get_component("asr")
+        self.text_processor = cm.get_component("text_processor")  # TODO #2 improvements
+        self.nlu = cm.get_component("nlu")                       # TODO #4,#5 improvements
+        self.tts = cm.get_component("tts")
+        self.audio_output = cm.get_component("audio")
+        
+        # Inject intent system
+        self.intent_orchestrator = self.core.intent_orchestrator
+        self.context_manager = self.core.context_manager
 ```
 
-### 9.2 Observer Pattern
+### 10.2 Observer Pattern для интентов с keyword donation
 
-**Применение**: Уведомления о состоянии компонентов, завершении команд.
+```python
+# Уведомления о событиях интентов с TODO улучшениями
+class IntentEventObserver:
+    async def on_intent_recognized(self, intent: Intent, confidence: float, method: str):
+        """Уведомление о распознанном интенте (keyword/rule/semantic)"""
+        
+    async def on_keyword_donated(self, handler_name: str, keywords: Dict[str, List[str]]):
+        """Уведомление о донированных ключевых словах (TODO #4)"""
+        
+    async def on_morphology_generated(self, base_keywords: List[str], generated_forms: List[str]):
+        """Уведомление о генерации русских словоформ (TODO #5)"""
+        
+    async def on_intent_executed(self, intent: Intent, result: IntentResult):
+        """Уведомление о выполненном интенте"""
+        
+    async def on_context_updated(self, session_id: str, context: ConversationContext):
+        """Уведомление об обновлении контекста"""
+```
 
-### 9.3 Strategy Pattern
+### 10.3 Strategy Pattern для NLU провайдеров (TODO #5)
 
-**Применение**: Выбор провайдеров в универсальных плагинах.
-
-### 9.4 Factory Pattern
-
-**Применение**: Создание провайдеров на основе конфигурации.
+```python
+# Keyword-first стратегия с расширяемыми NLU плагинами
+class NLUProviderStrategy:
+    def __init__(self):
+        self.plugins = [
+            KeywordMatcherNLUPlugin(),      # Обязательный: быстрое сопоставление
+            RuleBasedNLUPlugin(),          # Опциональный: regex паттерны  
+            SpaCySemanticNLUPlugin(),      # Опциональный: семантическое понимание
+        ]
+    
+    def select_provider(self, text: str, context: ConversationContext) -> str:
+        """Выбор оптимального NLU провайдера (keyword-first подход)"""
+        
+        # Всегда начинаем с keyword matcher (TODO #5)
+        keyword_result = self.plugins[0].quick_check(text)
+        if keyword_result.confidence >= 0.8:
+            return "keyword_matcher"
+            
+        # Для коротких команд - rule-based
+        if len(text.split()) <= 3:
+            return "rule_based"
+            
+        # Для сложных запросов - семантическое понимание
+        if context.requires_semantic_understanding():
+            return "spacy_semantic"
+            
+        # Fallback to rule-based
+        return "rule_based"
+```
 
 ---
 
-## 📊 **10. МЕТРИКИ И МОНИТОРИНГ**
+## 📊 **11. МЕТРИКИ И МОНИТОРИНГ v13.0.0**
 
-### 10.1 Ключевые метрики
+### 11.1 Ключевые метрики системы с TODO улучшениями
 
-| Метрика | Описание | Источник |
-|---------|----------|----------|
-| **Command latency** | Время обработки команды | CommandProcessor |
-| **Plugin availability** | Доступность плагинов | PluginManager |
-| **Component health** | Состояние компонентов | ComponentManager |
-| **Input throughput** | Пропускная способность ввода | InputManager |
-| **Error rate** | Частота ошибок | Система логирования |
+| Метрика | Описание | Источник | TODO |
+|---------|----------|----------|------|
+| **Intent Recognition Accuracy** | Точность распознавания интентов | NLU Component | #4,#5 |
+| **Keyword Donation Coverage** | Покрытие интентов донированными ключевыми словами | Intent Handlers | #4 |
+| **Keyword-first Success Rate** | Процент интентов, распознанных через keyword matching | KeywordMatcherNLU | #5 |
+| **Dynamic Loading Efficiency** | Процент провайдеров, загруженных селективно | DynamicLoader | #1 |
+| **Text Processing Stage Performance** | Производительность по этапам обработки текста | Stage Processors | #2 |
+| **Build Size Reduction** | Уменьшение размера сборки через анализ конфигурации | Build Analyzer | #3 |
+| **Wake Word Detection Rate** | Точность обнаружения wake word (INT8) | Voice Trigger | #14 |
+| **Context Session Duration** | Средняя длительность сессий | Context Manager | - |
+| **Pipeline Latency** | Время полного pipeline (voice → response) | Workflow | - |
+| **Component Availability** | Доступность компонентов | Component Manager | - |
 
-### 10.2 Health checks
+### 11.2 Health checks v13.0.0 с TODO мониторингом
 
 ```python
-# Пример health check эндпоинта
-@app.get("/health")
-async def health_check():
+@app.get("/health/intents")
+async def intent_system_health():
     return {
         "status": "healthy",
-        "version": "13.0.0",
-        "timestamp": asyncio.get_event_loop().time(),
-        "components": get_component_status(),
-        "deployment_profile": core.component_manager.get_deployment_profile()
+        "version": "14.0.0",
+        "components": {
+            "voice_trigger": await voice_trigger.health_check(),
+            "nlu": await nlu.health_check(),
+            "intent_orchestrator": await intent_orchestrator.health_check(),
+            "context_manager": await context_manager.health_check(),
+            "dynamic_loader": await dynamic_loader.health_check()  # TODO #1
+        },
+        "todo_improvements": {
+            "keyword_donation": {
+                "enabled": intent_registry.keyword_donation_enabled,  # TODO #4
+                "handlers_participating": len(await get_keyword_donating_handlers()),
+                "total_donated_keywords": await count_donated_keywords()
+            },
+            "keyword_first_nlu": {
+                "enabled": nlu.keyword_first_enabled,  # TODO #5
+                "success_rate": await get_keyword_matching_success_rate(),
+                "fallback_rate": await get_semantic_fallback_rate()
+            },
+            "text_processing_optimization": {
+                "stage_specific_enabled": text_processor.stage_routing_enabled,  # TODO #2
+                "performance_improvement": await get_stage_performance_metrics()
+            },
+            "dynamic_loading": {
+                "entry_points_discovered": len(dynamic_loader.discovered_entry_points),  # TODO #1
+                "providers_filtered": dynamic_loader.filtering_efficiency,
+                "external_packages_supported": len(dynamic_loader.external_packages)
+            }
+        },
+        "metrics": {
+            "active_sessions": len(context_manager.sessions),
+            "registered_handlers": len(intent_registry._handlers),
+            "intent_execution_rate": await get_intent_execution_rate(),
+            "average_confidence": await get_average_confidence(),
+            "wake_word_detection_rate": await get_wake_word_stats()
+        },
+        "pipeline": {
+            "voice_trigger_enabled": voice_trigger.active,
+            "nlu_provider": nlu.default_provider,
+            "intent_handlers": list(intent_registry.get_all_handlers().keys()),
+            "keyword_first_active": await nlu.is_keyword_first_active()  # TODO #5
+        }
     }
 ```
 
 ---
 
-## 🎯 **ЗАКЛЮЧЕНИЕ**
+## 🎯 **ЗАКЛЮЧЕНИЕ v13.0.0**
 
-### Ключевые достижения архитектуры:
+### Ключевые достижения архитектуры v13.0.0:
 
+✅ **Завершенный Pipeline**: Полный поток от voice trigger до intent execution  
+✅ **Система интентов**: Понимание намерений пользователя через NLU  
+✅ **Voice Trigger System**: Поддержка OpenWakeWord и microWakeWord с INT8 оптимизацией  
+✅ **Динамическая загрузка**: Entry-points архитектура устраняет хардкод и улучшает производительность  
+✅ **Специализированная обработка текста**: Оптимизированные провайдеры для разных этапов  
+✅ **Компонентная архитектура**: Четкое разделение ответственности  
 ✅ **Асинхронность**: Полностью неблокирующая обработка  
 ✅ **Модульность**: Опциональные компоненты с graceful degradation  
-✅ **Масштабируемость**: Universal Plugin + Provider архитектура  
 ✅ **Конфигурируемость**: Мощная система настроек с TOML/ENV поддержкой  
-✅ **Мультимодальность**: CLI, голос, веб-интерфейс  
-✅ **Развертываемость**: Множественные режимы для разных сценариев  
-✅ **Обратная совместимость**: Поддержка legacy плагинов  
+✅ **Мультимодальность**: CLI, голос, веб-интерфейс с едиными возможностями  
 
-### Принципы дизайна:
+### Архитектурные улучшения на основе TODO:
 
-🔹 **MECE**: Четкое разделение ответственности между компонентами  
-🔹 **Separation of Concerns**: Разделение интерфейса и реализации  
-🔹 **Dependency Inversion**: Зависимости через абстракции  
+🔄 **Keyword-first NLU**: Быстрое сопоставление ключевых слов с семантическими fallback'ами  
+🔄 **Keyword donation**: Обработчики интентов донируют ключевые слова для улучшения распознавания  
+🔄 **Entry-points based builds**: Минимальные сборки через анализ конфигурации  
+🔄 **Russian morphology**: Автоматическая генерация словоформ для лучшего понимания  
+🔄 **Binary WebSocket optimization**: Оптимизированная передача для ESP32 устройств  
+
+### Принципы дизайна v13.0.0:
+
+🔹 **MECE**: Четкое разделение между компонентами, интентами, и workflow  
+🔹 **Intent-Driven**: Все взаимодействия проходят через систему интентов  
+🔹 **Context-Aware**: Понимание контекста и поддержание состояния диалога  
+🔹 **Dynamic Loading**: Конфигурационно-управляемая загрузка компонентов  
+🔹 **Performance-Oriented**: Оптимизация через специализацию и селективную загрузку  
+🔹 **Separation of Concerns**: Разделение технических компонентов и бизнес-логики  
+🔹 **Dependency Inversion**: Зависимости через абстракции и injection  
 🔹 **Single Responsibility**: Каждый компонент имеет одну ответственность  
 🔹 **Open/Closed**: Открыт для расширения, закрыт для модификации  
 
-Данная архитектура обеспечивает создание современного, масштабируемого и поддерживаемого голосового ассистента, способного работать в различных конфигурациях от минимального CLI до полнофункционального голосового интерфейса с веб-доступом. 
+### Эволюция от v13.0.0 к v13.0.0:
+
+**v13.0.0**: Асинхронная архитектура с "Universal Plugins"  
+**v13.0.0**: Полноценный интеллектуальный ассистент с системой интентов и динамической загрузкой
+
+Данная архитектура обеспечивает создание современного, интеллектуального и высокопроизводительного голосового ассистента, способного понимать намерения пользователя, поддерживать контекстные разговоры, оптимизировать производительность через селективную загрузку и работать в различных конфигурациях от минимального CLI до полнофункционального голосового интерфейса с wake word detection и веб-доступом.
+
+**Irene Voice Assistant v13.0.0 представляет собой производственно-готовую платформу для интеллектуального голосового взаимодействия с возможностями масштабирования, оптимизации и расширения.** 
