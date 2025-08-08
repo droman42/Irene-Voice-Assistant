@@ -1,0 +1,208 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - ARMv7 EMBEDDED DOCKER BUILD
+# ============================================================
+# Alpine-based minimal build optimized for Raspberry Pi and embedded devices
+# Supports configuration profiles with cross-compilation and minimal dependencies
+# 
+# Usage:
+#   docker build -f Dockerfile.armv7 --platform linux/arm/v7 --build-arg CONFIG_PROFILE=embedded-armv7 .
+#   docker build -f Dockerfile.armv7 --platform linux/arm/v7 --build-arg CONFIG_PROFILE=minimal .
+#   docker buildx build --platform linux/arm/v7 -f Dockerfile.armv7 --build-arg CONFIG_PROFILE=voice .
+
+# ============================================================
+# STAGE 1: BUILD ANALYZER - Runtime Configuration Analysis
+# ============================================================
+FROM --platform=$BUILDPLATFORM python:3.11-alpine as analyzer
+
+WORKDIR /build-analyzer
+
+# Install minimal dependencies for build analysis (Alpine packages)
+RUN apk add --no-cache python3-dev py3-pip
+
+# Copy build analyzer tool and configuration profiles
+COPY irene/tools/ irene/tools/
+COPY irene/utils/loader.py irene/utils/loader.py
+COPY irene/utils/__init__.py irene/utils/__init__.py
+COPY irene/__init__.py irene/__init__.py
+COPY configs/ configs/
+COPY pyproject.toml pyproject.toml
+
+# Build argument for configuration profile selection
+ARG CONFIG_PROFILE=embedded-armv7
+ENV CONFIG_PROFILE=${CONFIG_PROFILE}
+
+# Install tomllib for Python < 3.11 compatibility
+RUN pip install tomli
+
+# Runtime analysis of selected configuration profile
+RUN echo "🔍 Analyzing configuration profile: ${CONFIG_PROFILE}" && \
+    python -m irene.tools.build_analyzer \
+    --config configs/${CONFIG_PROFILE}.toml \
+    --json > /tmp/build-requirements.json && \
+    echo "📋 Build requirements generated successfully"
+
+# Extract dependencies for ARMv7-specific filtering
+RUN python -c "
+import json
+with open('/tmp/build-requirements.json', 'r') as f:
+    data = json.load(f)
+
+# Map Ubuntu packages to Alpine packages for ARMv7
+ubuntu_to_alpine = {
+    'libportaudio2': 'portaudio-dev',
+    'libsndfile1': 'libsndfile-dev', 
+    'libffi-dev': 'libffi-dev',
+    'ffmpeg': 'ffmpeg',
+    'espeak': 'espeak',
+    'espeak-data': 'espeak-data',
+    'alsa-utils': 'alsa-utils',
+    'libavformat58': 'ffmpeg-dev',
+    'libavcodec58': 'ffmpeg-dev',
+    'libasound2-dev': 'alsa-lib-dev',
+    'libatomic1': 'libatomic'
+}
+
+# Convert system packages to Alpine equivalents
+ubuntu_packages = data.get('system_packages', [])
+alpine_packages = []
+for pkg in ubuntu_packages:
+    alpine_pkg = ubuntu_to_alpine.get(pkg, pkg)
+    if alpine_pkg not in alpine_packages:
+        alpine_packages.append(alpine_pkg)
+
+# Write Alpine system packages
+with open('/tmp/system-packages.txt', 'w') as f:
+    if alpine_packages:
+        f.write(' '.join(alpine_packages))
+    else:
+        f.write('')
+
+# Write Python dependencies (same as x86_64)
+with open('/tmp/python-deps.txt', 'w') as f:
+    deps = data.get('python_dependencies', [])
+    if deps:
+        f.write(' '.join(deps))
+    else:
+        f.write('')
+
+# Write enabled modules for selective copying
+with open('/tmp/python-modules.txt', 'w') as f:
+    modules = data.get('python_modules', [])
+    f.write('\n'.join(modules))
+
+print(f'📦 Alpine packages: {len(alpine_packages)} (from {len(ubuntu_packages)} Ubuntu packages)')
+print(f'🐍 Python deps: {len(data.get(\"python_dependencies\", []))}')
+print(f'📋 Modules: {len(data.get(\"python_modules\", []))}')
+print(f'🏗️  Alpine packages: {alpine_packages}')
+"
+
+# ============================================================
+# STAGE 2: DEPENDENCY BUILDER - Cross-Compilation Build
+# ============================================================
+FROM python:3.11-alpine as builder
+
+WORKDIR /app
+
+# Copy system dependency list from analyzer
+COPY --from=analyzer /tmp/system-packages.txt /tmp/system-packages.txt
+COPY --from=analyzer /tmp/python-deps.txt /tmp/python-deps.txt
+COPY --from=analyzer /tmp/build-requirements.json /tmp/build-requirements.json
+
+# Install build tools for cross-compilation
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    linux-headers \
+    python3-dev \
+    py3-pip
+
+# Install UV package manager
+RUN pip install uv
+
+# Install system dependencies (Alpine packages, only if specified)
+RUN if [ -s /tmp/system-packages.txt ]; then \
+        echo "🔧 Installing Alpine system dependencies..." && \
+        apk add --no-cache $(cat /tmp/system-packages.txt); \
+    else \
+        echo "📦 No system dependencies required for this profile"; \
+    fi
+
+# Copy project files for dependency resolution
+COPY pyproject.toml uv.lock ./
+
+# Install Python dependencies with UV (optimized for ARMv7)
+RUN if [ -s /tmp/python-deps.txt ]; then \
+        echo "🐍 Installing Python dependencies with UV (ARMv7 optimized)..." && \
+        UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy uv sync $(python -c "
+import json
+with open('/tmp/build-requirements.json', 'r') as f:
+    data = json.load(f)
+    deps = data.get('python_dependencies', [])
+    if deps:
+        print('--extra ' + ' --extra '.join(deps))
+"); \
+    else \
+        echo "🐍 Installing base dependencies only..." && \
+        UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy uv sync; \
+    fi
+
+# ============================================================
+# STAGE 3: RUNTIME - Minimal ARMv7 Runtime Image
+# ============================================================
+FROM python:3.11-alpine as runtime
+
+# Metadata
+LABEL maintainer="Irene Voice Assistant Team"
+LABEL description="Irene Voice Assistant - ARMv7 Embedded Runtime"
+ARG CONFIG_PROFILE=embedded-armv7
+LABEL config.profile="${CONFIG_PROFILE}"
+LABEL platform="linux/arm/v7"
+
+WORKDIR /app
+
+# Copy analysis results for runtime reference
+COPY --from=analyzer /tmp/build-requirements.json /app/build-requirements.json
+COPY --from=analyzer /tmp/python-modules.txt /app/python-modules.txt
+
+# Install runtime system dependencies (Alpine, only if they exist)
+COPY --from=builder /tmp/system-packages.txt /tmp/system-packages.txt
+RUN if [ -s /tmp/system-packages.txt ]; then \
+        echo "🔧 Installing runtime system dependencies (Alpine)..." && \
+        apk add --no-cache $(cat /tmp/system-packages.txt); \
+    fi && rm -f /tmp/system-packages.txt
+
+# Copy Python environment from builder
+COPY --from=builder /root/.local /root/.local
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy application code (selective copying based on enabled modules)
+COPY irene/ irene/
+COPY configs/ configs/
+
+# Copy specific configuration profile for runtime
+COPY --from=analyzer configs/${CONFIG_PROFILE}.toml /app/runtime-config.toml
+
+# Create non-root user for security (Alpine style)
+RUN adduser -D -u 1000 irene && \
+    chown -R irene:irene /app
+USER irene
+
+# Health check (lightweight for embedded)
+HEALTHCHECK --interval=60s --timeout=5s --start-period=10s --retries=2 \
+    CMD python -c "import irene; print('✅ Irene ARMv7 is healthy')" || exit 1
+
+# Runtime configuration optimized for embedded
+ENV IRENE_CONFIG_FILE=/app/runtime-config.toml
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONOPTIMIZE=2
+
+# Resource limits for embedded devices
+ENV MALLOC_TRIM_THRESHOLD_=100000
+ENV MALLOC_TOP_PAD_=65536
+
+# Default command (optimized for embedded)
+CMD ["python", "-O", "-m", "irene.runners.cli", "--config", "/app/runtime-config.toml"]
+
+# Expose only necessary ports for embedded deployment
+EXPOSE 8000 

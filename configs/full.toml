@@ -1,0 +1,187 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - FULL DEVELOPMENT CONFIGURATION
+# ============================================================
+# Complete development setup with all components and providers.
+# Includes all features for development, testing, and demonstration.
+# Heavy on dependencies but provides full functionality.
+
+[core]
+name = "Irene"
+version = "13.0.0"
+debug = true
+log_level = "DEBUG"
+language = "en-US"
+timezone = "UTC"
+
+# Runtime performance settings
+max_concurrent_commands = 10
+command_timeout_seconds = 30.0
+context_timeout_minutes = 30
+
+# Monitoring and metrics
+enable_metrics = true
+metrics_port = 9090
+enable_profiling = true
+
+# ============================================================
+# ASSET MANAGEMENT - Full Storage
+# ============================================================
+[assets]
+models_root = "./models"
+cache_root = "./cache"
+data_root = "./data"
+credentials_root = "./credentials"
+
+# ============================================================
+# COMPONENT SYSTEM - All Components
+# ============================================================
+[components]
+enabled = ["audio", "tts", "asr", "llm", "voice_trigger", "nlu", "text_processor"]
+disabled = []
+
+# ============================================================
+# WORKFLOW SYSTEM - All Workflows
+# ============================================================
+[workflows]
+enabled = ["voice_assistant", "continuous_listening"]
+disabled = []
+default = "voice_assistant"
+
+# ============================================================
+# INPUT/OUTPUT SYSTEM - All Inputs and Outputs
+# ============================================================
+[inputs]
+enabled = ["microphone", "web", "cli"]
+disabled = []
+default = "microphone"
+
+[outputs]
+enabled = ["text", "tts", "web"]
+disabled = []
+default = "tts"
+
+# ============================================================
+# PROVIDER SYSTEM - All Providers Enabled
+# ============================================================
+[providers.audio]
+enabled = ["sounddevice", "console", "aplay", "audioplayer"]
+disabled = ["simpleaudio"]  # Disabled due to compilation issues
+default = "sounddevice"
+fallback_providers = []
+
+[providers.tts]
+enabled = ["elevenlabs", "pyttsx", "silero_v3", "silero_v4", "console"]
+disabled = ["vosk_tts"]  # Experimental
+default = "elevenlabs"
+fallback_providers = []
+
+[providers.asr]
+enabled = ["vosk", "whisper", "google_cloud"]
+disabled = []
+default = "vosk"
+fallback_providers = []
+
+[providers.llm]
+enabled = ["openai", "anthropic", "vsegpt"]
+disabled = []
+default = "openai"
+fallback_providers = []
+
+[providers.voice_trigger]
+enabled = ["openwakeword", "microwakeword"]
+disabled = []
+default = "openwakeword"
+fallback_providers = []
+
+[providers.nlu]
+enabled = ["rule_based", "spacy"]
+disabled = []
+default = "rule_based"
+fallback_providers = []
+
+[providers.text_processing]
+enabled = ["asr_text_processor", "general_text_processor", "tts_text_processor", "number_text_processor"]
+disabled = []
+default = "general_text_processor"
+
+# ============================================================
+# INTENT SYSTEM - All Intent Handlers
+# ============================================================
+[intents]
+enabled = true
+confidence_threshold = 0.7
+fallback_handler = "conversation"
+
+[intents.handlers]
+enabled = ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"]
+disabled = []
+
+# ============================================================
+# PLUGIN SYSTEM - All Plugins
+# ============================================================
+[plugins]
+enabled = ["random_plugin", "async_service_demo"]
+disabled = []
+
+# ============================================================
+# WEB API - Full Web Interface
+# ============================================================
+[webapi]
+enabled = true
+host = "0.0.0.0"
+port = 8000
+cors_enabled = true
+static_files = true
+
+# ============================================================
+# PROVIDER CONFIGURATIONS - Full Settings
+# ============================================================
+
+# ElevenLabs TTS Configuration
+[providers.tts.elevenlabs]
+api_key = "${ELEVENLABS_API_KEY}"
+voice_id = "21m00Tcm4TlvDq8ikWAM"
+model = "eleven_multilingual_v2"
+stability = 0.5
+similarity_boost = 0.75
+
+# OpenAI Configuration
+[providers.llm.openai]
+api_key = "${OPENAI_API_KEY}"
+model = "gpt-4"
+max_tokens = 150
+temperature = 0.7
+
+# Anthropic Configuration
+[providers.llm.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"
+model = "claude-3-sonnet-20240229"
+max_tokens = 150
+
+# Google Cloud ASR Configuration
+[providers.asr.google_cloud]
+credentials_file = "${GOOGLE_APPLICATION_CREDENTIALS}"
+language_code = "en-US"
+model = "latest_long"
+
+# Vosk ASR Configuration
+[providers.asr.vosk]
+model_path = "models/vosk-model-en-us-0.22"
+sample_rate = 16000
+
+# OpenWakeWord Configuration
+[providers.voice_trigger.openwakeword]
+model_paths = ["models/openwakeword/alexa_v0.1.onnx"]
+chunk_size = 1280
+sensitivity = 0.5
+
+# MicroWakeWord Configuration
+[providers.voice_trigger.microwakeword]
+model_path = "models/microwakeword/irene_model.tflite"
+threshold = 0.8
+sample_rate = 16000
+
+# SpaCy NLU Configuration
+[providers.nlu.spacy]
+model_name = "en_core_web_sm"
+confidence_threshold = 0.8 

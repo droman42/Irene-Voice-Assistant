@@ -1,0 +1,277 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - DEVELOPMENT CONFIGURATION
+# ============================================================
+# Comprehensive development configuration with debugging tools.
+# All components enabled, extensive logging, debug features.
+# Perfect for development, debugging, and comprehensive testing.
+
+[core]
+name = "Irene"
+version = "13.0.0"
+debug = true
+log_level = "DEBUG"
+language = "en-US"
+timezone = "UTC"
+
+# Development performance settings
+max_concurrent_commands = 3
+command_timeout_seconds = 60.0  # Long timeout for debugging
+context_timeout_minutes = 60    # Extended context for testing
+
+# Full monitoring and metrics
+enable_metrics = true
+metrics_port = 9090
+enable_profiling = true
+
+# Development features
+debug_mode = true
+verbose_logging = true
+component_tracing = true
+
+# ============================================================
+# ASSET MANAGEMENT - Development Storage
+# ============================================================
+[assets]
+models_root = "./models"
+cache_root = "./cache"
+data_root = "./data"
+credentials_root = "./credentials"
+
+# Debug asset management
+asset_download_verbose = true
+cache_debugging = true
+
+# ============================================================
+# COMPONENT SYSTEM - All Components for Testing
+# ============================================================
+[components]
+enabled = ["audio", "tts", "asr", "llm", "voice_trigger", "nlu", "text_processor"]
+disabled = []
+
+# Component debugging
+component_load_timing = true
+component_error_details = true
+
+# ============================================================
+# WORKFLOW SYSTEM - All Workflows for Testing
+# ============================================================
+[workflows]
+enabled = ["voice_assistant", "continuous_listening"]
+disabled = []
+default = "voice_assistant"
+
+# Workflow debugging
+workflow_step_logging = true
+context_tracking = true
+
+# ============================================================
+# INPUT/OUTPUT SYSTEM - All I/O for Testing
+# ============================================================
+[inputs]
+enabled = ["microphone", "web", "cli"]
+disabled = []
+default = "microphone"
+
+[outputs]
+enabled = ["text", "tts", "web"]
+disabled = []
+default = "text"  # Text output for easier debugging
+
+# ============================================================
+# PROVIDER SYSTEM - All Providers for Testing
+# ============================================================
+[providers.audio]
+# All audio providers for testing compatibility
+enabled = ["sounddevice", "console", "aplay", "audioplayer"]
+disabled = ["simpleaudio"]  # Known compilation issues
+default = "console"  # Console for easier debugging
+fallback_providers = []
+
+[providers.tts]
+# All TTS providers for testing
+enabled = ["console", "pyttsx", "elevenlabs", "silero_v3", "silero_v4"]
+disabled = ["vosk_tts"]  # Experimental
+default = "console"  # Console for debugging
+fallback_providers = []
+
+[providers.asr]
+# All ASR providers for testing
+enabled = ["vosk", "whisper", "google_cloud"]
+disabled = []
+default = "vosk"
+fallback_providers = []
+
+[providers.llm]
+# All LLM providers for testing
+enabled = ["openai", "anthropic", "vsegpt"]
+disabled = []
+default = "openai"
+fallback_providers = []
+
+[providers.voice_trigger]
+# Both wake word systems for testing
+enabled = ["openwakeword", "microwakeword"]
+disabled = []
+default = "openwakeword"
+fallback_providers = []
+
+[providers.nlu]
+# All NLU providers for testing
+enabled = ["rule_based", "spacy"]
+disabled = []
+default = "rule_based"
+fallback_providers = []
+
+[providers.text_processing]
+# All text processing providers
+enabled = ["asr_text_processor", "general_text_processor", "tts_text_processor", "number_text_processor"]
+disabled = []
+default = "general_text_processor"
+
+# ============================================================
+# INTENT SYSTEM - Full Intent Processing
+# ============================================================
+[intents]
+enabled = true
+confidence_threshold = 0.5  # Low threshold for testing edge cases
+fallback_handler = "conversation"
+
+# Intent debugging
+intent_matching_verbose = true
+confidence_logging = true
+
+[intents.handlers]
+# All intent handlers for comprehensive testing
+enabled = ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"]
+disabled = []
+
+# ============================================================
+# PLUGIN SYSTEM - All Plugins for Testing
+# ============================================================
+[plugins]
+enabled = ["random_plugin", "async_service_demo"]
+disabled = []
+
+# Plugin debugging
+plugin_load_timing = true
+plugin_error_details = true
+
+# ============================================================
+# WEB API - Development Web Interface
+# ============================================================
+[webapi]
+enabled = true
+host = "127.0.0.1"
+port = 8000
+cors_enabled = true
+static_files = true
+
+# Development web features
+debug_endpoints = true
+request_logging = true
+response_timing = true
+
+# ============================================================
+# PROVIDER CONFIGURATIONS - Development Optimized
+# ============================================================
+
+# Console TTS Configuration (debugging)
+[providers.tts.console]
+prefix = "[TTS]"
+color = true
+timestamp = true
+
+# Console Audio Configuration (debugging)
+[providers.audio.console]
+prefix = "[AUDIO]"
+show_duration = true
+show_sample_rate = true
+
+# OpenAI Configuration (development)
+[providers.llm.openai]
+api_key = "${OPENAI_API_KEY}"
+model = "gpt-3.5-turbo"  # Cost-effective for development
+max_tokens = 100
+temperature = 0.3
+timeout = 30.0
+debug_requests = true
+
+# Anthropic Configuration (development)
+[providers.llm.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"
+model = "claude-3-haiku-20240307"  # Fast for development
+max_tokens = 100
+timeout = 30.0
+debug_requests = true
+
+# Vosk ASR Configuration (development)
+[providers.asr.vosk]
+model_path = "models/vosk-model-en-us-0.22"
+sample_rate = 16000
+log_level = 2  # Verbose logging
+alternatives = 5  # More alternatives for debugging
+
+# Google Cloud ASR Configuration (development)
+[providers.asr.google_cloud]
+credentials_file = "${GOOGLE_APPLICATION_CREDENTIALS}"
+language_code = "en-US"
+model = "latest_long"
+enable_profanity_filter = false  # For testing edge cases
+debug_requests = true
+
+# OpenWakeWord Configuration (development)
+[providers.voice_trigger.openwakeword]
+model_paths = ["models/openwakeword/alexa_v0.1.onnx"]
+chunk_size = 1280
+sensitivity = 0.3  # Lower sensitivity for testing
+vad_threshold = 0.3
+debug_audio = true
+
+# MicroWakeWord Configuration (development)
+[providers.voice_trigger.microwakeword]
+model_path = "models/microwakeword/irene_model.tflite"
+threshold = 0.6  # Lower threshold for testing
+sample_rate = 16000
+debug_inference = true
+
+# SpaCy NLU Configuration (development)
+[providers.nlu.spacy]
+model_name = "en_core_web_sm"
+confidence_threshold = 0.5
+debug_processing = true
+
+# Rule-based NLU Configuration (development)
+[providers.nlu.rule_based]
+confidence_threshold = 0.5
+case_sensitive = false
+fuzzy_matching = true
+debug_matching = true
+
+# ============================================================
+# DEVELOPMENT FEATURES
+# ============================================================
+[development]
+# Performance profiling
+enable_performance_profiling = true
+profile_components = true
+profile_providers = true
+profile_workflows = true
+
+# Memory monitoring
+memory_monitoring = true
+memory_profiling_interval = 30
+
+# Error handling
+detailed_error_messages = true
+stack_trace_in_logs = true
+component_error_isolation = false  # Don't isolate for easier debugging
+
+# Testing features
+mock_external_services = false  # Use real services for integration testing
+record_test_data = true
+save_debug_audio = true
+
+# Development shortcuts
+skip_model_validation = false
+allow_missing_credentials = true
+graceful_degradation = false  # Fail fast for debugging 

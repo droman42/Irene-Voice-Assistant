@@ -1,0 +1,97 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - MINIMAL CONFIGURATION PROFILE
+# ============================================================
+# Ultra-lightweight deployment configuration.
+# Uses only console providers, no audio, minimal dependencies.
+# Perfect for text-only deployments, API servers, and testing.
+
+[core]
+name = "Irene"
+version = "13.0.0"
+debug = false
+log_level = "INFO"
+language = "en-US"
+
+# ============================================================
+# ASSET MANAGEMENT - Minimal Storage
+# ============================================================
+[assets]
+models_root = "./models"
+cache_root = "./cache"
+data_root = "./data"
+
+# ============================================================
+# COMPONENT SYSTEM - Minimal Components Only
+# ============================================================
+[components]
+# Only essential components for text processing
+enabled = ["text_processor"]
+disabled = ["audio", "tts", "asr", "voice_trigger", "llm", "nlu"]
+
+# ============================================================
+# WORKFLOW SYSTEM - Minimal Workflow
+# ============================================================
+[workflows]
+enabled = []  # No default workflows - manual operation only
+disabled = ["voice_assistant", "continuous_listening"]
+
+# ============================================================
+# INPUT/OUTPUT SYSTEM - Console Only
+# ============================================================
+[inputs]
+enabled = ["cli"]
+disabled = ["microphone", "web"]
+default = "cli"
+
+[outputs]
+enabled = ["text"]
+disabled = ["tts", "web"]
+default = "text"
+
+# ============================================================
+# PROVIDER SYSTEM - Console Providers Only
+# ============================================================
+[providers.audio]
+enabled = []  # No audio providers
+disabled = ["sounddevice", "console", "aplay", "audioplayer", "simpleaudio"]
+
+[providers.tts]
+enabled = []  # No TTS providers
+disabled = ["elevenlabs", "pyttsx", "silero_v3", "silero_v4", "vosk_tts", "console"]
+
+[providers.asr]
+enabled = []  # No ASR providers
+disabled = ["vosk", "whisper", "google_cloud"]
+
+[providers.llm]
+enabled = []  # No LLM providers
+disabled = ["openai", "anthropic", "vsegpt"]
+
+[providers.voice_trigger]
+enabled = []  # No voice trigger
+disabled = ["openwakeword", "microwakeword"]
+
+[providers.nlu]
+enabled = []  # No NLU providers
+disabled = ["rule_based", "spacy"]
+
+[providers.text_processing]
+# Minimal text processing
+enabled = ["asr_text_processor"]
+disabled = ["general_text_processor", "tts_text_processor", "number_text_processor"]
+default = "asr_text_processor"
+
+# ============================================================
+# PLUGIN SYSTEM - No Plugins
+# ============================================================
+[plugins]
+enabled = []
+disabled = ["random_plugin", "async_service_demo"]
+
+# ============================================================
+# WEB API - Disabled
+# ============================================================
+[webapi]
+enabled = false
+host = "127.0.0.1"
+port = 8000 

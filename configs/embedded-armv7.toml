@@ -1,0 +1,164 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - EMBEDDED ARMv7 CONFIGURATION
+# ============================================================
+# Optimized configuration for ARMv7 devices (Raspberry Pi, IoT).
+# Lightweight audio processing, local wake word, minimal memory usage.
+# Perfect for edge devices and standalone voice assistants.
+
+[core]
+name = "Irene"
+version = "13.0.0"
+debug = false
+log_level = "WARNING"  # Reduce logging overhead
+language = "en-US"
+timezone = "UTC"
+
+# Performance optimized for limited resources
+max_concurrent_commands = 2
+command_timeout_seconds = 45.0  # Allow more time for slow processing
+context_timeout_minutes = 5
+
+# Monitoring disabled to save resources
+enable_metrics = false
+enable_profiling = false
+
+# ============================================================
+# ASSET MANAGEMENT - Local Storage Optimized
+# ============================================================
+[assets]
+models_root = "/opt/irene/models"  # System location
+cache_root = "/tmp/irene/cache"    # Temporary storage
+data_root = "/var/lib/irene/data"  # Persistent data
+
+# ============================================================
+# COMPONENT SYSTEM - Essential Components Only
+# ============================================================
+[components]
+enabled = ["audio", "voice_trigger", "asr", "text_processor"]
+disabled = ["tts", "llm", "nlu"]  # Reduce memory usage
+
+# ============================================================
+# WORKFLOW SYSTEM - Voice Processing Only
+# ============================================================
+[workflows]
+enabled = ["continuous_listening"]  # Always listening mode
+disabled = ["voice_assistant"]      # No interactive conversation
+default = "continuous_listening"
+
+# ============================================================
+# INPUT/OUTPUT SYSTEM - Audio Focused
+# ============================================================
+[inputs]
+enabled = ["microphone"]
+disabled = ["web", "cli"]
+default = "microphone"
+
+[outputs]
+enabled = ["text"]  # Text output only, no TTS
+disabled = ["tts", "web"]
+default = "text"
+
+# ============================================================
+# PROVIDER SYSTEM - Lightweight Local Providers
+# ============================================================
+[providers.audio]
+# ALSA-based audio for Raspberry Pi
+enabled = ["aplay"]
+disabled = ["sounddevice", "console", "audioplayer", "simpleaudio"]
+default = "aplay"
+fallback_providers = []
+
+[providers.tts]
+enabled = []  # No TTS to save resources
+disabled = ["elevenlabs", "pyttsx", "silero_v3", "silero_v4", "vosk_tts", "console"]
+
+[providers.asr]
+# Local ASR only - no cloud dependencies
+enabled = ["vosk"]
+disabled = ["whisper", "google_cloud"]  # Too heavy for ARMv7
+default = "vosk"
+fallback_providers = []
+
+[providers.llm]
+enabled = []  # No LLM providers to save memory
+disabled = ["openai", "anthropic", "vsegpt"]
+
+[providers.voice_trigger]
+# Lightweight wake word detection
+enabled = ["microwakeword"]
+disabled = ["openwakeword"]  # Too heavy for ARMv7
+default = "microwakeword"
+fallback_providers = []
+
+[providers.nlu]
+enabled = []  # No NLU to save resources
+disabled = ["rule_based", "spacy"]
+
+[providers.text_processing]
+# Minimal text processing
+enabled = ["asr_text_processor"]
+disabled = ["general_text_processor", "tts_text_processor", "number_text_processor"]
+default = "asr_text_processor"
+
+# ============================================================
+# INTENT SYSTEM - Disabled for Minimal Build
+# ============================================================
+[intents]
+enabled = false  # No intent processing
+
+[intents.handlers]
+enabled = []
+disabled = ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"]
+
+# ============================================================
+# PLUGIN SYSTEM - No Plugins for Minimal Build
+# ============================================================
+[plugins]
+enabled = []
+disabled = ["random_plugin", "async_service_demo"]
+
+# ============================================================
+# WEB API - Disabled to Save Resources
+# ============================================================
+[webapi]
+enabled = false
+
+# ============================================================
+# PROVIDER CONFIGURATIONS - ARMv7 Optimized
+# ============================================================
+
+# Vosk ASR Configuration - Lightweight model
+[providers.asr.vosk]
+model_path = "models/vosk-model-small-en-us-0.15"  # Small model for ARMv7
+sample_rate = 16000
+buffer_size = 4096  # Smaller buffer for memory
+
+# MicroWakeWord Configuration - INT8 optimized
+[providers.voice_trigger.microwakeword]
+model_path = "models/microwakeword/irene_model_int8.tflite"  # INT8 quantized
+threshold = 0.7  # Slightly lower threshold for edge cases
+sample_rate = 16000
+mfcc_features = 40
+frame_length_ms = 30
+frame_step_ms = 10
+
+# APLAY Audio Configuration - ALSA optimized
+[providers.audio.aplay]
+device = "default"  # Use default ALSA device
+sample_rate = 16000
+channels = 1  # Mono only
+buffer_size = 1024  # Small buffer for low latency
+
+# Hardware-specific settings for Raspberry Pi
+[hardware]
+# GPIO pins for status LEDs (optional)
+status_led_pin = 18
+activity_led_pin = 19
+
+# Audio settings for Raspberry Pi audio cards
+audio_input_device = "hw:1,0"   # USB audio card
+audio_output_device = "hw:0,0"  # Built-in audio
+
+# Power management
+cpu_governor = "ondemand"
+enable_swap = false  # Disable swap for SD card longevity 

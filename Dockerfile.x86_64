@@ -1,0 +1,183 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - x86_64 MULTI-PLATFORM DOCKER BUILD
+# ============================================================
+# Ubuntu desktop/server optimized build with runtime configuration analysis
+# Supports all configuration profiles with selective dependency installation
+# 
+# Usage:
+#   docker build -f Dockerfile.x86_64 --build-arg CONFIG_PROFILE=minimal .
+#   docker build -f Dockerfile.x86_64 --build-arg CONFIG_PROFILE=voice .
+#   docker build -f Dockerfile.x86_64 --build-arg CONFIG_PROFILE=full .
+
+# ============================================================
+# STAGE 1: BUILD ANALYZER - Runtime Configuration Analysis
+# ============================================================
+FROM python:3.11-slim as analyzer
+
+WORKDIR /build-analyzer
+
+# Install minimal dependencies for build analysis
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-tomli \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy build analyzer tool and configuration profiles
+COPY irene/tools/ irene/tools/
+COPY irene/utils/loader.py irene/utils/loader.py
+COPY irene/utils/__init__.py irene/utils/__init__.py
+COPY irene/__init__.py irene/__init__.py
+COPY configs/ configs/
+COPY pyproject.toml pyproject.toml
+
+# Build argument for configuration profile selection
+ARG CONFIG_PROFILE=minimal
+ENV CONFIG_PROFILE=${CONFIG_PROFILE}
+
+# Runtime analysis of selected configuration profile
+RUN echo "🔍 Analyzing configuration profile: ${CONFIG_PROFILE}" && \
+    python -m irene.tools.build_analyzer \
+    --config configs/${CONFIG_PROFILE}.toml \
+    --json > /tmp/build-requirements.json && \
+    echo "📋 Build requirements generated successfully"
+
+# Extract system dependencies for next stage
+RUN python -c "
+import json
+with open('/tmp/build-requirements.json', 'r') as f:
+    data = json.load(f)
+    
+# Write system packages
+with open('/tmp/system-packages.txt', 'w') as f:
+    packages = data.get('system_packages', [])
+    if packages:
+        f.write(' '.join(packages))
+    else:
+        f.write('')
+
+# Write Python dependencies  
+with open('/tmp/python-deps.txt', 'w') as f:
+    deps = data.get('python_dependencies', [])
+    if deps:
+        f.write(' '.join(deps))
+    else:
+        f.write('')
+
+# Write enabled modules for selective copying
+with open('/tmp/python-modules.txt', 'w') as f:
+    modules = data.get('python_modules', [])
+    f.write('\n'.join(modules))
+
+print(f'📦 System packages: {len(data.get(\"system_packages\", []))}')
+print(f'🐍 Python deps: {len(data.get(\"python_dependencies\", []))}')
+print(f'📋 Modules: {len(data.get(\"python_modules\", []))}')
+"
+
+# ============================================================
+# STAGE 2: DEPENDENCY BUILDER - Install Dependencies
+# ============================================================
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# Copy system dependency list from analyzer
+COPY --from=analyzer /tmp/system-packages.txt /tmp/system-packages.txt
+COPY --from=analyzer /tmp/python-deps.txt /tmp/python-deps.txt
+COPY --from=analyzer /tmp/build-requirements.json /tmp/build-requirements.json
+
+# Install UV package manager
+RUN pip install uv
+
+# Install system dependencies (only if packages are specified)
+RUN if [ -s /tmp/system-packages.txt ]; then \
+        echo "🔧 Installing system dependencies..." && \
+        apt-get update && \
+        apt-get install -y --no-install-recommends $(cat /tmp/system-packages.txt) && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/*; \
+    else \
+        echo "📦 No system dependencies required for this profile"; \
+    fi
+
+# Copy project files for dependency resolution
+COPY pyproject.toml uv.lock ./
+
+# Install Python dependencies with UV (only if dependencies are specified)
+RUN if [ -s /tmp/python-deps.txt ]; then \
+        echo "🐍 Installing Python dependencies with UV..." && \
+        python -c "
+import json
+with open('/tmp/build-requirements.json', 'r') as f:
+    data = json.load(f)
+    deps = data.get('python_dependencies', [])
+    if deps:
+        print('UV install command: uv sync --extra ' + ' --extra '.join(deps))
+" && \
+        uv sync $(python -c "
+import json
+with open('/tmp/build-requirements.json', 'r') as f:
+    data = json.load(f)
+    deps = data.get('python_dependencies', [])
+    if deps:
+        print('--extra ' + ' --extra '.join(deps))
+"); \
+    else \
+        echo "🐍 Installing base dependencies only..." && \
+        uv sync; \
+    fi
+
+# ============================================================
+# STAGE 3: RUNTIME - Minimal Runtime Image
+# ============================================================
+FROM python:3.11-slim as runtime
+
+# Metadata
+LABEL maintainer="Irene Voice Assistant Team"
+LABEL description="Irene Voice Assistant - x86_64 Runtime"
+ARG CONFIG_PROFILE=minimal
+LABEL config.profile="${CONFIG_PROFILE}"
+
+WORKDIR /app
+
+# Copy analysis results for runtime reference
+COPY --from=analyzer /tmp/build-requirements.json /app/build-requirements.json
+COPY --from=analyzer /tmp/python-modules.txt /app/python-modules.txt
+
+# Copy system dependencies (only if they exist)
+COPY --from=builder /tmp/system-packages.txt /tmp/system-packages.txt
+RUN if [ -s /tmp/system-packages.txt ]; then \
+        echo "🔧 Installing runtime system dependencies..." && \
+        apt-get update && \
+        apt-get install -y --no-install-recommends $(cat /tmp/system-packages.txt) && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi && rm /tmp/system-packages.txt
+
+# Copy Python environment from builder
+COPY --from=builder /root/.local /root/.local
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy application code (selective copying based on enabled modules)
+COPY irene/ irene/
+COPY configs/ configs/
+
+# Copy specific configuration profile for runtime
+COPY --from=analyzer configs/${CONFIG_PROFILE}.toml /app/runtime-config.toml
+
+# Create non-root user for security
+RUN useradd -m -u 1000 irene && \
+    chown -R irene:irene /app
+USER irene
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import irene; print('✅ Irene is healthy')" || exit 1
+
+# Runtime configuration
+ENV IRENE_CONFIG_FILE=/app/runtime-config.toml
+ENV PYTHONPATH=/app
+
+# Default command (can be overridden)
+CMD ["python", "-m", "irene.runners.cli", "--config", "/app/runtime-config.toml"]
+
+# Expose common ports (only if web API is enabled in config)
+EXPOSE 8000 9090 
