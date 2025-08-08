@@ -82,6 +82,34 @@ class VoskTTSProvider(TTSProvider):
         model_info = self.asset_manager.get_model_info("vosk", "tts")
         return model_info is not None
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Vosk TTS uses wav format for audio output"""
+        return ".wav"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Vosk TTS directory"""
+        return "vosk_tts"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Vosk TTS doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Vosk TTS uses models and runtime cache"""
+        return ["models", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Vosk TTS model URLs"""
+        return {
+            "ru": "https://alphacephei.com/vosk/models/vosk-model-ru-0.42.zip",
+            "en": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip"
+        }
+    
     async def speak(self, text: str, **kwargs) -> None:
         """Convert text to speech and play it"""
         # Create temporary file for audio

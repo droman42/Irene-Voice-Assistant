@@ -83,6 +83,37 @@ class VoskASRProvider(ASRProvider):
             logger.warning("VOSK library not available")
             return False
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Vosk models use zip format for distribution"""
+        return ".zip"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Vosk ASR directory for model storage"""
+        return "vosk"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Vosk doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Vosk uses models and runtime cache"""
+        return ["models", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Vosk ASR model URLs for different languages"""
+        return {
+            "ru": "https://alphacephei.com/vosk/models/vosk-model-ru-0.42.zip",
+            "en": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
+            "de": "https://alphacephei.com/vosk/models/vosk-model-de-0.21.zip",
+            "es": "https://alphacephei.com/vosk/models/vosk-model-es-0.42.zip",
+            "fr": "https://alphacephei.com/vosk/models/vosk-model-fr-0.22.zip"
+        }
+    
     async def transcribe_audio(self, audio_data: bytes, **kwargs) -> str:
         """Transcribe audio using VOSK - code moved from MicrophoneInput"""
         language = kwargs.get("language", self.default_language)

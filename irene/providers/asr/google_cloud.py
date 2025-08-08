@@ -82,6 +82,31 @@ class GoogleCloudASRProvider(ASRProvider):
             logger.warning("Google Cloud Speech library not available")
             return False
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Google Cloud ASR is API-based, no persistent files"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Google Cloud ASR directory for temp files"""
+        return "google_cloud"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Google Cloud ASR needs service account credentials"""
+        return ["GOOGLE_CLOUD_CREDENTIALS", "GOOGLE_APPLICATION_CREDENTIALS"]
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Google Cloud ASR uses runtime cache for API responses"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Google Cloud ASR is API-based, no model downloads"""
+        return {}
+    
     async def transcribe_audio(self, audio_data: bytes, **kwargs) -> str:
         """Transcribe audio using Google Cloud Speech-to-Text"""
         language = kwargs.get("language", self.default_language)

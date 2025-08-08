@@ -319,3 +319,39 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             # OpenWakeWord doesn't have explicit cleanup, but we can clear the reference
             self.oww = None
             logger.info("OpenWakeWord cleaned up") 
+    
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """OpenWakeWord models use .onnx format"""
+        return ".onnx"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """OpenWakeWord directory for model storage"""
+        return "openwakeword"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """OpenWakeWord doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """OpenWakeWord uses models and runtime cache"""
+        return ["models", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """OpenWakeWord model URLs for different wake words"""
+        return {
+            "alexa": "https://github.com/dscripka/openWakeWord/raw/main/openwakeword/resources/models/alexa_v0.1.onnx",
+            "hey_jarvis": "https://github.com/dscripka/openWakeWord/raw/main/openwakeword/resources/models/hey_jarvis_v0.1.onnx",
+            "hey_mycroft": "https://github.com/dscripka/openWakeWord/raw/main/openwakeword/resources/models/hey_mycroft_v0.1.onnx"
+        }
+    
+    async def initialize(self) -> None:
+        """Initialize OpenWakeWord detection"""
+        if not await self.is_available():
+            raise RuntimeError("OpenWakeWord dependencies not available")
+        
+        logger.info("OpenWakeWord provider initialized") 

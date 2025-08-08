@@ -3,6 +3,8 @@ Asset Management System
 
 Centralized management of models, cache, and credentials for Irene Voice Assistant.
 Supports environment variable configuration for Docker-friendly deployments.
+
+Enhanced in TODO #4 Phase 2 with configuration-driven asset management.
 """
 
 import os
@@ -25,6 +27,7 @@ class AssetManager:
     def __init__(self, config: "AssetConfig"):  # type: ignore
         self.config = config
         self._download_locks: Dict[str, asyncio.Lock] = {}
+        self._provider_asset_cache: Dict[str, Dict[str, Any]] = {}
     
     @classmethod
     def from_env(cls) -> "AssetManager":
@@ -33,24 +36,111 @@ class AssetManager:
         config = AssetConfig()
         return cls(config)
     
+    def _get_provider_asset_config(self, provider: str) -> Dict[str, Any]:
+        """
+        Get asset configuration for a provider by querying the provider class.
+        
+        This replaces hardcoded mappings with configuration-driven approach.
+        Uses provider class asset methods implemented in TODO #4 Phase 1.
+        
+        Args:
+            provider: Provider name (e.g., 'whisper', 'silero', 'elevenlabs')
+            
+        Returns:
+            Asset configuration dictionary with defaults and TOML overrides
+        """
+        # Check cache first
+        if provider in self._provider_asset_cache:
+            return self._provider_asset_cache[provider]
+        
+        # Discover provider class and get asset config
+        from ..utils.loader import dynamic_loader
+        
+        # Map provider names to namespaces
+        provider_namespace_map = {
+            'whisper': 'irene.providers.asr',
+            'silero': 'irene.providers.tts',
+            'vosk': 'irene.providers.asr',
+            'openwakeword': 'irene.providers.voice_trigger',
+            'microwakeword': 'irene.providers.voice_trigger',
+            'elevenlabs': 'irene.providers.tts',
+            'openai': 'irene.providers.llm',
+            'anthropic': 'irene.providers.llm',
+            'google_cloud': 'irene.providers.asr',
+            'sounddevice': 'irene.providers.audio',
+            'console': 'irene.providers.audio',
+        }
+        
+        # Try to find the provider in appropriate namespace
+        provider_class = None
+        if provider in provider_namespace_map:
+            namespace = provider_namespace_map[provider]
+            provider_class = dynamic_loader.get_provider_class(namespace, provider)
+        else:
+            # Search across all provider namespaces
+            namespaces = [
+                'irene.providers.tts',
+                'irene.providers.asr', 
+                'irene.providers.audio',
+                'irene.providers.llm',
+                'irene.providers.voice_trigger',
+                'irene.providers.nlu',
+                'irene.providers.text_processing'
+            ]
+            for namespace in namespaces:
+                provider_class = dynamic_loader.get_provider_class(namespace, provider)
+                if provider_class:
+                    break
+        
+        if provider_class and hasattr(provider_class, 'get_asset_config'):
+            try:
+                asset_config = provider_class.get_asset_config()
+                logger.debug(f"Loaded asset config for provider '{provider}': {asset_config}")
+            except Exception as e:
+                logger.warning(f"Failed to get asset config for provider '{provider}': {e}")
+                asset_config = self._get_fallback_asset_config(provider)
+        else:
+            logger.debug(f"Provider '{provider}' not found or no asset config method, using fallback")
+            asset_config = self._get_fallback_asset_config(provider)
+        
+        # Cache the result
+        self._provider_asset_cache[provider] = asset_config
+        return asset_config
+    
+    def _get_fallback_asset_config(self, provider: str) -> Dict[str, Any]:
+        """
+        Minimal fallback asset configuration for providers without explicit config.
+        
+        Uses generic defaults instead of hardcoded provider-specific mappings.
+        All known providers should implement asset configuration methods.
+        """
+        logger.warning(f"Provider '{provider}' not found or missing asset config - using generic defaults")
+        
+        # Generic defaults that work for any provider
+        return {
+            "file_extension": "",                  # No extension assumption
+            "directory_name": provider,            # Use provider name as directory
+            "credential_patterns": [],             # No credentials assumed
+            "cache_types": ["runtime"],            # Minimal cache usage
+            "model_urls": {}                       # No model URLs
+        }
+    
     def get_model_path(self, provider: str, model_id: str, filename: Optional[str] = None) -> Path:
-        """Get standardized model path"""
-        provider_dir = getattr(self.config, f"{provider}_models_dir", self.config.models_root / provider)
+        """Get standardized model path using provider asset configuration"""
+        # Get provider asset configuration instead of hardcoded mapping
+        asset_config = self._get_provider_asset_config(provider)
+        
+        # Use configured directory name
+        directory_name = asset_config.get("directory_name", provider)
+        provider_dir = self.config.models_root / directory_name
         
         if filename:
             return provider_dir / filename
         
-        # Auto-generate filename based on provider conventions
-        if provider == "whisper":
-            return provider_dir / f"{model_id}.pt"
-        elif provider == "silero":
-            return provider_dir / f"{model_id}.pt"
-        elif provider == "vosk":
-            return provider_dir / model_id
-        elif provider == "openwakeword":
-            return provider_dir / f"{model_id}.onnx"
-        elif provider == "microwakeword":
-            return provider_dir / f"{model_id}.tflite"
+        # Use configured file extension
+        file_extension = asset_config.get("file_extension", "")
+        if file_extension:
+            return provider_dir / f"{model_id}{file_extension}"
         else:
             return provider_dir / model_id
     
@@ -66,24 +156,34 @@ class AssetManager:
         return self.config.credentials_root / f"{provider}.json"
     
     def get_credentials(self, provider: str) -> Dict[str, Any]:
-        """Get credentials from environment variables or files"""
+        """Get credentials from environment variables or files using provider configuration"""
         credentials = {}
         
-        # Common environment variable patterns
-        env_patterns = {
-            "openai": ["OPENAI_API_KEY"],
-            "anthropic": ["ANTHROPIC_API_KEY"],
-            "elevenlabs": ["ELEVENLABS_API_KEY"],
-            "google_cloud": ["GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT_ID"],
-            "vsegpt": ["VSEGPT_API_KEY"]
-        }
+        # Get credential patterns from provider configuration
+        asset_config = self._get_provider_asset_config(provider)
+        credential_patterns = asset_config.get("credential_patterns", [])
         
-        # Try environment variables first
-        if provider in env_patterns:
-            for env_var in env_patterns[provider]:
-                value = os.getenv(env_var)
-                if value:
-                    credentials[env_var.lower()] = value
+        # Try environment variables from provider config
+        for env_var in credential_patterns:
+            value = os.getenv(env_var)
+            if value:
+                credentials[env_var.lower()] = value
+        
+        # Fallback to legacy hardcoded patterns for backward compatibility
+        if not credentials:
+            env_patterns = {
+                "openai": ["OPENAI_API_KEY"],
+                "anthropic": ["ANTHROPIC_API_KEY"],
+                "elevenlabs": ["ELEVENLABS_API_KEY"],
+                "google_cloud": ["GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT_ID"],
+                "vsegpt": ["VSEGPT_API_KEY"]
+            }
+            
+            if provider in env_patterns:
+                for env_var in env_patterns[provider]:
+                    value = os.getenv(env_var)
+                    if value:
+                        credentials[env_var.lower()] = value
         
         # Try credentials file
         cred_file = self.get_credentials_path(provider)

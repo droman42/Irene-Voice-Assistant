@@ -11,7 +11,7 @@ Phase 2 of TODO #2: Text Processing Provider Architecture Refactoring
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from ..base import ProviderBase
 from ...utils.text_normalizers import NumberNormalizer, PrepareNormalizer, RunormNormalizer
@@ -312,3 +312,44 @@ class TTSTextProcessor(ProviderBase):
         
         self._set_status(self.status.__class__.UNKNOWN)
         logger.info("TTS text processor cleaned up") 
+
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """TTS text processor doesn't use persistent files"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """TTS text processor directory"""
+        return "ttstextprocessor"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """TTS text processor doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """TTS text processor uses runtime cache"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """TTS text processor doesn't use models"""
+        return {}
+    
+    async def process(self, text: str, stage: str, **kwargs) -> str:
+        """
+        Process text through TTS-focused pipeline.
+        
+        Args:
+            text: Text to process
+            stage: Processing stage (should be 'tts_input' for this processor)
+            
+        Returns:
+            Processed text
+        """
+        if stage != "tts_input":
+            logger.warning(f"TTS processor received non-TTS stage '{stage}', processing anyway")
+        
+        return await self.process_tts_input(text) 

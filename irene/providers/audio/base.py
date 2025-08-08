@@ -7,15 +7,19 @@ This is used by UniversalAudioPlugin to manage multiple audio backends.
 
 from typing import Dict, Any, List, AsyncIterator
 from pathlib import Path
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+
+from ..base import ProviderBase
 
 
-class AudioProvider(ABC):
+class AudioProvider(ProviderBase):
     """
     Abstract base class for audio provider implementations.
     
     Audio providers are pure implementation classes without plugin overhead,
     managed by UniversalAudioPlugin through configuration-driven instantiation.
+    
+    Enhanced in TODO #4 Phase 1 with proper ProviderBase inheritance.
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -25,17 +29,8 @@ class AudioProvider(ABC):
         Args:
             config: Provider-specific configuration dictionary
         """
-        self.config = config
-    
-    @abstractmethod
-    async def is_available(self) -> bool:
-        """
-        Check if provider dependencies are available and functional.
-        
-        Returns:
-            True if provider can be used
-        """
-        pass
+        # Call ProviderBase.__init__ to get status tracking, logging, etc.
+        super().__init__(config)
     
     @abstractmethod
     async def play_file(self, file_path: Path, **kwargs) -> None:
@@ -95,16 +90,6 @@ class AudioProvider(ABC):
     @abstractmethod
     async def stop_playback(self) -> None:
         """Stop current audio playback."""
-        pass
-    
-    @abstractmethod
-    def get_provider_name(self) -> str:
-        """
-        Get unique provider identifier.
-        
-        Returns:
-            Unique provider name (e.g., "sounddevice", "audioplayer")
-        """
         pass
     
     def get_capabilities(self) -> Dict[str, Any]:

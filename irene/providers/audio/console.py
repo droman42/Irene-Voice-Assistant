@@ -62,6 +62,31 @@ class ConsoleAudioProvider(AudioProvider):
         """Console audio is always available"""
         return True
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Console audio doesn't use real files"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Console audio directory for logging"""
+        return "console"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Console audio doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Console audio uses runtime cache for logging"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Console audio doesn't use models"""
+        return {}
+    
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """
         'Play' an audio file by printing information to console.

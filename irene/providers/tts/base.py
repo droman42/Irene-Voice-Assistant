@@ -7,15 +7,19 @@ This is used by UniversalTTSPlugin to manage multiple TTS backends.
 
 from typing import Dict, Any, List
 from pathlib import Path
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+
+from ..base import ProviderBase
 
 
-class TTSProvider(ABC):
+class TTSProvider(ProviderBase):
     """
     Abstract base class for TTS provider implementations.
     
     TTS providers are pure implementation classes without plugin overhead,
     managed by UniversalTTSPlugin through configuration-driven instantiation.
+    
+    Enhanced in TODO #4 Phase 1 with proper ProviderBase inheritance.
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -25,17 +29,8 @@ class TTSProvider(ABC):
         Args:
             config: Provider-specific configuration dictionary
         """
-        self.config = config
-    
-    @abstractmethod
-    async def is_available(self) -> bool:
-        """
-        Check if provider dependencies are available and functional.
-        
-        Returns:
-            True if provider can be used
-        """
-        pass
+        # Call ProviderBase.__init__ to get status tracking, logging, etc.
+        super().__init__(config)
     
     @abstractmethod
     async def speak(self, text: str, **kwargs) -> None:
@@ -84,16 +79,6 @@ class TTSProvider(ABC):
             - voices: List of available voice names/IDs
             - formats: List of supported audio formats
             - features: List of special features supported
-        """
-        pass
-    
-    @abstractmethod
-    def get_provider_name(self) -> str:
-        """
-        Get unique provider identifier.
-        
-        Returns:
-            Unique provider name (e.g., "silero_v3", "pyttsx")
         """
         pass
     

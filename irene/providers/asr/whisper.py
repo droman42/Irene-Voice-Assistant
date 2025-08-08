@@ -18,7 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 class WhisperASRProvider(ASRProvider):
-    """OpenAI Whisper ASR Provider"""
+    """
+    OpenAI Whisper ASR Provider
+    
+    Enhanced in TODO #4 Phase 1 with intelligent asset defaults.
+    """
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize Whisper provider with configuration
@@ -48,14 +52,38 @@ class WhisperASRProvider(ASRProvider):
             
         self.default_language = config.get("default_language", None)  # None = auto-detect
         self._model: Any = None  # Lazy-loaded Whisper model
-        
-        # Initialize model on startup if requested
-        preload_models = config.get("preload_models", False)
-        if preload_models:
-            # Schedule model loading for startup
-            import asyncio
-            asyncio.create_task(self.warm_up())
-        
+    
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Whisper models use PyTorch .pt format"""
+        return ".pt"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Whisper models stored in dedicated whisper directory"""
+        return "whisper"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Whisper is open source, no credentials needed"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Uses models cache for Whisper models and runtime cache for temporary audio"""
+        return ["models", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Default Whisper model URLs from OpenAI"""
+        return {
+            "tiny": "https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e/tiny.pt",
+            "base": "https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt",
+            "small": "https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794/small.pt",
+            "medium": "https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt",
+            "large": "https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt"
+        }
+    
     async def is_available(self) -> bool:
         """Check if Whisper dependencies are available"""
         try:

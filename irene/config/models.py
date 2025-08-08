@@ -458,27 +458,7 @@ class AssetConfig(BaseModel):
         }
     )
     
-    # Helper properties for computed paths
-    @property
-    def whisper_models_dir(self) -> Path:
-        return self.models_root / "whisper"
-    
-    @property
-    def silero_models_dir(self) -> Path:
-        return self.models_root / "silero"
-        
-    @property
-    def vosk_models_dir(self) -> Path:
-        return self.models_root / "vosk"
-        
-    @property
-    def voice_trigger_models_dir(self) -> Path:
-        return self.models_root / "voice_trigger"
-        
-    @property
-    def microwakeword_models_dir(self) -> Path:
-        return self.models_root / "microwakeword"
-        
+    # Cache directory helper properties (kept for compatibility)
     @property
     def downloads_cache_dir(self) -> Path:
         return self.cache_root / "downloads"
@@ -494,6 +474,10 @@ class AssetConfig(BaseModel):
     @property
     def temp_dir(self) -> Path:
         return self.cache_root / "temp"
+        
+    # Provider model directories are now configuration-driven via AssetManager
+    # Hardcoded directory properties removed in TODO #4 Phase 2
+    # Use AssetManager.get_model_path() for provider-specific paths
 
     def model_post_init(self, __context):
         """Create directories after initialization if auto_create_dirs is True"""
@@ -506,15 +490,14 @@ class AssetConfig(BaseModel):
             self.models_root,
             self.cache_root,
             self.credentials_root,
-            self.whisper_models_dir,
-            self.silero_models_dir,
-            self.vosk_models_dir,
-            self.voice_trigger_models_dir,
             self.downloads_cache_dir,
             self.runtime_cache_dir,
             self.tts_cache_dir,
             self.temp_dir
         ]
+        
+        # Provider-specific model directories are now created on-demand by AssetManager
+        # when get_model_path() is called (TODO #4 Phase 2)
         
         for directory in directories:
             try:

@@ -18,7 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 class ElevenLabsTTSProvider(TTSProvider):
-    """ElevenLabs TTS Provider - High-quality neural voice synthesis"""
+    """
+    ElevenLabs TTS Provider - High-quality neural voice synthesis
+    
+    Enhanced in TODO #4 Phase 1 with intelligent asset defaults.
+    """
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize ElevenLabs provider with configuration
@@ -50,6 +54,31 @@ class ElevenLabsTTSProvider(TTSProvider):
         self.similarity_boost = config.get("similarity_boost", 0.5)
         self.base_url = "https://api.elevenlabs.io/v1"
         
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """ElevenLabs provides audio streams, no persistent files"""
+        return ".mp3"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """ElevenLabs uses runtime cache only"""
+        return "elevenlabs"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """ElevenLabs requires API key credential"""
+        return ["ELEVENLABS_API_KEY"]
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Uses runtime cache for temporary audio data only"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """ElevenLabs is API-based, no model downloads"""
+        return {}
+    
     async def is_available(self) -> bool:
         """Check if ElevenLabs API is available"""
         if not self.api_key:

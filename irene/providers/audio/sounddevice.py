@@ -27,6 +27,8 @@ class SoundDeviceAudioProvider(AudioProvider):
     - Async operation with proper resource management
     - Graceful handling of missing dependencies
     - Centralized temp file management via asset manager
+    
+    Enhanced in TODO #4 Phase 1 with intelligent asset defaults.
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -82,6 +84,31 @@ class SoundDeviceAudioProvider(AudioProvider):
                 logger.debug(f"Using default audio output device: {default_device}")
             except Exception as e:
                 logger.warning(f"Failed to get default audio device: {e}")
+    
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """SoundDevice typically works with WAV files"""
+        return ".wav"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """SoundDevice uses temp cache for audio file processing"""
+        return "sounddevice"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """SoundDevice is a local library, no credentials needed"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Uses temp cache for temporary audio file processing"""
+        return ["temp", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """SoundDevice doesn't require model downloads"""
+        return {}
     
     async def is_available(self) -> bool:
         """Check if SoundDevice dependencies are available"""

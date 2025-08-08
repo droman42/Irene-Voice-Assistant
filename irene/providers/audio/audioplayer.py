@@ -60,6 +60,31 @@ class AudioPlayerAudioProvider(AudioProvider):
         """Check if AudioPlayer dependencies are available"""
         return self._available
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """AudioPlayer supports various formats, mp3 is common"""
+        return ".mp3"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """AudioPlayer directory for temp audio files"""
+        return "audioplayer"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """AudioPlayer doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """AudioPlayer uses temp and runtime cache"""
+        return ["temp", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """AudioPlayer doesn't use models"""
+        return {}
+    
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using audioplayer."""
         if not self._available or not self._AudioPlayer:

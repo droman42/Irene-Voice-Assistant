@@ -28,6 +28,8 @@ class SileroV3TTSProvider(TTSProvider):
     - Speaker selection based on configuration
     - Graceful handling of missing dependencies
     - Model caching optimization for performance
+    
+    Enhanced in TODO #4 Phase 1 with intelligent asset defaults.
     """
     
     # Class-level model cache for sharing across instances
@@ -76,6 +78,36 @@ class SileroV3TTSProvider(TTSProvider):
         
         # Available speakers
         self._speakers = ["xenia", "aidar", "baya", "kseniya", "eugene"]
+    
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Silero v3 models use PyTorch .pt format"""
+        return ".pt"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Silero v3 models stored in dedicated silero directory"""
+        return "silero"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Silero v3 is open source, no credentials needed"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Uses models cache for PyTorch models and runtime cache for temporary audio"""
+        return ["models", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Default Silero v3 model URLs"""
+        return {
+            "v3_ru": "https://models.silero.ai/models/tts/ru/v3_1_ru.pt",
+            "v3_en": "https://models.silero.ai/models/tts/en/v3_en.pt",
+            "v3_de": "https://models.silero.ai/models/tts/de/v3_de.pt",
+            "v3_es": "https://models.silero.ai/models/tts/es/v3_es.pt"
+        }
         
         # Try to import dependencies
         try:

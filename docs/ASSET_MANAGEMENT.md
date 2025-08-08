@@ -1,15 +1,99 @@
 # Asset Management System
 
-The Irene Voice Assistant now includes a centralized asset management system for handling models, cache files, and credentials. This system provides unified storage locations that work seamlessly with Docker deployments.
+The Irene Voice Assistant includes a centralized asset management system for handling models, cache files, and credentials. This system provides unified storage locations that work seamlessly with Docker deployments.
+
+**Enhanced in TODO #4 Phase 2 with configuration-driven provider asset management.**
 
 ## Overview
 
 The asset management system provides:
 1. **Unified root directories** for models, cache, and credentials
 2. **Environment variable configuration** for easy Docker deployment
-3. **Backwards compatibility** with existing configurations
+3. **Provider-driven asset configuration** with intelligent defaults and TOML overrides
 4. **Automatic model downloading** and caching
 5. **Centralized credential management**
+6. **External provider extensibility** via configuration
+
+## Configuration-Driven Asset Management (NEW)
+
+Starting with TODO #4 Phase 2, providers now define their own asset requirements through configuration methods. This eliminates hardcoding and enables seamless external provider integration.
+
+### Provider Asset Configuration
+
+Each provider can define:
+- **File extensions**: Default file formats (`.pt`, `.onnx`, `.wav`, etc.)
+- **Directory names**: Where to store provider-specific assets
+- **Credential patterns**: Required environment variables
+- **Cache types**: Which caches to use (models, runtime, temp, etc.)
+- **Model URLs**: Default download locations
+
+### Intelligent Defaults
+
+Providers use intelligent defaults based on their implementation:
+
+```python
+# Example: SileroV3TTSProvider automatically provides:
+{
+    "file_extension": ".pt",              # PyTorch format
+    "directory_name": "silero",           # Provider-specific directory
+    "credential_patterns": [],            # No credentials (open source)
+    "cache_types": ["models", "runtime"], # Models + runtime cache
+    "model_urls": {                       # Default model URLs
+        "v3_ru": "https://models.silero.ai/models/tts/ru/v3_1_ru.pt",
+        "v3_en": "https://models.silero.ai/models/tts/en/v3_en.pt"
+    }
+}
+```
+
+### TOML Configuration Overrides
+
+Override provider defaults in configuration files:
+
+```toml
+# Override Silero v3 asset configuration
+[providers.tts.silero_v3.assets]
+directory_name = "silero_custom"          # Custom directory name
+cache_types = ["models"]                  # Only models cache
+
+[providers.tts.silero_v3.assets.model_urls]
+v3_ru = "https://custom-mirror.com/silero_ru.pt"  # Custom URL
+
+# Configure ElevenLabs credentials
+[providers.tts.elevenlabs.assets]
+credential_patterns = ["ELEVENLABS_API_KEY"]
+file_extension = ".mp3"
+cache_types = ["runtime"]
+
+# Configure Whisper with custom directory
+[providers.asr.whisper.assets]
+directory_name = "whisper_models"
+cache_types = ["models", "runtime"]
+
+[providers.asr.whisper.assets.model_urls]
+tiny = "auto"     # Let whisper library handle download
+base = "auto"
+small = "auto"
+```
+
+### External Provider Support
+
+Third-party providers integrate seamlessly:
+
+```toml
+# Third-party package adds entry-point:
+# [project.entry-points."irene.providers.tts"]
+# my_custom_tts = "my_package.providers:MyCustomTTSProvider"
+
+# Configuration with asset customization:
+[providers.tts.my_custom_tts]
+enabled = true
+
+[providers.tts.my_custom_tts.assets]
+file_extension = ".custom"
+directory_name = "my_provider_models"
+credential_patterns = ["MY_CUSTOM_API_KEY"]
+cache_types = ["models", "runtime"]
+```
 
 ## Environment Variables
 
@@ -40,39 +124,39 @@ GOOGLE_CLOUD_PROJECT_ID=your_google_project_id
 
 ## Directory Structure
 
-When configured, the asset management system creates this structure:
+The asset management system creates provider-driven directory structures:
 
 ```
 /data/models/                    # IRENE_MODELS_ROOT
-├── whisper/
-│   ├── tiny.pt
+├── whisper/                     # WhisperASRProvider.directory_name
+│   ├── tiny.pt                  # WhisperASRProvider.file_extension
 │   ├── base.pt
-│   ├── small.pt
-│   └── large.pt
-├── silero/
-│   ├── v3_ru.pt
+│   └── small.pt
+├── silero/                      # SileroV3TTSProvider.directory_name  
+│   ├── v3_ru.pt                 # SileroV3TTSProvider.file_extension
 │   └── v4_ru.pt
-├── vosk/
-│   ├── ru_small/           # ASR model
-│   ├── en_us/              # ASR model
-│   └── tts/                # TTS model
-├── voice_trigger/              # Voice trigger models
-│   ├── alexa_v0.1.onnx
+├── vosk/                        # VoskASRProvider.directory_name
+│   ├── ru_small/                # VoskASRProvider.file_extension (empty = directories)
+│   └── en_us/
+├── openwakeword/               # OpenWakeWordProvider.directory_name
+│   ├── alexa_v0.1.onnx         # OpenWakeWordProvider.file_extension
 │   ├── hey_jarvis_v0.1.onnx
 │   └── hey_mycroft_v0.1.onnx
-└── huggingface/                # Future expansion
+└── custom_provider/            # ExternalProvider.directory_name (configurable)
+    └── model.custom            # ExternalProvider.file_extension (configurable)
 
 /data/cache/                     # IRENE_CACHE_ROOT
-├── downloads/                   # Temporary download files
+├── downloads/                   # Download cache
 ├── runtime/                     # Runtime model cache
-├── tts/                        # TTS audio cache
-└── temp/                       # Temporary files (audio streams, etc.)
+├── tts/                         # TTS audio cache  
+└── temp/                        # Temporary files
 
 /data/credentials/               # IRENE_CREDENTIALS_ROOT
 ├── google-cloud.json
-├── azure-speech.json
-└── ...
+└── azure-speech.json
 ```
+
+**Note**: Provider-specific directory names and file extensions are now determined by provider asset configuration, not hardcoded properties.
 
 ## Docker Integration
 
@@ -118,9 +202,9 @@ VOLUME ["/data/models", "/data/cache", "/data/credentials"]
 # ... rest of Dockerfile
 ```
 
-## Provider Configuration Changes
+## Provider Configuration Evolution
 
-### Legacy vs New Configuration
+### Phase 1: Legacy Hardcoded Configuration
 
 **Before (Legacy):**
 ```python
@@ -141,23 +225,42 @@ VOLUME ["/data/models", "/data/cache", "/data/credentials"]
 }
 ```
 
-**After (Asset Management):**
-```python
-{
-    "whisper": {
-        "model_size": "base"
-        # download_root automatically uses IRENE_MODELS_ROOT/whisper
-    },
-    "vosk": {
-        # model_paths automatically uses IRENE_MODELS_ROOT/vosk
-        "sample_rate": 16000
-    },
-    "openai": {
-        # api_key automatically uses OPENAI_API_KEY environment variable
-        "default_model": "gpt-4"
-    }
-}
+### Phase 2: Configuration-Driven Asset Management (NEW)
+
+**Current (Provider-Driven):**
+```toml
+# Providers automatically determine their asset needs
+[providers.asr.whisper]
+enabled = true
+model_size = "base"
+# Asset configuration provided by WhisperASRProvider class
+
+[providers.asr.vosk]
+enabled = true
+sample_rate = 16000
+# Asset configuration provided by VoskASRProvider class
+
+[providers.llm.openai]
+enabled = true
+default_model = "gpt-4"
+# Asset configuration provided by OpenAILLMProvider class
+
+# Optional: Override provider asset defaults
+[providers.asr.whisper.assets]
+directory_name = "whisper_custom"     # Override default "whisper"
+cache_types = ["models"]              # Override default ["models", "runtime"]
+
+[providers.llm.openai.assets]
+credential_patterns = ["OPENAI_API_KEY", "OPENAI_ORG_ID"]  # Add extra credentials
 ```
+
+### Benefits of New Approach
+
+1. **Provider Self-Description**: Providers declare their own asset needs
+2. **Zero Hardcoding**: No more hardcoded directory names or file extensions in core code
+3. **External Extensibility**: Third-party providers integrate seamlessly
+4. **TOML Override Support**: Customize provider defaults without code changes
+5. **Intelligent Defaults**: Providers provide sensible defaults based on their implementation
 
 ## Migration Guide
 
@@ -198,18 +301,76 @@ The system maintains backwards compatibility:
 
 ## Supported Providers
 
-### Model-based Providers
-- **Whisper ASR**: Uses `IRENE_MODELS_ROOT/whisper/`
-- **Silero TTS v3/v4**: Uses `IRENE_MODELS_ROOT/silero/`
-- **VOSK ASR**: Uses `IRENE_MODELS_ROOT/vosk/`
-- **VOSK TTS**: Uses `IRENE_MODELS_ROOT/vosk/`
+All 25 providers now support configuration-driven asset management:
 
-### Cloud Providers
-- **OpenAI**: Uses `OPENAI_API_KEY`
-- **Anthropic**: Uses `ANTHROPIC_API_KEY`
-- **ElevenLabs**: Uses `ELEVENLABS_API_KEY`
-- **VseGPT**: Uses `VSEGPT_API_KEY`
-- **Google Cloud**: Uses `GOOGLE_APPLICATION_CREDENTIALS`
+### TTS Providers (6)
+- **Silero v3**: `.pt` files, `silero` directory, models + runtime cache
+- **Silero v4**: `.pt` files, `silero_v4` directory, models + runtime cache  
+- **ElevenLabs**: `.mp3` files, `ELEVENLABS_API_KEY` credentials, runtime cache
+- **PyTTSx**: No files, runtime cache only
+- **VoSK TTS**: `.zip` files, `vosk` directory, models + runtime cache
+- **Console**: No files, runtime cache only
+
+### ASR Providers (3)
+- **Whisper**: `.pt` files, `whisper` directory, models + runtime cache
+- **VoSK ASR**: `.zip` files, `vosk` directory, models + runtime cache
+- **Google Cloud**: `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_CLOUD_PROJECT_ID`, runtime cache
+
+### LLM Providers (3)
+- **OpenAI**: `OPENAI_API_KEY` credentials, runtime cache only
+- **Anthropic**: `ANTHROPIC_API_KEY` credentials, runtime cache only
+- **VseGPT**: `VSEGPT_API_KEY` credentials, runtime cache only
+
+### Audio Providers (5)
+- **SoundDevice**: `.wav` files, runtime cache only
+- **SimpleAudio**: `.wav` files, runtime cache only
+- **AudioPlayer**: `.wav` files, runtime cache only
+- **Aplay**: `.wav` files, runtime cache only
+- **Console**: No files, runtime cache only
+
+### Voice Trigger Providers (2)
+- **OpenWakeWord**: `.onnx` files, `openwakeword` directory, models + runtime cache
+- **MicroWakeWord**: `.tflite` files, `microwakeword` directory, models + runtime cache
+
+### NLU Providers (2)
+- **Rule-based**: No files, runtime cache only
+- **SpaCy**: spaCy models, models + runtime cache
+
+### Text Processing Providers (4)
+- **ASR Text Processor**: No files, runtime cache only
+- **General Text Processor**: No files, runtime cache only  
+- **TTS Text Processor**: No files, runtime cache only
+- **Number Text Processor**: No files, runtime cache only
+
+### Asset Configuration Examples
+
+Each provider defines intelligent defaults. Common patterns:
+
+```python
+# Model-based providers (Silero, Whisper, VoSK)
+{
+    "file_extension": ".pt",              # Or .zip, .onnx, .tflite
+    "directory_name": "provider_name",    # Provider-specific directory
+    "cache_types": ["models", "runtime"], # Model storage + runtime cache
+    "model_urls": {...}                   # Download URLs
+}
+
+# API-based providers (OpenAI, ElevenLabs)
+{
+    "credential_patterns": ["API_KEY"],   # Required environment variables
+    "cache_types": ["runtime"],           # Runtime cache only
+    "file_extension": "",                 # No model files
+    "directory_name": "provider_name"     # Minimal directory usage
+}
+
+# Processing providers (Text processors, Console providers)
+{
+    "cache_types": ["runtime"],           # Runtime cache only
+    "credential_patterns": [],            # No credentials
+    "file_extension": "",                 # No persistent files
+    "directory_name": "provider_name"     # Minimal directory usage
+}
+```
 
 ## Benefits
 

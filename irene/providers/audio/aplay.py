@@ -60,6 +60,31 @@ class AplayAudioProvider(AudioProvider):
         """Check if aplay command is available"""
         return self._available
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Aplay works best with WAV files"""
+        return ".wav"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Aplay directory for temp audio files"""
+        return "aplay"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Aplay doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Aplay uses temp and runtime cache"""
+        return ["temp", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Aplay doesn't use models"""
+        return {}
+    
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using aplay command."""
         if not self._available:

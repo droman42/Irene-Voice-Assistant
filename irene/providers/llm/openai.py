@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAILLMProvider(LLMProvider):
-    """Official OpenAI LLM Provider"""
+    """
+    Official OpenAI LLM Provider
+    
+    Enhanced in TODO #4 Phase 1 with intelligent asset defaults.
+    """
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize OpenAI provider with configuration
@@ -46,7 +50,32 @@ class OpenAILLMProvider(LLMProvider):
         self.default_model = config.get("default_model", "gpt-4")
         self.max_tokens = config.get("max_tokens", 150)
         self.temperature = config.get("temperature", 0.3)
-        
+    
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """OpenAI is API-based, no persistent files"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """OpenAI uses runtime cache only"""
+        return "openai"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """OpenAI requires API key credential"""
+        return ["OPENAI_API_KEY"]
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Uses runtime cache for request/response data only"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """OpenAI is API-based, no model downloads"""
+        return {}
+    
     async def is_available(self) -> bool:
         """Check if OpenAI API is available"""
         try:

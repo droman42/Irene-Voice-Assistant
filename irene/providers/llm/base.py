@@ -5,12 +5,18 @@ Abstract base class for all LLM (Large Language Model) implementations.
 Following ABC inheritance pattern for type safety and runtime validation.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Dict, Any, List
 
+from ..base import ProviderBase
 
-class LLMProvider(ABC):
-    """Abstract base class for LLM implementations"""
+
+class LLMProvider(ProviderBase):
+    """
+    Abstract base class for LLM implementations.
+    
+    Enhanced in TODO #4 Phase 1 with proper ProviderBase inheritance.
+    """
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize with provider-specific configuration
@@ -18,16 +24,8 @@ class LLMProvider(ABC):
         Args:
             config: Provider-specific configuration dictionary
         """
-        self.config = config
-    
-    @abstractmethod
-    async def is_available(self) -> bool:
-        """Check if provider dependencies and credentials are available
-        
-        Returns:
-            True if provider can be used, False otherwise
-        """
-        pass
+        # Call ProviderBase.__init__ to get status tracking, logging, etc.
+        super().__init__(config)
     
     @abstractmethod
     async def enhance_text(self, text: str, task: str = "improve", **kwargs) -> str:
@@ -70,38 +68,6 @@ class LLMProvider(ABC):
         """Return list of supported enhancement tasks
         
         Returns:
-            List of task identifiers
+            List of task names (e.g., ['improve', 'grammar_correction', 'translation'])
         """
-        pass
-    
-    @abstractmethod
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters
-        
-        Returns:
-            Dictionary describing available parameters, types, and defaults
-        """
-        pass
-    
-    @abstractmethod
-    def get_provider_name(self) -> str:
-        """Return unique provider identifier
-        
-        Returns:
-            Provider name string
-        """
-        pass
-    
-    def get_capabilities(self) -> Dict[str, Any]:
-        """Return provider capabilities (optional override)
-        
-        Returns:
-            Dictionary with capability information
-        """
-        return {
-            "models": self.get_available_models(),
-            "tasks": self.get_supported_tasks(),
-            "streaming": False,  # Override if streaming supported
-            "multimodal": False,  # Override if multimodal supported
-            "function_calling": False  # Override if function calling supported
-        } 
+        pass 

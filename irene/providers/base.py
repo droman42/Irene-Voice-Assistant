@@ -8,7 +8,7 @@ Providers are pure implementation classes managed by Universal Plugins.
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -23,12 +23,102 @@ class ProviderStatus(Enum):
     INITIALIZING = "initializing"
 
 
-class ProviderBase(ABC):
+class EntryPointMetadata:
+    """
+    Universal metadata interface for entry-points asset configuration.
+    
+    This interface enables configuration-driven asset management by allowing
+    providers to declare their asset needs, credential patterns, and platform
+    dependencies. Supports both intelligent defaults and TOML configuration
+    overrides.
+    
+    Phase 1 of TODO #4: Configuration-Driven Asset Management
+    """
+    
+    @classmethod
+    def get_asset_config(cls) -> Dict[str, Any]:
+        """
+        Get asset configuration with intelligent defaults.
+        
+        Returns:
+            Dictionary containing:
+            - file_extension: Default file extension for models/assets
+            - directory_name: Default directory name for asset storage
+            - credential_patterns: List of environment variable patterns needed
+            - cache_types: List of cache types used (models, runtime, temp, etc.)
+            - model_urls: Dictionary of model URLs for downloads
+        """
+        return {
+            "file_extension": cls._get_default_extension(),
+            "directory_name": cls._get_default_directory(),
+            "credential_patterns": cls._get_default_credentials(),
+            "cache_types": cls._get_default_cache_types(),
+            "model_urls": cls._get_default_model_urls()
+        }
+    
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """
+        Override in provider classes for intelligent file extension defaults.
+        
+        Returns:
+            Default file extension (e.g., ".pt", ".wav", ".json")
+        """
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """
+        Override in provider classes for intelligent directory name defaults.
+        
+        Returns:
+            Default directory name for asset storage
+        """
+        # Default to lowercase class name without "Provider" suffix
+        name = cls.__name__.lower()
+        if name.endswith('provider'):
+            name = name[:-8]  # Remove 'provider' suffix
+        return name
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """
+        Override in provider classes for intelligent credential defaults.
+        
+        Returns:
+            List of environment variable patterns needed by provider
+        """
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """
+        Override in provider classes for intelligent cache type defaults.
+        
+        Returns:
+            List of cache types used: ["models", "runtime", "temp", "downloads"]
+        """
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """
+        Override in provider classes for intelligent model URL defaults.
+        
+        Returns:
+            Dictionary mapping model IDs to download URLs
+        """
+        return {}
+
+
+class ProviderBase(EntryPointMetadata, ABC):
     """
     Base class for all provider implementations.
     
     Provides common functionality like configuration management,
-    logging, and status tracking.
+    logging, status tracking, and asset configuration.
+    
+    Enhanced in TODO #4 Phase 1 with asset configuration support.
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -61,6 +151,33 @@ class ProviderBase(ABC):
             self.logger.error(f"Provider status changed to {status.value}: {error}")
         else:
             self.logger.debug(f"Provider status changed to {status.value}")
+    
+    def get_asset_config(self) -> Dict[str, Any]:
+        """
+        Get asset configuration with TOML overrides and intelligent defaults.
+        
+        This method implements the configuration-driven asset management pattern
+        by combining provider class defaults with TOML configuration overrides.
+        
+        Returns:
+            Dictionary containing complete asset configuration
+        """
+        # Get intelligent defaults from class methods
+        defaults = super().get_asset_config()
+        
+        # Get TOML configuration overrides if available
+        asset_section = self.config.get("assets", {})
+        
+        # Merge defaults with TOML overrides
+        result = {
+            "file_extension": asset_section.get("file_extension", defaults["file_extension"]),
+            "directory_name": asset_section.get("directory_name", defaults["directory_name"]),
+            "credential_patterns": asset_section.get("credential_patterns", defaults["credential_patterns"]),
+            "cache_types": asset_section.get("cache_types", defaults["cache_types"]),
+            "model_urls": asset_section.get("model_urls", defaults["model_urls"])
+        }
+        
+        return result
             
     @abstractmethod
     async def is_available(self) -> bool:

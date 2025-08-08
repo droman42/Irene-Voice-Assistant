@@ -11,7 +11,7 @@ Phase 2 of TODO #2: Text Processing Provider Architecture Refactoring
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from ..base import ProviderBase
 from ...utils.text_normalizers import NumberNormalizer
@@ -245,3 +245,41 @@ class NumberTextProcessor(ProviderBase):
         
         self._set_status(self.status.__class__.UNKNOWN)
         logger.info("Number text processor cleaned up") 
+    
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Number text processor doesn't use persistent files"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Number text processor directory"""
+        return "numbertextprocessor"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Number text processor doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Number text processor uses runtime cache"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Number text processor doesn't use models"""
+        return {}
+    
+    async def process(self, text: str, stage: str, **kwargs) -> str:
+        """
+        Process text through number normalization pipeline.
+        
+        Args:
+            text: Text to process
+            stage: Processing stage
+            
+        Returns:
+            Processed text with normalized numbers
+        """
+        return await self.process_numbers(text) 

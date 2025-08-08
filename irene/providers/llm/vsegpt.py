@@ -47,6 +47,31 @@ class VseGPTLLMProvider(LLMProvider):
         self.max_tokens = config.get("max_tokens", 150)
         self.temperature = config.get("temperature", 0.3)
         
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """VseGPT is API-based, no persistent files"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """VseGPT directory for temp files"""
+        return "vsegpt"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """VseGPT needs API key"""
+        return ["VSEGPT_API_KEY"]
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """VseGPT uses runtime cache for API responses"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """VseGPT is API-based, no model downloads"""
+        return {}
+    
     async def is_available(self) -> bool:
         """Check if VseGPT API is available"""
         if not self.api_key:

@@ -393,3 +393,44 @@ class SpaCyNLUProvider(ProviderBase):
         self.intent_patterns.clear()
         self.pattern_docs.clear()
         logger.info("spaCy NLU cleaned up") 
+    
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """SpaCy NLU doesn't use persistent files for basic operations"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """SpaCy NLU directory for models and cache"""
+        return "spacy"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """SpaCy NLU doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """SpaCy NLU uses models and runtime cache"""
+        return ["models", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """SpaCy models are installed via pip/conda"""
+        return {
+            "en_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz",
+            "ru_core_news_sm": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0.tar.gz"
+        }
+    
+    async def process_intent(self, text: str, **kwargs) -> Dict[str, Any]:
+        """
+        Process text for intent recognition using spaCy NLP pipeline.
+        
+        Args:
+            text: Input text to analyze
+            **kwargs: Additional processing parameters
+            
+        Returns:
+            Intent analysis results
+        """
+        return await self.extract_intent(text) 

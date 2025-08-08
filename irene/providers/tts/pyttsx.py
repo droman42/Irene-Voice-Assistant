@@ -86,6 +86,31 @@ class PyttsTTSProvider(TTSProvider):
         """Check if provider dependencies are available and functional"""
         return self._available and self._engine is not None
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Pyttsx3 can save to various audio formats, WAV is most common"""
+        return ".wav"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Pyttsx3 TTS directory for audio cache"""
+        return "pyttsx"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Pyttsx3 doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Pyttsx3 uses temp and runtime cache for audio files"""
+        return ["temp", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Pyttsx3 uses system TTS engines, no models to download"""
+        return {}
+    
     async def speak(self, text: str, **kwargs) -> None:
         """
         Convert text to speech and play it.

@@ -84,6 +84,37 @@ class SileroV4TTSProvider(TTSProvider):
         """Check if provider dependencies are available and functional"""
         return self._available and self._torch is not None
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Silero v4 models use .pt format"""
+        return ".pt"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Silero v4 directory for model storage"""
+        return "silero_v4"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Silero v4 doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Silero v4 uses models and runtime cache"""
+        return ["models", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Silero v4 model URLs for different languages"""
+        return {
+            "v4_ru": "https://models.silero.ai/models/tts/ru/v4_ru.pt",
+            "v4_en": "https://models.silero.ai/models/tts/en/v4_en.pt",
+            "v4_de": "https://models.silero.ai/models/tts/de/v4_de.pt",
+            "v4_es": "https://models.silero.ai/models/tts/es/v4_es.pt",
+            "v4_fr": "https://models.silero.ai/models/tts/fr/v4_fr.pt"
+        }
+    
     async def speak(self, text: str, **kwargs) -> None:
         """Convert text to speech and play it"""
         # Create temporary file for audio

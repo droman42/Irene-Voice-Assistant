@@ -5,13 +5,19 @@ Abstract base class for all ASR (Automatic Speech Recognition) implementations.
 Following ABC inheritance pattern for type safety and runtime validation.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Dict, Any, List, AsyncIterator
 from pathlib import Path
 
+from ..base import ProviderBase
 
-class ASRProvider(ABC):
-    """Abstract base class for speech recognition implementations"""
+
+class ASRProvider(ProviderBase):
+    """
+    Abstract base class for speech recognition implementations.
+    
+    Enhanced in TODO #4 Phase 1 with proper ProviderBase inheritance.
+    """
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize with provider-specific configuration
@@ -19,16 +25,8 @@ class ASRProvider(ABC):
         Args:
             config: Provider-specific configuration dictionary
         """
-        self.config = config
-    
-    @abstractmethod
-    async def is_available(self) -> bool:
-        """Check if provider dependencies are available
-        
-        Returns:
-            True if provider can be used, False otherwise
-        """
-        pass
+        # Call ProviderBase.__init__ to get status tracking, logging, etc.
+        super().__init__(config)
     
     @abstractmethod
     async def transcribe_audio(self, audio_data: bytes, **kwargs) -> str:
@@ -61,15 +59,6 @@ class ASRProvider(ABC):
         
         Returns:
             Dictionary describing available parameters, types, and defaults
-        """
-        pass
-    
-    @abstractmethod
-    def get_provider_name(self) -> str:
-        """Return unique provider identifier
-        
-        Returns:
-            Provider name string
         """
         pass
     

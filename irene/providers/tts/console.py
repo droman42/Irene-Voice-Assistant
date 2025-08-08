@@ -64,6 +64,31 @@ class ConsoleTTSProvider(TTSProvider):
         """Console TTS is always available"""
         return True
     
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Console TTS doesn't use files"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Console TTS directory for logs/temp files"""
+        return "console"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Console TTS doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Console TTS uses runtime cache for logging"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Console TTS doesn't use models"""
+        return {}
+    
     async def speak(self, text: str, **kwargs) -> None:
         """
         'Speak' text by printing to console.

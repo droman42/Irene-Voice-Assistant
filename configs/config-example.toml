@@ -425,4 +425,57 @@ max_log_size_mb = 10
 # 4. DEVELOPMENT/TESTING:
 #    [development] auto_reload = true, verbose_logging = true
 #    [logging] level = "DEBUG"
-#    Console providers enabled for all components 
+#    Console providers enabled for all components
+
+# ============================================================
+# PROVIDER ASSET CONFIGURATION (TODO #4 Phase 2)
+# ============================================================
+# Asset sections allow customization of provider-specific file extensions,
+# directory names, credentials, and model URLs. Providers use intelligent 
+# defaults that can be overridden via TOML configuration.
+
+# Example: Custom Silero v3 TTS asset configuration
+[providers.tts.silero_v3.assets]
+file_extension = ".pt"                    # Override default (PyTorch format)
+directory_name = "silero_custom"          # Override default ("silero")
+credential_patterns = []                  # No credentials needed (open source)
+cache_types = ["models", "runtime"]      # Uses models cache + runtime cache
+
+[providers.tts.silero_v3.assets.model_urls]
+v3_ru = "https://models.silero.ai/models/tts/ru/v3_1_ru.pt"
+v3_en = "https://models.silero.ai/models/tts/en/v3_en.pt"
+
+# Example: ElevenLabs TTS with custom asset configuration  
+[providers.tts.elevenlabs.assets]
+file_extension = ".mp3"                   # Audio files stored as MP3
+directory_name = "elevenlabs_cache"      # Custom cache directory name
+credential_patterns = ["ELEVENLABS_API_KEY"]  # Required environment variable
+cache_types = ["runtime"]                # Only runtime cache needed
+
+# Example: Whisper ASR with custom configuration
+[providers.asr.whisper.assets] 
+file_extension = ".pt"                    # PyTorch model format
+directory_name = "whisper_models"        # Custom model directory
+credential_patterns = []                 # No credentials for local models
+cache_types = ["models", "runtime"]      # Models + runtime cache
+
+[providers.asr.whisper.assets.model_urls]
+tiny = "auto"                             # Let whisper library handle download
+base = "auto"
+small = "auto"
+
+# Example: OpenAI LLM with credentials
+[providers.llm.openai.assets]
+credential_patterns = ["OPENAI_API_KEY"] # Required API key
+cache_types = ["runtime"]                # Only runtime cache needed
+
+# Example: VoSK ASR with custom model directory
+[providers.asr.vosk.assets]
+file_extension = ""                       # VoSK uses model directories
+directory_name = "vosk_speech_models"    # Custom directory name  
+credential_patterns = []                 # No credentials needed
+cache_types = ["models", "runtime"]      # Models + runtime cache
+
+# Note: If no asset configuration is provided, providers use intelligent 
+# defaults based on their type and implementation. Asset configuration
+# is optional and only needed for customization. 
