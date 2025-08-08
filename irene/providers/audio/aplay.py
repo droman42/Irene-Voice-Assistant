@@ -2,15 +2,14 @@
 Aplay Audio Provider - Linux ALSA audio playback
 
 Converted from irene/plugins/builtin/aplay_audio_plugin.py to provider pattern.
-Provides audio playback on Linux systems using the ALSA aplay command.
+Provides Linux ALSA audio playback using the aplay command-line tool.
 """
 
 import asyncio
 import logging
-import shutil
-import subprocess
 from pathlib import Path
 from typing import Dict, Any, List, AsyncIterator
+import uuid
 
 from .base import AudioProvider
 
@@ -19,36 +18,43 @@ logger = logging.getLogger(__name__)
 
 class AplayAudioProvider(AudioProvider):
     """
-    Aplay audio provider for Linux audio playback.
+    Aplay audio provider for Linux ALSA playback.
     
     Features:
-    - Uses ALSA aplay command for audio playback
-    - Works on most Linux distributions
-    - No Python audio library dependencies
-    - Async subprocess execution
+    - Linux ALSA audio system integration
+    - Command-line aplay tool usage
     - Device selection support
-    - Graceful handling when aplay unavailable
+    - Format flexibility
+    - Centralized temp file management via asset manager
     """
     
     def __init__(self, config: Dict[str, Any]):
-        """Initialize AplayAudioProvider with configuration."""
+        """
+        Initialize AplayAudioProvider with configuration.
+        
+        Args:
+            config: Provider configuration including device and volume settings
+        """
         super().__init__(config)
+        
+        # Asset management integration for temp files
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
         
         # Configuration values
         self.device = config.get("device", "default")
-        self.volume = config.get("volume", 1.0)
-        
-        # Runtime state
-        self._current_playback = None
-        self._volume = self.volume
+        self._volume = config.get("volume", 1.0)
         self._available = False
+        self._current_playback = None
         
-        # Check if aplay is available
+        # Check if aplay is available (Linux only)
+        import shutil
         self._available = shutil.which("aplay") is not None
-        if self._available:
-            logger.debug("Aplay audio provider: aplay command available")
+        
+        if not self._available:
+            logger.warning("Aplay audio provider: aplay command not found (Linux ALSA required)")
         else:
-            logger.warning("Aplay audio provider: aplay command not found")
+            logger.debug("Aplay audio provider: aplay command available")
     
     async def is_available(self) -> bool:
         """Check if aplay command is available"""
@@ -98,17 +104,22 @@ class AplayAudioProvider(AudioProvider):
             async for chunk in audio_stream:
                 audio_data += chunk
             
-            # Save to temporary file and play
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_file.write(audio_data)
-                temp_path = Path(temp_file.name)
+            # Use asset manager for temp file instead of system temp
+            temp_dir = self.asset_manager.get_cache_path("temp")
+            temp_file = temp_dir / f"audio_stream_{uuid.uuid4().hex}.wav"
+            
+            # Ensure temp directory exists
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write audio data to temp file
+            with open(temp_file, 'wb') as f:
+                f.write(audio_data)
             
             try:
-                await self.play_file(temp_path, **kwargs)
+                await self.play_file(temp_file, **kwargs)
             finally:
-                if temp_path.exists():
-                    temp_path.unlink()
+                if temp_file.exists():
+                    temp_file.unlink()
                     
         except Exception as e:
             logger.error(f"Failed to play audio stream: {e}")

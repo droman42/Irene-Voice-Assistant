@@ -23,14 +23,25 @@ class VseGPTLLMProvider(LLMProvider):
         
         Args:
             config: Provider configuration containing:
-                - api_key_env: Environment variable name for API key
+                - api_key_env: Environment variable name for API key (deprecated - uses asset manager)
                 - base_url: VseGPT API base URL
                 - default_model: Default model to use
                 - max_tokens: Maximum tokens in response
                 - temperature: Temperature for text generation
         """
         super().__init__(config)  # Proper ABC inheritance
-        self.api_key = os.getenv(config["api_key_env"])
+        
+        # Asset management integration for credentials
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Get API key through asset manager or fallback to config
+        credentials = self.asset_manager.get_credentials("vsegpt")
+        self.api_key = credentials.get("vsegpt_api_key") or os.getenv(config.get("api_key_env", "VSEGPT_API_KEY"))
+        
+        if not self.api_key and config.get("api_key_env"):
+            logger.warning("Using legacy api_key_env config. Consider using VSEGPT_API_KEY environment variable.")
+            
         self.base_url = config.get("base_url", "https://api.vsegpt.ru/v1")
         self.default_model = config.get("default_model", "openai/gpt-4o-mini")
         self.max_tokens = config.get("max_tokens", 150)
@@ -38,9 +49,13 @@ class VseGPTLLMProvider(LLMProvider):
         
     async def is_available(self) -> bool:
         """Check if VseGPT API is available"""
+        if not self.api_key:
+            logger.warning("VseGPT API key not found")
+            return False
+            
         try:
             import openai  # VseGPT uses OpenAI-compatible client
-            return self.api_key is not None
+            return True
         except ImportError:
             logger.warning("OpenAI library not available (required for VseGPT)")
             return False

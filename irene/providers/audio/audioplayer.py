@@ -2,13 +2,14 @@
 AudioPlayer Audio Provider - Cross-platform audio playback
 
 Converted from irene/plugins/builtin/audioplayer_audio_plugin.py to provider pattern.
-Provides simple cross-platform audio playback using the audioplayer library.
+Provides cross-platform audio playback using the audioplayer library.
 """
 
 import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, AsyncIterator
+import uuid
 
 from .base import AudioProvider
 
@@ -17,29 +18,33 @@ logger = logging.getLogger(__name__)
 
 class AudioPlayerAudioProvider(AudioProvider):
     """
-    AudioPlayer audio provider for cross-platform audio playback.
+    AudioPlayer audio provider using the audioplayer library.
     
     Features:
-    - Simple cross-platform audio playback
-    - Minimal dependencies
-    - Good compatibility across operating systems
-    - Async operation with threading
+    - Cross-platform audio playback
+    - Multiple audio format support
+    - Simple and reliable operation
     - Graceful handling of missing dependencies
+    - Centralized temp file management via asset manager
     """
     
     def __init__(self, config: Dict[str, Any]):
-        """Initialize AudioPlayerAudioProvider with configuration."""
+        """
+        Initialize AudioPlayerAudioProvider with configuration.
+        
+        Args:
+            config: Provider configuration including volume settings
+        """
         super().__init__(config)
         
-        # Configuration values
-        self.volume = config.get("volume", 0.8)
-        self.fade_in = config.get("fade_in", False)
-        self.fade_out = config.get("fade_out", True)
+        # Asset management integration for temp files
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
         
-        # Runtime state
-        self._current_playback = None
-        self._volume = self.volume
+        # Configuration values
+        self._volume = config.get("volume", 0.8)
         self._available = False
+        self._AudioPlayer = None
         
         # Try to import audioplayer
         try:
@@ -48,7 +53,6 @@ class AudioPlayerAudioProvider(AudioProvider):
             self._available = True
             logger.debug("AudioPlayer audio provider: dependencies available")
         except ImportError as e:
-            self._AudioPlayer = None
             self._available = False
             logger.warning(f"AudioPlayer audio provider: dependencies missing - {e}")
     
@@ -83,17 +87,22 @@ class AudioPlayerAudioProvider(AudioProvider):
             async for chunk in audio_stream:
                 audio_data += chunk
             
-            # Save to temporary file and play
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_file.write(audio_data)
-                temp_path = Path(temp_file.name)
+            # Use asset manager for temp file instead of system temp
+            temp_dir = self.asset_manager.get_cache_path("temp")
+            temp_file = temp_dir / f"audio_stream_{uuid.uuid4().hex}.wav"
+            
+            # Ensure temp directory exists
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write audio data to temp file
+            with open(temp_file, 'wb') as f:
+                f.write(audio_data)
             
             try:
-                await self.play_file(temp_path, **kwargs)
+                await self.play_file(temp_file, **kwargs)
             finally:
-                if temp_path.exists():
-                    temp_path.unlink()
+                if temp_file.exists():
+                    temp_file.unlink()
                     
         except Exception as e:
             logger.error(f"Failed to play audio stream: {e}")

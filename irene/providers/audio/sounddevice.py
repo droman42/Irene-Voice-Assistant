@@ -9,6 +9,7 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, AsyncIterator, Union
+import uuid
 
 from .base import AudioProvider
 
@@ -25,6 +26,7 @@ class SoundDeviceAudioProvider(AudioProvider):
     - Device selection and configuration
     - Async operation with proper resource management
     - Graceful handling of missing dependencies
+    - Centralized temp file management via asset manager
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -35,6 +37,10 @@ class SoundDeviceAudioProvider(AudioProvider):
             config: Provider configuration including device_id, sample_rate, etc.
         """
         super().__init__(config)
+        
+        # Asset management integration for temp files
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
         
         # Configuration values
         self.device_id = config.get("device_id", -1)  # -1 means default device
@@ -148,19 +154,24 @@ class SoundDeviceAudioProvider(AudioProvider):
             async for chunk in audio_stream:
                 audio_data += chunk
             
-            # Save to temporary file and play
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_file.write(audio_data)
-                temp_path = Path(temp_file.name)
+            # Use asset manager for temp file instead of system temp
+            temp_dir = self.asset_manager.get_cache_path("temp")
+            temp_file = temp_dir / f"audio_stream_{uuid.uuid4().hex}.wav"
+            
+            # Ensure temp directory exists
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write audio data to temp file
+            with open(temp_file, 'wb') as f:
+                f.write(audio_data)
             
             try:
                 # Play the temporary file
-                await self.play_file(temp_path, **kwargs)
+                await self.play_file(temp_file, **kwargs)
             finally:
                 # Clean up temporary file
-                if temp_path.exists():
-                    temp_path.unlink()
+                if temp_file.exists():
+                    temp_file.unlink()
                     
         except Exception as e:
             logger.error(f"Failed to play audio stream: {e}")

@@ -1,14 +1,15 @@
 """
-SimpleAudio Audio Provider - Simple WAV playback
+SimpleAudio Audio Provider - Lightweight audio playback
 
 Converted from irene/plugins/builtin/simpleaudio_audio_plugin.py to provider pattern.
-Provides simple audio playback using the simpleaudio library.
+Provides lightweight audio playback using simpleaudio library.
 """
 
 import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, AsyncIterator
+import uuid
 
 from .base import AudioProvider
 
@@ -17,39 +18,41 @@ logger = logging.getLogger(__name__)
 
 class SimpleAudioProvider(AudioProvider):
     """
-    SimpleAudio audio provider for simple audio playback.
+    SimpleAudio audio provider for lightweight audio playback.
     
     Features:
-    - Simple WAV file playback using simpleaudio
-    - Lightweight and minimal dependencies
-    - Cross-platform compatibility
-    - Async operation with threading
-    - Graceful handling of missing dependencies
+    - Lightweight audio playback using simpleaudio
+    - WAV file support only
+    - Minimal dependencies
+    - Fast and reliable operation
+    - Centralized temp file management via asset manager
     """
     
     def __init__(self, config: Dict[str, Any]):
-        """Initialize SimpleAudioProvider with configuration."""
+        """
+        Initialize SimpleAudioProvider with configuration.
+        
+        Args:
+            config: Provider configuration including volume settings
+        """
         super().__init__(config)
         
-        # Configuration values
-        self.volume = config.get("volume", 1.0)
+        # Asset management integration for temp files
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
         
-        # Runtime state
-        self._current_playback = None
-        self._volume = self.volume
+        # Configuration values
+        self._volume = config.get("volume", 1.0)
         self._available = False
+        self._sa = None
         
         # Try to import simpleaudio
         try:
             import simpleaudio as sa  # type: ignore
-            import numpy as np        # type: ignore
             self._sa = sa
-            self._np = np
             self._available = True
             logger.debug("SimpleAudio audio provider: dependencies available")
         except ImportError as e:
-            self._sa = None
-            self._np = None
             self._available = False
             logger.warning(f"SimpleAudio audio provider: dependencies missing - {e}")
     
@@ -88,17 +91,22 @@ class SimpleAudioProvider(AudioProvider):
             async for chunk in audio_stream:
                 audio_data += chunk
             
-            # Save to temporary WAV file and play
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_file.write(audio_data)
-                temp_path = Path(temp_file.name)
+            # Use asset manager for temp file instead of system temp
+            temp_dir = self.asset_manager.get_cache_path("temp")
+            temp_file = temp_dir / f"audio_stream_{uuid.uuid4().hex}.wav"
+            
+            # Ensure temp directory exists
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write audio data to temp file
+            with open(temp_file, 'wb') as f:
+                f.write(audio_data)
             
             try:
-                await self.play_file(temp_path, **kwargs)
+                await self.play_file(temp_file, **kwargs)
             finally:
-                if temp_path.exists():
-                    temp_path.unlink()
+                if temp_file.exists():
+                    temp_file.unlink()
                     
         except Exception as e:
             logger.error(f"Failed to play audio stream: {e}")

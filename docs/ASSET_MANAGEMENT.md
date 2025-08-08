@@ -66,7 +66,7 @@ When configured, the asset management system creates this structure:
 ├── downloads/                   # Temporary download files
 ├── runtime/                     # Runtime model cache
 ├── tts/                        # TTS audio cache
-└── temp/                       # Temporary files
+└── temp/                       # Temporary files (audio streams, etc.)
 
 /data/credentials/               # IRENE_CREDENTIALS_ROOT
 ├── google-cloud.json
@@ -208,6 +208,7 @@ The system maintains backwards compatibility:
 - **OpenAI**: Uses `OPENAI_API_KEY`
 - **Anthropic**: Uses `ANTHROPIC_API_KEY`
 - **ElevenLabs**: Uses `ELEVENLABS_API_KEY`
+- **VseGPT**: Uses `VSEGPT_API_KEY`
 - **Google Cloud**: Uses `GOOGLE_APPLICATION_CREDENTIALS`
 
 ## Benefits
