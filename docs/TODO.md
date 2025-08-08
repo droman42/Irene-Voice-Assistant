@@ -1535,13 +1535,6 @@ While TODO #1 successfully eliminated hardcoded loading patterns for providers, 
   - Consider if dynamic component discovery adds value vs. architectural clarity
   - Evaluate impact on component lifecycle and dependency resolution
 
-**Phase 4: Build System Integration** (Priority: Medium)
-- ❌ Update TODO #3 build analyzer to handle new discovery patterns
-- ❌ Extend entry-points analysis for intent handlers and plugins
-- ❌ Update selective build logic to include/exclude based on enabled intent handlers
-- ❌ Modify container builds to optimize for plugin configurations
-- ❌ Update GitHub Actions workflows to validate all discovery patterns
-
 ### Technical Implementation
 
 **Intent Handler Discovery Pattern:**
@@ -1622,7 +1615,6 @@ include_plugins = ["random_plugin"]  # Selective plugin builds
 ### Impact
 
 - **Breaking Change**: Intent handler and plugin initialization logic changes
-- **Build System**: TODO #3 build analyzer requires updates for new patterns
 - **Configuration**: Enhanced TOML schema for intent handler and plugin control
 - **External Packages**: Third-party intent handlers and plugins automatically supported
 - **Development Experience**: Consistent discovery pattern across all subsystems
@@ -1635,7 +1627,6 @@ include_plugins = ["random_plugin"]  # Selective plugin builds
 - ❌ `irene/plugins/manager.py` (update to direct entry-points discovery)
 - ❌ `irene/core/workflow_manager.py` (workflow discovery decisions needed)
 - ❌ `irene/core/components.py` (component registry decisions needed)
-- ❌ `irene/tools/build_analyzer.py` (update for TODO #3 integration)
 - ✅ `irene/utils/loader.py` (dynamic loader implementation ready)
 - ✅ `pyproject.toml` (entry-points catalog established)
 
