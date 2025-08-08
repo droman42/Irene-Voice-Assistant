@@ -25,7 +25,7 @@ data_root = "./data"
 # ============================================================
 [components]
 # Only essential components for text processing
-enabled = ["text_processor"]
+enabled = ["text_processor", "intent_system"]
 disabled = ["audio", "tts", "asr", "voice_trigger", "llm", "nlu"]
 
 # ============================================================

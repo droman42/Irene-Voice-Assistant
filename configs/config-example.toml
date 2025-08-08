@@ -48,8 +48,8 @@ credentials_root = "./credentials"
 # ============================================================
 [components]
 # Enable/disable core components (supports selective builds)
-enabled = ["audio", "tts", "asr", "llm", "voice_trigger"]
-disabled = ["nlu", "text_processor"]  # Explicitly disabled components
+enabled = ["audio", "tts", "asr", "llm", "voice_trigger", "nlu", "text_processor", "intent_system"]
+disabled = []  # Explicitly disabled components
 
 # Component discovery configuration
 auto_discover = true

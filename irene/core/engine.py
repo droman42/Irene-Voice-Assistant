@@ -18,7 +18,6 @@ from .context import Context, ContextManager
 from .timers import AsyncTimerManager
 from .commands import CommandProcessor, CommandResult
 from .components import ComponentManager
-from ..plugins.builtin import get_builtin_plugins
 
 logger = logging.getLogger(__name__)
 

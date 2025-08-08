@@ -266,11 +266,11 @@ class ConfigManager:
     def _create_documented_toml(self, config: CoreConfig) -> str:
         """Create TOML content with documentation and comments"""
         
-        # Get plugin metadata using direct extraction (simpler and more reliable)
+        # Get plugin metadata using dynamic discovery (entry-points based)
         plugin_metadata = {}
         try:
-            from ..plugins.builtin import get_builtin_plugins
-            builtin_plugins_classes = get_builtin_plugins()
+            from ..utils.loader import dynamic_loader
+            builtin_plugins_classes = dynamic_loader.discover_providers("irene.plugins.builtin", [])
             
             for plugin_name, plugin_class in builtin_plugins_classes.items():
                 try:

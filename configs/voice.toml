@@ -36,7 +36,7 @@ credentials_root = "./credentials"
 # COMPONENT SYSTEM - Voice-Focused Components
 # ============================================================
 [components]
-enabled = ["audio", "tts", "asr", "voice_trigger", "nlu", "text_processor"]
+enabled = ["audio", "tts", "asr", "voice_trigger", "nlu", "text_processor", "intent_system"]
 disabled = ["llm"]  # Optional for voice testing
 
 # ============================================================

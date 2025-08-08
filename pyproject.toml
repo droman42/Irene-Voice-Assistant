@@ -228,6 +228,7 @@ audio = "irene.components.audio_component:AudioComponent"
 voice_trigger = "irene.components.voice_trigger_component:VoiceTriggerComponent"
 nlu = "irene.components.nlu_component:NLUComponent"
 text_processor = "irene.components.text_processor_component:TextProcessorComponent"
+intent_system = "irene.components.intent_component:IntentComponent"
 
 [project.entry-points."irene.workflows"]
 voice_assistant = "irene.workflows.voice_assistant:VoiceAssistantWorkflow"

@@ -36,7 +36,7 @@ credentials_root = "./credentials"
 # COMPONENT SYSTEM - Text Processing Only
 # ============================================================
 [components]
-enabled = ["llm", "nlu", "text_processor"]
+enabled = ["llm", "nlu", "text_processor", "intent_system"]
 disabled = ["audio", "tts", "asr", "voice_trigger"]
 
 # ============================================================

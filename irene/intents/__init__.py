@@ -5,6 +5,7 @@ from .recognizer import IntentRecognizer
 from .orchestrator import IntentOrchestrator
 from .registry import IntentRegistry
 from .context import ContextManager
+from .manager import IntentHandlerManager
 
 __all__ = [
     "Intent",
@@ -13,4 +14,5 @@ __all__ = [
     "IntentOrchestrator",
     "IntentRegistry",
     "ContextManager",
+    "IntentHandlerManager",
 ] 

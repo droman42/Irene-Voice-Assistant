@@ -18,11 +18,11 @@ from pydantic_settings import BaseSettings
 
 
 def _get_default_builtin_plugins() -> dict[str, bool]:
-    """Get default builtin plugin configuration dynamically"""
+    """Get default builtin plugin configuration using dynamic discovery"""
     try:
-        # Use direct import but extract metadata like the registry does
-        from ..plugins.builtin import get_builtin_plugins
-        builtin_plugins = get_builtin_plugins()
+        # Use dynamic loader for entry-points discovery
+        from ..utils.loader import dynamic_loader
+        builtin_plugins = dynamic_loader.discover_providers("irene.plugins.builtin", [])
         
         defaults = {}
         for plugin_name, plugin_class in builtin_plugins.items():
@@ -37,28 +37,10 @@ def _get_default_builtin_plugins() -> dict[str, bool]:
         return defaults
         
     except Exception:
-        # Fallback to minimal safe defaults if anything fails
+        # Fallback to minimal safe defaults based on current entry-points
         return {
-            "CoreCommandsPlugin": True,
-            "GreetingsPlugin": True,
-            "DateTimePlugin": True,
-            "RandomPlugin": True,
-            "AsyncTimerPlugin": True,
-            # Universal plugins (Phase 1 & 2)
-            "UniversalTTSPlugin": True,
-            "UniversalAudioPlugin": True,
-            # Legacy TTS plugins (backward compatibility - disabled by default in favor of universal)
-            "ConsoleTTSPlugin": False,
-            "PyttsTTSPlugin": False,
-            "SileroV3TTSPlugin": False,
-            "SileroV4TTSPlugin": False,
-            "VoskTTSPlugin": False,
-            # Legacy Audio plugins (Phase 2 - disabled in favor of universal)
-            "ConsoleAudioPlugin": False,
-            "SoundDeviceAudioPlugin": False,
-            "AudioPlayerAudioPlugin": False,
-            "AplayAudioPlugin": False,
-            "SimpleAudioPlugin": False,
+            "random_plugin": True,
+            "async_service_demo": False,  # Demo plugin disabled by default
         }
 
 
@@ -251,6 +233,48 @@ class TextProcessingConfig(BaseModel):
             }
         },
         description="Text normalizer configurations"
+    )
+
+
+class IntentHandlerConfig(BaseModel):
+    """Intent handler configuration for dynamic discovery"""
+    enabled: list[str] = Field(
+        default=["conversation", "greetings", "timer", "datetime", "system"],
+        description="List of enabled intent handlers"
+    )
+    disabled: list[str] = Field(
+        default=["train_schedule"],
+        description="List of explicitly disabled intent handlers"
+    )
+    auto_discover: bool = Field(
+        default=True,
+        description="Automatically discover handlers via entry-points"
+    )
+    discovery_paths: list[str] = Field(
+        default=["irene.intents.handlers"],
+        description="Entry-point namespaces to discover handlers from"
+    )
+
+
+class IntentSystemConfig(BaseModel):
+    """Intent system configuration"""
+    enabled: bool = Field(
+        default=True,
+        description="Enable the intent system"
+    )
+    confidence_threshold: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Minimum confidence threshold for intent recognition"
+    )
+    fallback_intent: str = Field(
+        default="conversation.general",
+        description="Fallback intent when recognition fails"
+    )
+    handlers: IntentHandlerConfig = Field(
+        default_factory=IntentHandlerConfig,
+        description="Intent handler configuration"
     )
 
 
@@ -520,6 +544,9 @@ class CoreConfig(BaseSettings):
     
     # Asset management configuration
     assets: AssetConfig = Field(default_factory=AssetConfig)
+    
+    # Intent system configuration
+    intents: IntentSystemConfig = Field(default_factory=IntentSystemConfig)
     
     # System paths (deprecated - use assets configuration instead)
     data_directory: Path = Field(default=Path("./data"), description="Data storage directory")

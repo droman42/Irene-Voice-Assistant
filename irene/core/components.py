@@ -22,7 +22,8 @@ from ..components import (
     AudioComponent,
     VoiceTriggerComponent,
     NLUComponent,
-    TextProcessorComponent
+    TextProcessorComponent,
+    IntentComponent
 )
 
 logger = logging.getLogger(__name__)
@@ -362,7 +363,8 @@ class ComponentManager:
             "audio": AudioComponent,
             "voice_trigger": VoiceTriggerComponent,  # NEW
             "nlu": NLUComponent,                     # NEW
-            "text_processor": TextProcessorComponent # NEW
+            "text_processor": TextProcessorComponent, # NEW
+            "intent_system": IntentComponent         # NEW - Intent handler system
         }
         
         # Use loader.py to validate each component's dependencies

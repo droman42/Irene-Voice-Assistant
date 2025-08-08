@@ -36,11 +36,12 @@ class AsyncPluginManager:
     - Generic type support for Python 3.11
     """
     
-    def __init__(self):
+    def __init__(self, plugin_config=None):
         self._plugins: dict[str, PluginInterface] = {}
         self._registry = PluginRegistry()
         self._core_reference = None
         self._loading_lock = asyncio.Lock()
+        self._plugin_config = plugin_config  # Plugin configuration for filtering
         
         # Categorized plugin access
         self._command_plugins: list[CommandPlugin] = []
@@ -158,18 +159,42 @@ class AsyncPluginManager:
             raise ExceptionGroup("Plugin initialization failed", errors)
 
     async def _load_builtin_plugins(self) -> None:
-        """Load built-in plugins using the registry system"""
+        """Load built-in plugins using dynamic discovery via entry-points with configuration filtering"""
         try:
-            # Instead of scanning directory (which causes import issues), 
-            # directly register builtin plugins from the dynamic registry
-            from .builtin import get_builtin_plugins
+            # Use dynamic loader for entry-points discovery
+            from ..utils.loader import dynamic_loader
             
-            builtin_plugins = get_builtin_plugins()
-            logger.info(f"Discovered {len(builtin_plugins)} builtin plugins")
+            # Apply configuration-driven filtering for enabled plugins
+            enabled_plugins = []
+            if self._plugin_config:
+                # Get enabled plugins from configuration
+                enabled_builtin = self._plugin_config.enabled_plugins or []
+                disabled_builtin = self._plugin_config.disabled_plugins or []
+                builtin_config = self._plugin_config.builtin_plugins or {}
+                
+                # Build filter list based on configuration
+                enabled_plugins = enabled_builtin.copy()
+                
+                # Add plugins enabled via builtin_plugins dict
+                for plugin_name, is_enabled in builtin_config.items():
+                    if is_enabled and plugin_name not in disabled_builtin:
+                        enabled_plugins.append(plugin_name)
+                
+                logger.info(f"Configuration filtering: enabled={enabled_plugins}, disabled={disabled_builtin}")
+            
+            # Discover builtin plugins via entry-points with filtering
+            builtin_plugins = dynamic_loader.discover_providers("irene.plugins.builtin", enabled_plugins)
+            logger.info(f"Discovered {len(builtin_plugins)} builtin plugins via entry-points (after filtering)")
             
             # Register each builtin plugin with the registry
             for plugin_name, plugin_class in builtin_plugins.items():
                 try:
+                    # Skip if explicitly disabled (double-check)
+                    if (self._plugin_config and 
+                        plugin_name in (self._plugin_config.disabled_plugins or [])):
+                        logger.info(f"Skipping disabled plugin: {plugin_name}")
+                        continue
+                    
                     # Create temporary instance to extract metadata
                     temp_instance = plugin_class()
                     

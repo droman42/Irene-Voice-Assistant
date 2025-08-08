@@ -45,7 +45,7 @@ cache_debugging = true
 # COMPONENT SYSTEM - All Components for Testing
 # ============================================================
 [components]
-enabled = ["audio", "tts", "asr", "llm", "voice_trigger", "nlu", "text_processor"]
+enabled = ["audio", "tts", "asr", "llm", "voice_trigger", "nlu", "text_processor", "intent_system"]
 disabled = []
 
 # Component debugging

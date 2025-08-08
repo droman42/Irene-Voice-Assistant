@@ -8,6 +8,7 @@ from .audio_component import AudioComponent
 from .voice_trigger_component import VoiceTriggerComponent
 from .nlu_component import NLUComponent
 from .text_processor_component import TextProcessorComponent
+from .intent_component import IntentComponent
 
 __all__ = [
     "Component",
@@ -18,4 +19,5 @@ __all__ = [
     "VoiceTriggerComponent",
     "NLUComponent",
     "TextProcessorComponent",
+    "IntentComponent",
 ] 

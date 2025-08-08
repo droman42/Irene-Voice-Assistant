@@ -34,7 +34,7 @@ data_root = "/var/lib/irene/data"  # Persistent data
 # COMPONENT SYSTEM - Essential Components Only
 # ============================================================
 [components]
-enabled = ["audio", "voice_trigger", "asr", "text_processor"]
+enabled = ["audio", "voice_trigger", "asr", "text_processor", "intent_system"]
 disabled = ["tts", "llm", "nlu"]  # Reduce memory usage
 
 # ============================================================

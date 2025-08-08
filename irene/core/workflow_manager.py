@@ -83,9 +83,15 @@ class WorkflowManager:
             for name, component in components.items():
                 workflow.add_component(name, component)
             
-            # Also inject the intent system components if available
-            if hasattr(self.component_manager, 'intent_orchestrator'):
-                workflow.add_component('intent_orchestrator', self.component_manager.intent_orchestrator)
+            # NEW: Inject intent orchestrator from IntentComponent if available
+            intent_component = self.component_manager.get_component('intent_system')
+            if intent_component and hasattr(intent_component, 'get_orchestrator'):
+                intent_orchestrator = intent_component.get_orchestrator()
+                if intent_orchestrator:
+                    workflow.add_component('intent_orchestrator', intent_orchestrator)
+                    logger.debug("Injected intent_orchestrator from IntentComponent")
+            
+            # Also inject the context manager if available
             if hasattr(self.component_manager, 'context_manager'):
                 workflow.add_component('context_manager', self.component_manager.context_manager)
                 
