@@ -262,3 +262,9 @@ class DateTimeIntentHandler(IntentHandler):
             r"дата и время|время и дата",
             r"date and time|time and date",
         ] 
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """DateTime handler needs date utilities"""
+        return ["python-dateutil>=2.8.0"] 

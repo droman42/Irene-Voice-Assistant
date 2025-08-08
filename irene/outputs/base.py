@@ -11,6 +11,8 @@ from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from ..core.metadata import EntryPointMetadata
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,11 +34,12 @@ class Response:
     priority: int = 0  # Higher numbers = higher priority
     
     def __post_init__(self):
+        """Initialize response after creation"""
         if self.metadata is None:
             self.metadata = {}
 
 
-class OutputTarget(ABC):
+class OutputTarget(EntryPointMetadata, ABC):
     """
     Abstract base class for output targets.
     
@@ -347,4 +350,25 @@ class OutputManager:
     @property
     def available_target_count(self) -> int:
         """Get number of available output targets"""
-        return len([t for t in self._targets.values() if t.is_available()]) 
+        return len([t for t in self._targets.values() if t is not None])
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Output targets deliver responses - minimal dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Output targets have no system dependencies - interface logic only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Output targets support all platforms"""
+        return ["linux", "windows", "macos"] 

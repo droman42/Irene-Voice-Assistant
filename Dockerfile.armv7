@@ -38,37 +38,18 @@ RUN pip install tomli
 RUN echo "🔍 Analyzing configuration profile: ${CONFIG_PROFILE}" && \
     python -m irene.tools.build_analyzer \
     --config configs/${CONFIG_PROFILE}.toml \
+    --platform alpine \
     --json > /tmp/build-requirements.json && \
     echo "📋 Build requirements generated successfully"
 
-# Extract dependencies for ARMv7-specific filtering
+# Extract Alpine-specific dependencies using dynamic metadata queries
 RUN python -c "
 import json
 with open('/tmp/build-requirements.json', 'r') as f:
     data = json.load(f)
 
-# Map Ubuntu packages to Alpine packages for ARMv7
-ubuntu_to_alpine = {
-    'libportaudio2': 'portaudio-dev',
-    'libsndfile1': 'libsndfile-dev', 
-    'libffi-dev': 'libffi-dev',
-    'ffmpeg': 'ffmpeg',
-    'espeak': 'espeak',
-    'espeak-data': 'espeak-data',
-    'alsa-utils': 'alsa-utils',
-    'libavformat58': 'ffmpeg-dev',
-    'libavcodec58': 'ffmpeg-dev',
-    'libasound2-dev': 'alsa-lib-dev',
-    'libatomic1': 'libatomic'
-}
-
-# Convert system packages to Alpine equivalents
-ubuntu_packages = data.get('system_packages', [])
-alpine_packages = []
-for pkg in ubuntu_packages:
-    alpine_pkg = ubuntu_to_alpine.get(pkg, pkg)
-    if alpine_pkg not in alpine_packages:
-        alpine_packages.append(alpine_pkg)
+# Get Alpine packages from metadata (no hardcoded mapping needed)
+alpine_packages = data.get('system_packages', {}).get('alpine', [])
 
 # Write Alpine system packages
 with open('/tmp/system-packages.txt', 'w') as f:
@@ -77,7 +58,7 @@ with open('/tmp/system-packages.txt', 'w') as f:
     else:
         f.write('')
 
-# Write Python dependencies (same as x86_64)
+# Write Python dependencies
 with open('/tmp/python-deps.txt', 'w') as f:
     deps = data.get('python_dependencies', [])
     if deps:

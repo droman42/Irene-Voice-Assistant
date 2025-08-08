@@ -7,7 +7,7 @@ and web application integration. Now supports audio chunk processing via ASR.
 
 import asyncio
 import logging
-from typing import AsyncIterator, Dict, Any, Optional, cast
+from typing import AsyncIterator, Dict, Any, Optional, cast, List
 import json
 import base64
 
@@ -315,3 +315,9 @@ class WebInput(InputSource):
             "queue_size": self._command_queue.qsize() if self._command_queue else 0,
             "fastapi_available": self._fastapi_available
         } 
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Web input needs web framework and WebSocket support"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0", "websockets>=11.0.0"] 

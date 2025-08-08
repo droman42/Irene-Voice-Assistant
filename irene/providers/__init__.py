@@ -13,6 +13,7 @@ Package Structure:
 - llm/: Language model provider implementations (Phase 4)
 """
 
-from .base import ProviderBase, ProviderStatus, EntryPointMetadata
+from .base import ProviderBase, ProviderStatus
+from ..core.metadata import EntryPointMetadata
 
 __all__ = ["ProviderBase", "ProviderStatus", "EntryPointMetadata"] 

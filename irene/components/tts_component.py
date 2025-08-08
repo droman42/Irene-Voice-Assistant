@@ -653,4 +653,10 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
     
     def get_api_tags(self) -> list[str]:
         """Get OpenAPI tags for TTS endpoints"""
-        return ["TTS", "Text-to-Speech"] 
+        return ["TTS", "Text-to-Speech"]
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """TTS component needs web API functionality"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"] 

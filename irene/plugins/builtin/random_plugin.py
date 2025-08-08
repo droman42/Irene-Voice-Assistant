@@ -390,3 +390,24 @@ class RandomPlugin(BaseCommandPlugin, WebAPIPlugin):
             response=result["result_text"],
             should_continue_listening=True
         ) 
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Random plugin needs web API functionality"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Random plugin has no system dependencies - pure Python logic"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Random plugin supports all platforms"""
+        return ["linux", "windows", "macos"] 

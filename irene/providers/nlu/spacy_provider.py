@@ -396,31 +396,52 @@ class SpaCyNLUProvider(ProviderBase):
     
     @classmethod
     def _get_default_extension(cls) -> str:
-        """SpaCy NLU doesn't use persistent files for basic operations"""
+        """spaCy NLU uses spaCy model files"""
         return ""
     
     @classmethod
     def _get_default_directory(cls) -> str:
-        """SpaCy NLU directory for models and cache"""
+        """spaCy NLU models directory"""
         return "spacy"
     
     @classmethod
     def _get_default_credentials(cls) -> List[str]:
-        """SpaCy NLU doesn't need credentials"""
+        """spaCy NLU doesn't need credentials"""
         return []
     
     @classmethod
     def _get_default_cache_types(cls) -> List[str]:
-        """SpaCy NLU uses models and runtime cache"""
+        """spaCy NLU uses models and runtime cache"""
         return ["models", "runtime"]
     
     @classmethod
     def _get_default_model_urls(cls) -> Dict[str, str]:
-        """SpaCy models are installed via pip/conda"""
+        """spaCy NLU model URLs"""
         return {
-            "en_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz",
-            "ru_core_news_sm": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0.tar.gz"
+            "ru_core_news_sm": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.4.0/ru_core_news_sm-3.4.0.tar.gz",
+            "en_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.4.1/en_core_web_sm-3.4.1.tar.gz"
         }
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """spaCy NLU requires spacy library and models"""
+        return ["spacy>=3.4.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """spaCy NLU has no system dependencies - pure Python"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """spaCy NLU supports all platforms"""
+        return ["linux", "windows", "macos"]
     
     async def process_intent(self, text: str, **kwargs) -> Dict[str, Any]:
         """

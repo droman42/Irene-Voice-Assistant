@@ -7,7 +7,7 @@ Adapted from greetings_plugin.py for the new intent architecture.
 
 import random
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
@@ -17,14 +17,13 @@ logger = logging.getLogger(__name__)
 
 class GreetingsIntentHandler(IntentHandler):
     """
-    Handles greeting and farewell intents with bilingual support.
+    Handles greeting and farewell intents.
     
     Features:
-    - Random greeting selection
-    - Multiple greeting variations
-    - Friendly welcome messages
-    - Russian language support
-    - Time-based greetings
+    - Welcome messages
+    - Farewell responses 
+    - Random greeting variations
+    - Context-aware responses
     """
     
     def __init__(self):
@@ -102,6 +101,27 @@ class GreetingsIntentHandler(IntentHandler):
             "Hello! Irene at your service. What can I do for you today?"
         ]
     
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Greetings handler needs no external dependencies - pure Python logic"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Greetings handler has no system dependencies - pure Python logic"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Greetings handler supports all platforms"""
+        return ["linux", "windows", "macos"]
+        
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process greeting intents"""
         # Handle greeting domain intents

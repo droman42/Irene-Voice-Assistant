@@ -320,14 +320,15 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             self.oww = None
             logger.info("OpenWakeWord cleaned up") 
     
+    # Asset configuration methods (TODO #4 Phase 1)
     @classmethod
     def _get_default_extension(cls) -> str:
-        """OpenWakeWord models use .onnx format"""
-        return ".onnx"
+        """OpenWakeWord uses .onnx or .tflite models"""
+        return ".tflite"
     
     @classmethod
     def _get_default_directory(cls) -> str:
-        """OpenWakeWord directory for model storage"""
+        """OpenWakeWord models directory"""
         return "openwakeword"
     
     @classmethod
@@ -337,17 +338,38 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
     
     @classmethod
     def _get_default_cache_types(cls) -> List[str]:
-        """OpenWakeWord uses models and runtime cache"""
+        """OpenWakeWord uses models cache"""
         return ["models", "runtime"]
     
     @classmethod
     def _get_default_model_urls(cls) -> Dict[str, str]:
-        """OpenWakeWord model URLs for different wake words"""
+        """OpenWakeWord model URLs"""
         return {
-            "alexa": "https://github.com/dscripka/openWakeWord/raw/main/openwakeword/resources/models/alexa_v0.1.onnx",
-            "hey_jarvis": "https://github.com/dscripka/openWakeWord/raw/main/openwakeword/resources/models/hey_jarvis_v0.1.onnx",
-            "hey_mycroft": "https://github.com/dscripka/openWakeWord/raw/main/openwakeword/resources/models/hey_mycroft_v0.1.onnx"
+            "alexa_v0.1": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/alexa_v0.1.tflite",
+            "hey_jarvis_v0.1": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_jarvis_v0.1.tflite",
+            "hey_mycroft_v0.1": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_mycroft_v0.1.tflite"
         }
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """OpenWakeWord requires specific voice trigger libraries"""
+        return ["openwakeword>=0.6.0", "numpy>=1.21.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """OpenWakeWord has no system dependencies - pure Python/TensorFlow"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """OpenWakeWord supports all platforms"""
+        return ["linux", "windows", "macos"]
     
     async def initialize(self) -> None:
         """Initialize OpenWakeWord detection"""

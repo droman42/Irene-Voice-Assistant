@@ -313,15 +313,16 @@ class TTSTextProcessor(ProviderBase):
         self._set_status(self.status.__class__.UNKNOWN)
         logger.info("TTS text processor cleaned up") 
 
+    # Asset configuration methods (TODO #4 Phase 1)
     @classmethod
     def _get_default_extension(cls) -> str:
-        """TTS text processor doesn't use persistent files"""
+        """TTS text processor doesn't use files"""
         return ""
     
     @classmethod
     def _get_default_directory(cls) -> str:
         """TTS text processor directory"""
-        return "ttstextprocessor"
+        return "tts_text"
     
     @classmethod
     def _get_default_credentials(cls) -> List[str]:
@@ -337,6 +338,31 @@ class TTSTextProcessor(ProviderBase):
     def _get_default_model_urls(cls) -> Dict[str, str]:
         """TTS text processor doesn't use models"""
         return {}
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """TTS text processor requires all text processing libraries for normalizers"""
+        return [
+            "lingua-franca @ git+https://github.com/MycroftAI/lingua-franca.git@5bfd75fe5996fd364102a0eec3f714c9ddc9275c",
+            "runorm>=0.1.0",
+            "eng-to-ipa>=0.0.2"
+        ]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """TTS text processor has no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """TTS text processor supports all platforms"""
+        return ["linux", "windows", "macos"]
     
     async def process(self, text: str, stage: str, **kwargs) -> str:
         """

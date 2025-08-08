@@ -7,7 +7,7 @@ with the voice assistant.
 
 import asyncio
 import sys
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, List, Dict
 import logging
 
 from .base import InputSource
@@ -17,17 +17,39 @@ logger = logging.getLogger(__name__)
 
 class CLIInput(InputSource):
     """
-    Modern command line input source using AsyncIterator interface.
+    Command-line input source for interactive text input.
     
-    Provides a text-based interface for testing and headless operation.
-    Uses proper async/await patterns with non-blocking input.
+    Provides a simple text-based interface for sending commands
+    and receiving responses via the command line.
     """
     
     def __init__(self, prompt: str = "irene> "):
+        super().__init__()
         self.prompt = prompt
         self._listening = False
         self._command_queue = asyncio.Queue()
         self._input_task: Optional[asyncio.Task] = None
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """CLI input needs no external dependencies - uses built-in input()"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """CLI input has no system dependencies - pure Python"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """CLI input supports all platforms"""
+        return ["linux", "windows", "macos"]
         
     async def listen(self) -> AsyncIterator[str]:
         """

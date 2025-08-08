@@ -11,6 +11,8 @@ from enum import Enum
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
+from ..core.metadata import EntryPointMetadata
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,94 +23,6 @@ class ProviderStatus(Enum):
     UNAVAILABLE = "unavailable"
     ERROR = "error"
     INITIALIZING = "initializing"
-
-
-class EntryPointMetadata:
-    """
-    Universal metadata interface for entry-points asset configuration.
-    
-    This interface enables configuration-driven asset management by allowing
-    providers to declare their asset needs, credential patterns, and platform
-    dependencies. Supports both intelligent defaults and TOML configuration
-    overrides.
-    
-    Phase 1 of TODO #4: Configuration-Driven Asset Management
-    """
-    
-    @classmethod
-    def get_asset_config(cls) -> Dict[str, Any]:
-        """
-        Get asset configuration with intelligent defaults.
-        
-        Returns:
-            Dictionary containing:
-            - file_extension: Default file extension for models/assets
-            - directory_name: Default directory name for asset storage
-            - credential_patterns: List of environment variable patterns needed
-            - cache_types: List of cache types used (models, runtime, temp, etc.)
-            - model_urls: Dictionary of model URLs for downloads
-        """
-        return {
-            "file_extension": cls._get_default_extension(),
-            "directory_name": cls._get_default_directory(),
-            "credential_patterns": cls._get_default_credentials(),
-            "cache_types": cls._get_default_cache_types(),
-            "model_urls": cls._get_default_model_urls()
-        }
-    
-    @classmethod
-    def _get_default_extension(cls) -> str:
-        """
-        Override in provider classes for intelligent file extension defaults.
-        
-        Returns:
-            Default file extension (e.g., ".pt", ".wav", ".json")
-        """
-        return ""
-    
-    @classmethod
-    def _get_default_directory(cls) -> str:
-        """
-        Override in provider classes for intelligent directory name defaults.
-        
-        Returns:
-            Default directory name for asset storage
-        """
-        # Default to lowercase class name without "Provider" suffix
-        name = cls.__name__.lower()
-        if name.endswith('provider'):
-            name = name[:-8]  # Remove 'provider' suffix
-        return name
-    
-    @classmethod
-    def _get_default_credentials(cls) -> List[str]:
-        """
-        Override in provider classes for intelligent credential defaults.
-        
-        Returns:
-            List of environment variable patterns needed by provider
-        """
-        return []
-    
-    @classmethod
-    def _get_default_cache_types(cls) -> List[str]:
-        """
-        Override in provider classes for intelligent cache type defaults.
-        
-        Returns:
-            List of cache types used: ["models", "runtime", "temp", "downloads"]
-        """
-        return ["runtime"]
-    
-    @classmethod
-    def _get_default_model_urls(cls) -> Dict[str, str]:
-        """
-        Override in provider classes for intelligent model URL defaults.
-        
-        Returns:
-            Dictionary mapping model IDs to download URLs
-        """
-        return {}
 
 
 class ProviderBase(EntryPointMetadata, ABC):

@@ -219,4 +219,25 @@ class ElevenLabsTTSProvider(TTSProvider):
         }
     
     def get_provider_name(self) -> str:
-        return "elevenlabs" 
+        return "elevenlabs"
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """ElevenLabs TTS requires elevenlabs API client and httpx"""
+        return ["elevenlabs>=1.0.3", "httpx>=0.25.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """ElevenLabs is cloud-based, no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """ElevenLabs supports all platforms"""
+        return ["linux", "windows", "macos"] 

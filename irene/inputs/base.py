@@ -10,6 +10,8 @@ import logging
 from typing import List, Dict, Any, Optional, AsyncIterator
 from abc import ABC, abstractmethod
 
+from ..core.metadata import EntryPointMetadata
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,7 +20,7 @@ class ComponentNotAvailable(Exception):
     pass
 
 
-class InputSource(ABC):
+class InputSource(EntryPointMetadata, ABC):
     """
     Abstract base class for input sources.
     
@@ -371,4 +373,25 @@ class InputManager:
     @property
     def available_source_count(self) -> int:
         """Get number of available input sources"""
-        return len([s for s in self._sources.values() if s.is_available()]) 
+        return len([s for s in self._sources.values() if s is not None])
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Input sources provide user interface - minimal dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Input sources have no system dependencies - interface logic only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Input sources support all platforms"""
+        return ["linux", "windows", "macos"] 

@@ -85,6 +85,27 @@ class AplayAudioProvider(AudioProvider):
         """Aplay doesn't use models"""
         return {}
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Aplay uses system binaries, no Python dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for aplay"""
+        return {
+            "ubuntu": ["alsa-utils"],
+            "alpine": ["alsa-utils"],  # ARMv7 Alpine
+            "centos": ["alsa-utils"],
+            "macos": []  # Not typically available on macOS
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Aplay is primarily available on Linux systems"""
+        return ["linux"]
+    
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using aplay command."""
         if not self._available:

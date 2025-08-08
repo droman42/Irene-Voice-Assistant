@@ -378,4 +378,25 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         """Check if FastAPI dependencies are available for web API."""
         fastapi = safe_import('fastapi')
         pydantic = safe_import('pydantic')
-        return fastapi is not None and pydantic is not None 
+        return fastapi is not None and pydantic is not None
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Voice trigger component needs web API functionality"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Voice trigger component has no system dependencies - coordinates providers only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Voice trigger component supports all platforms"""
+        return ["linux", "windows", "macos"] 

@@ -283,3 +283,26 @@ class NumberTextProcessor(ProviderBase):
             Processed text with normalized numbers
         """
         return await self.process_numbers(text) 
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Number text processor requires lingua-franca for NumberNormalizer"""
+        return [
+            "lingua-franca @ git+https://github.com/MycroftAI/lingua-franca.git@5bfd75fe5996fd364102a0eec3f714c9ddc9275c"
+        ]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Number text processor has no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Number text processor supports all platforms"""
+        return ["linux", "windows", "macos"] 

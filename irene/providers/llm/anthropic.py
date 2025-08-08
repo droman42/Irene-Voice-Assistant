@@ -202,6 +202,27 @@ class AnthropicLLMProvider(LLMProvider):
         """Return provider identifier"""
         return "anthropic"
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Anthropic requires specific anthropic library"""
+        return ["anthropic>=0.25.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Anthropic is cloud-based, no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Anthropic supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Return Anthropic provider capabilities"""
         return {

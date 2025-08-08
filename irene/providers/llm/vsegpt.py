@@ -200,6 +200,27 @@ class VseGPTLLMProvider(LLMProvider):
         """Return provider identifier"""
         return "vsegpt"
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """VseGPT uses OpenAI-compatible client"""
+        return ["openai>=1.0.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """VseGPT is cloud-based, no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """VseGPT supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Return VseGPT provider capabilities"""
         return {

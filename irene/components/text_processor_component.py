@@ -370,4 +370,25 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for text processing endpoints"""
-        return ["text_processing", "normalization"] 
+        return ["text_processing", "normalization"]
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Text processor component needs web API functionality"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Text processor component has no system dependencies - coordinates providers only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Text processor component supports all platforms"""
+        return ["linux", "windows", "macos"] 

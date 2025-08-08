@@ -444,6 +444,55 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
             "model_path": None  # Will be async, handled in metadata
         }
     
+    # Asset configuration methods (TODO #4 Phase 1)
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """microWakeWord uses .tflite models"""
+        return ".tflite"
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """microWakeWord models directory"""
+        return "microwakeword"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """microWakeWord doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """microWakeWord uses models cache"""
+        return ["models", "runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """microWakeWord model URLs"""
+        return {
+            "micro_speech": "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite"
+        }
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """microWakeWord requires TensorFlow Lite and numpy"""
+        return ["numpy>=1.21.0", "tflite-runtime>=2.12.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """microWakeWord has no system dependencies - pure Python/TensorFlow Lite"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """microWakeWord supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     async def cleanup(self) -> None:
         """Clean up microWakeWord resources."""
         if self.interpreter:

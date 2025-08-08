@@ -14,7 +14,7 @@ import asyncio
 import logging
 import queue
 import time
-from typing import AsyncIterator, Dict, Any, Optional
+from typing import AsyncIterator, Dict, Any, Optional, List
 from pathlib import Path
 
 from .base import InputSource, ComponentNotAvailable
@@ -50,6 +50,7 @@ class MicrophoneInput(InputSource):
         self._listening = False
         self._audio_queue = None
         self._audio_stream = None
+        self._task = None
         
         # Check for audio dependencies only (no VOSK required)
         try:
@@ -259,3 +260,9 @@ class MicrophoneInput(InputSource):
                 
         except Exception as e:
             logger.error(f"Error during audio cleanup: {e}") 
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Microphone input needs audio processing libraries"""
+        return ["sounddevice>=0.4.0", "soundfile>=0.12.0"] 

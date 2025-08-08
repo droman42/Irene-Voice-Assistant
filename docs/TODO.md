@@ -10,7 +10,7 @@ This document tracks architectural improvements and refactoring tasks for the Ir
 | 2 | [Text Processing Provider Architecture Refactoring](TODO/TODO02.md) | ✅ **COMPLETED** | High | Text processing providers, stage-specific architecture |
 | 3 | [Entry-Points Based Build System: Minimal Container and Service Builds](TODO/TODO03.md) | ✅ **PARTIALLY COMPLETED** | Critical | Runtime build tool, Multi-platform Docker, Service installation |
 | 4 | [Configuration-Driven Asset Management: Eliminate Asset System Hardcoding](TODO/TODO04.md) | ✅ **COMPLETED** | High | Asset management system, Provider base classes, TOML configuration |
-| 5 | [Universal Entry-Points Metadata System: Eliminate Build Analyzer Hardcoding](TODO/TODO05.md) | ❌ **Open** | High | ALL entry-points across 14 namespaces (77 total entry-points) |
+| 5 | [Universal Entry-Points Metadata System: Eliminate Build Analyzer Hardcoding](TODO/TODO05.md) | ✅ **COMPLETED** | High | ALL entry-points across 14 namespaces (77 total entry-points) |
 | 6 | [AudioComponent Command Handling Architecture Issue](TODO/TODO06.md) | ❌ **Open** | High | `irene/components/audio_component.py` |
 | 7 | [Disconnected NLU and Intent Handler Systems](TODO/TODO07.md) | ❌ **Open** | High | Intent system, NLU providers |
 | 8 | [NLU Architecture Revision: Keyword-First with Intent Donation](TODO/TODO08.md) | ❌ **Open** | High | NLU providers, Intent system, Text processing |

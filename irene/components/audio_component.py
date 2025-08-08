@@ -506,4 +506,10 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin, CommandPlugin):
             info_lines.append(f"{status} {name}: {formats}")
         
         info_lines.append(f"По умолчанию: {self.default_provider}")
-        return "\n".join(info_lines) 
+        return "\n".join(info_lines)
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Audio component needs web API functionality"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"] 

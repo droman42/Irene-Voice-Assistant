@@ -274,6 +274,27 @@ class VoskASRProvider(ASRProvider):
         """Return provider identifier"""
         return "vosk"
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Vosk ASR requires specific vosk library"""
+        return ["vosk>=0.3.45"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for Vosk"""
+        return {
+            "ubuntu": ["libffi-dev"],
+            "alpine": ["libffi-dev"],  # ARMv7 Alpine
+            "centos": ["libffi-devel"],
+            "macos": []  # macOS includes FFI libraries
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Vosk supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     def get_supported_languages(self) -> List[str]:
         """Return list of supported language codes"""
         return list(self.model_paths.keys())

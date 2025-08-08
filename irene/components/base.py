@@ -4,10 +4,12 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 
+from ..core.metadata import EntryPointMetadata
+
 logger = logging.getLogger(__name__)
 
 
-class Component(ABC):
+class Component(EntryPointMetadata, ABC):
     """Base class for all fundamental components."""
     
     def __init__(self):
@@ -199,5 +201,26 @@ class Component(ABC):
             "initialized": self.initialized,
             "provider_count": len(self.providers),
             "default_provider": self.default_provider,
-            "available": self.initialized and bool(self.providers)
-        } 
+            "providers": list(self.providers.keys())
+        }
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Components coordinate providers - minimal direct dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Components have no system dependencies - coordinate providers only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Components support all platforms"""
+        return ["linux", "windows", "macos"] 

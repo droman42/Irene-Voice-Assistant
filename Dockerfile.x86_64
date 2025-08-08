@@ -37,6 +37,7 @@ ENV CONFIG_PROFILE=${CONFIG_PROFILE}
 RUN echo "🔍 Analyzing configuration profile: ${CONFIG_PROFILE}" && \
     python -m irene.tools.build_analyzer \
     --config configs/${CONFIG_PROFILE}.toml \
+    --platform ubuntu \
     --json > /tmp/build-requirements.json && \
     echo "📋 Build requirements generated successfully"
 
@@ -46,9 +47,9 @@ import json
 with open('/tmp/build-requirements.json', 'r') as f:
     data = json.load(f)
     
-# Write system packages
+# Write Ubuntu system packages
 with open('/tmp/system-packages.txt', 'w') as f:
-    packages = data.get('system_packages', [])
+    packages = data.get('system_packages', {}).get('ubuntu', [])
     if packages:
         f.write(' '.join(packages))
     else:

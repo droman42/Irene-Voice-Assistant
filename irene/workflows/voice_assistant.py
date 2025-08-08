@@ -9,7 +9,7 @@ Enhanced with existing audio_helpers.py utilities for optimal performance.
 
 import asyncio
 import logging
-from typing import AsyncIterator, Optional, Dict, Any
+from typing import AsyncIterator, Optional, Dict, Any, List
 
 from .base import Workflow, RequestContext
 from ..intents.models import AudioData, ConversationContext, Intent, IntentResult, WakeWordResult
@@ -318,3 +318,12 @@ class VoiceAssistantWorkflow(Workflow):
             channels=first_audio.channels,
             format=first_audio.format
         ) 
+    
+    def __repr__(self) -> str:
+        return f"VoiceAssistantWorkflow(initialized={self.initialized}, components={len(self.components)})"
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Voice assistant workflow needs core audio processing libraries"""
+        return ["sounddevice>=0.4.0", "soundfile>=0.12.0"] 

@@ -5,11 +5,12 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 
 from ..models import Intent, IntentResult, ConversationContext
+from ...core.metadata import EntryPointMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class IntentHandler(ABC):
+class IntentHandler(EntryPointMetadata, ABC):
     """Base class for all intent handlers."""
     
     def __init__(self):
@@ -204,4 +205,25 @@ class IntentHandler(ABC):
         Returns:
             Processed result (may be modified)
         """
-        return result 
+        return result
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Intent handlers process intents - minimal dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Intent handlers have no system dependencies - pure logic"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Intent handlers support all platforms"""
+        return ["linux", "windows", "macos"] 

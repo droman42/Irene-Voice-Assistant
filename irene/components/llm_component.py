@@ -343,3 +343,9 @@ class LLMComponent(Component, LLMPlugin, CommandPlugin, WebAPIPlugin):
                 raise HTTPException(404, f"Provider '{provider}' not available")
         
         return router 
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """LLM component needs web API functionality"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"] 

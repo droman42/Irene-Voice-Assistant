@@ -260,3 +260,9 @@ class WebOutput(OutputTarget):
             "disconnected_clients": len(disconnected_clients),
             "total_clients": len(self._clients)
         } 
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Web output needs web framework and WebSocket support"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0", "websockets>=11.0.0"] 

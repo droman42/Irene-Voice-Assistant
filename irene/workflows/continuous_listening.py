@@ -6,7 +6,7 @@ It processes audio directly: Audio → ASR → Intent → Response (no wake word
 """
 
 import logging
-from typing import AsyncIterator, Optional, Dict, Any
+from typing import AsyncIterator, Optional, Dict, Any, List
 
 from .base import Workflow, RequestContext
 from ..intents.models import AudioData, ConversationContext, Intent, IntentResult
@@ -294,3 +294,12 @@ class ContinuousListeningWorkflow(Workflow):
             channels=first_audio.channels,
             format=first_audio.format
         ) 
+    
+    def __repr__(self) -> str:
+        return f"ContinuousListeningWorkflow(initialized={self.initialized}, listening={self.listening})"
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Continuous listening workflow needs audio processing and async support"""
+        return ["sounddevice>=0.4.0", "soundfile>=0.12.0"] 

@@ -196,6 +196,27 @@ class OpenAILLMProvider(LLMProvider):
         """Return provider identifier"""
         return "openai"
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """OpenAI requires specific openai library"""
+        return ["openai>=1.0.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """OpenAI is cloud-based, no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """OpenAI supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Return OpenAI provider capabilities"""
         return {

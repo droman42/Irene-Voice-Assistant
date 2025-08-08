@@ -7,7 +7,7 @@ and debugging. Supports the modern Response-based interface.
 
 import sys
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 from .base import OutputTarget, Response
 
 logger = logging.getLogger(__name__)
@@ -15,60 +15,35 @@ logger = logging.getLogger(__name__)
 
 class TextOutput(OutputTarget):
     """
-    Modern text output to console using Response interface.
+    Simple text output that prints responses to the console.
     
-    Suitable for headless operation, testing, and debugging.
-    Handles all response types with appropriate formatting.
+    Provides a basic output mechanism for displaying responses
+    in text format to the terminal/console.
     """
     
-    def __init__(self, prefix: str = "IRENE: ", use_colors: bool = True):
-        self.prefix = prefix
-        self.use_colors = use_colors
+    def __init__(self):
+        super().__init__()
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Text output needs no external dependencies - uses built-in print()"""
+        return []
         
-        # Try to import colorama for colored output
-        try:
-            import colorama  # type: ignore
-            colorama.init()
-            self._colors_available = True
-        except ImportError:
-            self._colors_available = False
-            
-    def is_available(self) -> bool:
-        """Text output is always available"""
-        return True
-        
-    def get_output_type(self) -> str:
-        """Get output type identifier"""
-        return "text"
-        
-    def supports_response_type(self, response_type: str) -> bool:
-        """Text output supports all response types"""
-        return True
-        
-    def get_settings(self) -> Dict[str, Any]:
-        """Get current text output settings"""
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Text output has no system dependencies - pure Python"""
         return {
-            "prefix": self.prefix,
-            "use_colors": self.use_colors,
-            "colors_available": self._colors_available
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
         }
         
-    async def configure_output(self, **settings) -> None:
-        """Configure text output settings"""
-        if "prefix" in settings:
-            self.prefix = settings["prefix"]
-        if "use_colors" in settings:
-            self.use_colors = settings["use_colors"]
-            
-    async def test_output(self) -> bool:
-        """Test text output functionality"""
-        try:
-            test_response = Response("Text output test", response_type="test")
-            await self.send(test_response)
-            return True
-        except Exception as e:
-            logger.error(f"Text output test failed: {e}")
-            return False
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Text output supports all platforms"""
+        return ["linux", "windows", "macos"]
         
     async def send(self, response: Response) -> None:
         """Send Response object to console"""

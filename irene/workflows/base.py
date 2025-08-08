@@ -2,9 +2,10 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, AsyncIterator, Optional
+from typing import Dict, Any, AsyncIterator, Optional, List
 
 from ..intents.models import AudioData, ConversationContext, IntentResult
+from ..core.metadata import EntryPointMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class RequestContext:
         self.metadata = metadata or {}
 
 
-class Workflow(ABC):
+class Workflow(EntryPointMetadata, ABC):
     """Base class for all workflow implementations."""
     
     def __init__(self):
@@ -194,4 +195,25 @@ class Workflow(ABC):
     
     def __str__(self) -> str:
         """String representation of the workflow."""
-        return f"{self.name}(initialized={self.initialized}, components={len(self.components)})" 
+        return f"<{self.name} initialized={self.initialized} components={len(self.components)}>"
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Workflows coordinate components - minimal direct dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Workflows have no system dependencies - coordinate components only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Workflows support all platforms"""
+        return ["linux", "windows", "macos"] 

@@ -230,6 +230,27 @@ class WhisperASRProvider(ASRProvider):
         """Return provider identifier"""
         return "whisper"
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Whisper requires specific libraries for speech recognition"""
+        return ["openai-whisper>=20230314", "torch>=1.13.0", "torchaudio>=0.13.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for Whisper"""
+        return {
+            "ubuntu": ["ffmpeg"],
+            "alpine": ["ffmpeg"],  # ARMv7 Alpine
+            "centos": ["ffmpeg"],
+            "macos": []  # Homebrew handles ffmpeg
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Whisper supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     def get_supported_languages(self) -> List[str]:
         """Return list of supported language codes"""
         return [

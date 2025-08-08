@@ -191,15 +191,16 @@ class ASRTextProcessor(ProviderBase):
         self._set_status(self.status.__class__.UNKNOWN)
         logger.info("ASR text processor cleaned up") 
     
+    # Asset configuration methods (TODO #4 Phase 1)
     @classmethod
     def _get_default_extension(cls) -> str:
-        """ASR text processor doesn't use persistent files"""
+        """ASR text processor doesn't use files"""
         return ""
     
     @classmethod
     def _get_default_directory(cls) -> str:
         """ASR text processor directory"""
-        return "asrtextprocessor"
+        return "asr_text"
     
     @classmethod
     def _get_default_credentials(cls) -> List[str]:
@@ -215,6 +216,29 @@ class ASRTextProcessor(ProviderBase):
     def _get_default_model_urls(cls) -> Dict[str, str]:
         """ASR text processor doesn't use models"""
         return {}
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """ASR text processor requires lingua-franca for NumberNormalizer"""
+        return [
+            "lingua-franca @ git+https://github.com/MycroftAI/lingua-franca.git@5bfd75fe5996fd364102a0eec3f714c9ddc9275c"
+        ]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """ASR text processor has no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """ASR text processor supports all platforms"""
+        return ["linux", "windows", "macos"]
     
     async def process(self, text: str, stage: str, **kwargs) -> str:
         """

@@ -246,6 +246,12 @@ class TrainScheduleIntentHandler(IntentHandler):
         }
 
 
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Train schedule handler needs HTTP client for API requests"""
+        return ["httpx>=0.25.0"] 
+    
 def create_handler(config: Optional[Dict[str, Any]] = None) -> TrainScheduleIntentHandler:
     """Factory function to create train schedule handler with configuration"""
     return TrainScheduleIntentHandler(config) 

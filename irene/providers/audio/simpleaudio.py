@@ -85,6 +85,27 @@ class SimpleAudioProvider(AudioProvider):
         """SimpleAudio doesn't use models"""
         return {}
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """SimpleAudio requires simpleaudio library (when available)"""
+        return ["simpleaudio>=1.0.4"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for SimpleAudio"""
+        return {
+            "ubuntu": ["libasound2-dev"],
+            "alpine": ["alsa-lib-dev"],  # ARMv7 Alpine
+            "centos": ["alsa-lib-devel"],
+            "macos": []  # Homebrew handles dependencies automatically
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """SimpleAudio supports all major platforms"""
+        return ["linux", "windows", "macos"]
+    
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using simpleaudio."""
         if not self._available or not self._sa:

@@ -85,6 +85,27 @@ class AudioPlayerAudioProvider(AudioProvider):
         """AudioPlayer doesn't use models"""
         return {}
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """AudioPlayer audio requires audioplayer library"""
+        return ["audioplayer>=0.6.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for AudioPlayer"""
+        return {
+            "ubuntu": ["libavformat58", "libavcodec58"],
+            "alpine": ["ffmpeg-libs"],  # ARMv7 Alpine
+            "centos": ["ffmpeg-libs"],
+            "macos": []  # Homebrew handles dependencies automatically
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """AudioPlayer supports all major platforms"""
+        return ["linux", "windows", "macos"]
+    
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using audioplayer."""
         if not self._available or not self._AudioPlayer:

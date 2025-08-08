@@ -9,6 +9,7 @@ from .context import Context, ContextManager
 from .timers import AsyncTimerManager
 from .commands import CommandProcessor, CommandResult
 from .components import ComponentManager, ComponentNotAvailable, Component
+from .metadata import EntryPointMetadata
 
 __all__ = [
     "AsyncVACore",
@@ -19,5 +20,6 @@ __all__ = [
     "CommandResult",
     "ComponentManager",
     "ComponentNotAvailable",
-    "Component"
+    "Component",
+    "EntryPointMetadata"
 ] 

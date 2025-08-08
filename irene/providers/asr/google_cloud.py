@@ -244,6 +244,27 @@ class GoogleCloudASRProvider(ASRProvider):
         """Return provider identifier"""
         return "google_cloud"
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Google Cloud ASR requires specific Google Cloud libraries"""
+        return ["google-cloud-speech>=2.20.0", "google-auth>=2.17.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Google Cloud ASR is cloud-based, no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Google Cloud ASR supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     def get_supported_languages(self) -> List[str]:
         """Return list of supported language codes"""
         return [

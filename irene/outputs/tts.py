@@ -7,7 +7,7 @@ This is an optional component that requires additional dependencies.
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import Dict, Any, Optional, TYPE_CHECKING, List
 from pathlib import Path
 
 from .base import OutputTarget, Response, ComponentNotAvailable
@@ -221,3 +221,9 @@ class TTSOutput(OutputTarget):
         except Exception as e:
             logger.error(f"Error getting voices: {e}")
             return [] 
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """TTS output needs audio processing capabilities"""
+        return ["sounddevice>=0.4.0", "soundfile>=0.12.0"] 

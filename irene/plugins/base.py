@@ -14,11 +14,12 @@ from ..core.interfaces.plugin import PluginInterface
 from ..core.interfaces.command import CommandPlugin
 from ..core.context import Context
 from ..core.commands import CommandResult
+from ..core.metadata import EntryPointMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class BasePlugin(PluginInterface):
+class BasePlugin(EntryPointMetadata, PluginInterface):
     """
     Base plugin class with common functionality.
     
@@ -211,4 +212,25 @@ class AsyncServicePlugin(BasePlugin):
     @property
     def is_service_running(self) -> bool:
         """Check if service is running"""
-        return self._running and self._service_task is not None 
+        return self._service_task is not None and not self._service_task.done()
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Plugins extend functionality - minimal dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Plugins have no system dependencies - extension logic only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Plugins support all platforms"""
+        return ["linux", "windows", "macos"] 

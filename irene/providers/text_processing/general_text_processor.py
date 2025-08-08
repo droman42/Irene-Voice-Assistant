@@ -11,7 +11,7 @@ Phase 2 of TODO #2: Text Processing Provider Architecture Refactoring
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from ..base import ProviderBase
 from ...utils.text_normalizers import NumberNormalizer, PrepareNormalizer
@@ -228,6 +228,30 @@ class GeneralTextProcessor(ProviderBase):
             self.logger.warning(f"Language '{self.language}' may not be fully supported. Supported: {supported_languages}")
         
         return True
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """General text processor requires specific text processing libraries"""
+        return [
+            "lingua-franca @ git+https://github.com/MycroftAI/lingua-franca.git@5bfd75fe5996fd364102a0eec3f714c9ddc9275c",
+            "eng-to-ipa>=0.0.2"
+        ]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """General text processor has no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """General text processor supports all platforms"""
+        return ["linux", "windows", "macos"]
     
     async def cleanup(self) -> None:
         """Clean up general text processor resources"""

@@ -227,6 +227,27 @@ class SileroV4TTSProvider(TTSProvider):
         """Get unique provider identifier"""
         return "silero_v4" 
 
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Silero v4 requires PyTorch for model inference"""
+        return ["torch>=1.13.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for Silero v4"""
+        return {
+            "ubuntu": ["libsndfile1"],
+            "alpine": ["libsndfile-dev"],  # ARMv7 Alpine
+            "centos": ["libsndfile-devel"],
+            "macos": []  # macOS includes audio libraries
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Silero v4 supports all platforms"""
+        return ["linux", "windows", "macos"]
+
     async def _ensure_model_loaded(self) -> None:
         """Ensure model is loaded and ready with caching optimization"""
         if not self._available:

@@ -293,4 +293,25 @@ class NLUComponent(Component, WebAPIPlugin):
     
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for NLU endpoints"""
-        return ["nlu", "intent_recognition"] 
+        return ["nlu", "intent_recognition"]
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """NLU component needs web API functionality"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """NLU component has no system dependencies - coordinates providers only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """NLU component supports all platforms"""
+        return ["linux", "windows", "macos"] 

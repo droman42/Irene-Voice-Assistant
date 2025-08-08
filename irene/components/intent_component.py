@@ -234,4 +234,25 @@ class IntentComponent(Component, WebAPIPlugin):
     
     def get_handler_manager(self) -> Optional[IntentHandlerManager]:
         """Get the handler manager for advanced operations"""
-        return self.handler_manager 
+        return self.handler_manager
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Intent component needs web API functionality"""
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Intent component has no system dependencies - coordinates providers only"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Intent component supports all platforms"""
+        return ["linux", "windows", "macos"] 

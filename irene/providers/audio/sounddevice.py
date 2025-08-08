@@ -110,6 +110,27 @@ class SoundDeviceAudioProvider(AudioProvider):
         """SoundDevice doesn't require model downloads"""
         return {}
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """SoundDevice audio requires sounddevice and soundfile libraries"""
+        return ["sounddevice>=0.4.0", "soundfile>=0.12.0"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for SoundDevice audio support"""
+        return {
+            "ubuntu": ["libportaudio2", "libsndfile1"],
+            "alpine": ["portaudio-dev", "libsndfile-dev"],  # ARMv7 Alpine
+            "centos": ["portaudio-devel", "libsndfile-devel"],
+            "macos": []  # Homebrew handles dependencies automatically
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """SoundDevice supports all major platforms"""
+        return ["linux", "windows", "macos"]
+    
     async def is_available(self) -> bool:
         """Check if SoundDevice dependencies are available"""
         return self._available

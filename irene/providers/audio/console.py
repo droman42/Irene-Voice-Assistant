@@ -87,6 +87,27 @@ class ConsoleAudioProvider(AudioProvider):
         """Console audio doesn't use models"""
         return {}
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Console audio has no dependencies - pure Python"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Console audio has no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Console audio supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """
         'Play' an audio file by printing information to console.

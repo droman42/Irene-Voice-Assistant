@@ -111,6 +111,27 @@ class PyttsTTSProvider(TTSProvider):
         """Pyttsx3 uses system TTS engines, no models to download"""
         return {}
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Pyttsx TTS requires pyttsx3 library"""
+        return ["pyttsx3>=2.90"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for pyttsx3"""
+        return {
+            "ubuntu": ["espeak", "espeak-data"],
+            "alpine": ["espeak", "espeak-data"],  # ARMv7 Alpine
+            "centos": ["espeak", "espeak-data"],
+            "macos": []  # macOS has built-in TTS
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Pyttsx3 supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     async def speak(self, text: str, **kwargs) -> None:
         """
         Convert text to speech and play it.

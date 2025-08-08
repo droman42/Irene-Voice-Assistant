@@ -33,6 +33,27 @@ class TimerIntentHandler(IntentHandler):
         super().__init__()
         self.active_timers: Dict[str, Dict[str, Any]] = {}
         self.timer_counter = 0
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Timer handler needs no external dependencies - pure Python logic"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Timer handler has no system dependencies - pure Python logic"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Timer handler supports all platforms"""
+        return ["linux", "windows", "macos"]
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process timer intents"""

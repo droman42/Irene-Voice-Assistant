@@ -244,6 +244,27 @@ class VoskTTSProvider(TTSProvider):
         """Get unique provider identifier"""
         return "vosk_tts"
     
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Vosk TTS uses pyttsx3 for speech synthesis"""
+        return ["pyttsx3>=2.90"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system packages for Vosk TTS"""
+        return {
+            "ubuntu": ["libffi-dev"],
+            "alpine": ["libffi-dev"],  # ARMv7 Alpine
+            "centos": ["libffi-devel"],
+            "macos": []  # macOS includes FFI libraries
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Vosk TTS supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     async def validate_parameters(self, **kwargs) -> bool:
         """Validate provider-specific parameters"""
         try:

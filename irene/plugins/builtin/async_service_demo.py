@@ -7,7 +7,7 @@ demonstrating the AsyncServicePlugin base class.
 
 import asyncio
 from datetime import datetime
-from typing import List
+from typing import List, Dict
 
 from ...core.context import Context
 from ...core.commands import CommandResult
@@ -161,4 +161,25 @@ class AsyncServiceDemoPlugin(AsyncServicePlugin, BaseCommandPlugin):
     async def shutdown(self) -> None:
         """Enhanced shutdown with service-specific cleanup"""
         self.logger.info(f"Shutting down service (processed {self._status_count} heartbeats)")
-        await super().shutdown() 
+        await super().shutdown()
+
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Async service demo plugin needs no external dependencies - pure Python logic"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Async service demo plugin has no system dependencies - pure Python logic"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Async service demo plugin supports all platforms"""
+        return ["linux", "windows", "macos"] 

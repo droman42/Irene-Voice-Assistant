@@ -299,6 +299,53 @@ class RuleBasedNLUProvider(ProviderBase):
         
         return True
     
+    # Asset configuration methods (TODO #4 Phase 1)
+    @classmethod
+    def _get_default_extension(cls) -> str:
+        """Rule-based NLU doesn't use files"""
+        return ""
+    
+    @classmethod
+    def _get_default_directory(cls) -> str:
+        """Rule-based NLU directory for pattern storage"""
+        return "rule_based"
+    
+    @classmethod
+    def _get_default_credentials(cls) -> List[str]:
+        """Rule-based NLU doesn't need credentials"""
+        return []
+    
+    @classmethod
+    def _get_default_cache_types(cls) -> List[str]:
+        """Rule-based NLU uses runtime cache for patterns"""
+        return ["runtime"]
+    
+    @classmethod
+    def _get_default_model_urls(cls) -> Dict[str, str]:
+        """Rule-based NLU doesn't use external models"""
+        return {}
+    
+    # Build dependency methods (TODO #5 Phase 1)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Rule-based NLU uses only pure Python regex - no external dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Rule-based NLU has no system dependencies"""
+        return {
+            "ubuntu": [],
+            "alpine": [],
+            "centos": [],
+            "macos": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Rule-based NLU supports all platforms"""
+        return ["linux", "windows", "macos"]
+    
     async def cleanup(self) -> None:
         """Clean up rule-based NLU resources"""
         self.patterns.clear()
