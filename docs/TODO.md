@@ -2,6 +2,40 @@
 
 This document tracks architectural improvements and refactoring tasks for the Irene Voice Assistant project.
 
+## 📋 TODO Summary Table
+
+| ID | Title | Status | Priority | Components |
+|:--:|-------|:------:|:--------:|------------|
+| 1 | [Comprehensive Hardcoded Loading Pattern Elimination](#1-comprehensive-hardcoded-loading-pattern-elimination) | ✅ **COMPLETED** | Critical | All subsystems (components, providers, workflows, intents, inputs, plugins) |
+| 2 | [Text Processing Provider Architecture Refactoring](#2-text-processing-provider-architecture-refactoring) | ✅ **COMPLETED** | High | Text processing providers, stage-specific architecture |
+| 3 | [Entry-Points Based Build System: Minimal Container and Service Builds](#3-entry-points-based-build-system-minimal-container-and-service-builds) | ✅ **PARTIALLY COMPLETED** | Critical | Runtime build tool, Multi-platform Docker, Service installation |
+| 4 | [Configuration-Driven Asset Management: Eliminate Asset System Hardcoding](#4-configuration-driven-asset-management-eliminate-asset-system-hardcoding) | ❌ **Open** | High | Asset management system, Provider base classes, TOML configuration |
+| 5 | [Universal Entry-Points Metadata System: Eliminate Build Analyzer Hardcoding](#5-universal-entry-points-metadata-system-eliminate-build-analyzer-hardcoding) | ❌ **Open** | High | ALL entry-points across 14 namespaces (77 total entry-points) |
+| 6 | [AudioComponent Command Handling Architecture Issue](#6-audiocomponent-command-handling-architecture-issue) | ❌ **Open** | High | `irene/components/audio_component.py` |
+| 7 | [Disconnected NLU and Intent Handler Systems](#7-disconnected-nlu-and-intent-handler-systems) | ❌ **Open** | High | Intent system, NLU providers |
+| 8 | [NLU Architecture Revision: Keyword-First with Intent Donation](#8-nlu-architecture-revision-keyword-first-with-intent-donation) | ❌ **Open** | High | NLU providers, Intent system, Text processing |
+| 9 | [Named Client Support for Contextual Command Processing](#9-named-client-support-for-contextual-command-processing) | ❌ **Open** | Medium | Workflow system, RequestContext, Voice trigger, Intent system |
+| 10 | [Review New Providers for Asset Management Compliance](#10-review-new-providers-for-asset-management-compliance) | ✅ **COMPLETED** | Medium | All provider modules |
+| 11 | [MicroWakeWord Hugging Face Integration](#11-microwakeword-hugging-face-integration) | ❌ **Open** | Medium | `irene/providers/voice_trigger/microwakeword.py` |
+| 12 | [Complete Dynamic Discovery Implementation for Intent Handlers and Plugins](#12-complete-dynamic-discovery-implementation-for-intent-handlers-and-plugins) | ✅ **SUBSTANTIALLY COMPLETED** | High | Intent system, Plugin system, Build system integration |
+| 13 | [Binary WebSocket Optimization for External Devices](#13-binary-websocket-optimization-for-external-devices) | ❌ **Open** | Low | WebSocket endpoints, ESP32 integration, Audio streaming |
+| 14 | [ESP32 INT8 Wake Word Model Migration](#14-esp32-int8-wake-word-model-migration) | ✅ **COMPLETED** | High | ESP32 firmware, wake word training pipeline |
+
+## 🎯 Status Legend
+
+- ✅ **COMPLETED** - Implementation finished and tested
+- 🟨 **PARTIALLY COMPLETED** - Major phases done, some phases deferred
+- ❌ **Open** - Not yet started or in early stages
+
+## 📊 Progress Summary
+
+- **Completed**: 5 todos (35.7%)
+- **Partially Completed**: 2 todos (14.3%) 
+- **Open**: 7 todos (50.0%)
+- **Total**: 14 todos
+
+---
+
 ## 1. Comprehensive Hardcoded Loading Pattern Elimination
 
 **Status:** ✅ **COMPLETED**  
