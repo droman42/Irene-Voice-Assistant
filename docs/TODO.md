@@ -1108,8 +1108,8 @@ configs/
 ## 4. Universal Entry-Points Metadata System: Eliminate Build Analyzer Hardcoding
 
 **Status:** Open  
-**Priority:** High (Required before TODO #3 Phase 2)  
-**Components:** All entry-points (providers, components, workflows, intent handlers, plugins, inputs, outputs, runners)
+**Priority:** High (Required before TODO #3 Phase 4-5)  
+**Components:** ALL entry-points across 14 namespaces (77 total entry-points)
 
 ### Problem
 
@@ -1117,71 +1117,254 @@ The current build analyzer (`irene/tools/build_analyzer.py`) contains extensive 
 
 1. **Provider Dependencies** (Lines 70-147): Hardcoded system and Python dependencies for 25+ providers
 2. **Namespace List** (Lines 364-379): Hardcoded list of 14 entry-points namespaces  
-3. **Missing Metadata**: No standardized way for entry-points to declare their build requirements
+3. **Platform Mappings**: Additional hardcoding in `Dockerfile.armv7` (lines 51-63) for Ubuntu→Alpine package conversion
+4. **Missing Metadata**: No standardized way for ANY entry-points to declare their build requirements
 
-This creates maintenance overhead and prevents external packages from properly integrating with the build system.
+This creates maintenance overhead, prevents external packages from integrating with the build system, and requires manual updates across multiple files for dependency changes.
 
-### Proposed Solution: Universal Metadata Methods
+### Proposed Solution: Universal Metadata Methods for ALL Entry-Points
 
-**Extend all entry-point base classes** with standardized metadata methods that the build analyzer can query dynamically.
+**Extend ALL entry-point base classes** with standardized metadata methods that the build analyzer can query dynamically.
+
+### Complete Entry-Points Scope Analysis
+
+From pyproject.toml analysis - **ALL** entry-point namespaces need metadata methods:
+
+| **Namespace** | **Count** | **Base Classes Need Metadata** |
+|---------------|-----------|--------------------------------|
+| `irene.providers.audio` | 5 | ✅ AudioProvider + implementations |
+| `irene.providers.tts` | 6 | ✅ TTSProvider + implementations |
+| `irene.providers.asr` | 3 | ✅ ASRProvider + implementations |
+| `irene.providers.llm` | 3 | ✅ LLMProvider + implementations |
+| `irene.providers.voice_trigger` | 2 | ✅ VoiceTriggerProvider + implementations |
+| `irene.providers.nlu` | 2 | ✅ NLUProvider + implementations |
+| `irene.providers.text_processing` | 4 | ✅ TextProcessor + implementations |
+| `irene.components` | 7 | ✅ Component + implementations |
+| `irene.workflows` | 2 | ✅ Workflow + implementations |
+| `irene.intents.handlers` | 6 | ✅ IntentHandler + implementations |
+| `irene.inputs` | 3 | ✅ Input + implementations |
+| `irene.outputs` | 3 | ✅ Output + implementations |
+| `irene.plugins.builtin` | 2 | ✅ Plugin + implementations |
+| `irene.runners` | 4 | ✅ Runner classes |
+
+**Total: 52+ individual classes across 14 namespaces requiring metadata implementation**
 
 ### Implementation Strategy
-
-#### **Scope: All Entry-Points Namespaces**
-- `irene.providers.*` (7 provider types, ~25 providers)
-- `irene.components` (7 components)
-- `irene.workflows` (2 workflows)  
-- `irene.intents.handlers` (6 intent handlers)
-- `irene.inputs` (3 inputs)
-- `irene.outputs` (3 outputs)
-- `irene.plugins.builtin` (2 plugins)
-- `irene.runners` (4 runners)
 
 #### **Universal Metadata Interface**
 ```python
 class EntryPointMetadata(ABC):
     @classmethod
-    def get_system_dependencies(cls) -> List[str]:
-        """System packages required by this entry-point."""
-        return []
-    
-    @classmethod
     def get_python_dependencies(cls) -> List[str]:
-        """Python dependency groups from pyproject.toml."""
+        """Python dependency groups from pyproject.toml optional-dependencies."""
         return []
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Supported platforms: linux, windows, macos, armv7, etc."""
         return ["linux", "windows", "macos"]
+        
+    @classmethod  
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Platform-specific system package mappings."""
+        return {
+            "ubuntu": [],  # Ubuntu/Debian system packages
+            "alpine": [],  # Alpine Linux (ARMv7) packages
+            "centos": [],  # CentOS/RHEL packages
+            "macos": []    # macOS Homebrew packages
+        }
 ```
 
-#### **Example Implementation**
+#### **Example Implementations Across Entry-Point Types**
+
+**Provider Example:**
 ```python
 # irene/providers/audio/sounddevice.py
-class SoundDeviceAudioProvider(AudioProvider):
-    @classmethod
-    def get_system_dependencies(cls) -> List[str]:
-        return ["libportaudio2", "libsndfile1"]
-    
+class SoundDeviceAudioProvider(AudioProvider, EntryPointMetadata):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         return ["audio-input", "audio-output"]
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        return {
+            "ubuntu": ["libportaudio2", "libsndfile1"],
+            "alpine": ["portaudio-dev", "libsndfile-dev"],  # ARMv7 Alpine
+            "centos": ["portaudio-devel", "libsndfile-devel"],
+            "macos": []  # Homebrew handles dependencies
+        }
 ```
+
+**Component Example:**
+```python
+# irene/components/tts_component.py
+class TTSComponent(Component, EntryPointMetadata):
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        return ["tts"]  # Needs TTS functionality group
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        return {
+            "ubuntu": [],  # Components coordinate providers, no direct system deps
+            "alpine": [], 
+            "centos": [],
+            "macos": []
+        }
+```
+
+**Workflow Example:**
+```python  
+# irene/workflows/voice_assistant.py
+class VoiceAssistantWorkflow(Workflow, EntryPointMetadata):
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        return ["audio-input", "audio-output", "tts", "asr"]  # Voice workflow requirements
+```
+
+**Intent Handler Example:**
+```python
+# irene/intents/handlers/train_schedule.py
+class TrainScheduleIntentHandler(IntentHandler, EntryPointMetadata):
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        return ["web-requests"]  # Needs HTTP client for train APIs
+```
+
+**Runner Example:**
+```python
+# irene/runners/webapi_runner.py
+class WebAPIRunner(Runner, EntryPointMetadata):
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        return ["web-api"]  # Needs FastAPI/uvicorn
+```
+
+### Comprehensive Hardcoding Elimination
+
+**Three systems need complete replacement:**
+
+1. **Build Analyzer Hardcoding** (`irene/tools/build_analyzer.py`):
+   - Lines 70-147: `PROVIDER_SYSTEM_DEPENDENCIES` + `PROVIDER_PYTHON_DEPENDENCIES` 
+   - Lines 364-379: Hardcoded namespace list
+   - Replace with dynamic entry-point metadata queries
+
+2. **Docker Platform Mapping** (`Dockerfile.armv7`):
+   - Lines 51-63: Hardcoded `ubuntu_to_alpine` package conversion
+   - Replace with `get_platform_dependencies()` queries
+
+3. **Dynamic Discovery**: 
+   - Query metadata from actual entry-point classes instead of static mappings
+   - Support external packages automatically via their metadata implementations
 
 ### Benefits
 
-- **Eliminates Hardcoding**: Build analyzer becomes fully dynamic
-- **External Package Support**: Third-party packages integrate seamlessly  
+- **Eliminates ALL Hardcoding**: Build analyzer, Docker builds, and discovery become fully dynamic
+- **External Package Support**: Third-party packages integrate seamlessly via metadata methods
+- **Platform Optimization**: Native support for Ubuntu, Alpine, CentOS, macOS builds  
 - **Maintainability**: Dependencies live with the code that needs them
-- **Architectural Consistency**: Universal pattern across all entry-points
+- **Architectural Consistency**: Universal pattern across ALL 77 entry-points
+- **Build Efficiency**: Precise dependency analysis for minimal deployments
+
+### Impact
+
+- **Major Architectural Change**: Affects all base classes and 52+ implementations
+- **Breaking Change**: Entry-point interface additions (backward compatible via default implementations)
+- **Build System**: Complete overhaul of build analyzer and Docker infrastructure
+- **External Packages**: Third-party entry-points must implement metadata methods
+- **Maintenance**: Eliminates need for manual dependency mapping updates
+
+### Implementation Requirements
+
+#### **Phase 1: Universal Metadata Interface** (Priority: Critical)
+- Create universal `EntryPointMetadata` ABC with standardized methods
+- Add metadata interface to all 14 entry-point base classes
+- Implement metadata methods in all 52+ entry-point implementations
+
+#### **Phase 2: Build System Integration** (Priority: Critical)  
+- Remove ALL hardcoded mappings from build analyzer
+- Replace hardcoded namespace lists with dynamic discovery
+- Update Docker builds to use platform-specific metadata queries
+
+#### **Phase 3: Dependency Validation Tool** (Priority: High)
+Create `irene/tools/dependency_validator.py` - intelligent validation tool that:
+
+**Core Functionality:**
+```bash
+# Validate single entry-point class for target platform
+python -m irene.tools.dependency_validator \
+    --file irene/providers/audio/sounddevice.py \
+    --class SoundDeviceAudioProvider \
+    --platform ubuntu
+
+# Validate all entry-points for specific platform
+python -m irene.tools.dependency_validator \
+    --validate-all --platform alpine
+
+# Cross-platform validation for CI/CD
+python -m irene.tools.dependency_validator \
+    --validate-all --platforms ubuntu,alpine,centos,macos
+```
+
+**Smart Validation Features:**
+- **Import Analysis**: Dynamically import and instantiate entry-point classes
+- **Package Verification**: Check if declared Python dependencies actually exist in pyproject.toml
+- **System Package Validation**: Verify system packages exist in target platform repositories
+- **Cross-Platform Consistency**: Ensure platform-specific mappings are logically equivalent
+- **Dependency Graph**: Detect circular dependencies and conflicts between entry-points
+- **Performance Testing**: Validate that metadata methods execute quickly (< 100ms per class)
+- **External Package Support**: Validate third-party entry-point metadata compliance
+
+**Validation Logic:**
+```python
+class DependencyValidator:
+    """Smart dependency validation for entry-point metadata"""
+    
+    def validate_entry_point(self, file_path: str, class_name: str, platform: str) -> ValidationResult:
+        """Validate single entry-point's metadata for target platform"""
+        # 1. Dynamic import and instantiation
+        # 2. Call metadata methods and validate return types
+        # 3. Verify Python deps exist in pyproject.toml optional-dependencies
+        # 4. Check system packages exist in platform package repos
+        # 5. Performance testing of metadata methods
+        # 6. Cross-reference with build analyzer expectations
+        
+    def validate_platform_consistency(self, class_obj: type) -> ValidationResult:
+        """Ensure platform-specific dependencies are logically equivalent"""
+        # 1. Compare Ubuntu vs Alpine vs CentOS package mappings
+        # 2. Detect missing platform support
+        # 3. Validate package name conventions per platform
+        
+    def validate_all_entry_points(self, platforms: List[str]) -> Dict[str, ValidationResult]:
+        """Validate all 77 entry-points across specified platforms"""
+        # 1. Discovery via entry-points catalog
+        # 2. Batch validation with progress reporting
+        # 3. Generate comprehensive validation report
+```
+
+**Integration with CI/CD:**
+- Pre-commit hook validation for modified entry-points
+- GitHub Actions integration for cross-platform validation
+- Build-time validation before Docker image creation
+- External package validation for third-party entry-points
 
 ### Related Files
 
-- ❌ `irene/core/metadata.py` (new metadata interface - to be created)
-- ❌ All base classes (add metadata interface)
-- ❌ All provider implementations (add metadata methods)
-- ❌ `irene/tools/build_analyzer.py` (remove hardcoded mappings)
+- ❌ `irene/core/metadata.py` (new universal metadata interface - to be created)
+- ❌ All entry-point base classes (14 base classes need metadata interface):
+  - `irene/providers/*/base.py` (7 provider base classes)
+  - `irene/components/base.py` (Component base)
+  - `irene/workflows/base.py` (Workflow base)  
+  - `irene/intents/handlers/base.py` (IntentHandler base)
+  - `irene/inputs/base.py` (Input base)
+  - `irene/outputs/base.py` (Output base)
+  - `irene/plugins/base.py` (Plugin base)
+  - `irene/runners/` (Runner classes - no common base yet)
+- ❌ All entry-point implementations (52+ classes need metadata methods)
+- ❌ `irene/tools/build_analyzer.py` (remove ALL hardcoded mappings and namespace lists)
+- ❌ `irene/tools/dependency_validator.py` (new validation tool - to be created)
+- ❌ `Dockerfile.armv7` (remove hardcoded Ubuntu→Alpine conversion)
+- ❌ `Dockerfile.x86_64` (integrate dynamic metadata queries)
 
 ---
 
