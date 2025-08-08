@@ -1483,7 +1483,163 @@ microwakeword:
 - `irene/config/models.py` (model registry)
 - `docs/ASSET_MANAGEMENT.md` (asset management documentation)
 
-## 10. Binary WebSocket Optimization for External Devices
+## 10. Complete Dynamic Discovery Implementation for Intent Handlers and Plugins
+
+**Status:** Open  
+**Priority:** High  
+**Components:** Intent system (`irene/intents/`), Plugin system (`irene/plugins/`), Build system integration
+
+### Problem
+
+While TODO #1 successfully eliminated hardcoded loading patterns for providers, several major subsystems still have incomplete dynamic discovery implementations that prevent full entry-points-based architecture:
+
+1. **Intent Handlers**: Entry-points catalog exists but no dynamic discovery implementation
+2. **Plugins**: Mostly working but still uses intermediate discovery functions instead of direct entry-points
+3. **Workflows**: Entry-points exist but workflow manager still uses hardcoded instantiation
+4. **Components**: Component registry still uses hardcoded dictionary
+
+### Current State Analysis
+
+| **Subsystem** | **Entry-Points** | **Dynamic Discovery** | **Status** |
+|---------------|------------------|---------------------|------------|
+| **Providers** | ✅ Complete | ✅ Implemented | ✅ **COMPLETED** |
+| **Plugins** | ✅ Complete | ✅ Mostly implemented | 🟨 **MOSTLY DONE** |
+| **Intent Handlers** | ✅ Complete | ❌ Not implemented | ❌ **NOT COMPLETED** |
+| **Workflows** | ✅ Complete | ❌ Not implemented | ❌ **NOT COMPLETED** |
+| **Components** | ✅ Complete | ❌ Registry hardcoded | ❌ **PARTIALLY DONE** |
+
+### Required Implementation
+
+**Phase 1: Intent Handler Dynamic Discovery** (Priority: Critical)
+- ❌ Implement intent handler discovery using `dynamic_loader.discover_providers("irene.intents.handlers")`
+- ❌ Create `IntentHandlerManager` that automatically discovers and registers handlers from entry-points
+- ❌ Update `IntentOrchestrator` initialization to use discovered handlers
+- ❌ Remove hardcoded imports from `irene/intents/handlers/__init__.py`
+- ❌ Add configuration-driven filtering for enabled/disabled intent handlers
+- ❌ Integrate with existing `IntentRegistry` for pattern-based registration
+
+**Phase 2: Plugin System Optimization** (Priority: High)
+- ❌ Replace intermediate `get_builtin_plugins()` function with direct entry-points discovery
+- ❌ Update `AsyncPluginManager` to use `dynamic_loader.discover_providers("irene.plugins.builtin")`
+- ❌ Implement configuration-driven plugin filtering (enabled/disabled plugins)
+- ❌ Remove hardcoded plugin module lists from `irene/plugins/builtin/__init__.py`
+- ❌ Ensure external plugin discovery remains functional
+
+**Phase 3: Architecture Decisions Required** (Priority: Medium)
+- ❌ **Workflows**: Discuss whether workflows should use entry-points discovery or remain hardcoded
+  - Workflows are architectural components, not extensible plugins
+  - Consider if configuration-driven workflow selection provides value
+  - Evaluate impact on workflow dependency injection and lifecycle management
+- ❌ **Components**: Discuss whether core component registry should use entry-points discovery
+  - Components are fundamental system parts with complex dependencies
+  - Consider if dynamic component discovery adds value vs. architectural clarity
+  - Evaluate impact on component lifecycle and dependency resolution
+
+**Phase 4: Build System Integration** (Priority: Medium)
+- ❌ Update TODO #3 build analyzer to handle new discovery patterns
+- ❌ Extend entry-points analysis for intent handlers and plugins
+- ❌ Update selective build logic to include/exclude based on enabled intent handlers
+- ❌ Modify container builds to optimize for plugin configurations
+- ❌ Update GitHub Actions workflows to validate all discovery patterns
+
+### Technical Implementation
+
+**Intent Handler Discovery Pattern:**
+```python
+# NEW: Dynamic intent handler discovery (like providers)
+class IntentHandlerManager:
+    def __init__(self):
+        self._handler_classes = {}
+        self._registry = IntentRegistry()
+        
+    async def initialize(self, enabled_handlers: List[str]):
+        """Discover and register intent handlers from entry-points"""
+        # Use same pattern as components
+        self._handler_classes = dynamic_loader.discover_providers(
+            "irene.intents.handlers", 
+            enabled_handlers
+        )
+        
+        # Auto-register discovered handlers
+        for name, handler_class in self._handler_classes.items():
+            handler_instance = handler_class()
+            # Register with appropriate patterns based on handler capabilities
+            patterns = await handler_instance.get_supported_patterns()
+            for pattern in patterns:
+                self._registry.register_handler(pattern, handler_instance)
+```
+
+**Plugin Discovery Optimization:**
+```python
+# IMPROVED: Direct entry-points discovery (remove intermediate function)
+class AsyncPluginManager:
+    async def _load_builtin_plugins(self) -> None:
+        """Load built-in plugins using direct entry-points discovery"""
+        enabled_plugins = self.config.get('enabled_plugins', [])
+        
+        # Direct discovery like providers
+        plugin_classes = dynamic_loader.discover_providers(
+            "irene.plugins.builtin", 
+            enabled_plugins
+        )
+        
+        # Register discovered plugins
+        for name, plugin_class in plugin_classes.items():
+            await self._register_plugin(name, plugin_class)
+```
+
+### Configuration Impact
+
+**Enhanced Configuration Schema:**
+```toml
+# Intent handler configuration
+[intents.handlers]
+enabled = ["conversation", "timer", "greetings", "system"]
+disabled = ["train_schedule", "complex_queries"]
+auto_discover = true
+discovery_paths = ["irene.intents.handlers", "custom.intents.handlers"]
+
+# Plugin configuration  
+[plugins.builtin]
+enabled = ["random_plugin", "async_service_demo"]
+disabled = ["deprecated_plugin"]
+auto_discover = true
+
+# Build configuration updates
+[build]
+include_intent_handlers = ["conversation", "timer"]  # Selective intent handler builds
+include_plugins = ["random_plugin"]  # Selective plugin builds
+```
+
+### Benefits
+
+- **Architectural Consistency**: All subsystems use identical entry-points + configuration pattern
+- **External Extensibility**: Intent handlers and plugins from third-party packages automatically discovered
+- **Build Optimization**: Selective inclusion of intent handlers and plugins in minimal builds
+- **Configuration Simplicity**: Unified enable/disable pattern across all subsystems
+- **Maintenance Reduction**: No hardcoded imports or registration lists to maintain
+
+### Impact
+
+- **Breaking Change**: Intent handler and plugin initialization logic changes
+- **Build System**: TODO #3 build analyzer requires updates for new patterns
+- **Configuration**: Enhanced TOML schema for intent handler and plugin control
+- **External Packages**: Third-party intent handlers and plugins automatically supported
+- **Development Experience**: Consistent discovery pattern across all subsystems
+
+### Related Files
+
+- ❌ `irene/intents/manager.py` (new intent handler manager - to be created)
+- ❌ `irene/intents/handlers/__init__.py` (remove hardcoded imports)
+- ❌ `irene/plugins/builtin/__init__.py` (remove intermediate discovery function)
+- ❌ `irene/plugins/manager.py` (update to direct entry-points discovery)
+- ❌ `irene/core/workflow_manager.py` (workflow discovery decisions needed)
+- ❌ `irene/core/components.py` (component registry decisions needed)
+- ❌ `irene/tools/build_analyzer.py` (update for TODO #3 integration)
+- ✅ `irene/utils/loader.py` (dynamic loader implementation ready)
+- ✅ `pyproject.toml` (entry-points catalog established)
+
+## 12. Binary WebSocket Optimization for External Devices
 
 **Status:** Open  
 **Priority:** Low  
@@ -1592,7 +1748,7 @@ The existing ESP32 firmware already supports:
 - `ESP32/firmware/common/src/network/network_manager.cpp` (ESP32 audio streaming)
 - `ESP32/firmware/common/src/audio/audio_manager.cpp` (ESP32 audio processing)
 
-## 14. ESP32 INT8 Wake Word Model Migration
+## 15. ESP32 INT8 Wake Word Model Migration
 
 **Status:** ✅ **COMPLETED**  
 **Priority:** High  
