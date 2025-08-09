@@ -876,24 +876,7 @@ class NLUComponent(Component, WebAPIPlugin):
 ```
 
 **Configuration Integration:**
-```toml
-[components.nlu]
-confidence_threshold = 0.7
-provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md"]
-fallback_intent = "conversation.general"
-
-[components.nlu.providers.keyword_matcher]
-enabled = true
-confidence_threshold = 0.8
-
-[components.nlu.providers.spacy_rules_sm] 
-enabled = true
-confidence_threshold = 0.7
-
-[components.nlu.providers.spacy_semantic_md]
-enabled = true  
-confidence_threshold = 0.55
-```
+Configuration details are provided in the Complete NLU Configuration Schema section below.
 
 **This enhancement:**
 1. **Maintains Component-Provider pattern** - no separate orchestrator needed
@@ -908,44 +891,7 @@ confidence_threshold = 0.55
 
 The JSON donation system integrates seamlessly with the existing Component-Provider architecture:
 
-```python
-# 1. IntentComponent loads and manages intent handlers with JSON donations
-class IntentComponent(Component):
-    async def initialize(self, core):
-        # Load intent handlers using standard entry-points discovery
-        self.handler_manager = IntentHandlerManager()
-        await self.handler_manager.initialize(handler_config)
-        
-        # Get JSON donations from loaded handlers
-        donations = self.handler_manager.get_donations()
-        
-        # Pass donations to NLUComponent for provider initialization
-        await core.components['nlu'].initialize_providers_from_json_donations(donations)
-
-# 2. NLUComponent loads providers using standard pattern (no orchestrator needed)
-class NLUComponent(Component):
-    async def initialize(self, core):
-        # Standard provider loading (like all other components)
-        self._provider_classes = dynamic_loader.discover_providers("irene.providers.nlu", enabled_providers)
-        for provider_name, provider_class in self._provider_classes.items():
-            provider = provider_class(provider_config)
-            self.providers[provider_name] = provider
-    
-    async def initialize_providers_from_json_donations(self, donations):
-        # Initialize loaded providers with JSON donations
-        keyword_donations = self._convert_json_to_keyword_donations(donations)
-        for provider in self.providers.values():
-            if hasattr(provider, '_initialize_from_donations'):
-                await provider._initialize_from_donations(keyword_donations)
-
-# 3. Workflows use standard component interfaces (no changes needed)
-class VoiceAssistantWorkflow:
-    async def _process_text_pipeline(self, text, context):
-        # Standard NLU component usage
-        intent = await self.nlu.recognize(text, context)
-        result = await self.intent_orchestrator.execute_intent(intent, context)
-        return result
-```
+The integration follows the standard Component-Provider pattern with JSON donation support as detailed in the previous sections.
 
 ### B. Text Processing Integration
 
@@ -1458,79 +1404,9 @@ class HybridKeywordMatcher:
 
 #### A2. Performance Configuration
 
-Performance configuration is included in the Complete Configuration Schema section below.
+Performance configuration is included in the configuration schema sections above.
 
-## Configuration
 
-### A. Complete Configuration Schema
-
-```toml
-[components.nlu]
-# Cascading provider coordination configuration
-confidence_threshold = 0.7
-provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md"]
-fallback_intent = "conversation.general"
-donation_collection_enabled = true
-parameter_extraction_enabled = true
-
-[components.nlu.providers.keyword_matcher]
-enabled = true
-confidence_threshold = 0.8
-pattern_confidence = 0.9
-fuzzy_threshold = 0.8
-fuzzy_confidence_base = 0.7
-max_fuzzy_keywords_per_intent = 50
-max_text_length_for_fuzzy = 100
-cache_fuzzy_results = true
-case_sensitive = false
-
-[components.nlu.providers.spacy_rules_sm]
-enabled = true
-model_name = "ru_core_news_sm"
-confidence_threshold = 0.7
-morphology_expansion = true
-auto_download = true
-
-[components.nlu.providers.spacy_semantic_md]
-enabled = true
-model_name = "ru_core_news_md"
-confidence_threshold = 0.55
-auto_download = true
-
-[components.nlu.parameter_extraction]
-enabled = true
-strict_validation = true
-type_conversion = true
-
-[components.nlu.context_processing]
-enabled = true
-client_context_resolution = true
-device_disambiguation = true
-room_inference = true
-
-[assets.spacy]
-auto_download_missing = true
-verify_installation = true
-cleanup_on_startup = false
-model_cache_expiry = 86400
-
-[intents]
-enabled_handlers = ["timer", "greetings", "weather"]
-
-[intents.donations]
-validation_mode = "strict"
-schema_version = "1.0"
-fail_on_missing_json = true
-validate_method_existence = true
-validate_spacy_patterns = true
-reload_on_change = false
-
-[intents.donations.error_handling]
-fatal_on_missing_json = true
-fatal_on_invalid_json = true
-fatal_on_schema_validation = true
-development_mode = false
-```
 
 ## Performance Characteristics
 
@@ -1564,6 +1440,131 @@ development_mode = false
 - **rapidfuzz Performance**: ~100K comparisons/second
 - **Memory Overhead**: ~5MB for 1000 intents with 50 keywords each
 - **Accuracy Improvement**: +15-20% recognition rate over pattern-only
+
+## Implementation Decisions and Requirements
+
+### A. Resolved Implementation Questions
+
+Based on analysis and architectural decisions, the following questions have been resolved:
+
+#### A1. Asset Management and Checksums
+**Decision**: No SHA256 checksums required for spaCy models. Following existing provider patterns (Silero, VosK, OpenWakeWord), all providers use asset manager with URL-based downloads without checksum verification. This aligns with current project patterns and simplifies implementation.
+
+#### A2. Hybrid Keyword Matching Algorithm  
+**Decision**: Use fuzzy matching only, where precise matches receive higher scores than fuzzy matches. No separate pattern matching or caching implementation for ARMv7 memory constraints.
+
+**Implementation**:
+- Single fuzzy matching algorithm using `rapidfuzz`
+- Exact matches: confidence = 1.0
+- Fuzzy matches: confidence = fuzzy_score * 0.8 (configurable multiplier)
+- No result caching to minimize memory usage
+
+#### A3. Provider Registration and Entry Points
+**Decision**: Follow standard entry-point registration via `pyproject.toml`, identical to all existing providers.
+
+**Required pyproject.toml additions**:
+```toml
+[project.entry-points."irene.providers.nlu"]
+keyword_matcher = "irene.providers.nlu.keyword_matcher:HybridKeywordMatcherProvider"
+rule_based = "irene.providers.nlu.rule_based:RuleBasedNLUProvider"  
+spacy = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
+```
+
+#### A4. Provider Constructor Requirements
+**Confirmed**: Providers follow existing pattern - `__init__(self, config: Dict[str, Any])` only. JSON donations passed via separate `_initialize_from_donations()` method call after provider instantiation, matching existing provider initialization patterns.
+
+#### A5. Backward Compatibility Strategy
+**Decision**: No backward compatibility. Complete removal of all hardcoded patterns from existing providers.
+
+**Implementation**:
+- Remove all hardcoded pattern dictionaries from `RuleBasedNLUProvider` and `SpaCyNLUProvider`
+- Missing JSON donations = fatal error during startup
+- Clean break from old architecture
+
+#### A6. Configuration Migration Strategy  
+**Decision**: No migration support. New configuration schema only.
+
+**Implementation**:
+- Remove old NLU configuration sections from existing TOML files in `configs/` directory
+- Update all configuration files to new schema
+- Fatal error if old configuration detected
+
+#### A7. Error Handling Policy
+**Decision**: Fatal errors for all validation and runtime issues.
+
+**Implementation**:
+- JSON donation validation failure = fatal error
+- Missing JSON donation files = fatal error  
+- Runtime JSON donation changes = fatal error (no hot reloading)
+- Provider cascade failures = fatal error (no graceful degradation initially)
+
+### B. Required Implementation Tasks
+
+#### B1. JSON Donation File Generation
+**CRITICAL REQUIREMENT**: Generate JSON donation files for all existing intent handlers.
+
+**Existing handlers requiring JSON donations**:
+- `irene/intents/handlers/timer.py` → `timer.json`
+- `irene/intents/handlers/greetings.py` → `greetings.json`  
+- `irene/intents/handlers/conversation.py` → `conversation.json`
+- `irene/intents/handlers/system.py` → `system.json`
+- `irene/intents/handlers/datetime.py` → `datetime.json`
+
+**Implementation approach**:
+1. Extract existing patterns from `RuleBasedNLUProvider` and `SpaCyNLUProvider`
+2. Map patterns to appropriate handler domains
+3. Create comprehensive JSON donation files with:
+   - Phrases from existing hardcoded patterns
+   - Parameter specifications for entity extraction
+   - Examples based on current test cases
+   - Appropriate confidence boosting
+
+#### B2. Configuration File Updates
+**REQUIRED**: Update all configuration files in `configs/` directory to new NLU schema.
+
+**Files to update**:
+- `configs/config-example.toml`
+- `configs/development.toml`
+- `configs/full.toml`
+- `configs/minimal.toml`
+- `configs/voice.toml`
+- `configs/api-only.toml`
+- `configs/embedded-armv7.toml`
+
+#### B3. Provider Implementation Priorities
+**Phase 1**: `HybridKeywordMatcherProvider` (new implementation)
+**Phase 2**: `RuleBasedNLUProvider` refactor (remove hardcoded patterns)  
+**Phase 3**: `SpaCyNLUProvider` refactor (remove hardcoded patterns + asset integration)
+**Phase 4**: `NLUComponent` cascading coordination
+
+### C. Development Environment Setup
+
+#### C1. Dependencies
+**New dependency**: `rapidfuzz>=3.0.0` for fuzzy matching performance
+
+#### C2. Entry-Point Registration  
+Standard entry-point discovery via metadata system (no changes to discovery mechanism)
+
+#### C3. Asset Management Integration
+spaCy providers follow existing asset management patterns (no checksums, URL-based downloads)
+
+### D. Testing Strategy
+
+#### D1. Fatal Error Testing
+- JSON donation validation failures
+- Missing donation files  
+- Invalid provider configurations
+- Asset download failures
+
+#### D2. Performance Testing
+- Fuzzy matching performance with 1000+ intents
+- Memory usage under 20MB constraint (ARMv7)
+- Cascade latency measurements
+
+#### D3. Integration Testing  
+- End-to-end intent recognition with JSON donations
+- Configuration-driven provider selection
+- Cross-platform spaCy model loading
 
 ## Implementation Strategy
 
@@ -1607,3 +1608,375 @@ This enhanced architecture provides context-aware NLU processing, integration wi
 ### MQTT Intent Handlers
 For MQTT-based home automation and IoT device control, see:
 - **[MQTT Intent Handler Architecture](intent_mqtt.md)** - Comprehensive guide for MQTT handlers with dynamic method generation, device discovery, and large-scale command management (deferred feature) 
+
+## NLU Provider Implementation Strategy
+
+### A. Provider Refactoring Requirements
+
+#### A1. Existing Provider Modifications
+
+**`RuleBasedNLUProvider` - Moderate Refactor Required**
+- **Keep**: Regex compilation logic, pattern matching algorithm, confidence calculation
+- **Replace**: Hardcoded pattern dictionary with JSON donation-driven pattern building
+- **Add**: `async def _initialize_from_donations(self, donations: List[KeywordDonation])` method
+- **Estimated Effort**: ~40% new code, ~60% preserved logic
+
+**`SpaCyNLUProvider` - Major Refactor Required**  
+- **Keep**: spaCy model loading, entity extraction, similarity calculation algorithms
+- **Replace**: Hardcoded `intent_patterns` with JSON donation initialization
+- **Add**: Asset management integration, donation-driven pattern compilation
+- **Split**: Single class supports multiple models via configuration (sm/md/lg)
+- **Estimated Effort**: ~60% new code, ~40% preserved logic
+
+#### A2. New Provider Implementations
+
+**`HybridKeywordMatcherProvider` - New Implementation**
+- **Purpose**: Fast pattern + fuzzy matching (primary NLU provider)
+- **Features**: Regex patterns, Levenshtein fuzzy matching, performance caching
+- **Dependencies**: `rapidfuzz` for fuzzy matching performance
+- **Estimated Effort**: 100% new implementation
+
+### B. Provider Architecture Matrix
+
+| Provider Name | Configuration Key | Model/Dependencies | Primary Function | Memory Usage |
+|---------------|------------------|-------------------|------------------|--------------|
+| `HybridKeywordMatcherProvider` | `keyword_matcher` | None (pure Python + rapidfuzz) | Fast pattern + fuzzy matching | ~20MB |
+| `RuleBasedNLUProvider` | `rule_based` | None (pure Python regex) | Ultra-lightweight fallback | ~15MB |
+| `SpaCyNLUProvider` | `spacy_rules_sm` | ru_core_news_sm | Morphological pattern analysis | ~80MB |
+| `SpaCyNLUProvider` | `spacy_semantic_md` | ru_core_news_md | Semantic vector understanding | ~180MB |
+| `SpaCyNLUProvider` | `spacy_semantic_lg` | ru_core_news_lg | Advanced semantic analysis | ~450MB |
+
+### C. Provider Cascade Strategy
+
+```python
+# Default cascade implementing keyword-first optimization
+default_cascade_order = [
+    'keyword_matcher',      # Fast path: ~0.5ms, 70-75% success rate
+    'spacy_rules_sm',      # Rule path: ~5-10ms, 8-12% success rate  
+    'spacy_semantic_md',   # Semantic path: ~15-25ms, 2-3% success rate
+    'rule_based'           # Fallback: ~0.5ms, 100% success rate (conversation intent)
+]
+```
+
+## Complete NLU Configuration Schema
+
+### A. Component-Level Configuration
+
+```toml
+[components.nlu]
+# Cascading provider coordination
+enabled = true
+confidence_threshold = 0.7
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"]
+fallback_intent = "conversation.general"
+
+# JSON donation system integration
+donation_collection_enabled = true
+parameter_extraction_enabled = true
+context_processing_enabled = true
+
+# Performance tuning
+max_cascade_attempts = 3
+cascade_timeout_ms = 100
+cache_recognition_results = true
+cache_ttl_seconds = 300
+```
+
+### B. Provider-Specific Configurations
+
+#### B1. Hybrid Keyword Matcher Provider
+
+```toml
+[components.nlu.providers.keyword_matcher]
+enabled = true
+provider_class = "HybridKeywordMatcherProvider"
+
+# Pattern matching configuration
+pattern_confidence = 0.9
+exact_match_boost = 1.2
+flexible_match_boost = 0.9
+partial_match_boost = 0.8
+
+# Fuzzy matching configuration  
+fuzzy_enabled = true
+fuzzy_threshold = 0.8
+fuzzy_confidence_base = 0.7
+max_fuzzy_keywords_per_intent = 50
+max_text_length_for_fuzzy = 100
+
+# Performance optimization
+cache_fuzzy_results = true
+fuzzy_cache_size = 1000
+case_sensitive = false
+normalize_unicode = true
+
+# Recognition thresholds
+confidence_threshold = 0.8
+min_pattern_length = 2
+max_pattern_combinations = 100
+```
+
+#### B2. Rule-Based NLU Provider
+
+```toml
+[components.nlu.providers.rule_based]
+enabled = true
+provider_class = "RuleBasedNLUProvider"
+
+# Pattern compilation
+case_sensitive = false
+unicode_normalization = true
+regex_timeout_ms = 10
+
+# Recognition configuration
+confidence_threshold = 0.7
+default_confidence = 0.8
+fallback_intent = "conversation.general"
+
+# Performance limits
+max_patterns_per_intent = 20
+pattern_compilation_timeout = 5000
+```
+
+#### B3. spaCy Rules Provider (Small Model)
+
+```toml
+[components.nlu.providers.spacy_rules_sm]
+enabled = true
+provider_class = "SpaCyNLUProvider"
+
+# Model configuration
+model_name = "ru_core_news_sm"
+model_approach = "morphological_rules"
+auto_download = true
+model_cache_expiry = 86400
+
+# Processing configuration
+confidence_threshold = 0.7
+morphology_expansion = true
+pos_tag_weights = {VERB = 1.2, NOUN = 1.1, ADJ = 1.0}
+dependency_parsing = false
+
+# Asset management integration
+download_timeout = 300
+verify_model_integrity = true
+fallback_to_cpu = true
+
+# Performance tuning
+batch_processing = false
+max_doc_length = 1000
+enable_pipeline_caching = true
+```
+
+#### B4. spaCy Semantic Provider (Medium Model)
+
+```toml
+[components.nlu.providers.spacy_semantic_md]
+enabled = true
+provider_class = "SpaCyNLUProvider"
+
+# Model configuration
+model_name = "ru_core_news_md"
+model_approach = "semantic_similarity"
+auto_download = true
+model_cache_expiry = 86400
+
+# Semantic processing
+confidence_threshold = 0.55
+similarity_threshold = 0.75
+vector_similarity_weight = 0.8
+token_similarity_weight = 0.2
+
+# Advanced features
+enable_word_vectors = true
+enable_sentence_vectors = true
+context_window_size = 5
+semantic_boost_keywords = true
+
+# Asset management integration  
+download_timeout = 600
+verify_model_integrity = true
+gpu_acceleration = false
+memory_limit_mb = 200
+
+# Performance optimization
+vector_cache_size = 10000
+similarity_cache_ttl = 3600
+enable_batch_similarity = false
+```
+
+#### B5. spaCy Advanced Provider (Large Model) - Optional
+
+```toml
+[components.nlu.providers.spacy_semantic_lg]
+enabled = false  # Disabled by default due to memory requirements
+provider_class = "SpaCyNLUProvider"
+
+# Model configuration
+model_name = "ru_core_news_lg"
+model_approach = "advanced_semantic"
+auto_download = false  # Manual download recommended
+model_cache_expiry = 604800  # 7 days
+
+# Advanced semantic processing
+confidence_threshold = 0.45
+similarity_threshold = 0.7
+vector_similarity_weight = 0.9
+syntactic_similarity_weight = 0.1
+
+# Research-grade features
+enable_transformer_features = true
+enable_dependency_vectors = true
+enable_constituency_parsing = true
+context_window_size = 10
+
+# Resource management
+gpu_acceleration = true
+memory_limit_mb = 500
+download_timeout = 1800
+```
+
+### C. Asset Management Configuration
+
+```toml
+[components.nlu.assets]
+# Global asset management for NLU providers
+auto_download_missing = true
+verify_installation = true
+cleanup_on_startup = false
+concurrent_downloads = 2
+
+# spaCy-specific asset configuration
+[components.nlu.assets.spacy]
+base_url = "https://github.com/explosion/spacy-models/releases/download"
+model_cache_expiry = 86400
+download_retry_count = 3
+download_retry_delay = 5
+
+# Model-specific URLs and metadata
+[components.nlu.assets.spacy.models]
+ru_core_news_sm = {
+    version = "3.7.0",
+    url = "ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl",
+    size_mb = 60
+}
+ru_core_news_md = {
+    version = "3.7.0", 
+    url = "ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl",
+    size_mb = 120
+}
+ru_core_news_lg = {
+    version = "3.7.0",
+    url = "ru_core_news_lg-3.7.0/ru_core_news_lg-3.7.0-py3-none-any.whl", 
+    size_mb = 450
+}
+
+# Fuzzy matching dependency
+[components.nlu.assets.rapidfuzz]
+auto_install = true
+version_constraint = ">=3.0.0"
+fallback_to_difflib = true
+```
+
+### D. Parameter Extraction Configuration
+
+```toml
+[components.nlu.parameter_extraction]
+enabled = true
+strict_validation = true
+type_conversion = true
+validation_timeout_ms = 50
+
+# Extraction strategies
+use_spacy_entities = true
+use_regex_patterns = true
+use_fuzzy_matching = false
+confidence_threshold = 0.6
+
+# Type-specific configuration
+[components.nlu.parameter_extraction.types]
+integer = {min_value = -2147483648, max_value = 2147483647}
+float = {precision = 2, min_value = -1e10, max_value = 1e10}
+duration = {units = ["seconds", "minutes", "hours", "days"], max_seconds = 86400}
+datetime = {timezone_aware = true, format_preference = ["ISO", "natural"]}
+boolean = {true_values = ["да", "yes", "true", "1"], false_values = ["нет", "no", "false", "0"]}
+```
+
+### E. Context Processing Configuration
+
+```toml
+[components.nlu.context_processing]
+enabled = true
+client_context_resolution = true
+device_disambiguation = true
+room_inference = true
+conversation_history_depth = 5
+
+# Client identification
+use_client_metadata = true
+client_capability_matching = true
+device_fuzzy_matching = true
+device_similarity_threshold = 0.8
+
+# Context enhancement
+entity_resolution_timeout_ms = 100
+context_cache_ttl = 1800
+enable_conversation_context = true
+session_context_persistence = true
+```
+
+### F. Deployment-Specific Configurations
+
+#### F1. Ultra-Constrained Deployment (20MB)
+
+```toml
+[components.nlu]
+provider_cascade_order = ["keyword_matcher", "rule_based"]
+
+[components.nlu.providers.keyword_matcher]
+enabled = true
+fuzzy_enabled = false  # Disable fuzzy matching for memory savings
+
+[components.nlu.providers.rule_based]
+enabled = true
+
+# Disable all spaCy providers
+[components.nlu.providers.spacy_rules_sm]
+enabled = false
+[components.nlu.providers.spacy_semantic_md] 
+enabled = false
+```
+
+#### F2. Edge Device Deployment (80MB)
+
+```toml
+[components.nlu]
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "rule_based"]
+
+[components.nlu.providers.keyword_matcher]
+enabled = true
+
+[components.nlu.providers.spacy_rules_sm]
+enabled = true
+memory_limit_mb = 60
+
+[components.nlu.providers.spacy_semantic_md]
+enabled = false  # Disable semantic processing
+```
+
+#### F3. Full Pipeline Deployment (180MB)
+
+```toml
+[components.nlu]
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"]
+
+# All providers enabled with full configuration as specified above
+```
+
+This configuration architecture ensures:
+1. **MECE Compliance**: Each provider has distinct responsibilities without overlap
+2. **Deployment Flexibility**: Three clear deployment tiers based on resource constraints  
+3. **Performance Optimization**: Configuration-driven cascade with appropriate timeouts and caching
+4. **Asset Management Integration**: Unified model download and management
+5. **Parameter Extraction**: Comprehensive type-safe parameter handling
+6. **Context Processing**: Client-aware entity resolution and disambiguation 
