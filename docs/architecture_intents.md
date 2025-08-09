@@ -92,7 +92,7 @@ graph TB
     end
     
     subgraph "🎯 Система интентов (НОВОЕ!)"
-        IR[IntentRecognizer<br/>Text → Intent + Entities]
+        NLU[NLUComponent<br/>Text → Intent + Entities]
         IO[IntentOrchestrator<br/>Route & Execute Intents]
         IReg[IntentRegistry<br/>Available Intent Handlers]
         IH[Intent Handlers<br/>Weather, Timer, Chat, etc.]
@@ -193,11 +193,11 @@ graph TB
 
 ## 🔧 **Компонентная архитектура**
 
-### 1. IntentRecognizer - NLU компонент
+### 1. NLUComponent - NLU компонент
 
 ```python
-# irene/core/intents/recognizer.py
-class IntentRecognizer:
+# irene/components/nlu_component.py
+class NLUComponent:
     """
     Natural Language Understanding компонент
     Text → Intent + Entities + Confidence
@@ -1004,7 +1004,7 @@ async def process_text_input(text: str, session_id: str = "default"):
 
 ### Phase 1: Core Intent Infrastructure
 1. ✅ Создать базовые классы Intent, IntentResult, ConversationContext
-2. ✅ Реализовать IntentRecognizer (NLU компонент)
+2. ✅ Реализовать NLUComponent (NLU компонент)
 3. ✅ Создать IntentOrchestrator (центральный координатор)
 4. ✅ Реализовать IntentRegistry (реестр обработчиков)
 5. ✅ Создать ContextManager (управление контекстом)
@@ -1268,7 +1268,7 @@ graph TB
         end
         
         subgraph "🎯 irene/intents/ (Ядро системы интентов)"
-            INT1[recognizer.py<br/>IntentRecognizer]
+            NLU1[nlu_component.py<br/>NLUComponent]
             INT2[orchestrator.py<br/>IntentOrchestrator]
             INT3[registry.py<br/>IntentRegistry]
             INT4[context.py<br/>ContextManager]
@@ -1330,7 +1330,7 @@ irene/
 │
 ├── intents/                       # 🎯 Система интентов
 │   ├── __init__.py
-│   ├── recognizer.py              # IntentRecognizer (NLU)
+│   ├── (removed)                  # IntentRecognizer (replaced by NLUComponent)
 │   ├── orchestrator.py            # IntentOrchestrator
 │   ├── registry.py                # IntentRegistry
 │   ├── context.py                 # ContextManager

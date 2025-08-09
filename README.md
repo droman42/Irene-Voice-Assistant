@@ -61,7 +61,7 @@ graph TB
     end
     
     subgraph IntentSys["Intent System"]
-        IntentRec["IntentRecognizer"]
+        NLUComp["NLUComponent"]
         IntentOrch["IntentOrchestrator"]
         IntentReg["IntentRegistry"]
         IntentHandlers["Intent Handlers"]

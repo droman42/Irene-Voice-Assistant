@@ -549,11 +549,28 @@ class EnhancedHandlerManager:
                 full_intent_name = f"{donation.handler_domain}.{method_donation.intent_suffix}"
                 
                 # Convert to KeywordDonation format
+                # Convert parameter specs
+                converted_params = []
+                for param in method_donation.parameters + donation.global_parameters:
+                    converted_params.append(ParameterSpec(
+                        name=param.name,
+                        type=ParameterType(param.type),
+                        required=param.required,
+                        default_value=param.default_value,
+                        description=param.description,
+                        choices=param.choices,
+                        min_value=param.min_value,
+                        max_value=param.max_value,
+                        pattern=param.pattern,
+                        extraction_patterns=param.extraction_patterns,
+                        aliases=param.aliases
+                    ))
+                
                 keyword_donation = KeywordDonation(
                     intent=full_intent_name,
                     phrases=method_donation.phrases,
                     lemmas=method_donation.lemmas,
-                    parameters=[self._convert_parameter_spec(p) for p in method_donation.parameters + donation.global_parameters],
+                    parameters=converted_params,
                     token_patterns=method_donation.token_patterns,
                     slot_patterns=method_donation.slot_patterns,
                     examples=[{"text": ex.text, "parameters": ex.parameters} for ex in method_donation.examples],
@@ -566,59 +583,7 @@ class EnhancedHandlerManager:
 
 ### D. Configuration Integration
 
-#### D1. Enhanced Configuration Schema
-
-```toml
-[intents]
-# Handler discovery and validation
-enabled_handlers = ["timer", "greetings", "weather"]
-auto_discovery = true
-
-[intents.donations]
-# JSON donation validation configuration
-validation_mode = "strict"          # strict, warn, disabled
-schema_version = "1.0"
-fail_on_missing_json = true
-fail_on_invalid_json = true
-validate_method_existence = true
-validate_spacy_patterns = true
-warn_unused_patterns = true
-max_methods_per_handler = 1000
-max_phrases_per_method = 100
-
-# Development features
-reload_on_change = false            # Hot-reload JSON files in development
-backup_on_validation_error = true  # Backup working donations on error
-
-[intents.donations.schema_validation]
-# Pydantic validation configuration
-strict_mode = true
-validate_assignment = true
-use_enum_values = true
-allow_population_by_field_name = true
-```
-
-#### D2. Error Handling Configuration
-
-```toml
-[intents.donations.error_handling]
-# Fatal error conditions (cause startup failure)
-fatal_on_missing_json = true
-fatal_on_invalid_json = true
-fatal_on_schema_validation = true
-fatal_on_method_not_found = true
-fatal_on_invalid_spacy_patterns = true
-
-# Warning conditions (log but continue)
-warn_on_unused_patterns = true
-warn_on_orphaned_donations = true
-warn_on_performance_issues = true
-
-# Development mode error handling
-development_mode = false
-detailed_error_messages = true
-suggest_fixes = true
-```
+Configuration for the donation system is integrated into the main system configuration schema (see Complete Configuration Schema section below).
 
 ## Parameter Extraction System
 
@@ -813,39 +778,19 @@ class NLUOrchestrator:
         keyword_donations = []
         
         for handler_name, donation in donations.items():
-            for method_donation in donation.method_donations:
-                full_intent_name = f"{donation.handler_domain}.{method_donation.intent_suffix}"
-                
-                # Convert parameter specs
-                converted_params = []
-                for param in method_donation.parameters + donation.global_parameters:
-                    converted_params.append(ParameterSpec(
-                        name=param.name,
-                        type=ParameterType(param.type),
-                        required=param.required,
-                        default_value=param.default_value,
-                        description=param.description,
-                        choices=param.choices,
-                        min_value=param.min_value,
-                        max_value=param.max_value,
-                        pattern=param.pattern,
-                        extraction_patterns=param.extraction_patterns,
-                        aliases=param.aliases
-                    ))
-                
-                keyword_donation = KeywordDonation(
-                    intent=full_intent_name,
-                    phrases=method_donation.phrases,
-                    lemmas=method_donation.lemmas,
-                    parameters=converted_params,
-                    token_patterns=method_donation.token_patterns,
-                    slot_patterns=method_donation.slot_patterns,
-                    examples=[{"text": ex.text, "parameters": ex.parameters} for ex in method_donation.examples],
-                    boost=method_donation.boost
-                )
-                keyword_donations.append(keyword_donation)
+            keyword_donations.extend(
+                self._create_keyword_donations_for_handler(donation)
+            )
         
         return keyword_donations
+    
+    def _create_keyword_donations_for_handler(self, donation: HandlerDonation) -> List[KeywordDonation]:
+        """Create KeywordDonation objects for a single handler - reuses existing conversion logic"""
+        # This method delegates to the same conversion logic used in EnhancedHandlerManager
+        # to avoid duplication while maintaining the NLU orchestrator interface
+        handler_manager = EnhancedHandlerManager({})
+        handler_manager.donations = {donation.handler_domain: donation}
+        return handler_manager.get_donations_as_keyword_donations()
 ```
 
 ### B. Stage-Specific Plugin Implementations
@@ -879,16 +824,39 @@ async def _process_text_pipeline_with_json(self, text: str, context: Conversatio
 
 ### A. ClientId Integration Architecture
 
-#### A1. Enhanced Conversation Context
+#### A1. Comprehensive Conversation Context
 
 ```python
 @dataclass
 class ConversationContext:
-    """Enhanced context with client identification and metadata"""
+    """Comprehensive conversation context with client identification and metadata"""
+    
+    # Core identification
     session_id: str
     user_id: Optional[str] = None
-    client_id: Optional[str] = None  # Room/client identifier for context-aware processing
+    client_id: Optional[str] = None  # Room/client identifier
+    
+    # Client metadata for context-aware processing
     client_metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # Conversation state
+    conversation_history: List[Dict[str, Any]] = field(default_factory=list)
+    current_intent_context: Optional[str] = None
+    last_intent_timestamp: Optional[float] = None
+    
+    # Device and capability context
+    available_devices: List[Dict[str, Any]] = field(default_factory=list)
+    preferred_output_device: Optional[str] = None
+    client_capabilities: Dict[str, bool] = field(default_factory=dict)
+    
+    # User preferences
+    language: str = "ru"
+    timezone: Optional[str] = None
+    user_preferences: Dict[str, Any] = field(default_factory=dict)
+    
+    # System context
+    timestamp: float = field(default_factory=time.time)
+    request_source: str = "unknown"  # "microphone", "web", "api", etc.
     
     def get_room_name(self) -> Optional[str]:
         """Get human-readable room name from client context"""
@@ -898,12 +866,15 @@ class ConversationContext:
     
     def get_device_capabilities(self) -> List[Dict[str, Any]]:
         """Get list of devices available in this client context"""
-        return self.client_metadata.get('available_devices', [])
+        return self.client_metadata.get('available_devices', self.available_devices)
     
     def set_client_context(self, client_id: str, metadata: Dict[str, Any]):
         """Set client identification and metadata"""
         self.client_id = client_id
         self.client_metadata = metadata
+        # Update available devices from metadata
+        if 'available_devices' in metadata:
+            self.available_devices = metadata['available_devices']
     
     def get_device_by_name(self, device_name: str) -> Optional[Dict[str, Any]]:
         """Find device by name using fuzzy matching"""
@@ -915,310 +886,115 @@ class ConversationContext:
                 return device
         
         # Fuzzy match fallback
-        from rapidfuzz import fuzz, process
-        device_names = [device.get('name', '') for device in devices]
-        best_match = process.extractOne(device_name, device_names, scorer=fuzz.ratio)
-        
-        if best_match and best_match[1] > 70:  # 70% similarity threshold
-            for device in devices:
-                if device.get('name', '') == best_match[0]:
-                    return device
+        try:
+            from rapidfuzz import fuzz, process
+            device_names = [device.get('name', '') for device in devices]
+            best_match = process.extractOne(device_name, device_names, scorer=fuzz.ratio)
+            
+            if best_match and best_match[1] > 70:  # 70% similarity threshold
+                for device in devices:
+                    if device.get('name', '') == best_match[0]:
+                        return device
+        except ImportError:
+            pass  # Fallback to exact match only if rapidfuzz not available
         
         return None
+    
+    def add_to_history(self, user_text: str, response: str, intent: Optional[str] = None):
+        """Add interaction to conversation history"""
+        self.conversation_history.append({
+            "timestamp": time.time(),
+            "user_text": user_text,
+            "response": response,
+            "intent": intent,
+            "client_id": self.client_id
+        })
+        
+        # Keep only last 10 interactions to prevent memory bloat
+        if len(self.conversation_history) > 10:
+            self.conversation_history = self.conversation_history[-10:]
+    
+    def get_recent_intents(self, limit: int = 3) -> List[str]:
+        """Get recent intent names for context"""
+        recent = []
+        for interaction in reversed(self.conversation_history[-limit:]):
+            if interaction.get('intent'):
+                recent.append(interaction['intent'])
+        return recent
+    
+    def has_capability(self, capability: str) -> bool:
+        """Check if client has specific capability"""
+        return self.client_capabilities.get(capability, False)
+    
+    def get_device_types(self) -> Set[str]:
+        """Get set of device types available in this context"""
+        devices = self.get_device_capabilities()
+        return {device.get('type', 'unknown') for device in devices}
 ```
 
-#### A2. Context-Aware NLU Processor
+#### A2. Context-Aware NLU Processing
 
-```python
-class ContextAwareNLU:
-    """NLU that uses clientId as processing context, not text augmentation"""
-    
-    def __init__(self, nlu_orchestrator, parameter_extractor):
-        self.nlu_orchestrator = nlu_orchestrator
-        self.parameter_extractor = parameter_extractor
-    
-    async def recognize_with_context(self, text: str, context: ConversationContext) -> Intent:
-        """Process through NLU pipeline with client context as metadata"""
-        
-        # Process original text through NLU (no morphing)
-        intent = await self.nlu_orchestrator.recognize(text, context)
-        
-        # Use clientId during entity resolution and intent disambiguation
-        if context.client_id:
-            intent = await self._resolve_context_entities(intent, context)
-            intent = await self._apply_context_disambiguation(intent, context)
-            
-        return intent
-    
-    async def _resolve_context_entities(self, intent: Intent, context: ConversationContext) -> Intent:
-        """Resolve ambiguous entities using client context"""
-        
-        # If no room mentioned in text, use client context
-        if 'room' not in intent.entities and context.client_id:
-            room_name = context.get_room_name()
-            if room_name:
-                intent.entities['room'] = room_name
-                intent.entities['_inferred_room'] = True
-        
-        # Resolve device references using client capabilities
-        if 'device' in intent.entities:
-            device_name = intent.entities['device']
-            matched_device = context.get_device_by_name(device_name)
-            
-            if matched_device:
-                intent.entities['resolved_device'] = matched_device
-                intent.entities['device_id'] = matched_device.get('id')
-                intent.entities['device_type'] = matched_device.get('type')
-        
-        # Add client context to metadata
-        intent.entities['_client_id'] = context.client_id
-        if context.client_metadata:
-            intent.entities['_client_metadata'] = context.client_metadata
-        
-        return intent
-    
-    async def _apply_context_disambiguation(self, intent: Intent, context: ConversationContext) -> Intent:
-        """Apply context-based intent disambiguation"""
-        
-        # Boost confidence for intents relevant to available devices
-        available_devices = context.get_device_capabilities()
-        device_types = {device.get('type') for device in available_devices}
-        
-        # Boost light control intents if lights are available
-        if 'light' in device_types and intent.name.startswith('light.'):
-            intent.confidence = min(1.0, intent.confidence * 1.2)
-        
-        # Boost climate intents if climate devices available
-        if 'climate' in device_types and intent.name.startswith('climate.'):
-            intent.confidence = min(1.0, intent.confidence * 1.2)
-        
-        return intent
-```
-
-#### A3. Context Usage in spaCy Plugins
-
-```python
-class SpaCyRuleBasedPlugin:
-    """spaCy plugin with context-aware processing"""
-    
-    async def recognize(self, text: str, context: ConversationContext) -> Intent:
-        doc = self.nlp(text)
-        
-        # Use client context to boost certain patterns
-        if context.client_id:
-            # Boost patterns relevant to this client's devices
-            client_devices = context.get_device_capabilities()
-            device_names = {device.get('name', '').lower() for device in client_devices}
-            
-            for device_name in device_names:
-                if device_name in text.lower():
-                    # Boost confidence for patterns involving this device
-                    for intent, score in doc._.intent_votes.items():
-                        if self._intent_involves_device(intent, device_name):
-                            doc._.intent_votes[intent] = score * 1.3
-        
-        # Process as normal
-        return await self._process_intent_votes(doc, context)
-    
-    def _intent_involves_device(self, intent_name: str, device_name: str) -> bool:
-        """Check if intent is relevant to a specific device"""
-        # Simple heuristic - could be enhanced with device mapping
-        return any(device_word in intent_name.lower() 
-                  for device_word in ['light', 'climate', 'switch', 'sensor'])
-```
+The comprehensive ConversationContext above integrates with NLU processing to provide context-aware entity resolution and intent disambiguation using client identification and device capabilities.
 
 ## Asset Management Integration
 
-### A. spaCy Model Asset Management
+### A. spaCy Integration with Asset Management
 
-#### A1. Integrated Asset Manager
-
-```python
-class SpaCyAssetManager:
-    """Integrates spaCy models with Irene's asset management system"""
-    
-    def __init__(self, asset_manager):
-        self.asset_manager = asset_manager
-        self.model_configs = {
-            "ru_core_news_sm": {
-                "size": "25MB",
-                "url": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl",
-                "local_path": "models/spacy/ru_core_news_sm",
-                "required_for": ["spacy_rules_sm"],
-                "checksum": "sha256:abc123..."  # Asset integrity verification
-            },
-            "ru_core_news_md": {
-                "size": "50MB", 
-                "url": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl",
-                "local_path": "models/spacy/ru_core_news_md",
-                "required_for": ["spacy_semantic_md"],
-                "checksum": "sha256:def456..."
-            },
-            "ru_core_news_lg": {
-                "size": "200MB",
-                "url": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_lg-3.7.0/ru_core_news_lg-3.7.0-py3-none-any.whl", 
-                "local_path": "models/spacy/ru_core_news_lg",
-                "required_for": ["spacy_semantic_lg"],
-                "checksum": "sha256:ghi789..."
-            }
-        }
-        self.installed_models: Set[str] = set()
-    
-    async def ensure_model_available(self, model_name: str) -> bool:
-        """Ensure spaCy model is downloaded and available"""
-        
-        if model_name in self.installed_models:
-            return True
-        
-        if model_name not in self.model_configs:
-            raise ValueError(f"Unknown spaCy model: {model_name}")
-        
-        config = self.model_configs[model_name]
-        
-        # Check if model exists locally using asset manager
-        if await self.asset_manager.is_asset_available(config["local_path"]):
-            # Verify model can be loaded
-            if await self._verify_model_installation(model_name):
-                self.installed_models.add(model_name)
-                return True
-        
-        # Download model using asset manager
-        logger.info(f"Downloading spaCy model {model_name} ({config['size']})")
-        
-        success = await self.asset_manager.download_asset(
-            url=config["url"],
-            local_path=config["local_path"],
-            expected_size=config["size"],
-            checksum=config.get("checksum"),
-            progress_callback=self._download_progress_callback
-        )
-        
-        if success:
-            # Install model into spaCy
-            await self._install_spacy_model(model_name, config["local_path"])
-            # Verify installation
-            if await self._verify_model_installation(model_name):
-                self.installed_models.add(model_name)
-                return True
-        
-        return False
-    
-    async def _install_spacy_model(self, model_name: str, local_path: str):
-        """Install downloaded model into spaCy"""
-        import subprocess
-        import sys
-        import glob
-        
-        # Find wheel file
-        wheel_pattern = f"{local_path}/{model_name}-*.whl"
-        wheel_files = glob.glob(wheel_pattern)
-        
-        if not wheel_files:
-            raise RuntimeError(f"No wheel file found for {model_name} at {local_path}")
-        
-        wheel_path = wheel_files[0]
-        
-        # Install wheel file
-        cmd = [sys.executable, "-m", "pip", "install", wheel_path, "--no-deps", "--force-reinstall"]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to install spaCy model {model_name}: {result.stderr}")
-        
-        logger.info(f"Successfully installed spaCy model {model_name}")
-    
-    async def _verify_model_installation(self, model_name: str) -> bool:
-        """Verify that spaCy model can be loaded"""
-        try:
-            import spacy
-            nlp = spacy.load(model_name)
-            # Test basic functionality
-            doc = nlp("тест")
-            return len(doc) > 0
-        except Exception as e:
-            logger.warning(f"Failed to verify spaCy model {model_name}: {e}")
-            return False
-    
-    def _download_progress_callback(self, downloaded: int, total: int):
-        """Progress callback for asset downloads"""
-        if total > 0:
-            percentage = (downloaded / total) * 100
-            logger.info(f"Downloading spaCy model: {percentage:.1f}% ({downloaded}/{total} bytes)")
-    
-    async def get_available_models(self) -> List[str]:
-        """Get list of available spaCy models"""
-        available = []
-        for model_name in self.model_configs:
-            if await self.asset_manager.is_asset_available(self.model_configs[model_name]["local_path"]):
-                available.append(model_name)
-        return available
-    
-    async def cleanup_unused_models(self, required_models: List[str]):
-        """Remove models not in the required list"""
-        for model_name, config in self.model_configs.items():
-            if model_name not in required_models:
-                await self.asset_manager.remove_asset(config["local_path"])
-                if model_name in self.installed_models:
-                    self.installed_models.remove(model_name)
-                logger.info(f"Removed unused spaCy model: {model_name}")
-```
-
-#### A2. Integration in spaCy Plugins
+spaCy providers use the standard asset management system instead of custom asset managers:
 
 ```python
 class SpaCyRuleBasedPlugin:
-    """spaCy plugin with integrated asset management"""
+    """spaCy plugin using standard asset management"""
     
     def __init__(self, model_name: str = "ru_core_news_sm"):
         self.model_name = model_name
         self.nlp = None
-        self.asset_manager = None
-        self.spacy_asset_manager = None
+    
+    def get_asset_config(self) -> Dict[str, Any]:
+        """Standard asset configuration method"""
+        return {
+            "file_extension": ".whl",  # spaCy models are wheels
+            "directory_name": "spacy",
+            "cache_types": ["models", "runtime"],
+            "model_urls": {
+                "ru_core_news_sm": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl",
+                "ru_core_news_md": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl",
+                "ru_core_news_lg": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_lg-3.7.0/ru_core_news_lg-3.7.0-py3-none-any.whl"
+            },
+            "credential_patterns": [],  # No API credentials needed
+        }
     
     async def initialize(self, asset_manager):
-        """Initialize with asset management"""
-        self.asset_manager = asset_manager
-        self.spacy_asset_manager = SpaCyAssetManager(asset_manager)
+        """Initialize using standard asset manager"""
+        # Use existing asset management system
+        model_path = await asset_manager.ensure_model_available(
+            provider_name="spacy",
+            model_name=self.model_name,
+            asset_config=self.get_asset_config()
+        )
         
-        # Ensure model is available
-        success = await self.spacy_asset_manager.ensure_model_available(self.model_name)
-        if not success:
-            raise RuntimeError(f"Failed to ensure spaCy model {self.model_name} is available")
+        # Install and load model
+        await self._install_spacy_model(model_path)
         
-        # Load model
         import spacy
         self.nlp = spacy.load(self.model_name)
         
         logger.info(f"Initialized spaCy plugin with model {self.model_name}")
     
+    async def _install_spacy_model(self, model_path: str):
+        """Install spaCy model using pip"""
+        import subprocess
+        import sys
+        
+        cmd = [sys.executable, "-m", "pip", "install", model_path, "--no-deps", "--force-reinstall"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to install spaCy model: {result.stderr}")
+    
     async def is_available(self) -> bool:
         """Check if plugin is available (model downloaded and loaded)"""
         return self.nlp is not None
-```
-
-#### A3. Configuration Integration
-
-```toml
-[assets]
-# Asset management configuration
-cache_directory = "cache"
-models_directory = "models"
-download_timeout = 300
-verify_checksums = true
-auto_cleanup_unused = false
-
-[assets.spacy]
-# spaCy-specific asset configuration
-auto_download_missing = true
-verify_installation = true
-cleanup_on_startup = false
-model_cache_expiry = 86400  # 24 hours
-
-[nlu.spacy_rules_sm]
-enabled = true
-model_name = "ru_core_news_sm"
-auto_download = true
-fallback_on_missing = false
 ```
 
 ## Hybrid Keyword Matching Architecture
@@ -1534,32 +1310,7 @@ class HybridKeywordMatcher:
 
 #### A2. Performance Configuration
 
-```toml
-[nlu.keyword_matcher]
-enabled = true
-confidence_threshold = 0.8
-
-# Pattern matching (fastest)
-pattern_matching = true
-pattern_confidence = 0.9
-case_sensitive = false
-
-# Fuzzy matching (more robust)
-fuzzy_matching = true
-fuzzy_threshold = 0.8
-fuzzy_confidence_base = 0.7
-max_fuzzy_keywords_per_intent = 50  # Limit for performance
-
-# Performance tuning
-max_text_length_for_fuzzy = 100  # Skip fuzzy for very long texts
-cache_fuzzy_results = true
-rapidfuzz_backend = "cpp"  # Use C++ backend for speed
-
-# Pattern variants
-exact_pattern_confidence = 1.0
-flexible_pattern_confidence = 0.9
-partial_pattern_confidence = 0.8
-```
+Performance configuration is included in the Complete Configuration Schema section below.
 
 ## Configuration
 
@@ -1676,10 +1427,10 @@ development_mode = false
 4. Test with simple room/device scenarios
 
 #### A2. Phase 2: Asset Management Integration  
-1. Create SpaCyAssetManager
-2. Integrate with existing asset management system
-3. Add model download and verification
-4. Test model loading and caching
+1. Integrate spaCy providers with existing asset management system
+2. Add standard asset configuration methods to spaCy plugins
+3. Test model download and installation via standard asset manager
+4. Verify spaCy model loading and caching
 
 #### A3. Phase 3: Hybrid Keyword Matching
 1. Implement HybridKeywordMatcher with patterns and fuzzy matching
@@ -1693,7 +1444,7 @@ development_mode = false
 3. Performance tuning and monitoring
 4. Production testing and validation
 
-This enhanced architecture provides context-aware NLU processing, integrated asset management for spaCy models, and robust hybrid keyword matching while maintaining the MECE structure and comprehensive JSON donation system.
+This enhanced architecture provides context-aware NLU processing, integration with the existing asset management system for spaCy models, and robust hybrid keyword matching while maintaining the MECE structure and comprehensive JSON donation system. The design eliminates duplication by reusing existing asset management patterns and consolidating context processing into a single comprehensive class.
 
 ## Related Documentation
 

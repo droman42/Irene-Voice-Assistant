@@ -88,7 +88,7 @@ graph TB
     end
     
     subgraph "🎯 Система интентов"
-        IntentRec[IntentRecognizer<br/>NLU Engine]
+        NLUComp[NLUComponent<br/>NLU Engine]
         IntentOrch[IntentOrchestrator<br/>Central Coordinator]
         IntentReg[IntentRegistry<br/>Handler Registry]
         IntentHandlers[Intent Handlers<br/>Greetings, Timer, Weather, etc.]
@@ -191,7 +191,7 @@ class AsyncVACore:
         self.component_manager = ComponentManager(config.components)
         
         # Система интентов
-        self.intent_recognizer = IntentRecognizer()
+        self.nlu_component = NLUComponent()
         self.intent_orchestrator = IntentOrchestrator()
         self.intent_registry = IntentRegistry()
         self.context_manager = ContextManager()
@@ -471,7 +471,7 @@ def get_deployment_profile(self) -> str:
 graph TB
     subgraph "🧠 Intent Recognition"
         Text[Clean Text Input]
-        IR[IntentRecognizer]
+        NLU[NLUComponent]
         NLUProviders[NLU Providers<br/>Keyword, Rule-based, spaCy]
     end
     
@@ -537,11 +537,11 @@ graph TB
 
 ### 3.3 Intent Recognition & Processing
 
-#### IntentRecognizer - NLU Engine
-**Расположение**: `irene/intents/recognizer.py`
+#### NLUComponent - NLU Engine
+**Расположение**: `irene/components/nlu_component.py`
 
 ```python
-class IntentRecognizer:
+class NLUComponent:
     """Natural Language Understanding компонент"""
     
     async def recognize(self, text: str, context: ConversationContext) -> Intent:

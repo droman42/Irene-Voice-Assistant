@@ -65,7 +65,7 @@ irene/
 │
 ├── intents/                       # 🎯 Intent System (NEW)
 │   ├── __init__.py
-│   ├── recognizer.py              # IntentRecognizer (NLU)
+│   ├── (removed)                  # IntentRecognizer (replaced by NLUComponent)
 │   ├── orchestrator.py            # IntentOrchestrator  
 │   ├── registry.py                # IntentRegistry
 │   ├── context.py                 # ContextManager
@@ -158,7 +158,7 @@ class IntentResult:
 
 **`irene/intents/recognizer.py`** - NLU component ✅
 ```python
-class IntentRecognizer:
+class NLUComponent:
     """Natural Language Understanding component"""
     async def recognize(self, text: str, context: ConversationContext) -> Intent:
         # Primary NLU provider logic
