@@ -9,13 +9,13 @@ import re
 import logging
 from typing import Dict, Any, List, Pattern
 
-from ..base import ProviderBase
+from .base import NLUProvider
 from ...intents.models import Intent, ConversationContext
 
 logger = logging.getLogger(__name__)
 
 
-class RuleBasedNLUProvider(ProviderBase):
+class RuleBasedNLUProvider(NLUProvider):
     """
     Simple rule-based NLU for fallback intent recognition.
     

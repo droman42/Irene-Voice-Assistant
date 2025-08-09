@@ -15,6 +15,7 @@ from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import ConversationContext
 from ..utils.loader import dynamic_loader
 from ..utils.text_processing import all_num_to_text_async
+from ..providers.text_processing.base import TextProcessingProvider
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     
     def __init__(self):
         super().__init__()
+        self.providers: Dict[str, TextProcessingProvider] = {}  # Proper ABC type hint
         self._provider_classes: Dict[str, type] = {}
         self._stage_providers: Dict[str, str] = {}  # Map stages to preferred providers
         

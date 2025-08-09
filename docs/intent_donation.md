@@ -742,36 +742,42 @@ class TimerIntentHandler(IntentHandler):
 
 ### A. Plugin Pipeline Architecture
 
-#### A1. JSON-Aware NLU Orchestrator
+#### A1. JSON-Aware NLU Integration
+
+The NLU system properly follows the Component-Provider pattern. **NLUComponent** loads providers from TOML configuration using the established `dynamic_loader.discover_providers()` mechanism, just like all other components.
 
 ```python
-class NLUOrchestrator:
-    """Cascading NLU with JSON donation integration"""
+class NLUComponent(Component, WebAPIPlugin):
+    """NLU Component with JSON donation integration"""
     
-    def __init__(self, config: Dict[str, Any]):
-        enabled_plugins = config.get('enabled_plugins', ['keyword_matcher'])
+    async def initialize(self, core) -> None:
+        """Initialize NLU providers from configuration (standard pattern)"""
+        config = getattr(core.config.components, 'nlu', {})
+        providers_config = config.get("providers", {})
         
-        self.plugins = []
-        if 'keyword_matcher' in enabled_plugins:
-            self.plugins.append(KeywordMatcherPlugin())
-        if 'spacy_rules_sm' in enabled_plugins:
-            self.plugins.append(SpaCyRuleBasedPlugin("sm"))
-        if 'llm_nlu' in enabled_plugins:
-            self.plugins.append(LLMNLUPlugin(config.get('llm_nlu', {})))
-        if 'spacy_semantic_md' in enabled_plugins:
-            self.plugins.append(SpaCySemanticPlugin("md"))
+        # Discover only enabled providers from entry-points (same as other components)
+        enabled_providers = [name for name, provider_config in providers_config.items() 
+                            if provider_config.get("enabled", False)]
         
-        self.plugins.append(ConversationFallbackPlugin())
+        self._provider_classes = dynamic_loader.discover_providers("irene.providers.nlu", enabled_providers)
+        
+        # Initialize providers with their configurations
+        for provider_name, provider_class in self._provider_classes.items():
+            provider_config = providers_config.get(provider_name, {})
+            if provider_config.get("enabled", False):
+                provider = provider_class(provider_config)
+                if await provider.is_available():
+                    self.providers[provider_name] = provider
     
-    async def initialize_from_json_donations(self, donations: Dict[str, HandlerDonation]):
-        """Initialize plugins from JSON donations"""
+    async def initialize_providers_from_json_donations(self, donations: Dict[str, HandlerDonation]):
+        """Initialize loaded providers with JSON donations"""
         # Convert JSON donations to KeywordDonation format
         keyword_donations = self._convert_json_to_keyword_donations(donations)
         
-        # Initialize each plugin
-        for plugin in self.plugins:
-            if hasattr(plugin, '_initialize_from_donations'):
-                await plugin._initialize_from_donations(keyword_donations)
+        # Initialize each loaded provider
+        for provider in self.providers.values():
+            if hasattr(provider, '_initialize_from_donations'):
+                await provider._initialize_from_donations(keyword_donations)
     
     def _convert_json_to_keyword_donations(self, donations: Dict[str, HandlerDonation]) -> List[KeywordDonation]:
         """Convert JSON donations to KeywordDonation objects"""
@@ -785,21 +791,163 @@ class NLUOrchestrator:
         return keyword_donations
     
     def _create_keyword_donations_for_handler(self, donation: HandlerDonation) -> List[KeywordDonation]:
-        """Create KeywordDonation objects for a single handler - reuses existing conversion logic"""
-        # This method delegates to the same conversion logic used in EnhancedHandlerManager
-        # to avoid duplication while maintaining the NLU orchestrator interface
-        handler_manager = EnhancedHandlerManager({})
-        handler_manager.donations = {donation.handler_domain: donation}
-        return handler_manager.get_donations_as_keyword_donations()
+        """Create KeywordDonation objects for a single handler"""
+        keyword_donations = []
+        
+        for method_donation in donation.method_donations:
+            # Build full intent name
+            full_intent_name = f"{donation.handler_domain}.{method_donation.intent_suffix}"
+            
+            # Convert parameter specs
+            converted_params = []
+            for param in method_donation.parameters + donation.global_parameters:
+                converted_params.append(ParameterSpec(
+                    name=param.name,
+                    type=ParameterType(param.type),
+                    required=param.required,
+                    default_value=param.default_value,
+                    description=param.description,
+                    choices=param.choices,
+                    min_value=param.min_value,
+                    max_value=param.max_value,
+                    pattern=param.pattern,
+                    extraction_patterns=param.extraction_patterns,
+                    aliases=param.aliases
+                ))
+            
+            keyword_donation = KeywordDonation(
+                intent=full_intent_name,
+                phrases=method_donation.phrases,
+                lemmas=method_donation.lemmas,
+                parameters=converted_params,
+                token_patterns=method_donation.token_patterns,
+                slot_patterns=method_donation.slot_patterns,
+                examples=[{"text": ex.text, "parameters": ex.parameters} for ex in method_donation.examples],
+                boost=method_donation.boost
+            )
+            keyword_donations.append(keyword_donation)
+        
+        return keyword_donations
 ```
 
-### B. Stage-Specific Plugin Implementations
+### B. Cascading Provider Coordination Requirement
 
-The existing plugin implementations (KeywordMatcherPlugin, SpaCyRuleBasedPlugin, SpaCySemanticPlugin) remain unchanged - they work with KeywordDonation objects regardless of whether those objects came from Python code or JSON files.
+**NLUComponent must implement cascading provider coordination for the keyword-first strategy:**
 
-## Text Processing Integration
+Currently, NLUComponent only uses a single provider with conversation fallback. This violates the cascading performance optimization principle described in the architecture overview.
 
-### A. JSON-Aware Text Processing Pipeline
+**Required Enhancement:**
+```python
+class NLUComponent(Component, WebAPIPlugin):
+    """NLU Component with cascading provider coordination"""
+    
+    async def recognize(self, text: str, context: ConversationContext) -> Intent:
+        """Cascade through providers until successful recognition"""
+        
+        # Try providers in order of speed/accuracy (configuration-driven)
+        provider_order = self._get_provider_cascade_order()
+        
+        for provider_name in provider_order:
+            if provider_name in self.providers:
+                try:
+                    intent = await self.providers[provider_name].recognize(text, context)
+                    if intent.confidence >= self.confidence_threshold:
+                        logger.info(f"Intent recognized by {provider_name}: {intent.name} (confidence: {intent.confidence:.2f})")
+                        return intent
+                    else:
+                        logger.debug(f"Provider {provider_name} low confidence ({intent.confidence:.2f}), trying next")
+                except Exception as e:
+                    logger.warning(f"Provider {provider_name} failed: {e}")
+                    continue
+        
+        # Final fallback to conversation intent
+        logger.info("All NLU providers failed or low confidence, using conversation fallback")
+        return self._create_fallback_intent(text, context.session_id)
+    
+    def _get_provider_cascade_order(self) -> List[str]:
+        """Get provider order for cascading (fast -> slow, configuration-driven)"""
+        # Default cascade order implementing keyword-first strategy
+        default_order = [
+            'keyword_matcher',      # Fast path: ~0.5ms, 70-75% success
+            'spacy_rules_sm',      # Rule path: ~5-10ms, 8-12% success  
+            'spacy_semantic_md',   # Semantic path: ~15-25ms, 2-3% success
+        ]
+        return self.config.get('provider_cascade_order', default_order)
+```
+
+**Configuration Integration:**
+```toml
+[components.nlu]
+confidence_threshold = 0.7
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md"]
+fallback_intent = "conversation.general"
+
+[components.nlu.providers.keyword_matcher]
+enabled = true
+confidence_threshold = 0.8
+
+[components.nlu.providers.spacy_rules_sm] 
+enabled = true
+confidence_threshold = 0.7
+
+[components.nlu.providers.spacy_semantic_md]
+enabled = true  
+confidence_threshold = 0.55
+```
+
+**This enhancement:**
+1. **Maintains Component-Provider pattern** - no separate orchestrator needed
+2. **Implements cascading optimization** - keyword-first with semantic fallbacks
+3. **Configuration-driven** - provider order controlled by TOML
+4. **Performance-aware** - fast providers tried first
+5. **Resource-adaptive** - missing providers automatically skipped
+
+## Integration with Existing Architecture
+
+### A. Correct Component Integration Flow
+
+The JSON donation system integrates seamlessly with the existing Component-Provider architecture:
+
+```python
+# 1. IntentComponent loads and manages intent handlers with JSON donations
+class IntentComponent(Component):
+    async def initialize(self, core):
+        # Load intent handlers using standard entry-points discovery
+        self.handler_manager = IntentHandlerManager()
+        await self.handler_manager.initialize(handler_config)
+        
+        # Get JSON donations from loaded handlers
+        donations = self.handler_manager.get_donations()
+        
+        # Pass donations to NLUComponent for provider initialization
+        await core.components['nlu'].initialize_providers_from_json_donations(donations)
+
+# 2. NLUComponent loads providers using standard pattern (no orchestrator needed)
+class NLUComponent(Component):
+    async def initialize(self, core):
+        # Standard provider loading (like all other components)
+        self._provider_classes = dynamic_loader.discover_providers("irene.providers.nlu", enabled_providers)
+        for provider_name, provider_class in self._provider_classes.items():
+            provider = provider_class(provider_config)
+            self.providers[provider_name] = provider
+    
+    async def initialize_providers_from_json_donations(self, donations):
+        # Initialize loaded providers with JSON donations
+        keyword_donations = self._convert_json_to_keyword_donations(donations)
+        for provider in self.providers.values():
+            if hasattr(provider, '_initialize_from_donations'):
+                await provider._initialize_from_donations(keyword_donations)
+
+# 3. Workflows use standard component interfaces (no changes needed)
+class VoiceAssistantWorkflow:
+    async def _process_text_pipeline(self, text, context):
+        # Standard NLU component usage
+        intent = await self.nlu.recognize(text, context)
+        result = await self.intent_orchestrator.execute_intent(intent, context)
+        return result
+```
+
+### B. Text Processing Integration
 
 ```python
 async def _process_text_pipeline_with_json(self, text: str, context: ConversationContext) -> Intent:
@@ -811,10 +959,10 @@ async def _process_text_pipeline_with_json(self, text: str, context: Conversatio
     else:
         preprocessed_text = text
     
-    # Stage 2: NLU with JSON donations and parameter extraction
-    intent = await self.enhanced_intent_recognizer.recognize_with_parameters(preprocessed_text, context)
+    # Stage 2: NLU with JSON donations (using standard NLUComponent)
+    intent = await self.nlu.recognize(preprocessed_text, context)
     
-    # Stage 3: Intent execution with JSON-aware routing
+    # Stage 3: Intent execution (using standard IntentOrchestrator)
     result = await self.intent_orchestrator.execute_intent(intent, context)
     
     return result
@@ -943,8 +1091,8 @@ The comprehensive ConversationContext above integrates with NLU processing to pr
 spaCy providers use the standard asset management system instead of custom asset managers:
 
 ```python
-class SpaCyRuleBasedPlugin:
-    """spaCy plugin using standard asset management"""
+class SpaCyRuleBasedProvider:
+    """spaCy provider using standard asset management"""
     
     def __init__(self, model_name: str = "ru_core_news_sm"):
         self.model_name = model_name
@@ -979,7 +1127,7 @@ class SpaCyRuleBasedPlugin:
         import spacy
         self.nlp = spacy.load(self.model_name)
         
-        logger.info(f"Initialized spaCy plugin with model {self.model_name}")
+        logger.info(f"Initialized spaCy provider with model {self.model_name}")
     
     async def _install_spacy_model(self, model_path: str):
         """Install spaCy model using pip"""
@@ -993,7 +1141,7 @@ class SpaCyRuleBasedPlugin:
             raise RuntimeError(f"Failed to install spaCy model: {result.stderr}")
     
     async def is_available(self) -> bool:
-        """Check if plugin is available (model downloaded and loaded)"""
+        """Check if provider is available (model downloaded and loaded)"""
         return self.nlp is not None
 ```
 
@@ -1317,14 +1465,15 @@ Performance configuration is included in the Complete Configuration Schema secti
 ### A. Complete Configuration Schema
 
 ```toml
-[nlu]
-enabled_plugins = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md"]
+[components.nlu]
+# Cascading provider coordination configuration
 confidence_threshold = 0.7
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md"]
 fallback_intent = "conversation.general"
 donation_collection_enabled = true
 parameter_extraction_enabled = true
 
-[nlu.keyword_matcher]
+[components.nlu.providers.keyword_matcher]
 enabled = true
 confidence_threshold = 0.8
 pattern_confidence = 0.9
@@ -1335,25 +1484,25 @@ max_text_length_for_fuzzy = 100
 cache_fuzzy_results = true
 case_sensitive = false
 
-[nlu.spacy_rules_sm]
+[components.nlu.providers.spacy_rules_sm]
 enabled = true
 model_name = "ru_core_news_sm"
 confidence_threshold = 0.7
 morphology_expansion = true
 auto_download = true
 
-[nlu.spacy_semantic_md]
+[components.nlu.providers.spacy_semantic_md]
 enabled = true
 model_name = "ru_core_news_md"
 confidence_threshold = 0.55
 auto_download = true
 
-[nlu.parameter_extraction]
+[components.nlu.parameter_extraction]
 enabled = true
 strict_validation = true
 type_conversion = true
 
-[nlu.context_processing]
+[components.nlu.context_processing]
 enabled = true
 client_context_resolution = true
 device_disambiguation = true
@@ -1426,19 +1575,26 @@ development_mode = false
 3. Add context-based entity resolution
 4. Test with simple room/device scenarios
 
-#### A2. Phase 2: Asset Management Integration  
+#### A2. Phase 2: NLU Cascading Provider Coordination  
+1. **CRITICAL**: Implement cascading provider coordination in NLUComponent.recognize()
+2. Add provider_cascade_order configuration support
+3. Add per-provider confidence threshold checking
+4. Test cascading behavior with multiple NLU providers
+5. Update workflows to benefit from improved NLU coordination
+
+#### A3. Phase 3: Asset Management Integration
 1. Integrate spaCy providers with existing asset management system
-2. Add standard asset configuration methods to spaCy plugins
+2. Add standard asset configuration methods to spaCy providers
 3. Test model download and installation via standard asset manager
 4. Verify spaCy model loading and caching
 
-#### A3. Phase 3: Hybrid Keyword Matching
+#### A4. Phase 4: Hybrid Keyword Matching
 1. Implement HybridKeywordMatcher with patterns and fuzzy matching
 2. Add rapidfuzz dependency and performance optimizations
 3. Add caching and performance monitoring
 4. Benchmark against pattern-only approach
 
-#### A4. Phase 4: Integration and Optimization
+#### A5. Phase 5: Integration and Optimization
 1. Integrate all components with JSON donation system
 2. Add comprehensive configuration options
 3. Performance tuning and monitoring

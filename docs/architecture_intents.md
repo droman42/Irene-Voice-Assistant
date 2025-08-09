@@ -721,7 +721,7 @@ class VoiceAssistantWorkflowPlugin(CommandPlugin):
         self.voice_trigger = pm.get_plugin("universal_voice_trigger")
         self.asr = pm.get_plugin("universal_asr")
         self.text_processor = pm.get_plugin("universal_text_processor")  # NEW
-        self.nlu = pm.get_plugin("universal_nlu")                       # NEW
+        self.nlu = cm.get_component("nlu")                             # NEW
         self.tts = pm.get_plugin("universal_tts")
         self.audio_output = pm.get_plugin("universal_audio")
         
@@ -1011,7 +1011,7 @@ async def process_text_input(text: str, session_id: str = "default"):
 
 ### Phase 2: Fundamental Components Update
 1. 🔄 Переименовать "Universal Plugins" → "Fundamental Components"
-2. 🔄 Создать UniversalNLUPlugin как фундаментальный компонент
+2. 🔄 Создать NLUComponent как фундаментальный компонент
 3. 🔄 Создать UniversalTextProcessorPlugin для улучшения текста
 4. 🔄 Обновить конфигурационные модели для новых компонентов
 

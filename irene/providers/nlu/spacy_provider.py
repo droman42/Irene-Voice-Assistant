@@ -8,14 +8,14 @@ Provides more sophisticated natural language understanding than rule-based appro
 import logging
 from typing import Dict, Any, List, Optional
 
-from ..base import ProviderBase
+from .base import NLUProvider
 from ...intents.models import Intent, ConversationContext
 from ...utils.loader import safe_import
 
 logger = logging.getLogger(__name__)
 
 
-class SpaCyNLUProvider(ProviderBase):
+class SpaCyNLUProvider(NLUProvider):
     """
     spaCy-based NLU with entity recognition and intent classification.
     

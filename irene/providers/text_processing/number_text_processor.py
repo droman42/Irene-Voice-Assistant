@@ -13,14 +13,14 @@ Phase 2 of TODO #2: Text Processing Provider Architecture Refactoring
 import logging
 from typing import Dict, Any, Optional, List
 
-from ..base import ProviderBase
+from .base import TextProcessingProvider
 from ...utils.text_normalizers import NumberNormalizer
 from ...intents.models import ConversationContext
 
 logger = logging.getLogger(__name__)
 
 
-class NumberTextProcessor(ProviderBase):
+class NumberTextProcessor(TextProcessingProvider):
     """
     Pure number processing provider for number-to-text conversion.
     

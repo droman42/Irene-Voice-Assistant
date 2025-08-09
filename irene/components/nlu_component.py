@@ -12,15 +12,23 @@ from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import Intent, ConversationContext
 from ..utils.loader import dynamic_loader
+from ..providers.nlu.base import NLUProvider
 
 logger = logging.getLogger(__name__)
 
 
 class NLUComponent(Component, WebAPIPlugin):
-    """Natural Language Understanding component"""
+    """
+    Natural Language Understanding component.
+    
+    Coordinates multiple NLU providers (not plugins) following the Component-Provider pattern:
+    - Component: Coordinates lifecycle and exposes unified interface
+    - Providers: Implement specific NLU algorithms (rule-based, spaCy, etc.)
+    """
     
     def __init__(self):
         super().__init__()
+        self.providers: Dict[str, NLUProvider] = {}  # Proper ABC type hint
         self.confidence_threshold = 0.7
         self.fallback_intent = "conversation.general"
         self._provider_classes: Dict[str, type] = {}
@@ -30,7 +38,7 @@ class NLUComponent(Component, WebAPIPlugin):
         await super().initialize(core)
         
         # Get configuration first to determine enabled providers
-        config = getattr(core.config.plugins, 'universal_nlu', {})
+        config = getattr(core.config.components, 'nlu', {})
         
         # Default configuration if not provided
         if not config:

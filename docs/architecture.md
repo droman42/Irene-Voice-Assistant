@@ -365,9 +365,9 @@ silero_v4 = "irene.providers.tts.silero_v4:SileroV4TTSProvider"
 class NLUOrchestrator:
     def __init__(self):
         self.plugins = [
-            KeywordMatcherNLUPlugin(),      # Обязательный: быстрое сопоставление
-            RuleBasedNLUPlugin(),          # Опциональный: regex паттерны  
-            SpaCySemanticNLUPlugin(),      # Опциональный: семантическое понимание
+                        KeywordMatcherNLUProvider(),    # Обязательный: быстрое сопоставление
+            RuleBasedNLUProvider(),        # Опциональный: regex паттерны
+            SpaCySemanticNLUProvider(),    # Опциональный: семантическое понимание
         ]
 ```
 
@@ -1507,20 +1507,20 @@ class IntentEventObserver:
 ### 10.3 Strategy Pattern для NLU провайдеров (TODO #5)
 
 ```python
-# Keyword-first стратегия с расширяемыми NLU плагинами
+# Keyword-first стратегия с расширяемыми NLU провайдерами
 class NLUProviderStrategy:
     def __init__(self):
-        self.plugins = [
-            KeywordMatcherNLUPlugin(),      # Обязательный: быстрое сопоставление
-            RuleBasedNLUPlugin(),          # Опциональный: regex паттерны  
-            SpaCySemanticNLUPlugin(),      # Опциональный: семантическое понимание
+        self.providers = [
+            KeywordMatcherNLUProvider(),    # Обязательный: быстрое сопоставление
+            RuleBasedNLUProvider(),        # Опциональный: regex паттерны  
+            SpaCySemanticNLUProvider(),    # Опциональный: семантическое понимание
         ]
     
     def select_provider(self, text: str, context: ConversationContext) -> str:
         """Выбор оптимального NLU провайдера (keyword-first подход)"""
         
         # Всегда начинаем с keyword matcher (TODO #5)
-        keyword_result = self.plugins[0].quick_check(text)
+        keyword_result = self.providers[0].quick_check(text)
         if keyword_result.confidence >= 0.8:
             return "keyword_matcher"
             

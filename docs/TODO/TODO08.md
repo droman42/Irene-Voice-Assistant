@@ -12,7 +12,7 @@ The current NLU architecture should be simplified to prioritize lightweight keyw
 
 1. **Complex Default**: Current system may over-rely on heavy NLU providers like spacy for simple keyword-based intents
 2. **No Intent Keyword Donation**: Intents cannot contribute their own keywords for identification
-3. **Inflexible Plugin Chain**: No clear extensible hierarchy of NLU approaches from simple to complex
+3. **Inflexible Provider Chain**: No clear extensible hierarchy of NLU approaches from simple to complex
 4. **Underutilized Text Processing**: Existing text processing providers not integrated with NLU pipeline
 
 ### Proposed Solution: Extensible Keyword-First NLU with Intent Donation
@@ -50,25 +50,25 @@ class TimerIntentHandler(IntentHandler):
         }
 ```
 
-**Phase 3: Extensible NLU Plugin Architecture**
+**Phase 3: Extensible NLU Provider Architecture**
 ```python
-# NLU Orchestrator with extensible plugin system
-class NLUOrchestrator:
+# NLU Component with extensible provider system
+class NLUComponent:
     def __init__(self):
-        self.plugins = [
-            KeywordMatcherNLUPlugin(),      # Mandatory: fast keyword matching
-            RuleBasedNLUPlugin(),          # Optional: regex patterns  
-            UnifiedProcessorNLUPlugin(),   # Optional: existing text processing
-            SpaCySemanticNLUPlugin(),      # Optional: semantic understanding
-            # ... additional plugins can be added
-        ]
+        self.providers = {
+            "keyword_matcher": KeywordMatcherNLUProvider(),      # Mandatory: fast keyword matching
+            "rule_based": RuleBasedNLUProvider(),               # Optional: regex patterns  
+            "unified_processor": UnifiedProcessorNLUProvider(), # Optional: existing text processing
+            "spacy_semantic": SpaCySemanticNLUProvider(),       # Optional: semantic understanding
+            # ... additional providers can be added
+        }
         
-    def configure_plugins(self, config: Dict[str, Any]):
-        """Configure which plugins are enabled (keyword matcher always enabled)"""
-        enabled_plugins = config.get('enabled_plugins', ['keyword_matcher'])
+    def configure_providers(self, config: Dict[str, Any]):
+        """Configure which providers are enabled (keyword matcher always enabled)"""
+        enabled_providers = config.get('enabled_providers', ['keyword_matcher'])
         # Keyword matcher is always first and mandatory
-        if 'keyword_matcher' not in enabled_plugins:
-            enabled_plugins.insert(0, 'keyword_matcher')
+        if 'keyword_matcher' not in enabled_providers:
+            enabled_providers.insert(0, 'keyword_matcher')
 ```
 
 **Phase 4: Text Processing Integration**
@@ -78,7 +78,7 @@ class NLUOrchestrator:
 
 ```python
 # Integration with existing text processing providers
-class KeywordMatcherNLUPlugin:
+class KeywordMatcherNLUProvider:
     def __init__(self):
         from irene.providers.text_processing import UnifiedProcessor, NumberProcessor
         self.text_processor = UnifiedProcessor()
@@ -95,9 +95,9 @@ class KeywordMatcherNLUPlugin:
 
 **Phase 5: Intelligent Cascading**
 - Keyword matcher handles majority of common cases (mandatory first pass)
-- Additional plugins process unmatched utterances in configured order
-- Confidence scoring determines when to escalate through plugin chain
-- Configurable confidence thresholds for each plugin
+- Additional providers process unmatched utterances in configured order
+- Confidence scoring determines when to escalate through provider chain
+- Configurable confidence thresholds for each provider
 
 ### Text Processing Provider Analysis
 
@@ -124,7 +124,7 @@ async def process_text_for_nlu(self, text: str) -> str:
 - **Performance**: Fast keyword matching for common intents (mandatory first pass)
 - **Simplicity**: Intent handlers define their own identification keywords
 - **Scalability**: Lightweight approach scales better than semantic models
-- **Extensibility**: Plugin architecture allows additional NLU approaches
+- **Extensibility**: Provider architecture allows additional NLU approaches
 - **Russian Language Support**: Automatic morphological word form generation
 - **Existing Infrastructure**: Leverages current text processing providers
 - **Self-Describing Intents**: Intent handlers become self-contained with their own keywords
@@ -135,7 +135,7 @@ async def process_text_for_nlu(self, text: str) -> str:
 2. **Morphological Expansion**: Generate Russian word forms automatically
 3. **Text Processing Integration**: Use existing processors for normalization
 4. **Fast Matching**: Implement efficient keyword-based intent identification
-5. **Plugin Chain**: Route unmatched utterances through configured NLU plugins
+5. **Provider Chain**: Route unmatched utterances through configured NLU providers
 6. **Confidence Tuning**: Adjust thresholds for plugin escalation
 
 ### Russian Morphology Utility Requirements
@@ -150,8 +150,8 @@ async def process_text_for_nlu(self, text: str) -> str:
 
 ```toml
 [nlu]
-# Extensible plugin configuration
-enabled_plugins = [
+# Extensible provider configuration
+enabled_providers = [
     "keyword_matcher",    # Mandatory - always enabled
     "rule_based",         # Optional - regex patterns
     "unified_processor",  # Optional - existing text processing

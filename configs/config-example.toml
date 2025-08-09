@@ -290,17 +290,17 @@ detection_window_size = 3
 threshold = 0.85
 
 # ============================================================
-# NATURAL LANGUAGE UNDERSTANDING PROVIDERS
+# NATURAL LANGUAGE UNDERSTANDING COMPONENT
 # ============================================================
-[plugins.universal_nlu]
+[components.nlu]
 enabled = false  # Component disabled in main config
 confidence_threshold = 0.7
 fallback_intent = "conversation.general"
 
-[plugins.universal_nlu.providers.rule_based]
+[components.nlu.providers.rule_based]
 enabled = true
 
-[plugins.universal_nlu.providers.spacy]
+[components.nlu.providers.spacy]
 enabled = false
 model_name = "en_core_web_sm"
 
