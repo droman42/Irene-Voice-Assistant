@@ -49,8 +49,8 @@ class IntentComponent(Component, WebAPIPlugin):
             intent_config = {
                 "enabled": True,
                 "handlers": {
-                    "enabled": ["conversation", "greetings", "timer", "datetime", "system"],
-                    "disabled": ["train_schedule"],
+                    "enabled": ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"],
+                    "disabled": [],  # Phase 6: Enable all handlers by default with donation support
                     "auto_discover": True
                 }
             }
@@ -67,9 +67,11 @@ class IntentComponent(Component, WebAPIPlugin):
         self.intent_registry = self.handler_manager.get_registry()
         self.intent_orchestrator = self.handler_manager.get_orchestrator()
         
-        # Log initialization status
+        # Log initialization status  
         handlers = self.handler_manager.get_handlers()
+        donations = self.handler_manager.get_donations()
         logger.info(f"Intent component initialized with {len(handlers)} handlers: {list(handlers.keys())}")
+        logger.info(f"Loaded {len(donations)} JSON donations for donation-driven execution")
         
     async def shutdown(self) -> None:
         """Shutdown the intent system"""
@@ -123,14 +125,39 @@ class IntentComponent(Component, WebAPIPlugin):
                     return {"error": "Intent system not initialized"}
                 
                 handlers_info = {}
+                donations = self.handler_manager.get_donations()
+                
                 for name, handler in self.handler_manager.get_handlers().items():
-                    handlers_info[name] = {
+                    handler_info = {
                         "class": handler.__class__.__name__,
                         "domains": getattr(handler, 'get_supported_domains', lambda: [])(),
                         "actions": getattr(handler, 'get_supported_actions', lambda: [])(),
                         "available": await handler.is_available() if hasattr(handler, 'is_available') else True,
-                        "capabilities": getattr(handler, 'get_capabilities', lambda: {})()
+                        "capabilities": getattr(handler, 'get_capabilities', lambda: {})(),
+                        "has_donation": hasattr(handler, 'has_donation') and handler.has_donation(),
+                        "supports_donation_routing": hasattr(handler, 'execute_with_donation_routing')
                     }
+                    
+                    # Add donation information if available
+                    if name in donations:
+                        donation = donations[name]
+                        handler_info["donation"] = {
+                            "domain": donation.handler_domain,
+                            "methods_count": len(donation.method_donations),
+                            "methods": [
+                                {
+                                    "name": method.method_name,
+                                    "intent_suffix": method.intent_suffix,
+                                    "full_intent": f"{donation.handler_domain}.{method.intent_suffix}",
+                                    "parameters_count": len(method.parameters),
+                                    "phrases_count": len(method.phrases)
+                                }
+                                for method in donation.method_donations
+                            ],
+                            "global_parameters_count": len(donation.global_parameters)
+                        }
+                    
+                    handlers_info[name] = handler_info
                 
                 return {"handlers": handlers_info}
             
@@ -192,12 +219,12 @@ class IntentComponent(Component, WebAPIPlugin):
                         "enabled": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "default": ["conversation", "greetings", "timer", "datetime", "system"]
+                            "default": ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"]
                         },
                         "disabled": {
                             "type": "array", 
                             "items": {"type": "string"},
-                            "default": ["train_schedule"]
+                            "default": []
                         },
                         "auto_discover": {"type": "boolean", "default": True}
                     }
@@ -211,13 +238,23 @@ class IntentComponent(Component, WebAPIPlugin):
             return {"status": "not_initialized"}
         
         handlers = self.handler_manager.get_handlers()
+        donations = self.handler_manager.get_donations()
         registry_handlers = await self.intent_registry.get_all_handlers() if self.intent_registry else {}
+        
+        # Get orchestrator capabilities for donation information
+        orchestrator_capabilities = {}
+        if self.intent_orchestrator:
+            orchestrator_capabilities = await self.intent_orchestrator.get_capabilities()
         
         return {
             "status": "active",
             "handlers_count": len(handlers),
             "handlers": list(handlers.keys()),
+            "donations_count": len(donations),
+            "donations": list(donations.keys()),
             "registry_patterns": list(registry_handlers.keys()),
+            "donation_routing_enabled": orchestrator_capabilities.get("donation_routing_enabled", False),
+            "parameter_extractor_available": orchestrator_capabilities.get("parameter_extractor_available", False),
             "configuration": self._config
         }
     

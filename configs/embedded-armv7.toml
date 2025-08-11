@@ -90,9 +90,52 @@ disabled = ["openwakeword"]  # Too heavy for ARMv7
 default = "microwakeword"
 fallback_providers = []
 
-[providers.nlu]
-enabled = []  # No NLU to save resources
-disabled = ["rule_based", "spacy"]
+[components.nlu]
+# Edge device deployment (80MB) - rules + keywords
+enabled = true
+confidence_threshold = 0.8
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "rule_based"]
+fallback_intent = "conversation.general"
+
+# JSON donation system for edge devices
+donation_collection_enabled = true
+parameter_extraction_enabled = true
+context_processing_enabled = false  # Disabled for ARMv7 memory constraints
+
+# Performance optimization for edge devices
+max_cascade_attempts = 3
+cascade_timeout_ms = 100
+cache_recognition_results = true
+cache_ttl_seconds = 300
+
+# Hybrid Keyword Matcher Provider (edge)
+[components.nlu.providers.keyword_matcher]
+enabled = true
+provider_class = "HybridKeywordMatcherProvider"
+pattern_confidence = 0.9
+fuzzy_enabled = true
+fuzzy_threshold = 0.8
+confidence_threshold = 0.8
+
+# spaCy Rules Provider (Small Model) - edge
+[components.nlu.providers.spacy_rules_sm]
+enabled = true
+provider_class = "SpaCyNLUProvider"
+model_name = "ru_core_news_sm"
+model_approach = "morphological_rules"
+confidence_threshold = 0.7
+auto_download = true
+memory_limit_mb = 60  # ARMv7 constraint
+
+# Rule-based NLU Provider (fallback)
+[components.nlu.providers.rule_based]
+enabled = true
+provider_class = "RuleBasedNLUProvider"
+confidence_threshold = 0.7
+
+# Disable semantic processing for edge deployment
+[components.nlu.providers.spacy_semantic_md]
+enabled = false
 
 [providers.text_processing]
 # Minimal text processing

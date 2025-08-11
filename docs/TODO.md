@@ -12,14 +12,15 @@ This document tracks architectural improvements and refactoring tasks for the Ir
 | 4 | [Configuration-Driven Asset Management: Eliminate Asset System Hardcoding](TODO/TODO04.md) | ✅ **COMPLETED** | High | Asset management system, Provider base classes, TOML configuration |
 | 5 | [Universal Entry-Points Metadata System: Eliminate Build Analyzer Hardcoding](TODO/TODO05.md) | ✅ **COMPLETED** | High | ALL entry-points across 14 namespaces (77 total entry-points) |
 | 6 | [AudioComponent Command Handling Architecture Issue](TODO/TODO06.md) | ❌ **Open** | High | `irene/components/audio_component.py` |
-| 7 | [Disconnected NLU and Intent Handler Systems](TODO/TODO07.md) | ❌ **Open** | High | Intent system, NLU providers |
-| 8 | [NLU Architecture Revision: Keyword-First with Intent Donation](TODO/TODO08.md) | ❌ **Open** | High | NLU providers, Intent system, Text processing |
-| 9 | [Named Client Support for Contextual Command Processing](TODO/TODO09.md) | ❌ **Open** | Medium | Workflow system, RequestContext, Voice trigger, Intent system |
+| 7 | [Disconnected NLU and Intent Handler Systems](TODO/TODO07.md) | ✅ **COMPLETED** | High | Intent system, NLU providers |
+| 8 | [NLU Architecture Revision: Keyword-First with Intent Donation](TODO/TODO08.md) | ✅ **COMPLETED** | High | NLU providers, Intent system, Text processing |
+| 9 | [Named Client Support for Contextual Command Processing](TODO/TODO09.md) | ✅ **COMPLETED** | Medium | Workflow system, RequestContext, Voice trigger, Intent system - See [`CLIENT_REGISTRY.md`](CLIENT_REGISTRY.md) |
 | 10 | [Review New Providers for Asset Management Compliance](TODO/TODO10.md) | ✅ **COMPLETED** | Medium | All provider modules |
 | 11 | [MicroWakeWord Hugging Face Integration](TODO/TODO11.md) | ❌ **Open** | Medium | `irene/providers/voice_trigger/microwakeword.py` |
 | 12 | [Complete Dynamic Discovery Implementation for Intent Handlers and Plugins](TODO/TODO12.md) | ✅ **SUBSTANTIALLY COMPLETED** | High | Intent system, Plugin system, Build system integration |
 | 13 | [Binary WebSocket Optimization for External Devices](TODO/TODO13.md) | ❌ **Open** | Low | WebSocket endpoints, ESP32 integration, Audio streaming |
 | 14 | [ESP32 INT8 Wake Word Model Migration](TODO/TODO14.md) | ✅ **COMPLETED** | High | ESP32 firmware, wake word training pipeline |
+| 15 | [Handler Response Templates and Configuration Refactoring](TODO/TODO15.md) | ❌ **Open** | Medium | Response templates, LLM prompts, Localization, Configuration externalization |
 
 ## 🎯 Status Legend
 
@@ -29,9 +30,9 @@ This document tracks architectural improvements and refactoring tasks for the Ir
 
 ## 📊 Progress Summary
 
-- **Completed**: 5 todos (35.7%)
-- **Partially Completed**: 3 todos (21.4%) 
-- **Open**: 6 todos (42.9%)
-- **Total**: 14 todos
+- **Completed**: 7 todos (46.7%)
+- **Partially Completed**: 3 todos (20.0%) 
+- **Open**: 5 todos (33.3%)
+- **Total**: 15 todos
 
 ---

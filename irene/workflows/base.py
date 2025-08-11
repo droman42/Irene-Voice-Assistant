@@ -11,29 +11,52 @@ logger = logging.getLogger(__name__)
 
 
 class RequestContext:
-    """Context for a single request through the workflow."""
+    """Context for a single request through the workflow with client identification."""
     
     def __init__(self,
                  source: str = "unknown",
                  session_id: str = "default", 
                  wants_audio: bool = False,
                  skip_wake_word: bool = False,
-                 metadata: Optional[Dict[str, Any]] = None):
+                 metadata: Optional[Dict[str, Any]] = None,
+                 client_id: Optional[str] = None,
+                 room_name: Optional[str] = None,
+                 device_context: Optional[Dict[str, Any]] = None,
+                 language: str = "ru"):
         """
-        Initialize request context.
+        Initialize request context with client identification support.
         
         Args:
-            source: Source of the request (e.g., "microphone", "web", "cli")
+            source: Source of the request (e.g., "microphone", "web", "cli", "esp32")
             session_id: Session identifier for context management
             wants_audio: Whether the response should include audio output
             skip_wake_word: Whether to skip wake word detection
             metadata: Additional request metadata
+            client_id: Client/node identifier (e.g., "kitchen_node", "living_room_esp32")
+            room_name: Human-readable room name (e.g., "Кухня", "Kitchen")
+            device_context: Available devices and capabilities in this client context
+            language: Primary language for this request (defaults to Russian)
         """
         self.source = source
         self.session_id = session_id
         self.wants_audio = wants_audio
         self.skip_wake_word = skip_wake_word
         self.metadata = metadata or {}
+        
+        # Client identification and context
+        self.client_id = client_id
+        self.room_name = room_name
+        self.device_context = device_context or {}
+        self.language = language
+        
+        # Merge client context into metadata for backward compatibility
+        if client_id:
+            self.metadata["client_id"] = client_id
+        if room_name:
+            self.metadata["room_name"] = room_name
+        if device_context:
+            self.metadata["device_context"] = device_context
+        self.metadata["language"] = language
 
 
 class Workflow(EntryPointMetadata, ABC):

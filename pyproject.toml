@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     # Core async framework (minimal dependencies)
-    "python-dateutil>=2.8.0",  # Fixed: Updated to be compatible with pandas/matplotlib
+    "python-dateutil>=2.8.0", # Fixed: Updated to be compatible with pandas/matplotlib
     # Configuration and validation (now required)
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
@@ -18,6 +18,9 @@ dependencies = [
     "tomli-w>=1.0.0", # For TOML writing support
     # Logging and utilities
     "termcolor>=1.1.0",
+    # NLU fuzzy matching (JSON donation system requirement)
+    "rapidfuzz>=3.0.0",
+    "jsonschema>=4.25.0",
 ]
 
 [project.optional-dependencies]
@@ -210,8 +213,10 @@ openwakeword = "irene.providers.voice_trigger.openwakeword:OpenWakeWordProvider"
 microwakeword = "irene.providers.voice_trigger.microwakeword:MicroWakeWordProvider"
 
 [project.entry-points."irene.providers.nlu"]
+keyword_matcher = "irene.providers.nlu.hybrid_keyword_matcher:HybridKeywordMatcherProvider"
 rule_based = "irene.providers.nlu.rule_based:RuleBasedNLUProvider"
-spacy = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
+spacy_rules_sm = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
+spacy_semantic_md = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
 
 [project.entry-points."irene.providers.text_processing"]
 # Stage-specific providers (TODO #2 implementation)

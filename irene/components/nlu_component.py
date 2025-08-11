@@ -6,6 +6,7 @@ through multiple NLU providers with web API support.
 """
 
 import logging
+import time
 from typing import Dict, Any, List, Optional
 
 from .base import Component
@@ -13,8 +14,170 @@ from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import Intent, ConversationContext
 from ..utils.loader import dynamic_loader
 from ..providers.nlu.base import NLUProvider
+from ..core.entity_resolver import ContextualEntityResolver
 
 logger = logging.getLogger(__name__)
+
+
+class ContextAwareNLUProcessor:
+    """
+    Context-aware NLU processor that enhances intent recognition with client 
+    identification, device context, and entity resolution capabilities.
+    """
+    
+    def __init__(self, nlu_component: 'NLUComponent'):
+        self.nlu_component = nlu_component
+        self.logger = logging.getLogger(f"{__name__}.ContextAwareNLUProcessor")
+        
+        # Entity resolver for context-based entity resolution
+        self.entity_resolver = ContextualEntityResolver()
+    
+    async def process_with_context(self, text: str, context: ConversationContext) -> Intent:
+        """
+        Enhanced NLU processing with context-aware entity resolution and 
+        intent disambiguation using client identification and device capabilities.
+        
+        Args:
+            text: Input text to analyze
+            context: Enhanced ConversationContext with client and device info
+            
+        Returns:
+            Intent with context-enhanced entities and disambiguation
+        """
+        # Phase 1: Standard NLU recognition
+        intent = await self.nlu_component.recognize(text, context)
+        
+        # Phase 2: Context-based entity resolution
+        resolved_entities = await self.entity_resolver.resolve_entities(intent, context)
+        
+        # Phase 3: Context-aware entity enhancement
+        enhanced_intent = await self._enhance_with_context(intent, context, resolved_entities)
+        
+        return enhanced_intent
+    
+    async def _enhance_with_context(self, intent: Intent, context: ConversationContext, 
+                                   resolved_entities: Dict[str, Any]) -> Intent:
+        """
+        Enhance intent with context-aware entity resolution and disambiguation.
+        
+        This method implements the context-aware processing described in the 
+        architecture document, using client identification and device capabilities.
+        """
+        # Start with resolved entities (includes original entities plus resolved ones)
+        enhanced_entities = resolved_entities.copy()
+        
+        # 1. Client Context Enhancement
+        if context.client_id:
+            enhanced_entities["client_id"] = context.client_id
+            
+            room_name = context.get_room_name()
+            if room_name:
+                enhanced_entities["room_name"] = room_name
+                self.logger.debug(f"Added room context: {room_name}")
+        
+        # 2. Device Entity Resolution
+        enhanced_entities = await self._resolve_device_entities(enhanced_entities, context)
+        
+        # 3. Intent Disambiguation Based on Available Devices
+        disambiguated_intent = await self._disambiguate_with_device_context(intent, context)
+        
+        # 4. User Preference Context
+        if context.language and context.language != "ru":
+            enhanced_entities["language_preference"] = context.language
+        
+        if context.timezone:
+            enhanced_entities["timezone"] = context.timezone
+        
+        # 5. Conversation History Context
+        recent_intents = context.get_recent_intents(limit=2)
+        if recent_intents:
+            enhanced_entities["recent_intents"] = recent_intents
+            self.logger.debug(f"Added conversation context: {recent_intents}")
+        
+        # Create enhanced intent
+        enhanced_intent = Intent(
+            name=disambiguated_intent.name,
+            entities=enhanced_entities,
+            confidence=intent.confidence,
+            raw_text=intent.raw_text,
+            timestamp=intent.timestamp,
+            domain=disambiguated_intent.domain,
+            action=disambiguated_intent.action,
+            session_id=intent.session_id
+        )
+        
+        self.logger.info(f"Context-enhanced intent: {enhanced_intent.name} with {len(enhanced_entities)} entities")
+        return enhanced_intent
+    
+    async def _resolve_device_entities(self, entities: Dict[str, Any], context: ConversationContext) -> Dict[str, Any]:
+        """
+        Resolve device references in entities using client context and fuzzy matching.
+        
+        This implements the device resolution described in the architecture document.
+        """
+        enhanced_entities = entities.copy()
+        
+        # Look for device-related entities that need resolution
+        device_keywords = ["device", "light", "speaker", "tv", "television", "lamp", "switch"]
+        
+        for entity_key, entity_value in entities.items():
+            if isinstance(entity_value, str):
+                # Check if this entity might be a device reference
+                entity_lower = entity_value.lower()
+                
+                # Check if it contains device keywords or looks like a device name
+                is_device_reference = any(keyword in entity_lower for keyword in device_keywords)
+                
+                if is_device_reference:
+                    # Try to resolve to actual device
+                    resolved_device = context.get_device_by_name(entity_value)
+                    if resolved_device:
+                        enhanced_entities[f"{entity_key}_resolved"] = resolved_device
+                        enhanced_entities[f"{entity_key}_device_id"] = resolved_device.get("id")
+                        enhanced_entities[f"{entity_key}_device_type"] = resolved_device.get("type")
+                        
+                        self.logger.debug(f"Resolved device '{entity_value}' to {resolved_device.get('name')}")
+                    else:
+                        # Add available devices for potential suggestions
+                        available_devices = context.get_device_capabilities()
+                        if available_devices:
+                            device_names = [d.get("name", "") for d in available_devices]
+                            enhanced_entities["available_devices"] = device_names
+                            self.logger.debug(f"Device '{entity_value}' not found, available: {device_names}")
+        
+        return enhanced_entities
+    
+    async def _disambiguate_with_device_context(self, intent: Intent, context: ConversationContext) -> Intent:
+        """
+        Disambiguate intent based on available device capabilities and context.
+        
+        This implements contextual intent disambiguation using client capabilities.
+        """
+        # If no client context available, return original intent
+        if not context.client_id:
+            return intent
+        
+        # Get available device types in this context
+        available_device_types = context.get_device_types()
+        
+        # Intent disambiguation based on device availability
+        if intent.domain == "system" and intent.action == "status":
+            # If there are smart devices, this might be a device status query
+            if "smart_device" in available_device_types or "sensor" in available_device_types:
+                # Could disambiguate to device.status instead
+                self.logger.debug("Disambiguating system.status to device context")
+                enhanced_entities = intent.entities.copy()
+                enhanced_entities["context_suggestion"] = "device_status"
+        
+        elif intent.domain == "conversation" and "display" in available_device_types:
+            # If there's a display available, conversation might benefit from visual output
+            enhanced_entities = intent.entities.copy()
+            enhanced_entities["output_capabilities"] = ["text", "visual"]
+            enhanced_entities["preferred_output_device"] = context.preferred_output_device
+        
+        # Return potentially enhanced intent (for now, return original)
+        # In the future, this could return a different intent based on context
+        return intent
 
 
 class NLUComponent(Component, WebAPIPlugin):
@@ -32,6 +195,17 @@ class NLUComponent(Component, WebAPIPlugin):
         self.confidence_threshold = 0.7
         self.fallback_intent = "conversation.general"
         self._provider_classes: Dict[str, type] = {}
+        
+        # Cascading provider coordination configuration
+        self.provider_cascade_order: List[str] = []
+        self.max_cascade_attempts = 4
+        self.cascade_timeout_ms = 200
+        self.cache_recognition_results = False
+        self.cache_ttl_seconds = 300
+        self._recognition_cache: Dict[str, Any] = {}
+        
+        # Context-aware processor
+        self.context_processor = ContextAwareNLUProcessor(self)
     
     async def initialize(self, core) -> None:
         """Initialize NLU providers with configuration-driven filtering"""
@@ -60,6 +234,15 @@ class NLUComponent(Component, WebAPIPlugin):
         # Update component settings from config
         self.confidence_threshold = config.get("confidence_threshold", 0.7)
         self.fallback_intent = config.get("fallback_intent", "conversation.general")
+        
+        # Cascading provider coordination configuration
+        self.provider_cascade_order = config.get("provider_cascade_order", [
+            "keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"
+        ])
+        self.max_cascade_attempts = config.get("max_cascade_attempts", 4)
+        self.cascade_timeout_ms = config.get("cascade_timeout_ms", 200)
+        self.cache_recognition_results = config.get("cache_recognition_results", False)
+        self.cache_ttl_seconds = config.get("cache_ttl_seconds", 300)
         
         # Get provider configurations
         providers_config = config.get("providers", {})
@@ -102,6 +285,16 @@ class NLUComponent(Component, WebAPIPlugin):
             logger.info(f"Set default NLU provider to: {self.default_provider}")
         
         logger.info(f"NLU component initialized with {enabled_count} providers")
+        
+        # Log cascading configuration
+        logger.info(f"Cascading provider order: {self.provider_cascade_order}")
+        logger.info(f"Max cascade attempts: {self.max_cascade_attempts}")
+        
+        # Initialize context processor
+        logger.info("Context-aware NLU processor initialized")
+        
+        # Initialize providers with JSON donations (Phase 2 integration)
+        await self.initialize_providers_from_json_donations()
     
     @property
     def name(self) -> str:
@@ -139,9 +332,198 @@ class NLUComponent(Component, WebAPIPlugin):
         """Get list of dependencies for this component."""
         return self.dependencies  # Use @property for consistency
     
+    async def initialize_providers_from_json_donations(self) -> None:
+        """
+        Initialize NLU providers with JSON donation patterns.
+        
+        This is the critical bridge between the JSON donation system (Phase 0)
+        and the NLU provider coordination (Phase 2).
+        """
+        try:
+            # Import donation loader
+            from ..core.donation_loader import DonationLoader
+            from ..core.donations import DonationValidationConfig
+            from pathlib import Path
+            
+            logger.info("Loading JSON donations for NLU provider initialization...")
+            
+            # Initialize donation loader with strict validation
+            donation_config = DonationValidationConfig(strict_mode=True)
+            donation_loader = DonationLoader(donation_config)
+            
+            # Discover handler files and load donations
+            handler_dir = Path("irene/intents/handlers")
+            handler_paths = self._discover_handler_files(handler_dir)
+            
+            # Load and validate JSON donations
+            donations = await donation_loader.discover_and_load_donations(handler_paths)
+            
+            if not donations:
+                logger.warning("No JSON donations found - providers will use fallback patterns")
+                return
+            
+            logger.info(f"Loaded {len(donations)} JSON donations for NLU providers")
+            
+            # Convert donations to keyword format for providers
+            keyword_donations = self._convert_json_to_keyword_donations(donations)
+            
+            # Initialize each provider with donations
+            failed_providers = []
+            for provider_name, provider in self.providers.items():
+                if hasattr(provider, '_initialize_from_donations'):
+                    try:
+                        await provider._initialize_from_donations(keyword_donations)
+                        logger.info(f"Initialized provider '{provider_name}' with {len(keyword_donations)} donations")
+                    except Exception as e:
+                        logger.error(f"Failed to initialize provider '{provider_name}' with donations: {e}")
+                        failed_providers.append(provider_name)
+                        # Phase 4: Remove failed provider from active providers
+                        if provider_name in self.providers:
+                            del self.providers[provider_name]
+                else:
+                    logger.warning(f"Provider '{provider_name}' does not support donation initialization")
+            
+            # Phase 4: Warn if critical providers failed
+            if failed_providers:
+                logger.warning(f"Phase 4: Providers failed donation initialization and were removed: {failed_providers}")
+                logger.warning("System will operate with remaining donation-compatible providers only.")
+            
+            logger.info("JSON donation initialization completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize providers from JSON donations: {e}")
+            # Phase 4: No fallback patterns - this is a critical failure
+            raise RuntimeError(f"NLU Component: JSON donation system failed to initialize: {e}. "
+                             "Cannot operate without valid donations.")
+    
+    def _convert_json_to_keyword_donations(self, donations: Dict[str, Any]) -> List[Any]:
+        """
+        Convert JSON donations to KeywordDonation objects for NLU providers.
+        
+        Args:
+            donations: Dictionary of handler donations
+            
+        Returns:
+            List of KeywordDonation objects ready for provider consumption
+        """
+        try:
+            from ..core.donation_loader import DonationLoader
+            
+            # Use the donation loader's conversion method
+            donation_loader = DonationLoader()
+            keyword_donations = donation_loader.convert_to_keyword_donations(donations)
+            
+            logger.debug(f"Converted {len(donations)} JSON donations to {len(keyword_donations)} keyword donations")
+            
+            return keyword_donations
+            
+        except Exception as e:
+            logger.error(f"Failed to convert JSON donations to keyword format: {e}")
+            return []
+    
+    def _discover_handler_files(self, handler_dir) -> List:
+        """Discover Python handler files for donation loading"""
+        from pathlib import Path
+        handler_dir = Path(handler_dir)
+        
+        if not handler_dir.exists():
+            logger.warning(f"Handler directory does not exist: {handler_dir}")
+            return []
+        
+        python_files = []
+        for file_path in handler_dir.glob("*.py"):
+            # Skip base.py and __init__.py
+            if file_path.name not in ['base.py', '__init__.py']:
+                python_files.append(file_path)
+        
+        logger.debug(f"Discovered {len(python_files)} handler files in {handler_dir}")
+        return python_files
+    
+    def _get_provider_cascade_order(self) -> List[str]:
+        """
+        Get provider order for cascading (fast -> slow, configuration-driven).
+        
+        Returns:
+            List of provider names in cascade order
+        """
+        return self.provider_cascade_order
+    
+    def _get_cache_key(self, text: str, context: ConversationContext) -> str:
+        """Generate cache key for recognition results"""
+        # Include client context for cache differentiation
+        context_key = f"{context.session_id}:{context.client_id}:{context.language}"
+        return f"{context_key}:{hash(text.lower().strip())}"
+    
+    def _is_cache_valid(self, cache_entry: Dict[str, Any]) -> bool:
+        """Check if cache entry is still valid"""
+        import time
+        if not cache_entry:
+            return False
+        
+        cache_time = cache_entry.get("timestamp", 0)
+        current_time = time.time()
+        return (current_time - cache_time) < self.cache_ttl_seconds
+    
+    def _get_provider_confidence_threshold(self, provider_name: str) -> float:
+        """
+        Get confidence threshold for a specific provider.
+        
+        First checks provider-specific threshold, then falls back to global threshold.
+        """
+        # Get provider-specific configuration
+        providers_config = getattr(self.core.config.components, 'nlu', {}).get("providers", {})
+        provider_config = providers_config.get(provider_name, {})
+        
+        # Return provider-specific threshold or global threshold
+        return provider_config.get("confidence_threshold", self.confidence_threshold)
+    
+    async def _try_provider_recognition(self, provider_name: str, text: str, 
+                                      context: ConversationContext) -> Optional[Intent]:
+        """
+        Try recognition with a single provider with timeout and error handling.
+        
+        Args:
+            provider_name: Name of the provider to try
+            text: Input text to analyze
+            context: Conversation context
+            
+        Returns:
+            Intent if successful, None if failed or low confidence
+        """
+        if provider_name not in self.providers:
+            logger.debug(f"Provider '{provider_name}' not available, skipping")
+            return None
+        
+        provider = self.providers[provider_name]
+        
+        try:
+            # TODO: Add timeout support for provider recognition
+            intent = await provider.recognize(text, context)
+            
+            # Get provider-specific confidence threshold
+            provider_threshold = self._get_provider_confidence_threshold(provider_name)
+            
+            # Check if confidence meets provider-specific threshold
+            if intent.confidence >= provider_threshold:
+                logger.info(f"Intent recognized by {provider_name}: {intent.name} "
+                           f"(confidence: {intent.confidence:.2f}, threshold: {provider_threshold:.2f})")
+                return intent
+            else:
+                logger.debug(f"Provider {provider_name} low confidence "
+                           f"({intent.confidence:.2f} < {provider_threshold:.2f}), trying next")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"Provider {provider_name} failed: {e}")
+            return None
+    
     async def recognize(self, text: str, context: ConversationContext) -> Intent:
         """
-        Recognize intent from text using configured NLU providers.
+        Recognize intent from text using cascading NLU providers.
+        
+        This implements the cascading provider coordination described in the 
+        architecture document, trying providers in order of speed/accuracy until
+        a confident intent is recognized.
         
         Args:
             text: Input text to analyze
@@ -150,26 +532,87 @@ class NLUComponent(Component, WebAPIPlugin):
         Returns:
             Intent object with recognized intent and entities
         """
-        # Coordinate multiple NLU providers
-        provider = self.get_current_provider()
-        if not provider:
-            logger.warning("No NLU provider available, creating fallback intent")
-            return self._create_fallback_intent(text, context.session_id)
+        # Check cache if enabled
+        if self.cache_recognition_results:
+            cache_key = self._get_cache_key(text, context)
+            cached_entry = self._recognition_cache.get(cache_key)
+            
+            if cached_entry and self._is_cache_valid(cached_entry):
+                logger.debug(f"Cache hit for text: {text[:50]}...")
+                cached_intent = cached_entry["intent"]
+                import time as time_module
+                cached_intent.timestamp = time_module.time()  # Update timestamp
+                return cached_intent
         
-        try:
-            intent = await provider.recognize(text, context)
+        # Phase 4: Ensure we have available providers
+        if not self.providers:
+            raise RuntimeError("NLU Component: No providers available for intent recognition. "
+                             "JSON donation initialization may have failed.")
+        
+        # Try providers in cascade order (fast -> slow)
+        provider_order = self._get_provider_cascade_order()
+        attempts = 0
+        
+        for provider_name in provider_order:
+            if attempts >= self.max_cascade_attempts:
+                logger.debug(f"Max cascade attempts ({self.max_cascade_attempts}) reached")
+                break
             
-            # Check confidence threshold
-            if intent.confidence < self.confidence_threshold:
-                logger.info(f"Low confidence ({intent.confidence:.2f}) for intent '{intent.name}', "
-                           f"falling back to conversation")
-                return self._create_fallback_intent(text, context.session_id)
+            attempts += 1
+            intent = await self._try_provider_recognition(provider_name, text, context)
             
-            return intent
+            if intent:
+                # Cache successful recognition if enabled
+                if self.cache_recognition_results:
+                    import time
+                    self._recognition_cache[cache_key] = {
+                        "intent": intent,
+                        "timestamp": time.time(),
+                        "provider": provider_name
+                    }
+                    
+                    # Limit cache size
+                    if len(self._recognition_cache) > 1000:
+                        # Remove oldest entries
+                        sorted_entries = sorted(
+                            self._recognition_cache.items(),
+                            key=lambda x: x[1]["timestamp"]
+                        )
+                        for old_key, _ in sorted_entries[:100]:
+                            del self._recognition_cache[old_key]
+                
+                # Add provider metadata to intent
+                intent.entities["_recognition_provider"] = provider_name
+                intent.entities["_cascade_attempts"] = attempts
+                
+                return intent
+        
+        # All providers failed or low confidence - use conversation fallback
+        logger.info(f"All NLU providers failed or low confidence after {attempts} attempts, "
+                   f"using conversation fallback")
+        
+        fallback_intent = self._create_fallback_intent(text, context.session_id)
+        fallback_intent.entities["_recognition_provider"] = "fallback"
+        fallback_intent.entities["_cascade_attempts"] = attempts
+        
+        return fallback_intent
+    
+    async def recognize_with_context(self, text: str, context: ConversationContext) -> Intent:
+        """
+        Context-aware intent recognition with enhanced entity resolution and disambiguation.
+        
+        This method provides the enhanced context-aware NLU processing capabilities
+        described in the architecture document, using client identification and 
+        device context for better understanding.
+        
+        Args:
+            text: Input text to analyze
+            context: Enhanced ConversationContext with client and device info
             
-        except Exception as e:
-            logger.error(f"Error in NLU provider: {e}")
-            return self._create_fallback_intent(text, context.session_id)
+        Returns:
+            Intent with context-enhanced entities and disambiguation
+        """
+        return await self.context_processor.process_with_context(text, context)
     
     def _create_fallback_intent(self, text: str, session_id: str) -> Intent:
         """Create a fallback conversation intent when NLU fails or has low confidence."""

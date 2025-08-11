@@ -108,3 +108,7 @@ model/graph/*.fst
 model/ivector/*.dubm
 model/ivector/*.ie
 model/ivector/*.mat
+
+config-ui/node_modules/
+config-ui/dist/
+config-ui/

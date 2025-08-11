@@ -5,13 +5,14 @@ This workflow maintains the current behavior for users who don't want wake words
 It processes audio directly: Audio → ASR → Intent → Response (no wake word detection).
 """
 
+import asyncio
 import logging
 from typing import AsyncIterator, Optional, Dict, Any, List
 
 from .base import Workflow, RequestContext
 from ..intents.models import AudioData, ConversationContext, Intent, IntentResult
 from ..utils.audio_helpers import test_audio_playback_capability, calculate_audio_buffer_size
-from ..config.manager import ConfigurationError
+from ..config.manager import ConfigValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ class ContinuousListeningWorkflow(Workflow):
         required_components = ['asr', 'nlu', 'intent_orchestrator', 'context_manager']
         for comp_name in required_components:
             if comp_name not in self.components:
-                raise ConfigurationError(f"Required component '{comp_name}' not available")
+                raise ConfigValidationError(f"Required component '{comp_name}' not available")
         
         # Get component references (no voice trigger)
         self.asr = self.components['asr']
@@ -86,8 +87,8 @@ class ContinuousListeningWorkflow(Workflow):
             
         self.logger.info(f"Starting continuous listening workflow for session {context.session_id}")
         
-        # Get or create conversation context
-        conv_context = await self.context_manager.get_context(context.session_id)
+        # Get or create conversation context with client information
+        conv_context = await self.context_manager.get_context_with_request_info(context.session_id, context)
         
         # Audio processing without wake word detection
         audio_buffer = []
@@ -166,8 +167,8 @@ class ContinuousListeningWorkflow(Workflow):
             
         self.logger.info(f"Processing text input: '{text[:50]}...' for session {context.session_id}")
         
-        # Get or create conversation context
-        conv_context = await self.context_manager.get_context(context.session_id)
+        # Get or create conversation context with client information
+        conv_context = await self.context_manager.get_context_with_request_info(context.session_id, context)
         
         return await self._process_text_pipeline(text, conv_context, context)
     
@@ -209,9 +210,24 @@ class ContinuousListeningWorkflow(Workflow):
                     self.logger.warning(f"Text processing failed, using original: {e}")
                     improved_text = text
             
-            # Intent Recognition
-            intent = await self.nlu.recognize(improved_text, conv_context)
-            self.logger.info(f"Intent recognized: {intent.name} (confidence: {intent.confidence:.2f})")
+            # Intent Recognition with Cascading Coordination
+            start_time = asyncio.get_event_loop().time()
+            
+            # Use context-aware recognition if client context is available
+            if conv_context.client_id:
+                intent = await self.nlu.recognize_with_context(improved_text, conv_context)
+                self.logger.debug("Using context-aware NLU recognition")
+            else:
+                intent = await self.nlu.recognize(improved_text, conv_context)
+                self.logger.debug("Using standard NLU recognition")
+            
+            # Log cascading performance metrics
+            recognition_time = (asyncio.get_event_loop().time() - start_time) * 1000  # ms
+            provider_used = intent.entities.get("_recognition_provider", "unknown")
+            cascade_attempts = intent.entities.get("_cascade_attempts", 1)
+            
+            self.logger.info(f"Intent recognized: {intent.name} (confidence: {intent.confidence:.2f}, "
+                           f"provider: {provider_used}, attempts: {cascade_attempts}, time: {recognition_time:.1f}ms)")
             
             # Intent Execution
             result = await self.intent_orchestrator.execute_intent(intent, conv_context)

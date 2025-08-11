@@ -3,7 +3,7 @@ Intent Handler Manager - Dynamic discovery and registration of intent handlers
 
 This module provides the IntentHandlerManager that discovers intent handlers 
 from entry-points and registers them with the IntentRegistry, implementing
-configuration-driven filtering for enabled/disabled handlers.
+configuration-driven filtering for enabled/disabled handlers with donation support.
 """
 
 import logging
@@ -12,19 +12,22 @@ from typing import Dict, Any, List, Optional
 from .registry import IntentRegistry
 from .orchestrator import IntentOrchestrator
 from ..utils.loader import dynamic_loader
+from ..core.donation_loader import DonationLoader
+from ..core.parameter_extractor import JSONBasedParameterExtractor
 
 logger = logging.getLogger(__name__)
 
 
 class IntentHandlerManager:
     """
-    Manages intent handler discovery, instantiation, and registration.
+    Manages intent handler discovery, instantiation, and registration with donation support.
     
     Features:
     - Dynamic discovery using entry-points
     - Configuration-driven filtering (enabled/disabled handlers)
     - Automatic registration with IntentRegistry
-    - Pattern-based handler setup
+    - JSON donation loading and handler initialization
+    - Parameter extraction integration
     - Integration with IntentOrchestrator
     """
     
@@ -34,11 +37,14 @@ class IntentHandlerManager:
         self._handler_instances: Dict[str, Any] = {}
         self._registry = IntentRegistry()
         self._orchestrator: Optional[IntentOrchestrator] = None
+        self._donation_loader: Optional[DonationLoader] = None
+        self._parameter_extractor: Optional[JSONBasedParameterExtractor] = None
+        self._donations: Dict[str, Any] = {}
         self._initialized = False
         
     async def initialize(self, config: Optional[Dict[str, Any]] = None) -> None:
         """
-        Discover and register intent handlers from entry-points.
+        Discover and register intent handlers from entry-points with donation support.
         
         Args:
             config: Configuration dictionary for intent handler settings
@@ -46,14 +52,19 @@ class IntentHandlerManager:
         if self._initialized:
             return
             
-        logger.info("Initializing IntentHandlerManager...")
+        logger.info("Initializing IntentHandlerManager with donation support...")
         
         # Default configuration
         default_config = {
-            "enabled": ["conversation", "greetings", "timer", "datetime", "system"],
-            "disabled": ["train_schedule"],  # Example: disable specific handlers
+            "enabled": ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"],
+            "disabled": [],  # Phase 6: Enable all handlers by default
             "auto_discover": True,
-            "discovery_paths": ["irene.intents.handlers"]
+            "discovery_paths": ["irene.intents.handlers"],
+            "donation_validation": {
+                "strict_mode": True,
+                "validate_method_existence": True,
+                "validate_spacy_patterns": False  # Skip spaCy validation if not available
+            }
         }
         
         # Merge with provided config
@@ -63,6 +74,11 @@ class IntentHandlerManager:
         enabled_handlers = handler_config.get("enabled", [])
         logger.info(f"Enabled intent handlers: {enabled_handlers}")
         
+        # Phase 6: Initialize donation loader
+        from ..core.donations import DonationValidationConfig
+        validation_config = DonationValidationConfig(**handler_config.get("donation_validation", {}))
+        self._donation_loader = DonationLoader(validation_config)
+        
         # Discover handlers from entry-points (configuration-driven filtering)
         self._handler_classes = dynamic_loader.discover_providers(
             "irene.intents.handlers", 
@@ -70,15 +86,47 @@ class IntentHandlerManager:
         )
         logger.info(f"Discovered {len(self._handler_classes)} enabled intent handlers: {list(self._handler_classes.keys())}")
         
-        # Instantiate and register discovered handlers
+        # Phase 6: Load JSON donations (CRITICAL - must happen before handler instantiation)
+        await self._load_donations()
+        
+        # Instantiate and register discovered handlers with donations
         await self._instantiate_handlers()
+        await self._initialize_handlers_with_donations()
         await self._register_handlers()
         
-        # Create orchestrator with registry
-        self._orchestrator = IntentOrchestrator(self._registry)
+        # Phase 6: Initialize parameter extractor with loaded donations
+        await self._initialize_parameter_extractor()
+        
+        # Create orchestrator with registry and parameter extractor
+        self._orchestrator = IntentOrchestrator(self._registry, self._parameter_extractor)
         
         self._initialized = True
-        logger.info(f"IntentHandlerManager initialized with {len(self._handler_instances)} handlers")
+        logger.info(f"IntentHandlerManager initialized with {len(self._handler_instances)} handlers and donation support")
+    
+    async def _load_donations(self) -> None:
+        """Load JSON donations for all handlers."""
+        try:
+            from pathlib import Path
+            
+            # Discover handler files in the standard location
+            handler_dir = Path("irene/intents/handlers")
+            handler_paths = []
+            
+            for handler_name in self._handler_classes.keys():
+                handler_file = handler_dir / f"{handler_name}.py"
+                if handler_file.exists():
+                    handler_paths.append(handler_file)
+                else:
+                    logger.warning(f"Handler file not found for {handler_name}: {handler_file}")
+            
+            # Load donations using donation loader
+            self._donations = await self._donation_loader.discover_and_load_donations(handler_paths)
+            
+            logger.info(f"Loaded {len(self._donations)} JSON donations for handlers: {list(self._donations.keys())}")
+            
+        except Exception as e:
+            logger.error(f"Failed to load JSON donations: {e}")
+            raise RuntimeError(f"Donation loading failed: {e}")
     
     async def _instantiate_handlers(self) -> None:
         """Instantiate discovered handler classes."""
@@ -93,18 +141,56 @@ class IntentHandlerManager:
                 logger.error(f"Failed to instantiate intent handler {name}: {e}")
                 continue
     
-    async def _register_handlers(self) -> None:
-        """Register handler instances with the IntentRegistry."""
+    async def _initialize_handlers_with_donations(self) -> None:
+        """Initialize handlers with their corresponding JSON donations."""
         for name, handler in self._handler_instances.items():
             try:
-                # Get supported patterns from handler
-                patterns = await self._get_handler_patterns(handler)
+                if name in self._donations:
+                    # Set donation on handler
+                    donation = self._donations[name]
+                    if hasattr(handler, 'set_donation'):
+                        handler.set_donation(donation)
+                        logger.debug(f"Initialized handler {name} with donation containing {len(donation.method_donations)} methods")
+                    else:
+                        logger.warning(f"Handler {name} does not support donations (no set_donation method)")
+                else:
+                    logger.error(f"No donation found for handler {name}")
+                    raise RuntimeError(f"Missing donation for handler {name}")
+                    
+            except Exception as e:
+                logger.error(f"Failed to initialize handler {name} with donation: {e}")
+                raise
+    
+    async def _initialize_parameter_extractor(self) -> None:
+        """Initialize parameter extractor with loaded donations."""
+        try:
+            self._parameter_extractor = JSONBasedParameterExtractor()
+            await self._parameter_extractor.initialize_from_json_donations(self._donations)
+            
+            total_params = sum(
+                len(donation.method_donations) + len(donation.global_parameters) 
+                for donation in self._donations.values()
+            )
+            logger.info(f"Parameter extractor initialized with {total_params} parameter specifications")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize parameter extractor: {e}")
+            raise
+    
+    async def _register_handlers(self) -> None:
+        """Register handler instances with the IntentRegistry using donation-based patterns."""
+        for name, handler in self._handler_instances.items():
+            try:
+                # Phase 6: Get patterns from donations if available
+                patterns = await self._get_handler_patterns_from_donations(name, handler)
                 
                 # Register each pattern with the registry
                 for pattern in patterns:
                     metadata = {
                         "handler_name": name,
                         "handler_class": handler.__class__.__name__,
+                        "has_donation": hasattr(handler, 'has_donation') and handler.has_donation(),
+                        "donation_methods": len(self._donations[name].method_donations) if name in self._donations else 0,
                         "supported_domains": getattr(handler, 'get_supported_domains', lambda: [])(),
                         "supported_actions": getattr(handler, 'get_supported_actions', lambda: [])()
                     }
@@ -115,6 +201,38 @@ class IntentHandlerManager:
             except Exception as e:
                 logger.error(f"Failed to register intent handler {name}: {e}")
                 continue
+    
+    async def _get_handler_patterns_from_donations(self, handler_name: str, handler: Any) -> List[str]:
+        """
+        Get registration patterns for a handler from donations or fallback to legacy patterns.
+        
+        Args:
+            handler_name: Name of the handler
+            handler: Handler instance
+            
+        Returns:
+            List of patterns this handler should be registered for
+        """
+        patterns = []
+        
+        # Phase 6: Get patterns from JSON donations first
+        if handler_name in self._donations:
+            donation = self._donations[handler_name]
+            domain = donation.handler_domain
+            
+            # Register for each method in the donation
+            for method_donation in donation.method_donations:
+                intent_pattern = f"{domain}.{method_donation.intent_suffix}"
+                patterns.append(intent_pattern)
+            
+            # Also register domain wildcard for unspecified methods
+            patterns.append(f"{domain}.*")
+            
+            logger.debug(f"Handler {handler_name} patterns from donation: {patterns}")
+            return patterns
+        
+        # Fallback to legacy pattern detection
+        return await self._get_handler_patterns(handler)
     
     async def _get_handler_patterns(self, handler: Any) -> List[str]:
         """
@@ -172,6 +290,14 @@ class IntentHandlerManager:
     def get_handlers(self) -> Dict[str, Any]:
         """Get all registered handler instances."""
         return self._handler_instances.copy()
+    
+    def get_donations(self) -> Dict[str, Any]:
+        """Get all loaded JSON donations."""
+        return self._donations.copy()
+    
+    def get_parameter_extractor(self) -> Optional[JSONBasedParameterExtractor]:
+        """Get the parameter extractor instance."""
+        return self._parameter_extractor
     
     async def add_handler(self, name: str, handler: Any, patterns: Optional[List[str]] = None) -> None:
         """

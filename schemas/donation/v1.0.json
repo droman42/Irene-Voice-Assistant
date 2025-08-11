@@ -1,0 +1,431 @@
+{
+  "$defs": {
+    "MethodDonation": {
+      "description": "Donation for a specific handler method",
+      "properties": {
+        "method_name": {
+          "description": "Python method name in handler",
+          "title": "Method Name",
+          "type": "string"
+        },
+        "intent_suffix": {
+          "description": "Intent suffix after domain",
+          "title": "Intent Suffix",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "",
+          "description": "Method description",
+          "title": "Description"
+        },
+        "phrases": {
+          "description": "Trigger phrases",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Phrases",
+          "type": "array"
+        },
+        "lemmas": {
+          "description": "Key lemmas",
+          "items": {
+            "type": "string"
+          },
+          "title": "Lemmas",
+          "type": "array"
+        },
+        "parameters": {
+          "description": "Method parameters",
+          "items": {
+            "$ref": "#/$defs/ParameterSpec"
+          },
+          "title": "Parameters",
+          "type": "array"
+        },
+        "token_patterns": {
+          "description": "spaCy token patterns",
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": "Token Patterns",
+          "type": "array"
+        },
+        "slot_patterns": {
+          "additionalProperties": {
+            "items": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "spaCy slot patterns",
+          "title": "Slot Patterns",
+          "type": "object"
+        },
+        "examples": {
+          "description": "Training examples",
+          "items": {
+            "$ref": "#/$defs/TrainingExample"
+          },
+          "title": "Examples",
+          "type": "array"
+        },
+        "boost": {
+          "default": 1.0,
+          "description": "Pattern strength multiplier",
+          "maximum": 10.0,
+          "minimum": 0.0,
+          "title": "Boost",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method_name",
+        "intent_suffix",
+        "phrases"
+      ],
+      "title": "MethodDonation",
+      "type": "object"
+    },
+    "ParameterSpec": {
+      "description": "Specification for a parameter that can be extracted from user input",
+      "properties": {
+        "name": {
+          "description": "Parameter name",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ParameterType",
+          "description": "Parameter type"
+        },
+        "required": {
+          "default": true,
+          "description": "Is this parameter mandatory?",
+          "title": "Required",
+          "type": "boolean"
+        },
+        "default_value": {
+          "default": null,
+          "description": "Default if not provided",
+          "title": "Default Value"
+        },
+        "description": {
+          "default": "",
+          "description": "Human-readable description",
+          "title": "Description",
+          "type": "string"
+        },
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Valid choices for CHOICE type",
+          "title": "Choices"
+        },
+        "min_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Minimum value for numeric types",
+          "title": "Min Value"
+        },
+        "max_value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum value for numeric types",
+          "title": "Max Value"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Regex pattern for STRING type",
+          "title": "Pattern"
+        },
+        "extraction_patterns": {
+          "description": "spaCy extraction patterns",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Extraction Patterns",
+          "type": "array"
+        },
+        "aliases": {
+          "description": "Alternative parameter names",
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "ParameterSpec",
+      "type": "object"
+    },
+    "ParameterType": {
+      "description": "Types of parameters that can be extracted from user input",
+      "enum": [
+        "string",
+        "integer",
+        "float",
+        "duration",
+        "datetime",
+        "boolean",
+        "choice",
+        "entity"
+      ],
+      "title": "ParameterType",
+      "type": "string"
+    },
+    "TrainingExample": {
+      "description": "Training example with expected parameters",
+      "properties": {
+        "text": {
+          "description": "Example user input text",
+          "title": "Text",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "description": "Expected extracted parameters",
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "TrainingExample",
+      "type": "object"
+    }
+  },
+  "description": "Schema for JSON donation files used by intent handlers in the Irene Voice Assistant system",
+  "properties": {
+    "schema_version": {
+      "description": "JSON schema version",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "handler_domain": {
+      "description": "Handler domain name",
+      "title": "Handler Domain",
+      "type": "string"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "",
+      "description": "Handler description",
+      "title": "Description"
+    },
+    "intent_name_patterns": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Intent name patterns for can_handle",
+      "title": "Intent Name Patterns"
+    },
+    "action_patterns": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Action patterns for can_handle",
+      "title": "Action Patterns"
+    },
+    "domain_patterns": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Domain patterns for can_handle",
+      "title": "Domain Patterns"
+    },
+    "fallback_conditions": {
+      "anyOf": [
+        {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Fallback conditions for can_handle",
+      "title": "Fallback Conditions"
+    },
+    "additional_recognition_patterns": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Additional patterns for NLU recognition",
+      "title": "Additional Recognition Patterns"
+    },
+    "language_detection": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Language detection patterns",
+      "title": "Language Detection"
+    },
+    "train_keywords": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Train-specific keywords",
+      "title": "Train Keywords"
+    },
+    "method_donations": {
+      "description": "Method-specific donations",
+      "items": {
+        "$ref": "#/$defs/MethodDonation"
+      },
+      "minItems": 1,
+      "title": "Method Donations",
+      "type": "array"
+    },
+    "global_parameters": {
+      "description": "Shared parameters",
+      "items": {
+        "$ref": "#/$defs/ParameterSpec"
+      },
+      "title": "Global Parameters",
+      "type": "array"
+    },
+    "negative_patterns": {
+      "description": "Negative patterns",
+      "items": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "title": "Negative Patterns",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "handler_domain",
+    "method_donations"
+  ],
+  "title": "Irene Voice Assistant - Intent Handler Donation Schema",
+  "type": "object",
+  "$id": "https://irene-voice-assistant.org/schemas/donation/v1.0.json",
+  "version": "1.0"
+}

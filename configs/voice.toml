@@ -96,12 +96,23 @@ disabled = []
 default = "openwakeword"
 fallback_providers = []
 
-[providers.nlu]
-# Text understanding for voice commands
-enabled = ["rule_based"]
-disabled = ["spacy"]  # Reduce dependencies for development
-default = "rule_based"
-fallback_providers = []
+[components.nlu]
+# Voice-optimized NLU with fast keyword matching
+enabled = true
+confidence_threshold = 0.6  # Lower for voice recognition accuracy
+provider_cascade_order = ["keyword_matcher", "rule_based"]
+fallback_intent = "conversation.general"
+
+# JSON donation system for voice
+donation_collection_enabled = true
+parameter_extraction_enabled = true
+context_processing_enabled = true
+
+# Voice-optimized performance
+max_cascade_attempts = 2
+cascade_timeout_ms = 50  # Fast response for voice
+cache_recognition_results = true
+cache_ttl_seconds = 600
 
 [providers.text_processing]
 # Comprehensive text processing for voice
@@ -193,12 +204,31 @@ channels = 1
 latency = "low"
 dtype = "int16"
 
-# Rule-based NLU Configuration
-[providers.nlu.rule_based]
+# NLU Provider Configurations for Voice
+
+# Hybrid Keyword Matcher Provider (voice-optimized)
+[components.nlu.providers.keyword_matcher]
+enabled = true
+provider_class = "HybridKeywordMatcherProvider"
+pattern_confidence = 0.9
+fuzzy_enabled = true
+fuzzy_threshold = 0.8
+fuzzy_confidence_base = 0.7
+confidence_threshold = 0.6  # Lower for voice accuracy
+
+# Rule-based NLU Provider (voice fallback)
+[components.nlu.providers.rule_based]
+enabled = true
+provider_class = "RuleBasedNLUProvider"
 confidence_threshold = 0.6
 case_sensitive = false
-fuzzy_matching = true
-synonyms_enabled = true
+fallback_intent = "conversation.general"
+
+# Disable spaCy providers for voice deployment
+[components.nlu.providers.spacy_rules_sm]
+enabled = false
+[components.nlu.providers.spacy_semantic_md]
+enabled = false
 
 # Voice-specific settings
 [voice]

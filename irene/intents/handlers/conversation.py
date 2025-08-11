@@ -63,6 +63,9 @@ class ConversationIntentHandler(IntentHandler):
         self.sessions: Dict[str, ConversationSession] = {}
         self.llm_component = None
         
+        # TODO #15: Move configuration to TOML and prompts to external files (not JSON donations)
+        # - LLM prompts should be in prompts/chat_system.txt and prompts/reference_system.txt  
+        # - Configuration values should be in main TOML config
         # Configuration for conversation modes
         self.config = {
             "chat_system_prompt": "Ты - Ирина, голосовой помощник, помогающий человеку. Давай ответы кратко и по существу.",
@@ -98,21 +101,30 @@ class ConversationIntentHandler(IntentHandler):
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process conversation intents"""
-        # Handle conversation domain intents
-        if intent.domain == "conversation":
+        if not self.has_donation():
+            raise RuntimeError(f"ConversationIntentHandler: Missing JSON donation file - conversation.json is required")
+        
+        # Use JSON donation patterns exclusively
+        donation = self.get_donation()
+        
+        # Check domain patterns
+        if hasattr(donation, 'domain_patterns') and intent.domain in donation.domain_patterns:
             return True
         
-        # Handle chat-related intents
-        if intent.name in ["chat.start", "chat.continue", "chat.reference", "chat.end"]:
+        # Check intent name patterns
+        if hasattr(donation, 'intent_name_patterns') and intent.name in donation.intent_name_patterns:
             return True
         
-        # Handle general/fallback intents with lower confidence
-        if intent.domain == "general" and intent.confidence < 0.8:
+        # Check action patterns
+        if hasattr(donation, 'action_patterns') and intent.action in donation.action_patterns:
             return True
         
-        # Handle any low-confidence intent as potential conversation
-        if intent.confidence < self.config["default_conversation_confidence"]:
-            return True
+        # Check fallback conditions
+        if hasattr(donation, 'fallback_conditions'):
+            for condition in donation.fallback_conditions:
+                if (intent.domain == condition.get('domain') and 
+                    intent.confidence < condition.get('confidence_threshold', 1.0)):
+                    return True
         
         return False
     
@@ -308,26 +320,7 @@ class ConversationIntentHandler(IntentHandler):
                 error=str(e)
             )
     
-    def get_conversation_patterns(self) -> List[str]:
-        """Get patterns that indicate conversation intent"""
-        return [
-            # Conversation starters
-            r"поболтаем|поговорим|давай поговорим",
-            r"расскажи|поделись|что думаешь",
-            
-            # Reference queries
-            r"справка|справочный режим|что такое|кто такой",
-            r"расскажи о|объясни|как работает",
-            
-            # Conversation control
-            r"новый диалог|новая беседа|начать заново",
-            r"пока|отмена|закончить|стоп",
-            r"очистить|сброс|заново",
-            
-            # General conversation indicators
-            r"как дела|что нового|как жизнь",
-            r"мне интересно|хочу знать|скажи",
-        ]
+
     
     async def cleanup(self) -> None:
         """Clean up conversation sessions"""

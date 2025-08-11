@@ -7,6 +7,7 @@ and web application integration. Now supports audio chunk processing via ASR.
 
 import asyncio
 import logging
+import time
 from typing import AsyncIterator, Dict, Any, Optional, cast, List
 import json
 import base64
@@ -34,6 +35,9 @@ class WebInput(InputSource):
         self._web_server = None
         self._websocket_connections: list = []
         self.core = None  # Core reference for ASR plugin access
+        
+        # Client context support
+        self._client_contexts: Dict[str, Dict[str, Any]] = {}  # WebSocket ID -> client context
         
         # Check for required dependencies
         try:
@@ -212,6 +216,10 @@ class WebInput(InputSource):
             elif message.get("type") == "audio_chunk":
                 await self._handle_audio_chunk(websocket, message)
                 
+            # NEW: Client registration handling
+            elif message.get("type") == "register_client":
+                await self._handle_client_registration(websocket, message)
+                
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in WebSocket message: {e}")
             response = {
@@ -304,7 +312,91 @@ class WebInput(InputSource):
                 "error_type": "audio_processing"
             }
             await websocket.send_text(json.dumps(error_response))
+    
+    async def _handle_client_registration(self, websocket, message: dict) -> None:
+        """Handle client registration from web interface"""
+        try:
+            client_id = message.get("client_id")
+            room_name = message.get("room_name") 
+            language = message.get("language", "ru")
+            user_agent = message.get("user_agent")
+            device_capabilities = message.get("device_capabilities", {})
             
+            if not client_id or not room_name:
+                response = {
+                    "type": "registration_error",
+                    "success": False,
+                    "error": "client_id and room_name are required"
+                }
+                await websocket.send_text(json.dumps(response))
+                return
+            
+            # Store client context for this WebSocket connection
+            websocket_id = id(websocket)
+            self._client_contexts[websocket_id] = {
+                "client_id": client_id,
+                "room_name": room_name,
+                "language": language,
+                "user_agent": user_agent,
+                "device_capabilities": device_capabilities,
+                "connection_time": time.time(),
+                "source": "web"
+            }
+            
+            # Register with client registry if available
+            if self.core:
+                from ..core.client_registry import get_client_registry
+                registry = get_client_registry()
+                
+                success = await registry.register_web_client(
+                    client_id=client_id,
+                    room_name=room_name,
+                    user_agent=user_agent,
+                    language=language
+                )
+                
+                if success:
+                    logger.info(f"Registered web client '{client_id}' in room '{room_name}'")
+                    response = {
+                        "type": "registration_success",
+                        "success": True,
+                        "client_id": client_id,
+                        "room_name": room_name,
+                        "language": language
+                    }
+                else:
+                    response = {
+                        "type": "registration_error", 
+                        "success": False,
+                        "error": "Failed to register with client registry"
+                    }
+            else:
+                # No core available, just confirm local storage
+                response = {
+                    "type": "registration_success",
+                    "success": True,
+                    "client_id": client_id,
+                    "room_name": room_name,
+                    "language": language,
+                    "note": "Registered locally only"
+                }
+            
+            await websocket.send_text(json.dumps(response))
+            
+        except Exception as e:
+            logger.error(f"Client registration failed: {e}")
+            error_response = {
+                "type": "registration_error",
+                "success": False,
+                "error": str(e)
+            }
+            await websocket.send_text(json.dumps(error_response))
+    
+    def get_client_context_for_websocket(self, websocket) -> Optional[Dict[str, Any]]:
+        """Get client context for a WebSocket connection"""
+        websocket_id = id(websocket)
+        return self._client_contexts.get(websocket_id)
+    
     def get_connection_info(self) -> Dict[str, Any]:
         """Get detailed connection information"""
         return {

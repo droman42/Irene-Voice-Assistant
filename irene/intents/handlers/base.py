@@ -11,12 +11,21 @@ logger = logging.getLogger(__name__)
 
 
 class IntentHandler(EntryPointMetadata, ABC):
-    """Base class for all intent handlers."""
+    """
+    Enhanced base class for intent handlers with JSON donation support.
+    
+    Features:
+    - JSON donation integration for pattern-free operation
+    - Donation-driven method routing
+    - Parameter extraction from donation specifications
+    """
     
     def __init__(self):
         """Initialize the intent handler."""
         self.name = self.__class__.__name__
         self.logger = logging.getLogger(f"{__name__}.{self.name}")
+        self.donation: Optional[Any] = None  # Will be HandlerDonation
+        self._donation_initialized = False
     
     @abstractmethod
     async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
@@ -53,6 +62,98 @@ class IntentHandler(EntryPointMetadata, ABC):
             True if the handler is available and functioning
         """
         return True
+    
+    def set_donation(self, donation: Any) -> None:
+        """
+        Set the JSON donation for this handler.
+        
+        Args:
+            donation: HandlerDonation object with method specifications
+        """
+        self.donation = donation
+        self._donation_initialized = True
+        self.logger.info(f"Handler {self.name} initialized with donation containing {len(donation.method_donations)} methods")
+    
+    def get_donation(self) -> Optional[Any]:
+        """
+        Get the JSON donation for this handler.
+        
+        Returns:
+            HandlerDonation object or None if not set
+        """
+        return self.donation
+    
+    def has_donation(self) -> bool:
+        """
+        Check if this handler has a JSON donation set.
+        
+        Returns:
+            True if donation is set and initialized
+        """
+        return self._donation_initialized and self.donation is not None
+    
+    def find_method_for_intent(self, intent: Intent) -> Optional[str]:
+        """
+        Find method name for intent using JSON donation.
+        
+        Args:
+            intent: Intent to find method for
+            
+        Returns:
+            Method name or None if not found
+        """
+        if not self.has_donation():
+            return None
+        
+        expected_suffix = intent.name.split('.', 1)[1] if '.' in intent.name else intent.name
+        
+        for method_donation in self.donation.method_donations:
+            if method_donation.intent_suffix == expected_suffix:
+                return method_donation.method_name
+        
+        return None
+    
+    async def execute_with_donation_routing(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Execute intent using donation-driven method routing.
+        
+        Args:
+            intent: The intent to execute
+            context: Current conversation context
+            
+        Returns:
+            IntentResult with response and metadata
+        """
+        if not self.has_donation():
+            return self._create_error_result(
+                "Handler not properly initialized with donation",
+                "donation_missing"
+            )
+        
+        # Find matching method donation
+        method_name = self.find_method_for_intent(intent)
+        if not method_name:
+            return self._create_error_result(
+                f"No method found for intent {intent.name}",
+                "method_not_found"
+            )
+        
+        # Call the method
+        if hasattr(self, method_name):
+            method = getattr(self, method_name)
+            try:
+                return await method(intent, context)
+            except Exception as e:
+                self.logger.error(f"Method {method_name} execution failed: {e}")
+                return self._create_error_result(
+                    f"Method execution failed: {str(e)}",
+                    "method_execution_error"
+                )
+        else:
+            return self._create_error_result(
+                f"Method {method_name} not implemented in handler",
+                "method_not_implemented"
+            )
     
     def get_supported_domains(self) -> List[str]:
         """

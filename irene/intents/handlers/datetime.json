@@ -1,0 +1,285 @@
+{
+  "$schema": "../../schemas/donation/v1.0.json",
+  "schema_version": "1.0",
+  "handler_domain": "datetime",
+  "description": "Date and time information requests with timezone support",
+  
+  "global_parameters": [
+    {
+      "name": "timezone",
+      "type": "string",
+      "required": false,
+      "default_value": "UTC",
+      "description": "Timezone for date/time responses"
+    },
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": ["ru", "en"],
+      "description": "Response language preference"
+    }
+  ],
+
+  "intent_name_patterns": [
+    "datetime.current_time",
+    "datetime.current_date", 
+    "datetime.current_datetime"
+  ],
+
+  "action_patterns": [
+    "current_time",
+    "current_date",
+    "get_time", 
+    "get_date"
+  ],
+
+  "language_detection": {
+    "english_indicators": ["time", "date", "what time", "what date", "current"],
+    "russian_indicators": ["время", "дата", "который", "какая", "сколько", "число"]
+  },
+  
+  "method_donations": [
+    {
+      "method_name": "_handle_time_request",
+      "intent_suffix": "current_time",
+      "description": "Get current time information",
+      
+      "phrases": [
+        "сколько времени", "который час", "время", "скажи время",
+        "what time", "current time", "what's the time",
+        "tell me the time", "time now"
+      ],
+      
+      "lemmas": ["время", "час", "сколько", "который", "сказать"],
+      
+      "parameters": [
+        {
+          "name": "location",
+          "type": "string",
+          "required": false,
+          "description": "Specific location or timezone",
+          "extraction_patterns": [
+            {"pattern": [{"LOWER": {"IN": ["в", "по", "in"]}}, {"IS_ALPHA": true}], "label": "LOCATION"}
+          ],
+          "aliases": ["место", "город", "страна"]
+        },
+        {
+          "name": "format",
+          "type": "choice",
+          "required": false,
+          "default_value": "12hour",
+          "choices": ["12hour", "24hour", "verbose"],
+          "description": "Time format preference",
+          "extraction_patterns": [
+            {"pattern": [{"TEXT": {"REGEX": "\\d{1,2}[-:]\\d{2}"}}], "label": "TIME_FORMAT"}
+          ]
+        }
+      ],
+      
+      "token_patterns": [
+        [{"LEMMA": "сколько"}, {"LEMMA": "время"}],
+        [{"LEMMA": "который"}, {"LEMMA": "час"}],
+        [{"TEXT": "what"}, {"TEXT": "time"}],
+        [{"TEXT": "current"}, {"TEXT": "time"}],
+        [{"LEMMA": "сказать"}, {"LEMMA": "время"}]
+      ],
+      
+      "slot_patterns": {
+        "LOCATION": [
+          [{"LOWER": "в"}, {"IS_ALPHA": true, "OP": "+"}],
+          [{"LOWER": "по"}, {"IS_ALPHA": true, "OP": "+"}],
+          [{"LOWER": "in"}, {"IS_ALPHA": true, "OP": "+"}]
+        ],
+        "TIME_FORMAT": [
+          [{"TEXT": {"REGEX": "\\d{1,2}[-:]\\d{2}"}}]
+        ]
+      },
+      
+      "examples": [
+        {
+          "text": "сколько времени",
+          "parameters": {}
+        },
+        {
+          "text": "который час",
+          "parameters": {}
+        },
+        {
+          "text": "время в Москве",
+          "parameters": {"location": "Москве"}
+        },
+        {
+          "text": "what time is it",
+          "parameters": {}
+        },
+        {
+          "text": "current time in London",
+          "parameters": {"location": "London"}
+        }
+      ],
+      
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_date_request",
+      "intent_suffix": "current_date",
+      "description": "Get current date information",
+      
+      "phrases": [
+        "какое число", "какая дата", "сегодня", "дата",
+        "what date", "today's date", "current date",
+        "what day is it"
+      ],
+      
+      "lemmas": ["число", "дата", "сегодня", "какой", "день"],
+      
+      "parameters": [
+        {
+          "name": "format",
+          "type": "choice",
+          "required": false,
+          "default_value": "full",
+          "choices": ["short", "full", "iso", "verbose"],
+          "description": "Date format preference",
+          "extraction_patterns": [
+            {"pattern": [{"TEXT": {"REGEX": "\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}"}}], "label": "DATE_FORMAT"}
+          ]
+        },
+        {
+          "name": "relative",
+          "type": "choice",
+          "required": false,
+          "choices": ["today", "tomorrow", "yesterday"],
+          "description": "Relative date reference",
+          "extraction_patterns": [
+            {"pattern": [{"LOWER": {"IN": ["сегодня", "завтра", "вчера", "today", "tomorrow", "yesterday"]}}], "label": "RELATIVE_DATE"}
+          ]
+        }
+      ],
+      
+      "token_patterns": [
+        [{"LEMMA": "какой"}, {"LEMMA": {"IN": ["число", "дата", "день"]}}],
+        [{"LEMMA": "сегодня"}],
+        [{"TEXT": "what"}, {"TEXT": {"REGEX": "date|day"}}],
+        [{"TEXT": "today"}, {"TEXT": "date"}],
+        [{"TEXT": "current"}, {"TEXT": "date"}]
+      ],
+      
+      "slot_patterns": {
+        "DATE_FORMAT": [
+          [{"TEXT": {"REGEX": "\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}"}}]
+        ],
+        "RELATIVE_DATE": [
+          [{"LOWER": {"IN": ["сегодня", "завтра", "вчера"]}}],
+          [{"LOWER": {"IN": ["today", "tomorrow", "yesterday"]}}]
+        ]
+      },
+      
+      "examples": [
+        {
+          "text": "какое число",
+          "parameters": {}
+        },
+        {
+          "text": "какая дата сегодня",
+          "parameters": {"relative": "today"}
+        },
+        {
+          "text": "what date is it",
+          "parameters": {}
+        },
+        {
+          "text": "today's date",
+          "parameters": {"relative": "today"}
+        }
+      ],
+      
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_datetime_request",
+      "intent_suffix": "current_datetime",
+      "description": "Get combined date and time information",
+      
+      "phrases": [
+        "дата и время", "полная дата", "время и дата",
+        "date and time", "full datetime", "timestamp",
+        "current datetime"
+      ],
+      
+      "lemmas": ["дата", "время", "полный", "timestamp"],
+      
+      "parameters": [
+        {
+          "name": "timezone",
+          "type": "string",
+          "required": false,
+          "description": "Specific timezone for datetime",
+          "extraction_patterns": [
+            {"pattern": [{"TEXT": {"REGEX": "UTC|GMT|[A-Z]{3,4}"}}], "label": "TIMEZONE"}
+          ],
+          "aliases": ["зона", "zone"]
+        },
+        {
+          "name": "format",
+          "type": "choice",
+          "required": false,
+          "default_value": "readable",
+          "choices": ["iso", "readable", "unix", "verbose"],
+          "description": "Datetime format preference"
+        }
+      ],
+      
+      "token_patterns": [
+        [{"LEMMA": "дата"}, {"LEMMA": "время"}],
+        [{"LEMMA": "время"}, {"LEMMA": "дата"}],
+        [{"TEXT": "date"}, {"TEXT": "and"}, {"TEXT": "time"}],
+        [{"TEXT": "current"}, {"TEXT": "datetime"}],
+        [{"LEMMA": "полный"}, {"LEMMA": "дата"}]
+      ],
+      
+      "slot_patterns": {
+        "TIMEZONE": [
+          [{"TEXT": {"REGEX": "UTC|GMT|[A-Z]{3,4}"}}]
+        ]
+      },
+      
+      "examples": [
+        {
+          "text": "дата и время",
+          "parameters": {}
+        },
+        {
+          "text": "полная дата",
+          "parameters": {}
+        },
+        {
+          "text": "date and time",
+          "parameters": {}
+        },
+        {
+          "text": "current datetime UTC",
+          "parameters": {"timezone": "UTC"}
+        }
+      ],
+      
+      "boost": 1.1
+    }
+  ],
+  
+  "negative_patterns": [
+    [{"LEMMA": {"IN": ["нет", "не"]}}, {"LEMMA": {"IN": ["время", "дата"]}}],
+    [{"TEXT": {"REGEX": "no|not"}}, {"TEXT": {"REGEX": "time|date"}}]
+  ],
+
+  "additional_recognition_patterns": [
+    "дата|какая дата|какое число|сегодня",
+    "date|what date|today", 
+    "время|сколько времени|который час",
+    "time|what time|current time",
+    "дата и время|время и дата",
+    "date and time|time and date"
+  ]
+} 

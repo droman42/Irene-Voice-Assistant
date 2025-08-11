@@ -84,4 +84,18 @@ class NLUProvider(ProviderBase):
             "entity_extraction": True,  # Override if no entity extraction
             "context_aware": True,  # Override if context not used
             "real_time": True,  # Override if not real-time capable
-        } 
+        }
+    
+    async def _initialize_from_donations(self, keyword_donations: List[Any]) -> None:
+        """
+        Initialize provider with JSON donation patterns (Phase 2 integration).
+        
+        This method should be implemented by providers that support donation-driven
+        pattern loading. Providers that don't implement this method will use
+        fallback patterns.
+        
+        Args:
+            keyword_donations: List of KeywordDonation objects from JSON donations
+        """
+        # Default implementation - providers can override
+        pass

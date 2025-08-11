@@ -15,7 +15,7 @@ from .base import Workflow, RequestContext
 from ..intents.models import AudioData, ConversationContext, Intent, IntentResult, WakeWordResult
 from ..utils.audio_helpers import test_audio_playback_capability, calculate_audio_buffer_size
 from ..utils.loader import safe_import
-from ..config.manager import ConfigurationError
+from ..config.manager import ConfigValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +46,13 @@ class VoiceAssistantWorkflow(Workflow):
         try:
             capabilities = await test_audio_playback_capability()  # From audio_helpers.py
             if not capabilities.get('devices_available', False):
-                raise ConfigurationError("No audio devices available")
+                raise ConfigValidationError("No audio devices available")
             
             self.logger.info(f"Audio capabilities validated: {capabilities}")
             
         except Exception as e:
             self.logger.error(f"Audio capability validation failed: {e}")
-            raise ConfigurationError(f"Audio system not available: {e}")
+            raise ConfigValidationError(f"Audio system not available: {e}")
             
         # Configure optimal buffer for voice trigger + ASR pipeline
         self.buffer_size = calculate_audio_buffer_size(16000, 100.0)  # From audio_helpers.py
@@ -62,7 +62,7 @@ class VoiceAssistantWorkflow(Workflow):
         required_components = ['asr', 'nlu', 'intent_orchestrator', 'context_manager']
         for comp_name in required_components:
             if comp_name not in self.components:
-                raise ConfigurationError(f"Required component '{comp_name}' not available")
+                raise ConfigValidationError(f"Required component '{comp_name}' not available")
         
         # Get component references
         self.voice_trigger = self.components.get('voice_trigger')  # Optional
@@ -93,8 +93,8 @@ class VoiceAssistantWorkflow(Workflow):
             
         self.logger.info(f"Starting voice assistant workflow for session {context.session_id}")
         
-        # Get or create conversation context
-        conv_context = await self.context_manager.get_context(context.session_id)
+        # Get or create conversation context with client information
+        conv_context = await self.context_manager.get_context_with_request_info(context.session_id, context)
         
         # Track audio processing state
         listening_for_wake_word = not context.skip_wake_word and self.voice_trigger
@@ -193,8 +193,8 @@ class VoiceAssistantWorkflow(Workflow):
             
         self.logger.info(f"Processing text input: '{text[:50]}...' for session {context.session_id}")
         
-        # Get or create conversation context
-        conv_context = await self.context_manager.get_context(context.session_id)
+        # Get or create conversation context with client information
+        conv_context = await self.context_manager.get_context_with_request_info(context.session_id, context)
         
         return await self._process_text_pipeline(text, conv_context, context)
     
@@ -236,9 +236,24 @@ class VoiceAssistantWorkflow(Workflow):
                     self.logger.warning(f"Text processing failed, using original: {e}")
                     improved_text = text
             
-            # 4. Intent Recognition (NEW!)
-            intent = await self.nlu.recognize(improved_text, conv_context)
-            self.logger.info(f"Intent recognized: {intent.name} (confidence: {intent.confidence:.2f})")
+            # 4. Intent Recognition with Cascading Coordination
+            start_time = asyncio.get_event_loop().time()
+            
+            # Use context-aware recognition if client context is available
+            if conv_context.client_id:
+                intent = await self.nlu.recognize_with_context(improved_text, conv_context)
+                self.logger.debug("Using context-aware NLU recognition")
+            else:
+                intent = await self.nlu.recognize(improved_text, conv_context)
+                self.logger.debug("Using standard NLU recognition")
+            
+            # Log cascading performance metrics
+            recognition_time = (asyncio.get_event_loop().time() - start_time) * 1000  # ms
+            provider_used = intent.entities.get("_recognition_provider", "unknown")
+            cascade_attempts = intent.entities.get("_cascade_attempts", 1)
+            
+            self.logger.info(f"Intent recognized: {intent.name} (confidence: {intent.confidence:.2f}, "
+                           f"provider: {provider_used}, attempts: {cascade_attempts}, time: {recognition_time:.1f}ms)")
             
             # 5. Intent Execution (NEW!)
             result = await self.intent_orchestrator.execute_intent(intent, conv_context)

@@ -320,6 +320,92 @@ class AssetManager:
         if provider not in self.config.model_registry:
             return {}
         return self.config.model_registry[provider].get(model_id, {})
+    
+    async def ensure_model_available(self, provider_name: str, model_name: str, asset_config: Dict[str, Any]) -> Optional[Path]:
+        """
+        Ensure model is available, downloading if necessary.
+        
+        This method bridges the gap between provider asset configurations
+        and actual model availability, following patterns from existing
+        ASR and TTS providers.
+        
+        Args:
+            provider_name: Provider identifier (e.g., "spacy", "vosk")
+            model_name: Model identifier (e.g., "ru_core_news_sm", "en_core_web_sm")
+            asset_config: Provider asset configuration
+            
+        Returns:
+            Path to available model, or None if model cannot be ensured
+        """
+        try:
+            logger.info(f"Ensuring model availability: {provider_name}/{model_name}")
+            
+            # Check if model already exists
+            if self.model_exists(provider_name, model_name):
+                model_path = self.get_model_path(provider_name, model_name)
+                logger.info(f"Model already available: {model_path}")
+                return model_path
+            
+            # Special handling for spaCy models
+            if provider_name == "spacy":
+                return await self._ensure_spacy_model_available(model_name)
+            
+            # For other providers, attempt download through registry
+            try:
+                model_path = await self.download_model(provider_name, model_name)
+                logger.info(f"Model downloaded and available: {model_path}")
+                return model_path
+            except Exception as e:
+                logger.warning(f"Failed to download model {provider_name}/{model_name}: {e}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to ensure model availability {provider_name}/{model_name}: {e}")
+            return None
+    
+    async def _ensure_spacy_model_available(self, model_name: str) -> Optional[Path]:
+        """
+        Ensure spaCy model is available using spaCy's download mechanism.
+        
+        spaCy models are installed as Python packages, not downloaded as files.
+        This method uses spaCy's built-in download system.
+        
+        Args:
+            model_name: spaCy model name (e.g., "ru_core_news_sm")
+            
+        Returns:
+            Path to model package location, or None if installation failed
+        """
+        try:
+            import subprocess
+            import sys
+            
+            logger.info(f"Installing spaCy model: {model_name}")
+            
+            # Use spaCy's download command
+            cmd = [sys.executable, "-m", "spacy", "download", model_name]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                logger.info(f"Successfully installed spaCy model: {model_name}")
+                
+                # Return a symbolic path - spaCy models are installed as packages
+                # The actual model will be loaded via spacy.load(model_name)
+                model_path = self.get_model_path("spacy", model_name)
+                model_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Create a marker file to indicate the model is installed
+                marker_file = model_path.parent / f"{model_name}.installed"
+                marker_file.touch()
+                
+                return marker_file
+            else:
+                logger.error(f"Failed to install spaCy model {model_name}: {result.stderr}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error installing spaCy model {model_name}: {e}")
+            return None
 
 
 # Global asset manager instance (lazy-loaded)

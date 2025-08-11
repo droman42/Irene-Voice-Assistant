@@ -425,5 +425,17 @@ If this spec meets your needs, the next steps are:
 1. Generate CA & certs as above.
 2. Stand-up nginx TLS gateway.
 3. Fork firmware template & train the first wake-word model.
+4. **Implement Client Registry integration** - See `docs/CLIENT_REGISTRY.md` for detailed implementation guide
+
+#### Client Registry Integration
+
+The firmware must register with the server's Client Registry system to enable context-aware processing:
+
+- **Registration**: Send client ID, room name, and device list on startup
+- **Heartbeat**: Periodic presence updates (every 5 minutes)
+- **Device Updates**: Report device status changes in real-time
+- **Russian Support**: Use Russian room/device names as primary language
+
+See complete integration guide: [`docs/CLIENT_REGISTRY.md`](../../docs/CLIENT_REGISTRY.md)
 
 Let me know if any detail still needs tightening!

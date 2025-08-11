@@ -34,95 +34,60 @@ class RuleBasedNLUProvider(NLUProvider):
         return "rule_based_nlu"
     
     async def is_available(self) -> bool:
-        """Rule-based NLU is always available"""
-        if not self.patterns:
-            await self._initialize_patterns()
-        return True
+        """Rule-based NLU is available when patterns are loaded from JSON donations"""
+        return len(self.patterns) > 0
     
     async def _do_initialize(self) -> None:
-        """Initialize NLU patterns"""
-        await self._initialize_patterns()
+        """Initialize NLU patterns - JSON donations required"""
+        if not self.patterns:
+            raise RuntimeError("RuleBasedNLUProvider requires JSON donations for pattern initialization. "
+                             "Call _initialize_from_donations() first.")
     
-    async def _initialize_patterns(self):
-        """Initialize regex patterns for intent recognition"""
+    async def _initialize_from_donations(self, keyword_donations: List[Any]) -> None:
+        """
+        Initialize provider with JSON donation patterns (Phase 2 integration).
+        
+        This replaces hardcoded patterns with donation-driven patterns.
+        """
         try:
-            # Define intent patterns
-            self.patterns = {
-                # Greeting intents
-                "greeting.hello": [
-                    re.compile(r"\b(привет|здравствуй|добро пожаловать|приветствую)\b", re.IGNORECASE),
-                    re.compile(r"\b(hello|hi|hey|greetings)\b", re.IGNORECASE),
-                    re.compile(r"\b(доброе утро|добрый день|добрый вечер)\b", re.IGNORECASE),
-                    re.compile(r"\b(good morning|good afternoon|good evening)\b", re.IGNORECASE),
-                ],
-                
-                "greeting.goodbye": [
-                    re.compile(r"\b(пока|до свидания|прощай|бывай)\b", re.IGNORECASE),
-                    re.compile(r"\b(goodbye|bye|farewell|see you)\b", re.IGNORECASE),
-                    re.compile(r"\b(до встречи|всего доброго)\b", re.IGNORECASE),
-                    re.compile(r"\b(take care|good luck)\b", re.IGNORECASE),
-                ],
-                
-                # Timer intents
-                "timer.set": [
-                    re.compile(r"\b(поставь|установи|засеки)\s+(таймер|время)\b", re.IGNORECASE),
-                    re.compile(r"\b(set|start)\s+(timer|alarm)\b", re.IGNORECASE),
-                    re.compile(r"\bтаймер\s+на\s+\d+", re.IGNORECASE),
-                    re.compile(r"\bнапомни\s+через\s+\d+", re.IGNORECASE),
-                ],
-                
-                "timer.cancel": [
-                    re.compile(r"\b(отмени|убери|стоп)\s+(таймер|время)\b", re.IGNORECASE),
-                    re.compile(r"\b(cancel|stop|remove)\s+(timer|alarm)\b", re.IGNORECASE),
-                ],
-                
-                "timer.list": [
-                    re.compile(r"\b(покажи|список)\s+таймер", re.IGNORECASE),
-                    re.compile(r"\b(list|show)\s+timer", re.IGNORECASE),
-                    re.compile(r"\bмои таймеры\b", re.IGNORECASE),
-                ],
-                
-                # Conversation intents
-                "conversation.start": [
-                    re.compile(r"\b(поболтаем|поговорим|давай поговорим)\b", re.IGNORECASE),
-                    re.compile(r"\b(let's talk|let's chat)\b", re.IGNORECASE),
-                    re.compile(r"\bначинаем диалог\b", re.IGNORECASE),
-                ],
-                
-                "conversation.reference": [
-                    re.compile(r"\b(справка|что такое|кто такой)\b", re.IGNORECASE),
-                    re.compile(r"\b(расскажи о|объясни)\b", re.IGNORECASE),
-                    re.compile(r"\b(what is|who is|tell me about)\b", re.IGNORECASE),
-                ],
-                
-                # System intents
-                "system.status": [
-                    re.compile(r"\b(статус|состояние|как дела)\b", re.IGNORECASE),
-                    re.compile(r"\b(status|state|how are you)\b", re.IGNORECASE),
-                ],
-                
-                "system.help": [
-                    re.compile(r"\b(помощь|справка|что умеешь)\b", re.IGNORECASE),
-                    re.compile(r"\b(help|commands|what can you do)\b", re.IGNORECASE),
-                ],
-                
-                # Time/Date intents
-                "datetime.current_time": [
-                    re.compile(r"\b(сколько времени|который час|время)\b", re.IGNORECASE),
-                    re.compile(r"\b(what time|current time)\b", re.IGNORECASE),
-                ],
-                
-                "datetime.current_date": [
-                    re.compile(r"\b(какое число|какая дата|сегодня)\b", re.IGNORECASE),
-                    re.compile(r"\b(what date|today's date)\b", re.IGNORECASE),
-                ],
-            }
+            logger.info(f"Initializing RuleBasedNLU with {len(keyword_donations)} donations")
             
-            logger.info(f"Initialized {len(self.patterns)} intent patterns")
+            # Clear existing hardcoded patterns
+            self.patterns = {}
+            self.intent_patterns = {}
+            
+            # Convert keyword donations to regex patterns
+            for donation in keyword_donations:
+                intent_name = donation.intent_name
+                
+                # Convert phrases to regex patterns
+                regex_patterns = []
+                for phrase in donation.phrases:
+                    # Create case-insensitive regex pattern from phrase
+                    # Escape special regex characters and add word boundaries
+                    escaped_phrase = re.escape(phrase)
+                    # Replace escaped spaces with flexible whitespace
+                    flexible_phrase = escaped_phrase.replace(r'\ ', r'\s+')
+                    pattern = re.compile(r'\b' + flexible_phrase + r'\b', re.IGNORECASE)
+                    regex_patterns.append(pattern)
+                
+                # Add to patterns dictionary
+                self.patterns[intent_name] = regex_patterns
+                
+                # Also store for intent_patterns (legacy compatibility)
+                self.intent_patterns[intent_name] = donation.phrases
+                
+                logger.debug(f"Added {len(regex_patterns)} patterns for intent '{intent_name}'")
+            
+            logger.info(f"RuleBasedNLU initialized with donation patterns for {len(self.patterns)} intents")
             
         except Exception as e:
-            logger.error(f"Failed to initialize NLU patterns: {e}")
-            raise
+            logger.error(f"Failed to initialize RuleBasedNLU from donations: {e}")
+            # Phase 4: No fallback patterns - fail fast
+            raise RuntimeError(f"RuleBasedNLUProvider: JSON donation initialization failed: {e}. "
+                             "Provider cannot operate without valid donations.")
+    
+
     
     async def recognize(self, text: str, context: ConversationContext) -> Intent:
         """
@@ -286,6 +251,40 @@ class RuleBasedNLUProvider(NLUProvider):
                 "offline": True
             }
         }
+    
+    async def extract_entities(self, text: str, intent_name: str) -> Dict[str, Any]:
+        """Extract entities for a given intent using regex patterns"""
+        entities = {}
+        
+        # Basic entity extraction using regex patterns
+        # This is a simplified implementation - full implementation would use
+        # the parameter extraction system from Phase 0
+        
+        # Extract common entities
+        import re
+        
+        # Numbers
+        numbers = re.findall(r'\b\d+\b', text)
+        if numbers:
+            entities['numbers'] = numbers
+        
+        # Time expressions
+        time_patterns = [
+            r'\b(\d+)\s*(минут|секунд|часов|мин|сек|час)\b',
+            r'\b(\d+)\s*(minutes?|seconds?|hours?)\b'
+        ]
+        
+        for pattern in time_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                entities['duration'] = matches
+                break
+        
+        return entities
+    
+    def get_supported_intents(self) -> List[str]:
+        """Get list of intents this provider can recognize"""
+        return list(self.patterns.keys())
     
     def validate_config(self) -> bool:
         """Validate rule-based NLU configuration"""

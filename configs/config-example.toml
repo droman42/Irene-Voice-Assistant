@@ -13,7 +13,7 @@ name = "Irene"
 version = "13.0.0"
 debug = false
 log_level = "INFO"
-language = "en-US"
+language = "ru"  # Russian-first default
 timezone = "UTC"
 
 # Runtime performance settings
@@ -290,19 +290,59 @@ detection_window_size = 3
 threshold = 0.85
 
 # ============================================================
-# NATURAL LANGUAGE UNDERSTANDING COMPONENT
+# NATURAL LANGUAGE UNDERSTANDING COMPONENT - JSON DONATION SYSTEM
 # ============================================================
 [components.nlu]
-enabled = false  # Component disabled in main config
+# Cascading provider coordination (JSON donation system)
+enabled = true
 confidence_threshold = 0.7
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"]
 fallback_intent = "conversation.general"
 
+# JSON donation system integration
+donation_collection_enabled = true
+parameter_extraction_enabled = true
+context_processing_enabled = true
+
+# Performance tuning
+max_cascade_attempts = 3
+cascade_timeout_ms = 100
+cache_recognition_results = true
+cache_ttl_seconds = 300
+
+# Hybrid Keyword Matcher Provider
+[components.nlu.providers.keyword_matcher]
+enabled = true
+provider_class = "HybridKeywordMatcherProvider"
+pattern_confidence = 0.9
+fuzzy_enabled = true
+fuzzy_threshold = 0.8
+confidence_threshold = 0.8
+
+# Rule-based NLU Provider
 [components.nlu.providers.rule_based]
 enabled = true
+provider_class = "RuleBasedNLUProvider"
+confidence_threshold = 0.7
+case_sensitive = false
 
-[components.nlu.providers.spacy]
-enabled = false
-model_name = "en_core_web_sm"
+# spaCy Rules Provider (Small Model)
+[components.nlu.providers.spacy_rules_sm]
+enabled = true
+provider_class = "SpaCyNLUProvider"
+model_name = "ru_core_news_sm"
+model_approach = "morphological_rules"
+confidence_threshold = 0.7
+auto_download = true
+
+# spaCy Semantic Provider (Medium Model)
+[components.nlu.providers.spacy_semantic_md]
+enabled = false  # Disabled by default (large memory usage)
+provider_class = "SpaCyNLUProvider"
+model_name = "ru_core_news_md"
+model_approach = "semantic_similarity"
+confidence_threshold = 0.55
+auto_download = true
 
 # ============================================================
 # TEXT PROCESSING PROVIDERS  

@@ -41,6 +41,7 @@ class TrainScheduleIntentHandler(IntentHandler):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__()
         
+        # TODO #15: Move configuration defaults to TOML configuration (not JSON donations)
         # Default configuration
         self.config = config or {}
         self.api_key = self.config.get("api_key", "")
@@ -50,22 +51,28 @@ class TrainScheduleIntentHandler(IntentHandler):
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process train schedule intents"""
-        # Handle train schedule domain
+        if not self.has_donation():
+            raise RuntimeError(f"TrainScheduleIntentHandler: Missing JSON donation file - train_schedule.json is required")
+        
+        # Use JSON donation patterns exclusively
+        donation = self.get_donation()
+        
+        # Check domain/action combinations
         if intent.domain == "transport" and intent.action in ["train_schedule", "get_trains"]:
             return True
         
-        # Handle specific train schedule intents
-        if intent.name in ["transport.train_schedule", "transport.get_trains"]:
+        # Check intent name patterns
+        if hasattr(donation, 'intent_name_patterns') and intent.name in donation.intent_name_patterns:
             return True
         
-        # Handle Russian train-related terms
-        train_keywords = [
-            "электричка", "электрички", "поезд", "ближайший поезд",
-            "расписание поездов", "расписание электричек"
-        ]
-        
-        if any(keyword in intent.raw_text.lower() for keyword in train_keywords):
+        # Check action patterns
+        if hasattr(donation, 'action_patterns') and intent.action in donation.action_patterns:
             return True
+        
+        # Check train keywords in raw text
+        if hasattr(donation, 'train_keywords'):
+            if any(keyword in intent.raw_text.lower() for keyword in donation.train_keywords):
+                return True
         
         return False
     

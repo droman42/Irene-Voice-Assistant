@@ -206,6 +206,55 @@ class UniversalLLMConfig(BaseModel):
     )
 
 
+class UniversalNLUConfig(BaseModel):
+    """Universal NLU component configuration"""
+    enabled: bool = Field(default=True, description="Enable Universal NLU component")
+    default_provider: str = Field(default="rule_based", description="Default NLU provider")
+    confidence_threshold: float = Field(default=0.7, description="Global confidence threshold")
+    fallback_intent: str = Field(default="conversation.general", description="Fallback intent name")
+    
+    # Cascading configuration
+    provider_cascade_order: List[str] = Field(
+        default_factory=lambda: ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"],
+        description="Provider cascade order (fast to slow)"
+    )
+    max_cascade_attempts: int = Field(default=4, description="Maximum cascade attempts")
+    cascade_timeout_ms: int = Field(default=200, description="Cascade timeout in milliseconds")
+    
+    # Performance configuration
+    cache_recognition_results: bool = Field(default=False, description="Cache recognition results")
+    cache_ttl_seconds: int = Field(default=300, description="Cache TTL in seconds")
+    
+    # Provider instances configuration
+    providers: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "rule_based": {
+                "enabled": True,
+                "provider_class": "RuleBasedNLUProvider",
+                "confidence_threshold": 0.7,
+                "case_sensitive": False
+            },
+            "spacy_rules_sm": {
+                "enabled": True,
+                "provider_class": "SpaCyNLUProvider", 
+                "model_name": "ru_core_news_sm",
+                "model_approach": "morphological_rules",
+                "confidence_threshold": 0.7,
+                "auto_download": True
+            },
+            "spacy_semantic_md": {
+                "enabled": False,  # Disabled by default (resource intensive)
+                "provider_class": "SpaCyNLUProvider",
+                "model_name": "ru_core_news_md", 
+                "model_approach": "semantic_similarity",
+                "confidence_threshold": 0.55,
+                "auto_download": True
+            }
+        },
+        description="NLU provider instance configurations"
+    )
+
+
 class TextProcessingConfig(BaseModel):
     """Text processing pipeline configuration"""
     enabled: bool = Field(default=True, description="Enable text processing pipeline")
@@ -327,6 +376,10 @@ class PluginConfig(BaseModel):
         default_factory=lambda: TextProcessingConfig(),
         description="Text processing pipeline configuration"
     )
+    universal_nlu: "UniversalNLUConfig" = Field(
+        default_factory=lambda: UniversalNLUConfig(),
+        description="Universal NLU component configuration"
+    )
     
     @field_validator('plugin_directories')
     @classmethod
@@ -407,6 +460,50 @@ class AssetConfig(BaseModel):
                     "size": "100MB",
                     "extract": True,
                     "checksum": None
+                }
+            },
+            "spacy": {
+                "ru_core_news_sm": {
+                    "url": "spacy",
+                    "size": "15MB",
+                    "format": "package",
+                    "checksum": None,
+                    "description": "Russian small core model for spaCy"
+                },
+                "ru_core_news_md": {
+                    "url": "spacy", 
+                    "size": "50MB",
+                    "format": "package",
+                    "checksum": None,
+                    "description": "Russian medium core model for spaCy"
+                },
+                "ru_core_news_lg": {
+                    "url": "spacy",
+                    "size": "140MB", 
+                    "format": "package",
+                    "checksum": None,
+                    "description": "Russian large core model for spaCy"
+                },
+                "en_core_web_sm": {
+                    "url": "spacy",
+                    "size": "15MB",
+                    "format": "package", 
+                    "checksum": None,
+                    "description": "English small core model for spaCy"
+                },
+                "en_core_web_md": {
+                    "url": "spacy",
+                    "size": "50MB",
+                    "format": "package",
+                    "checksum": None,
+                    "description": "English medium core model for spaCy"
+                },
+                "en_core_web_lg": {
+                    "url": "spacy",
+                    "size": "140MB",
+                    "format": "package",
+                    "checksum": None,
+                    "description": "English large core model for spaCy"
                 }
             },
             "openwakeword": {

@@ -85,12 +85,23 @@ fallback_providers = []
 enabled = []  # No voice trigger
 disabled = ["openwakeword", "microwakeword"]
 
-[providers.nlu]
-# Text-based NLU for intent recognition
-enabled = ["rule_based"]
-disabled = ["spacy"]  # Reduce dependencies
-default = "rule_based"
-fallback_providers = []
+[components.nlu]
+# API-optimized NLU with comprehensive keyword and semantic matching
+enabled = true
+confidence_threshold = 0.8
+provider_cascade_order = ["keyword_matcher", "spacy_semantic_md", "rule_based"]
+fallback_intent = "conversation.general"
+
+# JSON donation system for API
+donation_collection_enabled = true
+parameter_extraction_enabled = true
+context_processing_enabled = true
+
+# API-optimized performance
+max_cascade_attempts = 3
+cascade_timeout_ms = 100
+cache_recognition_results = true
+cache_ttl_seconds = 1800  # Longer cache for API
 
 [providers.text_processing]
 # Full text processing for API requests
@@ -156,8 +167,33 @@ model = "claude-3-haiku-20240307"  # Fastest model
 max_tokens = 100
 timeout = 10.0
 
-# Rule-based NLU Configuration
-[providers.nlu.rule_based]
+# NLU Provider Configurations for API
+
+# Hybrid Keyword Matcher Provider (API-optimized)
+[components.nlu.providers.keyword_matcher]
+enabled = true
+provider_class = "HybridKeywordMatcherProvider"
+pattern_confidence = 0.9
+fuzzy_enabled = true
+fuzzy_threshold = 0.8
+confidence_threshold = 0.8
+
+# spaCy Semantic Provider (Medium Model) - API
+[components.nlu.providers.spacy_semantic_md]
+enabled = true
+provider_class = "SpaCyNLUProvider"
+model_name = "ru_core_news_md"
+model_approach = "semantic_similarity"
+confidence_threshold = 0.55
+auto_download = true
+
+# Rule-based NLU Provider (API fallback)
+[components.nlu.providers.rule_based]
+enabled = true
+provider_class = "RuleBasedNLUProvider"
 confidence_threshold = 0.8
 case_sensitive = false
-fuzzy_matching = true 
+
+# Disable spaCy rules for API (using semantic instead)
+[components.nlu.providers.spacy_rules_sm]
+enabled = false 

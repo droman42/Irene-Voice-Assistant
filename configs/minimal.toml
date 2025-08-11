@@ -71,9 +71,44 @@ disabled = ["openai", "anthropic", "vsegpt"]
 enabled = []  # No voice trigger
 disabled = ["openwakeword", "microwakeword"]
 
-[providers.nlu]
-enabled = []  # No NLU providers
-disabled = ["rule_based", "spacy"]
+[components.nlu]
+# Ultra-constrained deployment (20MB) - keyword matching only
+enabled = true
+confidence_threshold = 0.8
+provider_cascade_order = ["keyword_matcher", "rule_based"]
+fallback_intent = "conversation.general"
+
+# Minimal JSON donation system
+donation_collection_enabled = true
+parameter_extraction_enabled = false  # Disabled for memory savings
+context_processing_enabled = false    # Disabled for memory savings
+
+# Performance optimization for constrained devices
+max_cascade_attempts = 2
+cascade_timeout_ms = 50
+cache_recognition_results = false  # Disabled for memory savings
+cache_ttl_seconds = 0
+
+# Hybrid Keyword Matcher Provider (minimal)
+[components.nlu.providers.keyword_matcher]
+enabled = true
+provider_class = "HybridKeywordMatcherProvider"
+pattern_confidence = 0.9
+fuzzy_enabled = false  # Disabled for memory savings
+confidence_threshold = 0.8
+
+# Rule-based NLU Provider (fallback)
+[components.nlu.providers.rule_based]
+enabled = true
+provider_class = "RuleBasedNLUProvider"
+confidence_threshold = 0.7
+case_sensitive = false
+
+# Disable all spaCy providers for minimal deployment
+[components.nlu.providers.spacy_rules_sm]
+enabled = false
+[components.nlu.providers.spacy_semantic_md]
+enabled = false
 
 [providers.text_processing]
 # Minimal text processing

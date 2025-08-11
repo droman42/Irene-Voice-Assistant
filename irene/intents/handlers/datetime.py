@@ -29,6 +29,10 @@ class DateTimeIntentHandler(IntentHandler):
     def __init__(self):
         super().__init__()
         
+        # TODO #15: Move response formatting arrays to localization system
+        # These arrays are for OUTPUT FORMATTING, not NLU input recognition
+        # They should be extracted to localization/datetime/ru.yaml and en.yaml
+        
         # Russian weekdays
         self.weekdays_ru = [
             "понедельник", "вторник", "среда", "четверг", 
@@ -73,16 +77,22 @@ class DateTimeIntentHandler(IntentHandler):
     
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process datetime intents"""
-        # Handle datetime domain intents
+        if not self.has_donation():
+            raise RuntimeError(f"DateTimeIntentHandler: Missing JSON donation file - datetime.json is required")
+        
+        # Use JSON donation patterns exclusively
+        donation = self.get_donation()
+        
+        # Check domain patterns (fallback)
         if intent.domain == "datetime":
             return True
         
-        # Handle specific datetime intents
-        if intent.name in ["datetime.current_time", "datetime.current_date", "datetime.current_datetime"]:
+        # Check intent name patterns
+        if hasattr(donation, 'intent_name_patterns') and intent.name in donation.intent_name_patterns:
             return True
         
-        # Handle datetime-related actions
-        if intent.action in ["current_time", "current_date", "get_time", "get_date"]:
+        # Check action patterns
+        if hasattr(donation, 'action_patterns') and intent.action in donation.action_patterns:
             return True
         
         return False
@@ -118,6 +128,7 @@ class DateTimeIntentHandler(IntentHandler):
         """Detect language from text or context"""
         text_lower = text.lower()
         
+        # TODO: These language detection arrays are now migrated to datetime.json language_detection
         english_indicators = ["time", "date", "what time", "what date", "current"]
         russian_indicators = ["время", "дата", "который", "какая", "сколько", "число"]
         
@@ -247,21 +258,7 @@ class DateTimeIntentHandler(IntentHandler):
             }
         )
     
-    def get_datetime_patterns(self) -> List[str]:
-        """Get patterns that indicate datetime intent"""
-        return [
-            # Date patterns
-            r"дата|какая дата|какое число|сегодня",
-            r"date|what date|today",
-            
-            # Time patterns  
-            r"время|сколько времени|который час",
-            r"time|what time|current time",
-            
-            # Combined patterns
-            r"дата и время|время и дата",
-            r"date and time|time and date",
-        ] 
+ 
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

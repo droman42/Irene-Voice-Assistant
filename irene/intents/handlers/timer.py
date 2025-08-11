@@ -57,16 +57,22 @@ class TimerIntentHandler(IntentHandler):
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process timer intents"""
-        # Handle timer domain intents
+        if not self.has_donation():
+            raise RuntimeError(f"TimerIntentHandler: Missing JSON donation file - timer.json is required")
+        
+        # Use JSON donation patterns exclusively
+        donation = self.get_donation()
+        
+        # Check domain patterns (fallback)
         if intent.domain == "timer":
             return True
         
-        # Handle specific timer intents
-        if intent.name in ["timer.set", "timer.cancel", "timer.list", "timer.status"]:
+        # Check intent name patterns
+        if hasattr(donation, 'intent_name_patterns') and intent.name in donation.intent_name_patterns:
             return True
         
-        # Handle timer-related actions
-        if intent.action in ["set", "cancel", "list", "status", "create", "remove"]:
+        # Check action patterns
+        if hasattr(donation, 'action_patterns') and intent.action in donation.action_patterns:
             return True
         
         return False
@@ -259,6 +265,7 @@ class TimerIntentHandler(IntentHandler):
         """Parse timer parameters from natural language text"""
         text_lower = text.lower()
         
+        # TODO: These parsing patterns are now migrated to timer.json duration parameter extraction_patterns
         # Common patterns for timer duration
         patterns = [
             r"(\d+)\s*(секунд|сек)",
@@ -293,6 +300,7 @@ class TimerIntentHandler(IntentHandler):
     
     def _extract_timer_message(self, text: str) -> str:
         """Extract custom message from timer text"""
+        # TODO: These message patterns are now migrated to timer.json message parameter extraction_patterns
         # Look for message patterns
         message_patterns = [
             r"сообщение[:\s]+(.*)",
@@ -309,6 +317,7 @@ class TimerIntentHandler(IntentHandler):
     
     def _convert_to_seconds(self, duration: int, unit: str) -> int:
         """Convert duration to seconds"""
+        # TODO #15: Move unit multipliers to TOML configuration (not JSON donations - these are processing constants)
         unit_multipliers = {
             'seconds': 1,
             'minutes': 60,
@@ -406,23 +415,7 @@ class TimerIntentHandler(IntentHandler):
         # Clean up completed timer
         del self.active_timers[timer_id]
     
-    def get_timer_patterns(self) -> List[str]:
-        """Get patterns that indicate timer intent"""
-        return [
-            # Timer creation
-            r"поставь таймер|установи таймер|таймер на",
-            r"напомни через|разбуди через|сигнал через",
-            r"засеки время|отсчитай время",
-            
-            # Timer management
-            r"отмени таймер|убери таймер|стоп таймер",
-            r"покажи таймеры|список таймеров|мои таймеры",
-            r"статус таймера|сколько осталось|время таймера",
-            
-            # Time expressions
-            r"\d+\s*(секунд|сек|минут|мин|час|часа|часов)",
-            r"на\s+\d+|через\s+\d+"
-        ]
+
     
     async def cleanup(self) -> None:
         """Clean up all active timers"""

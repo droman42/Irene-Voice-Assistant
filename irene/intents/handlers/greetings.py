@@ -29,6 +29,10 @@ class GreetingsIntentHandler(IntentHandler):
     def __init__(self):
         super().__init__()
         
+        # TODO #15: Move response arrays to localization system (not JSON donations)
+        # These arrays are for OUTPUT GENERATION, not NLU input recognition
+        # They should be extracted to localization/greetings/ru.yaml and en.yaml
+        
         # Russian greetings
         self.greetings_ru = [
             "Привет! Как дела?",
@@ -124,16 +128,22 @@ class GreetingsIntentHandler(IntentHandler):
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process greeting intents"""
-        # Handle greeting domain intents
-        if intent.domain == "greetings":
+        if not self.has_donation():
+            raise RuntimeError(f"GreetingsIntentHandler: Missing JSON donation file - greetings.json is required")
+        
+        # Use JSON donation patterns exclusively
+        donation = self.get_donation()
+        
+        # Check domain patterns
+        if hasattr(donation, 'domain_patterns') and intent.domain in donation.domain_patterns:
             return True
         
-        # Handle specific greeting intents
-        if intent.name in ["greeting.hello", "greeting.goodbye", "greeting.welcome"]:
+        # Check intent name patterns
+        if hasattr(donation, 'intent_name_patterns') and intent.name in donation.intent_name_patterns:
             return True
         
-        # Handle greeting-related actions
-        if intent.action in ["hello", "goodbye", "welcome", "greet"]:
+        # Check action patterns
+        if hasattr(donation, 'action_patterns') and intent.action in donation.action_patterns:
             return True
         
         return False
@@ -267,26 +277,4 @@ class GreetingsIntentHandler(IntentHandler):
         except Exception:
             return None
     
-    def get_greeting_patterns(self) -> List[str]:
-        """Get patterns that indicate greeting intent"""
-        return [
-            # Russian greetings
-            r"привет|здравствуй|добро пожаловать",
-            r"доброе утро|добрый день|добрый вечер|доброй ночи",
-            r"приветствую|салют|хай",
-            
-            # Russian farewells
-            r"пока|до свидания|прощай",
-            r"до встречи|всего доброго|удачи",
-            r"до скорого|пока-пока|бывай",
-            
-            # English greetings
-            r"hello|hi|hey|greetings",
-            r"good morning|good afternoon|good evening|good night",
-            r"welcome|nice to meet",
-            
-            # English farewells
-            r"goodbye|bye|farewell|see you",
-            r"take care|good luck|until next time",
-            r"bye-bye|catch you later|so long",
-        ] 
+ 

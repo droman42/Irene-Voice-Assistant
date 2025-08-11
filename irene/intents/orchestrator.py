@@ -5,23 +5,27 @@ from typing import Dict, Any, Optional
 
 from .models import Intent, IntentResult, ConversationContext
 from .registry import IntentRegistry
+from ..core.parameter_extractor import JSONBasedParameterExtractor
 
 logger = logging.getLogger(__name__)
 
 
 class IntentOrchestrator:
-    """Central intent coordinator that routes intents to appropriate handlers."""
+    """Central intent coordinator that routes intents to appropriate handlers with donation-driven execution."""
     
-    def __init__(self, registry: IntentRegistry):
+    def __init__(self, registry: IntentRegistry, parameter_extractor: Optional[JSONBasedParameterExtractor] = None):
         """
         Initialize the intent orchestrator.
         
         Args:
             registry: Intent registry containing available handlers
+            parameter_extractor: Parameter extractor for donation-driven parameter extraction
         """
         self.registry = registry
+        self.parameter_extractor = parameter_extractor
         self.middleware: list = []
         self.error_handlers: Dict[str, callable] = {}
+        self._use_donation_routing = True  # Phase 6: Enable donation-driven routing
     
     def add_middleware(self, middleware_func: callable):
         """Add middleware function to process intents before execution."""
@@ -33,9 +37,19 @@ class IntentOrchestrator:
         self.error_handlers[error_type] = handler
         logger.info(f"Added error handler for: {error_type}")
     
+    def set_parameter_extractor(self, parameter_extractor: JSONBasedParameterExtractor):
+        """Set the parameter extractor for donation-driven parameter extraction."""
+        self.parameter_extractor = parameter_extractor
+        logger.info("Parameter extractor configured for donation-driven execution")
+    
+    def enable_donation_routing(self, enabled: bool = True):
+        """Enable or disable donation-driven routing."""
+        self._use_donation_routing = enabled
+        logger.info(f"Donation-driven routing {'enabled' if enabled else 'disabled'}")
+    
     async def execute_intent(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """
-        Execute an intent by routing it to the appropriate handler.
+        Execute an intent by routing it to the appropriate handler with donation-driven execution.
         
         Args:
             intent: The recognized intent to execute
@@ -67,9 +81,36 @@ class IntentOrchestrator:
                     processed_intent
                 )
             
-            # Execute the intent
+            # Phase 6: Extract parameters using JSON donation specifications
+            if self.parameter_extractor and self._use_donation_routing:
+                try:
+                    extracted_params = await self.parameter_extractor.extract_parameters(
+                        processed_intent, processed_intent.name
+                    )
+                    
+                    # Merge extracted parameters into intent entities
+                    if extracted_params:
+                        processed_intent.entities.update(extracted_params)
+                        logger.debug(f"Extracted parameters for {processed_intent.name}: {list(extracted_params.keys())}")
+                    
+                except Exception as e:
+                    logger.warning(f"Parameter extraction failed for {processed_intent.name}: {e}")
+                    # Continue execution without extracted parameters
+            
+            # Execute the intent using donation-driven routing if available
             logger.info(f"Executing intent '{processed_intent.name}' with handler {handler.__class__.__name__}")
-            result = await handler.execute(processed_intent, context)
+            
+            if (self._use_donation_routing and 
+                hasattr(handler, 'execute_with_donation_routing') and 
+                hasattr(handler, 'has_donation') and 
+                handler.has_donation()):
+                # Phase 6: Use donation-driven method routing
+                logger.debug(f"Using donation-driven execution for {processed_intent.name}")
+                result = await handler.execute_with_donation_routing(processed_intent, context)
+            else:
+                # Fallback to standard execution
+                logger.debug(f"Using standard execution for {processed_intent.name}")
+                result = await handler.execute(processed_intent, context)
             
             # Update conversation context
             context.add_user_turn(processed_intent)
@@ -138,14 +179,18 @@ class IntentOrchestrator:
             "middleware_count": len(self.middleware),
             "error_handlers": list(self.error_handlers.keys()),
             "supported_domains": set(),
-            "supported_actions": set()
+            "supported_actions": set(),
+            "donation_routing_enabled": self._use_donation_routing,
+            "parameter_extractor_available": self.parameter_extractor is not None
         }
         
         for pattern, handler in handlers.items():
             handler_info = {
                 "class": handler.__class__.__name__,
                 "pattern": pattern,
-                "available": await handler.is_available() if hasattr(handler, 'is_available') else True
+                "available": await handler.is_available() if hasattr(handler, 'is_available') else True,
+                "has_donation": hasattr(handler, 'has_donation') and handler.has_donation(),
+                "supports_donation_routing": hasattr(handler, 'execute_with_donation_routing')
             }
             
             # Extract domain information if available

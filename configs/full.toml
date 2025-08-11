@@ -93,11 +93,85 @@ disabled = []
 default = "openwakeword"
 fallback_providers = []
 
-[providers.nlu]
-enabled = ["rule_based", "spacy"]
-disabled = []
-default = "rule_based"
-fallback_providers = []
+[components.nlu]
+# Cascading provider coordination (JSON donation system)
+enabled = true
+confidence_threshold = 0.7
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"]
+fallback_intent = "conversation.general"
+
+# JSON donation system integration
+donation_collection_enabled = true
+parameter_extraction_enabled = true
+context_processing_enabled = true
+
+# Performance tuning
+max_cascade_attempts = 3
+cascade_timeout_ms = 100
+cache_recognition_results = true
+cache_ttl_seconds = 300
+
+# NLU Provider Configurations
+[components.nlu.providers.keyword_matcher]
+enabled = true
+provider_class = "HybridKeywordMatcherProvider"
+
+# Pattern matching configuration
+pattern_confidence = 0.9
+exact_match_boost = 1.2
+flexible_match_boost = 0.9
+partial_match_boost = 0.8
+
+# Fuzzy matching configuration  
+fuzzy_enabled = true
+fuzzy_threshold = 0.8
+fuzzy_confidence_base = 0.7
+max_fuzzy_keywords_per_intent = 50
+max_text_length_for_fuzzy = 100
+
+# Performance optimization
+cache_fuzzy_results = true
+fuzzy_cache_size = 1000
+case_sensitive = false
+normalize_unicode = true
+
+# Recognition thresholds
+confidence_threshold = 0.8
+min_pattern_length = 2
+max_pattern_combinations = 100
+
+[components.nlu.providers.rule_based]
+enabled = true
+provider_class = "RuleBasedNLUProvider"
+confidence_threshold = 0.7
+default_confidence = 0.8
+fallback_intent = "conversation.general"
+
+[components.nlu.providers.spacy_rules_sm]
+enabled = true
+provider_class = "SpaCyNLUProvider"
+model_name = "ru_core_news_sm"
+model_approach = "morphological_rules"
+auto_download = true
+confidence_threshold = 0.7
+morphology_expansion = true
+dependency_parsing = false
+batch_processing = false
+max_doc_length = 1000
+enable_pipeline_caching = true
+
+[components.nlu.providers.spacy_semantic_md]
+enabled = true
+provider_class = "SpaCyNLUProvider"
+model_name = "ru_core_news_md"
+model_approach = "semantic_similarity"
+auto_download = true
+confidence_threshold = 0.7
+semantic_similarity_threshold = 0.8
+vector_similarity = true
+batch_processing = false
+max_doc_length = 1000
+enable_pipeline_caching = true
 
 [providers.text_processing]
 enabled = ["asr_text_processor", "general_text_processor", "tts_text_processor", "number_text_processor"]
@@ -181,7 +255,4 @@ model_path = "models/microwakeword/irene_model.tflite"
 threshold = 0.8
 sample_rate = 16000
 
-# SpaCy NLU Configuration
-[providers.nlu.spacy]
-model_name = "en_core_web_sm"
-confidence_threshold = 0.8 
+ 

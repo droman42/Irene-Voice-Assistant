@@ -2,7 +2,9 @@
 
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
+
+from rapidfuzz import fuzz, process
 
 
 @dataclass
@@ -46,17 +48,125 @@ class IntentResult:
 
 @dataclass
 class ConversationContext:
-    """Context for conversation management and history."""
+    """Comprehensive conversation context with client identification and metadata"""
     
+    # Core identification
     session_id: str
+    user_id: Optional[str] = None
+    client_id: Optional[str] = None  # Room/client identifier
+    
+    # Client metadata for context-aware processing
+    client_metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # Conversation state
+    conversation_history: List[Dict[str, Any]] = field(default_factory=list)
+    current_intent_context: Optional[str] = None
+    last_intent_timestamp: Optional[float] = None
+    
+    # Device and capability context
+    available_devices: List[Dict[str, Any]] = field(default_factory=list)
+    preferred_output_device: Optional[str] = None
+    client_capabilities: Dict[str, bool] = field(default_factory=dict)
+    
+    # User preferences
+    language: str = "ru"
+    timezone: Optional[str] = None
+    user_preferences: Dict[str, Any] = field(default_factory=dict)
+    
+    # System context
+    timestamp: float = field(default_factory=time.time)
+    request_source: str = "unknown"  # "microphone", "web", "api", etc.
+    
+    # Legacy compatibility fields
     history: List[Dict[str, Any]] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     last_updated: float = field(default_factory=time.time)
     max_history_turns: int = 10
     
+    def __post_init__(self):
+        """Initialize conversation history from legacy history field"""
+        if self.history and not self.conversation_history:
+            self.conversation_history = self.history.copy()
+        
+        # Sync metadata with client_metadata
+        if self.metadata and not self.client_metadata:
+            self.client_metadata.update(self.metadata)
+    
+    def get_room_name(self) -> Optional[str]:
+        """Get human-readable room name from client context"""
+        if self.client_id:
+            return self.client_metadata.get('room_name', self.client_id)
+        return None
+    
+    def get_device_capabilities(self) -> List[Dict[str, Any]]:
+        """Get list of devices available in this client context"""
+        return self.client_metadata.get('available_devices', self.available_devices)
+    
+    def set_client_context(self, client_id: str, metadata: Dict[str, Any]):
+        """Set client identification and metadata"""
+        self.client_id = client_id
+        self.client_metadata = metadata
+        # Update available devices from metadata
+        if 'available_devices' in metadata:
+            self.available_devices = metadata['available_devices']
+    
+    def get_device_by_name(self, device_name: str) -> Optional[Dict[str, Any]]:
+        """Find device by name using fuzzy matching"""
+        devices = self.get_device_capabilities()
+        
+        # Exact match first
+        for device in devices:
+            if device.get('name', '').lower() == device_name.lower():
+                return device
+        
+        # Fuzzy match fallback using rapidfuzz
+        device_names = [device.get('name', '') for device in devices]
+        best_match = process.extractOne(device_name, device_names, scorer=fuzz.ratio)
+        
+        if best_match and best_match[1] >= 70:  # 70% similarity threshold
+            for device in devices:
+                if device.get('name', '') == best_match[0]:
+                    return device
+        
+        return None
+    
+    def add_to_history(self, user_text: str, response: str, intent: Optional[str] = None):
+        """Add interaction to conversation history"""
+        self.conversation_history.append({
+            "timestamp": time.time(),
+            "user_text": user_text,
+            "response": response,
+            "intent": intent,
+            "client_id": self.client_id
+        })
+        
+        # Keep only last 10 interactions to prevent memory bloat
+        if len(self.conversation_history) > 10:
+            self.conversation_history = self.conversation_history[-10:]
+        
+        self.last_updated = time.time()
+    
+    def get_recent_intents(self, limit: int = 3) -> List[str]:
+        """Get recent intent names for context"""
+        recent = []
+        for interaction in reversed(self.conversation_history[-limit:]):
+            if interaction.get('intent'):
+                recent.append(interaction['intent'])
+        return recent
+    
+    def has_capability(self, capability: str) -> bool:
+        """Check if client has specific capability"""
+        return self.client_capabilities.get(capability, False)
+    
+    def get_device_types(self) -> Set[str]:
+        """Get set of device types available in this context"""
+        devices = self.get_device_capabilities()
+        return {device.get('type', 'unknown') for device in devices}
+    
+    # Legacy compatibility methods
     def add_user_turn(self, intent: Intent):
-        """Add a user turn to conversation history."""
+        """Add a user turn to conversation history (legacy compatibility)"""
         self.history.append({
             "type": "user",
             "intent": intent.name,
@@ -64,27 +174,36 @@ class ConversationContext:
             "entities": intent.entities,
             "timestamp": intent.timestamp
         })
+        
+        # Also add to new conversation_history format
+        self.add_to_history(intent.raw_text, "", intent.name)
+        
         self._trim_history()
         self.last_updated = time.time()
     
     def add_assistant_turn(self, result: IntentResult):
-        """Add an assistant turn to conversation history."""
+        """Add an assistant turn to conversation history (legacy compatibility)"""
         self.history.append({
             "type": "assistant", 
             "text": result.text,
             "metadata": result.metadata,
             "timestamp": result.timestamp
         })
+        
+        # Update last conversation entry with response
+        if self.conversation_history:
+            self.conversation_history[-1]["response"] = result.text
+        
         self._trim_history()
         self.last_updated = time.time()
     
     def _trim_history(self):
-        """Keep history within max_history_turns limit."""
+        """Keep history within max_history_turns limit"""
         if len(self.history) > self.max_history_turns * 2:  # User + assistant pairs
             self.history = self.history[-(self.max_history_turns * 2):]
     
     def get_recent_context(self, turns: int = 3) -> List[Dict[str, Any]]:
-        """Get recent conversation turns for context."""
+        """Get recent conversation turns for context (legacy compatibility)"""
         return self.history[-turns*2:] if self.history else []
 
 

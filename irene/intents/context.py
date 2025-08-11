@@ -9,8 +9,11 @@ and intelligent context management.
 import time
 import logging
 import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from .models import ConversationContext, Intent, IntentResult
+
+if TYPE_CHECKING:
+    from ..workflows.base import RequestContext
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +57,59 @@ class ContextManager:
             else:
                 return context
         
-        # Create new context
+        # Create new context with Russian default
         context = ConversationContext(
             session_id=session_id,
+            language="ru",  # Russian-first default
             max_history_turns=self.max_history_turns
         )
         self.sessions[session_id] = context
         logger.info(f"Created new conversation context for session: {session_id}")
+        return context
+    
+    async def get_context_with_request_info(self, session_id: str, request_context: 'RequestContext' = None) -> ConversationContext:
+        """
+        Retrieve or create conversation context with client information from request context.
+        
+        Args:
+            session_id: Unique session identifier
+            request_context: Request context with client identification information
+            
+        Returns:
+            ConversationContext for the session with client context applied
+        """
+        # Get or create base context
+        context = await self.get_context(session_id)
+        
+        # Apply client information from request context if provided
+        if request_context:
+            # Update language preference
+            if hasattr(request_context, 'language') and request_context.language:
+                context.language = request_context.language
+            
+            # Set client identification and context
+            if hasattr(request_context, 'client_id') and request_context.client_id:
+                client_metadata = {
+                    "room_name": getattr(request_context, 'room_name', None),
+                    "source": request_context.source,
+                    "last_request_time": time.time()
+                }
+                
+                # Add device context if available
+                if hasattr(request_context, 'device_context') and request_context.device_context:
+                    client_metadata["available_devices"] = request_context.device_context.get("available_devices", [])
+                    client_metadata["device_capabilities"] = request_context.device_context.get("device_capabilities", {})
+                
+                # Merge additional metadata
+                if request_context.metadata:
+                    client_metadata.update(request_context.metadata)
+                
+                # Set client context
+                context.set_client_context(request_context.client_id, client_metadata)
+                context.request_source = request_context.source
+                
+                logger.debug(f"Applied client context for session {session_id}: client_id={request_context.client_id}, room={request_context.room_name}")
+        
         return context
     
     async def update_context(self, session_id: str, metadata: Dict[str, Any]):

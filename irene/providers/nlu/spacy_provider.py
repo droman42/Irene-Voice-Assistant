@@ -33,12 +33,13 @@ class SpaCyNLUProvider(NLUProvider):
         self.confidence_threshold = config.get('confidence_threshold', 0.7)
         self.entity_types = config.get('entity_types', ['PERSON', 'ORG', 'GPE', 'DATE', 'TIME', 'MONEY', 'QUANTITY'])
         self.intent_patterns = {}
+        self.asset_manager = None
         
     def get_provider_name(self) -> str:
         return "spacy_nlu"
     
     async def is_available(self) -> bool:
-        """Check if spaCy is available and models can be loaded"""
+        """Check if spaCy is available, models can be loaded, and patterns are loaded from JSON donations"""
         try:
             spacy = safe_import('spacy')
             if spacy is None:
@@ -46,17 +47,26 @@ class SpaCyNLUProvider(NLUProvider):
                 return False
             
             if not self.nlp:
-                await self._initialize_spacy()
+                if self.asset_manager:
+                    await self._initialize_spacy_with_assets()
+                else:
+                    await self._initialize_spacy()
             
-            return self.nlp is not None
+            # Phase 4: Also check that intent patterns are loaded from JSON donations
+            return self.nlp is not None and len(self.intent_patterns) > 0
             
         except Exception as e:
             self._set_status(self.status.__class__.ERROR, f"spaCy NLU initialization failed: {e}")
             return False
     
     async def _do_initialize(self) -> None:
-        """Initialize spaCy NLU"""
-        await self._initialize_spacy()
+        """Initialize spaCy NLU with asset management"""
+        # Get asset manager
+        from ...core.assets import get_asset_manager
+        self.asset_manager = get_asset_manager()
+        
+        # Initialize spaCy with asset management
+        await self._initialize_spacy_with_assets()
     
     async def _initialize_spacy(self):
         """Initialize spaCy model and intent patterns"""
@@ -88,74 +98,133 @@ class SpaCyNLUProvider(NLUProvider):
             self.nlp = None
             raise
     
-    async def _initialize_intent_patterns(self):
-        """Initialize intent patterns with semantic examples"""
-        # These are semantic examples that spaCy can use for similarity matching
-        self.intent_patterns = {
-            "greeting.hello": [
-                "привет как дела",
-                "здравствуйте добро пожаловать",
-                "приветствую рада видеть",
-                "hello how are you",
-                "hi there good morning"
-            ],
+    async def _initialize_spacy_with_assets(self):
+        """Initialize spaCy model using asset management system"""
+        try:
+            spacy = safe_import('spacy')
+            if spacy is None:
+                raise ImportError("spaCy not available")
             
-            "greeting.goodbye": [
-                "пока до свидания",
-                "прощай всего доброго",
-                "до встречи удачи",
-                "goodbye see you later",
-                "bye take care"
-            ],
+            # Try to ensure model is available through asset manager
+            if self.asset_manager:
+                try:
+                    model_path = await self.asset_manager.ensure_model_available(
+                        provider_name="spacy",
+                        model_name=self.model_name,
+                        asset_config=self.get_asset_config()
+                    )
+                    
+                    if model_path:
+                        logger.info(f"Asset manager ensured spaCy model: {self.model_name} -> {model_path}")
+                        # For spaCy models, the asset manager handles installation
+                        # We don't need to install wheel files manually
+                    else:
+                        logger.warning(f"Asset manager could not ensure model: {self.model_name}")
+                        
+                except Exception as e:
+                    logger.warning(f"Asset manager failed to provide model {self.model_name}: {e}")
+                    # Fall back to standard loading
             
-            "timer.set": [
-                "поставь таймер на пять минут",
-                "установи будильник через час",
-                "засеки время десять секунд",
-                "set timer for five minutes",
-                "start alarm in one hour"
-            ],
+            # Try to load the specified model
+            try:
+                self.nlp = spacy.load(self.model_name)
+                logger.info(f"Loaded spaCy model: {self.model_name}")
+            except OSError:
+                logger.warning(f"Model {self.model_name} not found, trying fallback {self.fallback_model}")
+                try:
+                    # Try asset manager for fallback model
+                    if self.asset_manager:
+                        try:
+                            fallback_path = await self.asset_manager.ensure_model_available(
+                                provider_name="spacy",
+                                model_name=self.fallback_model,
+                                asset_config=self.get_asset_config()
+                            )
+                            
+                            if fallback_path:
+                                logger.info(f"Asset manager ensured fallback spaCy model: {self.fallback_model} -> {fallback_path}")
+                            else:
+                                logger.warning(f"Asset manager could not ensure fallback model: {self.fallback_model}")
+                        except Exception as e:
+                            logger.warning(f"Asset manager failed to provide fallback model {self.fallback_model}: {e}")
+                    
+                    self.nlp = spacy.load(self.fallback_model)
+                    logger.info(f"Loaded fallback spaCy model: {self.fallback_model}")
+                except OSError:
+                    logger.error("No spaCy models available")
+                    raise RuntimeError("No spaCy models found. Install with: python -m spacy download ru_core_news_sm")
             
-            "timer.cancel": [
-                "отмени таймер убери будильник",
-                "стоп остановить время",
-                "cancel timer remove alarm",
-                "stop the timer"
-            ],
+            # Initialize intent patterns for semantic matching
+            await self._initialize_intent_patterns()
             
-            "conversation.start": [
-                "давай поговорим поболтаем",
-                "хочу с тобой общаться",
-                "let's have a conversation",
-                "I want to chat with you"
-            ],
+            logger.info("spaCy NLU initialized successfully with asset management")
             
-            "conversation.reference": [
-                "что такое расскажи про",
-                "объясни мне про это",
-                "what is tell me about",
-                "explain this to me"
-            ],
-            
-            "system.status": [
-                "как дела что нового",
-                "какой статус состояние",
-                "how are you doing",
-                "what's your status"
-            ],
-            
-            "datetime.current_time": [
-                "сколько времени который час",
-                "скажи время сейчас",
-                "what time is it now",
-                "tell me the current time"
-            ]
-        }
+        except Exception as e:
+            logger.error(f"Failed to initialize spaCy NLU with assets: {e}")
+            self.nlp = None
+            raise
+    
+    async def _install_spacy_model(self, model_path: str):
+        """Install spaCy model from wheel file using pip"""
+        import subprocess
+        import sys
         
-        # Pre-process pattern documents for faster similarity matching
-        self.pattern_docs = {}
-        for intent, patterns in self.intent_patterns.items():
-            self.pattern_docs[intent] = [self.nlp(pattern) for pattern in patterns]
+        try:
+            logger.info(f"Installing spaCy model from: {model_path}")
+            cmd = [sys.executable, "-m", "pip", "install", model_path, "--no-deps", "--force-reinstall"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to install spaCy model: {result.stderr}")
+            
+            logger.info(f"Successfully installed spaCy model: {model_path}")
+            
+        except Exception as e:
+            logger.error(f"Error installing spaCy model {model_path}: {e}")
+            raise
+    
+    async def _initialize_from_donations(self, keyword_donations: List[Any]) -> None:
+        """
+        Initialize provider with JSON donation patterns (Phase 2 integration).
+        
+        This replaces hardcoded patterns with donation-driven patterns.
+        """
+        try:
+            logger.info(f"Initializing SpaCyNLU with {len(keyword_donations)} donations")
+            
+            # Clear existing hardcoded patterns
+            self.intent_patterns = {}
+            
+            # Convert keyword donations to semantic examples for spaCy
+            for donation in keyword_donations:
+                intent_name = donation.intent_name
+                
+                # Use donation phrases as semantic examples
+                semantic_examples = []
+                
+                # Add original phrases
+                semantic_examples.extend(donation.phrases)
+                
+                # Add training examples if available
+                if hasattr(donation, 'training_examples'):
+                    for example in donation.training_examples:
+                        if hasattr(example, 'text'):
+                            semantic_examples.append(example.text)
+                
+                # Store patterns for spaCy semantic matching
+                self.intent_patterns[intent_name] = semantic_examples
+                
+                logger.debug(f"Added {len(semantic_examples)} semantic examples for intent '{intent_name}'")
+            
+            logger.info(f"SpaCyNLU initialized with donation patterns for {len(self.intent_patterns)} intents")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize SpaCyNLU from donations: {e}")
+            # Phase 4: No fallback patterns - fail fast
+            raise RuntimeError(f"SpaCyNLUProvider: JSON donation initialization failed: {e}. "
+                             "Provider cannot operate without valid donations.")
+    
+
     
     async def recognize(self, text: str, context: ConversationContext) -> Intent:
         """
@@ -169,7 +238,10 @@ class SpaCyNLUProvider(NLUProvider):
             Intent with classification result
         """
         if not self.nlp:
-            await self._initialize_spacy()
+            if self.asset_manager:
+                await self._initialize_spacy_with_assets()
+            else:
+                await self._initialize_spacy()
         
         if not self.nlp:
             # Fallback to basic intent if spaCy unavailable
@@ -207,6 +279,29 @@ class SpaCyNLUProvider(NLUProvider):
             action=action,
             session_id=context.session_id
         )
+    
+    async def extract_entities(self, text: str, intent_name: str) -> Dict[str, Any]:
+        """Extract entities for a given intent using spaCy NLP"""
+        if not self.nlp:
+            return {}
+        
+        # Process text with spaCy
+        doc = self.nlp(text)
+        
+        # Extract entities using spaCy
+        entities = self._extract_spacy_entities(doc)
+        
+        # Parse domain and action from intent name
+        domain, action = self._parse_intent_name(intent_name)
+        
+        # Add domain-specific entity extraction
+        entities.update(self._extract_domain_entities(doc, domain))
+        
+        return entities
+    
+    def get_supported_intents(self) -> List[str]:
+        """Return list of intents this provider can recognize"""
+        return list(self.intent_patterns.keys())
     
     def _extract_spacy_entities(self, doc) -> Dict[str, Any]:
         """Extract named entities using spaCy"""
@@ -396,8 +491,8 @@ class SpaCyNLUProvider(NLUProvider):
     
     @classmethod
     def _get_default_extension(cls) -> str:
-        """spaCy NLU uses spaCy model files"""
-        return ""
+        """spaCy NLU uses wheel files for model distribution"""
+        return ".whl"
     
     @classmethod
     def _get_default_directory(cls) -> str:
@@ -416,10 +511,14 @@ class SpaCyNLUProvider(NLUProvider):
     
     @classmethod
     def _get_default_model_urls(cls) -> Dict[str, str]:
-        """spaCy NLU model URLs"""
+        """spaCy NLU model URLs - updated for asset management integration"""
         return {
-            "ru_core_news_sm": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.4.0/ru_core_news_sm-3.4.0.tar.gz",
-            "en_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.4.1/en_core_web_sm-3.4.1.tar.gz"
+            "ru_core_news_sm": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl",
+            "ru_core_news_md": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl",
+            "ru_core_news_lg": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_lg-3.7.0/ru_core_news_lg-3.7.0-py3-none-any.whl",
+            "en_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl",
+            "en_core_web_md": "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl",
+            "en_core_web_lg": "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.0/en_core_web_lg-3.7.0-py3-none-any.whl"
         }
     
     # Build dependency methods (TODO #5 Phase 1)
@@ -430,12 +529,12 @@ class SpaCyNLUProvider(NLUProvider):
         
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
-        """spaCy NLU has no system dependencies - pure Python"""
+        """spaCy NLU system dependencies for Cython/C++ compilation"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "ubuntu": ["build-essential", "python3-dev"],
+            "alpine": ["build-base", "python3-dev"],  # Alpine equivalent of build-essential
+            "centos": ["gcc", "gcc-c++", "python3-devel"],
+            "macos": []  # Xcode Command Line Tools provide build tools
         }
         
     @classmethod

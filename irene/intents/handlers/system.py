@@ -54,16 +54,22 @@ class SystemIntentHandler(IntentHandler):
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process system intents"""
-        # Handle system domain intents
-        if intent.domain == "system":
+        if not self.has_donation():
+            raise RuntimeError(f"SystemIntentHandler: Missing JSON donation file - system.json is required")
+        
+        # Use JSON donation patterns exclusively
+        donation = self.get_donation()
+        
+        # Check domain patterns
+        if hasattr(donation, 'domain_patterns') and intent.domain in donation.domain_patterns:
             return True
         
-        # Handle specific system intents
-        if intent.name in ["system.status", "system.help", "system.version", "system.info"]:
+        # Check intent name patterns
+        if hasattr(donation, 'intent_name_patterns') and intent.name in donation.intent_name_patterns:
             return True
         
-        # Handle system-related actions
-        if intent.action in ["status", "help", "version", "info", "statistics"]:
+        # Check action patterns
+        if hasattr(donation, 'action_patterns') and intent.action in donation.action_patterns:
             return True
         
         return False
@@ -161,9 +167,11 @@ You can speak to me in Russian or English. How can I help you today?"""
             else:
                 uptime_str = f"{uptime_minutes} minutes"
             
+            # TODO #15: Move hardcoded version to TOML configuration (not JSON donations)
+            version = "13.0.0"  # Should come from config
             status_text = f"""System Status: ✅ Running
 Uptime: {uptime_str}
-Version: Irene v13.0.0
+Version: Irene v{version}
 Mode: Intent-based processing
 Language: Bilingual (Russian/English)
 
@@ -284,22 +292,4 @@ Ask me for help to learn about my capabilities!"""
             "session_duration": time.time() - context.created_at
         }
     
-    def get_system_patterns(self) -> List[str]:
-        """Get patterns that indicate system intent"""
-        return [
-            # Help patterns
-            r"помощь|справка|что умеешь|как работать",
-            r"help|assistance|what can you do|how to use",
-            
-            # Status patterns
-            r"статус|состояние|как дела|работаешь",
-            r"status|state|how are you|running",
-            
-            # Version patterns
-            r"версия|какая версия|номер версии",
-            r"version|what version|build number",
-            
-            # Info patterns
-            r"информация|данные|о себе|кто ты",
-            r"information|info|about yourself|who are you",
-        ] 
+ 
