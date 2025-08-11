@@ -11,7 +11,7 @@ This document tracks architectural improvements and refactoring tasks for the Ir
 | 3 | [Entry-Points Based Build System: Minimal Container and Service Builds](TODO/TODO03.md) | ✅ **PARTIALLY COMPLETED** | Critical | Runtime build tool, Multi-platform Docker, Service installation |
 | 4 | [Configuration-Driven Asset Management: Eliminate Asset System Hardcoding](TODO/TODO04.md) | ✅ **COMPLETED** | High | Asset management system, Provider base classes, TOML configuration |
 | 5 | [Universal Entry-Points Metadata System: Eliminate Build Analyzer Hardcoding](TODO/TODO05.md) | ✅ **COMPLETED** | High | ALL entry-points across 14 namespaces (77 total entry-points) |
-| 6 | [AudioComponent Command Handling Architecture Issue](TODO/TODO06.md) | ❌ **Open** | High | `irene/components/audio_component.py` |
+| 6 | [Unified Command Flow Architecture Issue (System-Wide)](TODO/TODO06.md) | 🟨 **ANALYSIS COMPLETE** | High | Entire command processing architecture |
 | 7 | [Disconnected NLU and Intent Handler Systems](TODO/TODO07.md) | ✅ **COMPLETED** | High | Intent system, NLU providers |
 | 8 | [NLU Architecture Revision: Keyword-First with Intent Donation](TODO/TODO08.md) | ✅ **COMPLETED** | High | NLU providers, Intent system, Text processing |
 | 9 | [Named Client Support for Contextual Command Processing](TODO/TODO09.md) | ✅ **COMPLETED** | Medium | Workflow system, RequestContext, Voice trigger, Intent system - See [`CLIENT_REGISTRY.md`](CLIENT_REGISTRY.md) |
@@ -31,8 +31,8 @@ This document tracks architectural improvements and refactoring tasks for the Ir
 ## 📊 Progress Summary
 
 - **Completed**: 7 todos (46.7%)
-- **Partially Completed**: 3 todos (20.0%) 
-- **Open**: 5 todos (33.3%)
+- **Partially Completed**: 2 todos (13.3%) 
+- **Open**: 4 todos (26.7%)
 - **Total**: 15 todos
 
 ---
