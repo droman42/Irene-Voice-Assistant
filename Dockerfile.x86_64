@@ -19,7 +19,9 @@ WORKDIR /build-analyzer
 # Install minimal dependencies for build analysis
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-tomli \
-    && rm -rf /var/lib/apt/lists/*
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install jsonschema
 
 # Copy build analyzer tool and configuration profiles
 COPY irene/tools/ irene/tools/
@@ -28,6 +30,10 @@ COPY irene/utils/__init__.py irene/utils/__init__.py
 COPY irene/__init__.py irene/__init__.py
 COPY configs/ configs/
 COPY pyproject.toml pyproject.toml
+
+# Copy intent handlers and JSON configurations for validation
+COPY irene/intents/handlers/ irene/intents/handlers/
+COPY schemas/ schemas/
 
 # Build argument for configuration profile selection
 ARG CONFIG_PROFILE=minimal
@@ -40,6 +46,36 @@ RUN echo "🔍 Analyzing configuration profile: ${CONFIG_PROFILE}" && \
     --platform ubuntu \
     --json > /tmp/build-requirements.json && \
     echo "📋 Build requirements generated successfully"
+
+# Validate intent JSON configurations if intents are enabled
+RUN echo "🔍 Validating intent JSON configurations..." && \
+    python -c "
+import json
+import sys
+try:
+    with open('/tmp/build-requirements.json', 'r') as f:
+        data = json.load(f)
+    intent_files = data.get('intent_json_files', [])
+    if intent_files:
+        print(f'Found {len(intent_files)} intent JSON files to validate')
+        import subprocess
+        result = subprocess.run([
+            'python', '-m', 'irene.tools.intent_validator', 
+            '--validate-all', '--quiet'
+        ], capture_output=True, text=True)
+        if result.returncode != 0:
+            print('❌ Intent JSON validation failed:', file=sys.stderr)
+            print(result.stdout, file=sys.stderr)
+            print(result.stderr, file=sys.stderr)
+            sys.exit(1)
+        else:
+            print('✅ Intent JSON validation passed')
+    else:
+        print('📋 No intent handlers enabled, skipping JSON validation')
+except Exception as e:
+    print(f'⚠️ Intent validation check failed: {e}', file=sys.stderr)
+    # Continue build - validation issues will be caught later
+" && echo "📋 Intent validation completed"
 
 # Extract system dependencies for next stage
 RUN python -c "
@@ -160,6 +196,9 @@ ENV PATH="/root/.local/bin:$PATH"
 # Copy application code (selective copying based on enabled modules)
 COPY irene/ irene/
 COPY configs/ configs/
+
+# Copy schemas for intent JSON validation at runtime
+COPY schemas/ schemas/
 
 # Copy specific configuration profile for runtime
 COPY --from=analyzer configs/${CONFIG_PROFILE}.toml /app/runtime-config.toml

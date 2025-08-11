@@ -40,6 +40,9 @@ class BuildRequirements:
     # Entry-points namespaces and enabled providers
     enabled_providers: Dict[str, List[str]] = field(default_factory=dict)
     
+    # Intent JSON configuration files that must be included and validated
+    intent_json_files: Set[str] = field(default_factory=set)
+    
     # Configuration profile name
     profile_name: str = ""
     
@@ -129,6 +132,9 @@ class IreneBuildAnalyzer:
         # Analyze enabled plugins
         self._analyze_plugins(config, requirements)
         
+        # Analyze enabled intent handlers
+        self._analyze_intent_handlers(config, requirements)
+        
         # Generate dependency mappings using dynamic metadata queries
         self._generate_dependencies_from_metadata(requirements)
         
@@ -180,6 +186,9 @@ class IreneBuildAnalyzer:
         
         # Validate provider compatibility using metadata
         self._validate_provider_metadata(requirements, result)
+        
+        # Validate intent JSON configurations
+        self._validate_intent_json_files(requirements, result)
         
         # Set overall validation status
         result.is_valid = len(result.errors) == 0
@@ -588,6 +597,75 @@ class IreneBuildAnalyzer:
                 
                 logger.debug(f"Plugin-based providers found: {namespace} -> {enabled_providers}")
     
+    def _analyze_intent_handlers(self, config: Dict[str, Any], requirements: BuildRequirements):
+        """
+        Analyze enabled intent handlers from configuration.
+        
+        Handles patterns like:
+        [intents]
+        enabled = true
+        
+        [intents.handlers]
+        enabled = ["timer", "greetings", "conversation"]
+        disabled = ["train_schedule"]
+        """
+        intents_config = config.get("intents", {})
+        
+        # Check if intents are enabled at all
+        if not intents_config.get("enabled", False):
+            logger.debug("Intent system is disabled, skipping intent handler analysis")
+            return
+        
+        handlers_config = intents_config.get("handlers", {})
+        enabled_handlers = []
+        
+        # Method 1: Array-based enabled list (e.g., intents.handlers.enabled = ["timer", "greetings"])
+        enabled_list = handlers_config.get("enabled", [])
+        if enabled_list and isinstance(enabled_list, list):
+            enabled_handlers.extend(enabled_list)
+        
+        # Method 2: Object-based individual handler configs (e.g., intents.handlers.timer = true)
+        for key, value in handlers_config.items():
+            if key in ["enabled", "disabled", "auto_discover", "discovery_paths"]:
+                continue  # Skip meta-configuration keys
+            
+            # Direct boolean configuration (e.g., timer = true)
+            if isinstance(value, bool) and value:
+                enabled_handlers.append(key)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_enabled = []
+        for handler in enabled_handlers:
+            if handler not in seen:
+                seen.add(handler)
+                unique_enabled.append(handler)
+        
+        # Remove explicitly disabled handlers
+        disabled_handlers = handlers_config.get("disabled", [])
+        if disabled_handlers:
+            unique_enabled = [h for h in unique_enabled if h not in disabled_handlers]
+        
+        if unique_enabled:
+            namespace = "irene.intents.handlers"
+            requirements.enabled_providers[namespace] = unique_enabled
+            
+            # Add intent handler modules to requirements
+            for handler_name in unique_enabled:
+                module_path = f"irene.intents.handlers.{handler_name}"
+                requirements.python_modules.add(module_path)
+            
+            # Add JSON configuration files to requirements - these must be included and validated
+            for handler_name in unique_enabled:
+                json_config_path = f"irene/intents/handlers/{handler_name}.json"
+                # Store JSON files as a special requirement category
+                if not hasattr(requirements, 'intent_json_files'):
+                    requirements.intent_json_files = set()
+                requirements.intent_json_files.add(json_config_path)
+            
+            logger.debug(f"Intent handlers found: {namespace} -> {unique_enabled}")
+            logger.debug(f"Intent JSON configs required: {getattr(requirements, 'intent_json_files', set())}")
+    
     def _generate_dependencies_from_metadata(self, requirements: BuildRequirements):
         """
         Generate dependencies using dynamic metadata queries.
@@ -687,6 +765,44 @@ class IreneBuildAnalyzer:
                         
                 except Exception as e:
                     result.errors.append(f"Provider '{provider_name}' metadata validation failed: {e}")
+    
+    def _validate_intent_json_files(self, requirements: BuildRequirements, result: ValidationResult):
+        """Validate that all required intent JSON files exist and are valid."""
+        if not requirements.intent_json_files:
+            return  # No intent handlers enabled, nothing to validate
+        
+        # Import the intent validator - only when needed to avoid circular imports
+        try:
+            from irene.tools.intent_validator import IntentJSONValidator
+        except ImportError:
+            result.warnings.append("Could not import intent validator - JSON validation skipped")
+            return
+        
+        try:
+            validator = IntentJSONValidator(self.project_root)
+            
+            for json_file_path in requirements.intent_json_files:
+                file_path = self.project_root / json_file_path
+                
+                # Check if file exists
+                if not file_path.exists():
+                    result.errors.append(f"Required intent JSON file not found: {json_file_path}")
+                    continue
+                
+                # Validate the JSON file
+                validation_result = validator.validate_intent_file(file_path)
+                
+                if not validation_result.is_valid:
+                    result.errors.append(f"Intent JSON validation failed for {json_file_path}:")
+                    for error in validation_result.errors + validation_result.schema_errors:
+                        result.errors.append(f"  - {error}")
+                
+                # Add warnings as well
+                for warning in validation_result.warnings:
+                    result.warnings.append(f"Intent JSON warning for {json_file_path}: {warning}")
+                    
+        except Exception as e:
+            result.warnings.append(f"Intent JSON validation failed: {e}")
 
 
 def main():
@@ -841,6 +957,7 @@ Examples:
                 },
                 "python_dependencies": sorted(requirements.python_dependencies),
                 "enabled_providers": requirements.enabled_providers,
+                "intent_json_files": sorted(requirements.intent_json_files),
                 "validation": {
                     "valid": validation.is_valid,
                     "errors": validation.errors,
@@ -863,6 +980,10 @@ Examples:
         print(f"🐍 Python Dependencies: {len(requirements.python_dependencies)}")
         for dep in sorted(requirements.python_dependencies):
             print(f"  - {dep}")
+        
+        print(f"📄 Intent JSON Files: {len(requirements.intent_json_files)}")
+        for json_file in sorted(requirements.intent_json_files):
+            print(f"  - {json_file}")
         
         # Generate commands if requested
         if args.docker:

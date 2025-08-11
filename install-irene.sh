@@ -337,6 +337,24 @@ analyze_dependencies() {
         exit 1
     fi
     
+    # Validate intent JSON configurations if intents are enabled
+    local intent_files=$(echo "$analyzer_output" | jq -r '.intent_json_files[]?' 2>/dev/null | wc -l)
+    if [[ "$intent_files" -gt 0 ]]; then
+        log INFO "Found $intent_files intent JSON files, validating..."
+        if ! uv run python -m irene.tools.intent_validator --validate-all --quiet 2>/dev/null; then
+            log ERROR "Intent JSON validation failed"
+            log INFO "Please check your intent handler JSON configurations for errors"
+            if [[ "$FORCE_INSTALL" != "true" ]]; then
+                exit 1
+            fi
+            log WARN "Continuing due to --force flag"
+        else
+            log SUCCESS "Intent JSON validation passed"
+        fi
+    else
+        log INFO "No intent handlers enabled, skipping JSON validation"
+    fi
+    
     # Parse JSON output
     echo "$analyzer_output" > /tmp/irene-build-analysis.json
     
@@ -488,11 +506,13 @@ install_irene() {
     if [[ "$INSTALL_TYPE" == "system" ]]; then
         sudo cp -r irene/ "$INSTALL_DIR/"
         sudo cp -r configs/ "$INSTALL_DIR/"
+        sudo cp -r schemas/ "$INSTALL_DIR/"
         sudo cp pyproject.toml uv.lock "$INSTALL_DIR/"
         sudo chown -R root:root "$INSTALL_DIR"
     else
         cp -r irene/ "$INSTALL_DIR/"
         cp -r configs/ "$INSTALL_DIR/"
+        cp -r schemas/ "$INSTALL_DIR/"
         cp pyproject.toml uv.lock "$INSTALL_DIR/"
     fi
     
@@ -501,6 +521,10 @@ install_irene() {
     
     log INFO "Installing Python dependencies with UV..."
     cd "$INSTALL_DIR"
+    
+    # Always install jsonschema for intent validation
+    log INFO "Installing base requirements including jsonschema for intent validation..."
+    uv add jsonschema
     
     if [[ -n "$py_deps" ]]; then
         log INFO "Installing with extra dependencies: $py_deps"
