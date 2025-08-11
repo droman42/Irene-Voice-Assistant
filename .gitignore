@@ -111,4 +111,3 @@ model/ivector/*.mat
 
 config-ui/node_modules/
 config-ui/dist/
-config-ui/
