@@ -103,6 +103,11 @@ temp/
 tts_cache/
 *.wav
 *.log
+
+# Centralized logging - ignore all log files in logs folder but keep the directory
+logs/*.log
+logs/*.txt
+
 model/*.mdl
 model/graph/*.fst
 model/ivector/*.dubm

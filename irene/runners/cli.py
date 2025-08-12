@@ -11,10 +11,11 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from ..config.models import CoreConfig, ComponentConfig
+from ..config.models import CoreConfig, ComponentConfig, LogLevel
 from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
 from ..utils.loader import get_component_status, suggest_installation
+from ..utils.logging import setup_logging
 
 
 def setup_argument_parser() -> argparse.ArgumentParser:
@@ -248,11 +249,12 @@ async def main():
     parser = setup_argument_parser()
     args = parser.parse_args()
     
-    # Setup logging based on args
-    log_level = getattr(logging, args.log_level)
-    logging.basicConfig(
+    # Setup centralized logging to logs/irene.log
+    log_level = LogLevel(args.log_level)
+    setup_logging(
         level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        log_file=Path("logs/irene.log"),
+        enable_console=True
     )
     logger = logging.getLogger(__name__)
     
@@ -442,11 +444,12 @@ class CLIRunner:
         parser = setup_argument_parser()
         parsed_args = parser.parse_args(args)
         
-        # Set up logging
-        log_level = getattr(logging, parsed_args.log_level)
-        logging.basicConfig(
+        # Set up centralized logging to logs/irene.log
+        log_level = LogLevel(parsed_args.log_level)
+        setup_logging(
             level=log_level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            log_file=Path("logs/irene.log"),
+            enable_console=True
         )
         logger = logging.getLogger(__name__)
         

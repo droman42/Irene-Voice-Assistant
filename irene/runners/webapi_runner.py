@@ -14,10 +14,11 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import json
 
-from ..config.models import CoreConfig, ComponentConfig
+from ..config.models import CoreConfig, ComponentConfig, LogLevel
 from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
 from ..utils.loader import get_component_status
+from ..utils.logging import setup_logging
 
 
 logger = logging.getLogger(__name__)
@@ -158,11 +159,12 @@ class WebAPIRunner:
         parser = setup_webapi_argument_parser()
         parsed_args = parser.parse_args(args)
         
-        # Set up logging
-        log_level = getattr(logging, parsed_args.log_level)
-        logging.basicConfig(
+        # Set up centralized logging to logs/irene.log
+        log_level = LogLevel(parsed_args.log_level)
+        setup_logging(
             level=log_level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            log_file=Path("logs/irene.log"),
+            enable_console=True
         )
         
         try:
