@@ -77,7 +77,7 @@ def convert_to_c_header(model_path: str, node_name: Optional[str] = None, output
 #define {var_name.upper()}_SIZE {model_size}
 #define {var_name.upper()}_HASH "{model_hash}"
 
-// Model data array (place in PSRAM)
+// Model data array (stored in flash/RODATA)
 static const uint8_t {var_name}_data[] __attribute__((aligned(4))) = {{
 '''
     
@@ -175,11 +175,10 @@ void wakeword_init(void) {{
     );
     
     // Create resolver for INT8 operations
-    static tflite::MicroMutableOpResolver<15> resolver;
+    static tflite::MicroMutableOpResolver<9> resolver;
     resolver.AddConv2D();
     resolver.AddFullyConnected();
     resolver.AddReshape();
-    resolver.AddSoftmax();
     resolver.AddQuantize();
     resolver.AddDequantize();
     resolver.AddAdd();
@@ -209,12 +208,18 @@ bool wakeword_detect(const int16_t* audio_data, size_t samples) {{
     // Get input tensor (expects INT8 MFCC features)
     TfLiteTensor* input = interpreter->input(0);
     
-    // Preprocess audio to MFCC features and quantize to INT8
-    // Expected input shape: [1, time_steps, n_mfcc] e.g., [1, 49, 13]
-    float mfcc_features[49 * 13];  // Adjust size based on model
-    
+        // Preprocess audio to MFCC features and quantize to INT8
+    // Read input dims instead of hardcoding; supports [1,49,40] or [1,49,40,1]
+    TfLiteIntArray* dims = input->dims;
+    int rank = dims->size;  // 3 or 4
+    int time_steps = (rank >= 3) ? dims->data[1] : 49;
+    int n_mfcc     = (rank >= 3) ? dims->data[2] : 40;
+    int channels   = (rank == 4) ? dims->data[3] : 1;
+    // Expected default: [1,49,40,1]
+    std::vector<float> mfcc_features(time_steps * n_mfcc * channels);
+
     // Convert audio to MFCC features (implement MFCC frontend)
-    // mfcc_frontend_process(audio_data, samples, mfcc_features);
+    // mfcc_frontend_process(audio_data, samples, mfcc_features.data());
     
     // Quantize MFCC features to INT8 using input tensor parameters
     for (int i = 0; i < input->bytes; i++) {{

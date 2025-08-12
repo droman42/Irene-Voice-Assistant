@@ -391,10 +391,11 @@ bool WakeWordDetector::setup_tf_lite_model() {
     ESP_LOGI(TAG, "Allocated tensor arena: %d KB in PSRAM (optimized for INT8)", kTensorArenaSize / 1024);
     
     // Create and configure operation resolver (optimized for INT8)
-    resolver_ = new tflite::MicroMutableOpResolver<9>();
+    resolver_ = new tflite::MicroMutableOpResolver<10>();
     resolver_->AddConv2D();
     resolver_->AddMaxPool2D();
     resolver_->AddReshape();
+    resolver_->AddMean();
     resolver_->AddFullyConnected();
     // Removed AddSoftmax() - typically unused for binary classification
     resolver_->AddDepthwiseConv2D();

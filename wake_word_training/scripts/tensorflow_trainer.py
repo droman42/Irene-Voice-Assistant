@@ -270,12 +270,16 @@ class TensorFlowWakeWordTrainer:
         # Get predictions on validation set
         predictions = []
         for sample in X_val:
-            # Convert input to INT8 if needed
-            input_data = np.expand_dims(sample.astype(np.float32), axis=0)
-            interpreter.set_tensor(input_details[0]['index'], input_data)
+            # Quantize input to INT8 using input tensor scale/zero-point
+            in_scale, in_zp = input_details[0]['quantization']
+            out_scale, out_zp = output_details[0]['quantization']
+            x = np.expand_dims(sample.astype(np.float32), axis=0)
+            x_q = np.clip(np.round(x / in_scale + in_zp), -128, 127).astype(np.int8)
+            interpreter.set_tensor(input_details[0]['index'], x_q)
             interpreter.invoke()
-            output = interpreter.get_tensor(output_details[0]['index'])
-            predictions.append(output[0][0])
+            y_q = interpreter.get_tensor(output_details[0]['index']).astype(np.int32)
+            y = (y_q - out_zp) * out_scale  # dequantize to float probability
+            predictions.append(float(y[0][0]))
         
         predictions = np.array(predictions)
         
@@ -412,6 +416,12 @@ class TensorFlowWakeWordTrainer:
             
             # Compute optimal decision threshold using validation set
             decision_threshold = self.compute_decision_threshold(tflite_model, X_val, y_val)
+
+            # Extract quantization params for firmware (input/output scale, zero_point)
+            _interp = tf.lite.Interpreter(model_content=tflite_model); _interp.allocate_tensors()
+            _in = _interp.get_input_details()[0]['quantization']; _out = _interp.get_output_details()[0]['quantization']
+            input_scale, input_zp = _in[0], _in[1]
+            output_scale, output_zp = _out[0], _out[1]
             
             # Save ESP32-compatible training config
             config = {
@@ -446,6 +456,11 @@ class TensorFlowWakeWordTrainer:
                 'threshold_optimization': 'max_f1_score',
                 'input_dtype': 'int8',
                 'output_dtype': 'int8',
+                # Quantization parameters for firmware parity
+                'input_scale': float(input_scale),
+                'input_zero_point': int(input_zp),
+                'output_scale': float(output_scale),
+                'output_zero_point': int(output_zp),
                 
                 # Architecture details
                 'architecture': 'tensorflow_medium_12bn',
