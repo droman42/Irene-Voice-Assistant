@@ -220,7 +220,7 @@ ENV MALLOC_TRIM_THRESHOLD_=100000
 ENV MALLOC_TOP_PAD_=65536
 
 # Default command (optimized for embedded)
-CMD ["python", "-O", "-m", "irene.runners.cli", "--config", "/app/runtime-config.toml"]
+CMD ["python", "-O", "-m", "irene.runners.webapi_runner", "--config", "/app/runtime-config.toml", "--host", "0.0.0.0", "--port", "6000"]
 
-# Expose only necessary ports for embedded deployment
-EXPOSE 8000 
+# Expose web API port for embedded deployment
+EXPOSE 6000 

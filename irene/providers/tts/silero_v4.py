@@ -115,32 +115,7 @@ class SileroV4TTSProvider(TTSProvider):
             "v4_fr": "https://models.silero.ai/models/tts/fr/v4_fr.pt"
         }
     
-    async def speak(self, text: str, **kwargs) -> None:
-        """Convert text to speech and play it"""
-        # Create temporary file for audio
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-            temp_path = Path(temp_file.name)
-            
-        try:
-            await self.to_file(text, temp_path, **kwargs)
-            
-            # Play using audio plugins if available
-            core = kwargs.get('core')
-            if core and hasattr(core, 'output_manager'):
-                audio_plugins = getattr(core.output_manager, '_audio_plugins', [])
-                if audio_plugins:
-                    for plugin in audio_plugins:
-                        if plugin.is_available():
-                            await plugin.play_file(temp_path)
-                            break
-                    else:
-                        logger.warning("No audio plugins available for playback")
-                        
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
-    
-    async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
+    async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """Convert text to speech and save to audio file"""
         if not self._available:
             raise RuntimeError("Silero v4 TTS provider not available")

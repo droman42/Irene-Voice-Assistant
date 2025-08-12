@@ -158,7 +158,7 @@ disabled = ["conversation", "greetings", "timer", "datetime", "system", "train_s
 # ============================================================
 [plugins]
 enabled = []
-disabled = ["random_plugin", "async_service_demo"]
+disabled = []  # Builtin plugins converted to intent handlers in Phase 3
 
 # ============================================================
 # WEB API - Disabled to Save Resources

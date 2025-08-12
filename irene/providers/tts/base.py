@@ -33,25 +33,17 @@ class TTSProvider(ProviderBase):
         super().__init__(config)
     
     @abstractmethod
-    async def speak(self, text: str, **kwargs) -> None:
+    async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """
-        Convert text to speech and play it.
+        Generate audio file from text - ONLY method required.
         
-        Args:
-            text: Text to convert to speech
-            **kwargs: Provider-specific parameters (speaker, speed, etc.)
-        """
-        pass
-    
-    @abstractmethod
-    async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
-        """
-        Convert text to speech and save to audio file.
+        This is the universal interface for TTS providers after TTS-Audio separation.
+        All audio playback coordination is handled at the workflow level.
         
         Args:
             text: Text to convert to speech
             output_path: Path where to save the audio file
-            **kwargs: Provider-specific parameters
+            **kwargs: Provider-specific parameters (speaker, speed, etc.)
         """
         pass
     

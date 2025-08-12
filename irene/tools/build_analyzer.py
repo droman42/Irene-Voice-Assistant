@@ -657,7 +657,7 @@ class IreneBuildAnalyzer:
             
             # Add JSON configuration files to requirements - these must be included and validated
             for handler_name in unique_enabled:
-                json_config_path = f"irene/intents/handlers/{handler_name}.json"
+                json_config_path = f"irene/intents/handlers/donations/{handler_name}.json"
                 # Store JSON files as a special requirement category
                 if not hasattr(requirements, 'intent_json_files'):
                     requirements.intent_json_files = set()

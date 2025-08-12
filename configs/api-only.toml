@@ -126,8 +126,8 @@ disabled = ["train_schedule"]  # Remove specialized handlers
 # PLUGIN SYSTEM - Service Plugins
 # ============================================================
 [plugins]
-enabled = ["async_service_demo"]
-disabled = ["random_plugin"]  # Keep only service-oriented plugins
+enabled = []  # Builtin plugins converted to intent handlers in Phase 3
+disabled = []  # No builtin plugins remain
 
 # ============================================================
 # WEB API - Production Web Interface

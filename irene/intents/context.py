@@ -454,4 +454,210 @@ class ContextManager:
     
     def get_all_session_ids(self) -> List[str]:
         """Get list of all active session IDs."""
-        return list(self.sessions.keys()) 
+        return list(self.sessions.keys())
+    
+    # Action ambiguity resolution methods for Phase 5
+    def resolve_stop_command_ambiguity(
+        self, 
+        session_id: str, 
+        target_domains: List[str] = None,
+        domain_priorities: Dict[str, int] = None
+    ) -> Dict[str, Any]:
+        """
+        Resolve ambiguity in stop commands using domain priorities and recent actions.
+        
+        Phase 5 architecture: Implements Q6 decision for action ambiguity resolution
+        using domain priority configuration and most recent fallback.
+        
+        Args:
+            session_id: Session identifier
+            target_domains: Specific domains mentioned in stop command (if any)
+            domain_priorities: Domain priority configuration (e.g., music=100, smart_home=80)
+            
+        Returns:
+            Dictionary with resolution information
+        """
+        if session_id not in self.sessions:
+            return {"resolution": "no_session", "actions": []}
+        
+        context = self.sessions[session_id]
+        active_actions = getattr(context, 'active_actions', {})
+        
+        if not active_actions:
+            return {"resolution": "no_active_actions", "actions": []}
+        
+        # If specific domains mentioned in stop command, filter to those
+        if target_domains:
+            filtered_actions = {}
+            for action_name, action_info in active_actions.items():
+                action_domain = action_info.get('domain', 'unknown')
+                if action_domain in target_domains:
+                    filtered_actions[action_name] = action_info
+            
+            if filtered_actions:
+                return {
+                    "resolution": "domain_specific",
+                    "actions": list(filtered_actions.keys()),
+                    "target_domains": target_domains,
+                    "action_details": filtered_actions
+                }
+            else:
+                return {
+                    "resolution": "no_matching_domain",
+                    "target_domains": target_domains,
+                    "actions": []
+                }
+        
+        # Use domain priorities for ambiguity resolution
+        if domain_priorities and len(active_actions) > 1:
+            # Group actions by domain and find highest priority
+            domain_actions = {}
+            for action_name, action_info in active_actions.items():
+                domain = action_info.get('domain', 'unknown')
+                if domain not in domain_actions:
+                    domain_actions[domain] = []
+                domain_actions[domain].append((action_name, action_info))
+            
+            # Find highest priority domain with active actions
+            highest_priority = -1
+            priority_domain = None
+            for domain in domain_actions:
+                priority = domain_priorities.get(domain, 0)
+                if priority > highest_priority:
+                    highest_priority = priority
+                    priority_domain = domain
+            
+            if priority_domain:
+                priority_actions = domain_actions[priority_domain]
+                return {
+                    "resolution": "priority_domain",
+                    "priority_domain": priority_domain,
+                    "priority_score": highest_priority,
+                    "actions": [action[0] for action in priority_actions],
+                    "action_details": {action[0]: action[1] for action in priority_actions}
+                }
+        
+        # Fallback: most recent action (by started_at timestamp)
+        most_recent = None
+        most_recent_time = 0
+        
+        for action_name, action_info in active_actions.items():
+            started_at = action_info.get('started_at', 0)
+            if started_at > most_recent_time:
+                most_recent_time = started_at
+                most_recent = (action_name, action_info)
+        
+        if most_recent:
+            return {
+                "resolution": "most_recent",
+                "actions": [most_recent[0]],
+                "action_details": {most_recent[0]: most_recent[1]},
+                "started_at": most_recent_time
+            }
+        
+        # Should not reach here, but safety fallback
+        return {"resolution": "fallback_all", "actions": list(active_actions.keys())}
+    
+    def get_active_actions_summary(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get summary of active actions for a session.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Summary of active actions grouped by domain
+        """
+        if session_id not in self.sessions:
+            return {"total_actions": 0, "domains": {}}
+        
+        context = self.sessions[session_id]
+        active_actions = getattr(context, 'active_actions', {})
+        
+        if not active_actions:
+            return {"total_actions": 0, "domains": {}}
+        
+        # Group by domain
+        domains = {}
+        for action_name, action_info in active_actions.items():
+            domain = action_info.get('domain', 'unknown')
+            if domain not in domains:
+                domains[domain] = {
+                    "actions": [],
+                    "count": 0,
+                    "latest_start": 0
+                }
+            
+            domains[domain]["actions"].append({
+                "name": action_name,
+                "started_at": action_info.get('started_at', 0),
+                "handler": action_info.get('handler', 'unknown')
+            })
+            domains[domain]["count"] += 1
+            
+            # Track latest start time for domain
+            start_time = action_info.get('started_at', 0)
+            if start_time > domains[domain]["latest_start"]:
+                domains[domain]["latest_start"] = start_time
+        
+        return {
+            "total_actions": len(active_actions),
+            "domains": domains,
+            "domain_count": len(domains)
+        }
+    
+    def should_ask_for_clarification(
+        self, 
+        session_id: str, 
+        domain_priorities: Dict[str, int] = None,
+        clarification_threshold: int = 2
+    ) -> Dict[str, Any]:
+        """
+        Determine if system should ask for clarification on stop commands.
+        
+        Args:
+            session_id: Session identifier
+            domain_priorities: Domain priority configuration
+            clarification_threshold: Minimum number of actions to trigger clarification
+            
+        Returns:
+            Information about whether clarification is needed
+        """
+        if session_id not in self.sessions:
+            return {"needs_clarification": False, "reason": "no_session"}
+        
+        context = self.sessions[session_id]
+        active_actions = getattr(context, 'active_actions', {})
+        
+        if len(active_actions) < clarification_threshold:
+            return {"needs_clarification": False, "reason": "below_threshold"}
+        
+        # Check if there are multiple domains with similar priority
+        if domain_priorities:
+            domain_actions = {}
+            for action_name, action_info in active_actions.items():
+                domain = action_info.get('domain', 'unknown')
+                if domain not in domain_actions:
+                    domain_actions[domain] = []
+                domain_actions[domain].append(action_name)
+            
+            # Get priorities for active domains
+            domain_priorities_active = {}
+            for domain in domain_actions:
+                domain_priorities_active[domain] = domain_priorities.get(domain, 0)
+            
+            # Check if multiple domains have similar high priority (within 20 points)
+            sorted_domains = sorted(domain_priorities_active.items(), key=lambda x: x[1], reverse=True)
+            if len(sorted_domains) >= 2:
+                highest_priority = sorted_domains[0][1]
+                second_priority = sorted_domains[1][1]
+                
+                if highest_priority - second_priority <= 20:
+                    return {
+                        "needs_clarification": True,
+                        "reason": "similar_priorities",
+                        "conflicting_domains": [sorted_domains[0][0], sorted_domains[1][0]],
+                        "domain_actions": domain_actions
+                    }
+        
+        return {"needs_clarification": False, "reason": "clear_priority"} 

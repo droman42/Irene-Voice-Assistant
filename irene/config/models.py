@@ -17,31 +17,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
-def _get_default_builtin_plugins() -> dict[str, bool]:
-    """Get default builtin plugin configuration using dynamic discovery"""
-    try:
-        # Use dynamic loader for entry-points discovery
-        from ..utils.loader import dynamic_loader
-        builtin_plugins = dynamic_loader.discover_providers("irene.plugins.builtin", [])
-        
-        defaults = {}
-        for plugin_name, plugin_class in builtin_plugins.items():
-            try:
-                # Extract metadata the same way PluginRegistry does
-                temp_instance = plugin_class()
-                defaults[plugin_name] = getattr(temp_instance, 'enabled_by_default', False)
-            except Exception:
-                # Safe fallback if plugin can't be instantiated
-                defaults[plugin_name] = False
-                
-        return defaults
-        
-    except Exception:
-        # Fallback to minimal safe defaults based on current entry-points
-        return {
-            "random_plugin": True,
-            "async_service_demo": False,  # Demo plugin disabled by default
-        }
+# NOTE: Builtin plugins removed in Phase 3 - all functionality moved to intent handlers
 
 
 class LogLevel(str, Enum):
@@ -341,10 +317,7 @@ class PluginConfig(BaseModel):
         default_factory=list,
         description="List of explicitly disabled plugins"
     )
-    builtin_plugins: dict[str, bool] = Field(
-        default_factory=_get_default_builtin_plugins,
-        description="Built-in plugin enable/disable configuration"
-    )
+    # NOTE: builtin_plugins removed - functionality moved to intent handlers
     plugin_settings: dict[str, dict[str, Any]] = Field(
         default_factory=dict,
         description="Plugin-specific settings"
@@ -401,6 +374,84 @@ class SecurityConfig(BaseModel):
         default_factory=lambda: ["*"],
         description="CORS allowed origins"
     )
+
+
+class StorageConfig(BaseModel):
+    """Storage configuration for temporary files and coordination"""
+    
+    # Temporary audio directory for TTS-Audio coordination
+    temp_audio_dir: Path = Field(
+        default_factory=lambda: Path(os.getenv("IRENE_TEMP_AUDIO_DIR", "~/.cache/irene/temp/audio")).expanduser(),
+        description="Directory for temporary TTS audio files"
+    )
+    
+    # Auto-create directories on initialization
+    auto_create_dirs: bool = Field(default=True, description="Automatically create storage directories")
+    
+    def model_post_init(self, __context):
+        """Create directories and validate permissions after initialization if auto_create_dirs is True"""
+        if self.auto_create_dirs:
+            self._create_directories()
+            self._validate_permissions()
+    
+    def _create_directories(self) -> None:
+        """Create all necessary storage directories with proper logging"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        directories = [self.temp_audio_dir]
+        
+        for directory in directories:
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+                logger.debug(f"Created storage directory: {directory}")
+            except PermissionError as e:
+                logger.error(f"Permission denied creating directory {directory}: {e}")
+                raise
+            except OSError as e:
+                logger.error(f"Failed to create directory {directory}: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"Unexpected error creating directory {directory}: {e}")
+                raise
+    
+    def _validate_permissions(self) -> None:
+        """Validate that storage directories have proper read/write permissions"""
+        import logging
+        import tempfile
+        import uuid
+        logger = logging.getLogger(__name__)
+        
+        directories = [self.temp_audio_dir]
+        
+        for directory in directories:
+            try:
+                # Test write permissions by creating a temporary file
+                test_filename = f"irene_test_{uuid.uuid4().hex}.tmp"
+                test_file = directory / test_filename
+                
+                # Write test
+                test_file.write_text("test")
+                
+                # Read test
+                content = test_file.read_text()
+                if content != "test":
+                    raise PermissionError(f"Read test failed for directory {directory}")
+                
+                # Cleanup test file
+                test_file.unlink()
+                
+                logger.debug(f"Validated permissions for directory: {directory}")
+                
+            except PermissionError as e:
+                logger.error(f"Permission validation failed for directory {directory}: {e}")
+                raise
+            except OSError as e:
+                logger.error(f"File system validation failed for directory {directory}: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"Unexpected error validating directory {directory}: {e}")
+                raise
 
 
 class AssetConfig(BaseModel):
@@ -625,6 +676,9 @@ class CoreConfig(BaseSettings):
     # Asset management configuration
     assets: AssetConfig = Field(default_factory=AssetConfig)
     
+    # Storage configuration
+    storage: StorageConfig = Field(default_factory=StorageConfig)
+    
     # Intent system configuration
     intents: IntentSystemConfig = Field(default_factory=IntentSystemConfig)
     
@@ -665,13 +719,19 @@ class CoreConfig(BaseSettings):
         plugins = self.plugins
         
         if components and plugins:
-            # Auto-enable audio plugins if audio_output is enabled
-            if components.audio_output:
-                plugins.builtin_plugins["ConsoleAudioPlugin"] = True
-                
-            # Auto-enable TTS plugins if tts is enabled
-            if components.tts:
-                plugins.builtin_plugins["ConsoleTTSPlugin"] = True
+            # NOTE: Auto-plugin enabling removed - builtin plugins eliminated in Phase 3
+            # Audio and TTS functionality now handled by components and intent handlers
+            pass
+        
+        # TTS-Audio dependency validation (Phase 1 implementation)
+        tts_enabled = components and components.tts
+        audio_enabled = components and components.audio_output
+        
+        if tts_enabled and not audio_enabled:
+            raise ValueError(
+                "TTS component requires Audio component. "
+                "Either disable TTS or enable Audio component."
+            )
                 
         return self
 

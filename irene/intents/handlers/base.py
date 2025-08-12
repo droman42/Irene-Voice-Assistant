@@ -1,8 +1,10 @@
 """Base intent handler class."""
 
+import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable, Coroutine
 
 from ..models import Intent, IntentResult, ConversationContext
 from ...core.metadata import EntryPointMetadata
@@ -307,6 +309,164 @@ class IntentHandler(EntryPointMetadata, ABC):
             Processed result (may be modified)
         """
         return result
+    
+    # Action execution helper methods for Phase 5
+    async def execute_fire_and_forget_action(
+        self, 
+        action_func: Callable[..., Coroutine[Any, Any, Any]], 
+        action_name: str,
+        domain: str,
+        *args, 
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Execute an action using fire-and-forget pattern with context tracking.
+        
+        Args:
+            action_func: Async function to execute
+            action_name: Human-readable action name
+            domain: Action domain for ambiguity resolution
+            *args: Arguments to pass to action function
+            **kwargs: Keyword arguments to pass to action function
+            
+        Returns:
+            Action metadata for context tracking
+        """
+        try:
+            # Create background task for fire-and-forget execution
+            task = asyncio.create_task(action_func(*args, **kwargs))
+            
+            # Generate action metadata for context tracking
+            action_metadata = {
+                "active_actions": {
+                    action_name: {
+                        "handler": self.__class__.__name__,
+                        "action": action_name,
+                        "domain": domain,
+                        "started_at": time.time(),
+                        "task_id": id(task),
+                        "status": "running"
+                    }
+                }
+            }
+            
+            # Set up completion callback for context updates
+            task.add_done_callback(
+                lambda t: self._handle_action_completion(action_name, domain, t)
+            )
+            
+            self.logger.info(f"Started fire-and-forget action: {action_name} (domain: {domain})")
+            return action_metadata
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start action {action_name}: {e}")
+            return {
+                "recent_actions": [{
+                    "handler": self.__class__.__name__,
+                    "action": action_name,
+                    "domain": domain,
+                    "started_at": time.time(),
+                    "completed_at": time.time(),
+                    "status": "failed",
+                    "error": str(e)
+                }]
+            }
+    
+    def _handle_action_completion(self, action_name: str, domain: str, task: asyncio.Task) -> None:
+        """
+        Handle action completion for context updates.
+        
+        Args:
+            action_name: Name of the completed action
+            domain: Action domain
+            task: Completed asyncio task
+        """
+        try:
+            if task.exception():
+                self.logger.error(f"Action {action_name} failed: {task.exception()}")
+                status = "failed"
+                error = str(task.exception())
+            else:
+                self.logger.info(f"Action {action_name} completed successfully")
+                status = "completed"
+                error = None
+                
+            # TODO: Update conversation context with completion status
+            # This would require context manager access or callback mechanism
+            
+        except Exception as e:
+            self.logger.error(f"Error handling action completion for {action_name}: {e}")
+    
+    def create_action_result(
+        self, 
+        response_text: str, 
+        action_name: str,
+        domain: str,
+        should_speak: bool = True,
+        action_metadata: Optional[Dict[str, Any]] = None
+    ) -> IntentResult:
+        """
+        Create an IntentResult with action metadata for fire-and-forget actions.
+        
+        Args:
+            response_text: Immediate response text
+            action_name: Human-readable action name
+            domain: Action domain for ambiguity resolution
+            should_speak: Whether response should be spoken
+            action_metadata: Pre-generated action metadata (from execute_fire_and_forget_action)
+            
+        Returns:
+            IntentResult with action tracking metadata
+        """
+        return IntentResult(
+            text=response_text,
+            should_speak=should_speak,
+            metadata={},
+            action_metadata=action_metadata or {},
+            success=True,
+            confidence=1.0
+        )
+    
+    def parse_stop_command(self, intent: Intent) -> Optional[Dict[str, Any]]:
+        """
+        Parse stop command to extract target action/domain information.
+        
+        Args:
+            intent: Stop command intent
+            
+        Returns:
+            Dictionary with target information or None if not a stop command
+        """
+        text = intent.text.lower()
+        
+        # Basic stop command patterns
+        stop_patterns = [
+            "стоп", "останови", "прекрати", "выключи",
+            "stop", "halt", "cancel", "turn off"
+        ]
+        
+        if not any(pattern in text for pattern in stop_patterns):
+            return None
+        
+        # Extract target domain/action hints
+        domain_hints = {
+            "music": ["музыка", "музыку", "песню", "трек", "music", "song", "track"],
+            "lights": ["свет", "лампы", "освещение", "lights", "lamp", "lighting"],
+            "smart_home": ["устройство", "девайс", "device", "smart"],
+            "media": ["видео", "фильм", "медиа", "video", "movie", "media"],
+            "timer": ["таймер", "будильник", "timer", "alarm"]
+        }
+        
+        target_domains = []
+        for domain, keywords in domain_hints.items():
+            if any(keyword in text for keyword in keywords):
+                target_domains.append(domain)
+        
+        return {
+            "is_stop_command": True,
+            "target_domains": target_domains,
+            "original_text": intent.text
+        }
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

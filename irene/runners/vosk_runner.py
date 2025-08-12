@@ -329,7 +329,15 @@ class VoskRunner:
                             try:
                                 # Process command with assistant
                                 if self.core:
-                                    await self.core.process_command(text)
+                                    # Use unified workflow interface
+                                    result = await self.core.workflow_manager.process_text_input(
+                                        text=text,
+                                        session_id="vosk_session",
+                                        wants_audio=True,  # Vosk typically wants audio output
+                                        client_context={"source": "vosk_runner"}
+                                    )
+                                    if result.text:
+                                        print(f"Response: {result.text}")
                             except Exception as e:
                                 logger.error(f"Error processing command '{text}': {e}")
                             finally:

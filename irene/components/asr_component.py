@@ -16,9 +16,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSo
 from .base import Component
 from ..core.interfaces.asr import ASRPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
-from ..core.interfaces.command import CommandPlugin
-from ..core.context import Context
-from ..core.commands import CommandResult
+
 
 # Import ASR provider base class and dynamic loader
 from ..providers.asr import ASRProvider
@@ -27,7 +25,7 @@ from ..utils.loader import dynamic_loader
 logger = logging.getLogger(__name__)
 
 
-class ASRComponent(Component, ASRPlugin, WebAPIPlugin, CommandPlugin):
+class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     """
     ASR Component - Speech Recognition Coordinator
     
@@ -152,39 +150,32 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin, CommandPlugin):
         provider = self.providers[provider_name]
         return await provider.transcribe_audio(audio_data, language=language, **kwargs)
     
-    # CommandPlugin interface - voice control
-    def get_triggers(self) -> List[str]:
-        """Get command triggers for ASR control"""
-        return [
-            "распознай", "транскрибируй", "переключись на", "покажи распознавание",
-            "язык", "качество", "микрофон", "запись"
-        ]
+    # Public methods for intent handler delegation
+    def set_default_provider(self, provider_name: str) -> bool:
+        """Set default ASR provider - simple atomic operation"""
+        if provider_name in self.providers:
+            self.default_provider = provider_name
+            return True
+        return False
     
-    async def can_handle(self, command: str, context: Context) -> bool:
-        """Check if this command is ASR-related"""
-        triggers = self.get_triggers()
-        command_lower = command.lower()
-        return any(trigger in command_lower for trigger in triggers)
+    def get_providers_info(self) -> str:
+        """Implementation of abstract method - Get ASR providers information"""
+        return self._get_providers_info()
     
-    async def handle_command(self, command: str, context: Context) -> CommandResult:
-        """Handle ASR voice commands"""
-        if "покажи распознавание" in command or "покажи провайдеры" in command:
-            info = self._get_providers_info()
-            return CommandResult(success=True, response=info)
-        elif "переключись на" in command:
-            # "переключись на whisper"
-            new_provider = self._parse_provider_name(command)
-            if new_provider in self.providers:
-                self.default_provider = new_provider
-                return CommandResult(success=True, response=f"Переключился на {new_provider}")
-            else:
-                return CommandResult(success=False, error=f"Провайдер {new_provider} недоступен")
-        elif "язык" in command:
-            # Handle language switching commands
-            # TODO: Implement language switching logic
-            return CommandResult(success=False, error="Переключение языка пока не реализовано")
-            
-        return CommandResult(success=False, error="Неизвестная команда распознавания")
+    def parse_provider_name_from_text(self, text: str) -> Optional[str]:
+        """Override base method with ASR-specific aliases and logic"""
+        # First try base implementation
+        result = super().parse_provider_name_from_text(text)
+        if result:
+            return result
+        
+        # ASR-specific aliases
+        return self._parse_provider_name(text)
+    
+    async def switch_language(self, language: str) -> tuple[bool, str]:
+        """Switch ASR language - public method for intent handlers"""
+        # TODO: Implement language switching logic
+        return False, "Переключение языка пока не реализовано"
     
     def _get_providers_info(self) -> str:
         """Get formatted information about available providers"""
@@ -199,7 +190,7 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin, CommandPlugin):
         
         return "\n".join(info_lines)
     
-    def _parse_provider_name(self, command: str) -> str:
+    def _parse_provider_name(self, command: str) -> Optional[str]:
         """Extract provider name from voice command"""
         command_lower = command.lower()
         for provider_name in self.providers.keys():
@@ -218,7 +209,7 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin, CommandPlugin):
             if alias in command_lower and provider_name in self.providers:
                 return provider_name
         
-        return ""
+        return None
     
     # WebAPIPlugin interface - unified API
     def get_router(self) -> APIRouter:

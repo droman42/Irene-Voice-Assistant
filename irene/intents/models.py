@@ -39,7 +39,8 @@ class IntentResult:
     text: str                          # Response text
     should_speak: bool = True          # Whether to use TTS
     metadata: Dict[str, Any] = field(default_factory=dict)  # Additional data
-    actions: List[str] = field(default_factory=list)        # Additional actions to perform
+    actions: List[str] = field(default_factory=list)        # Additional actions to perform (deprecated - kept for compatibility)
+    action_metadata: Dict[str, Any] = field(default_factory=dict)  # NEW: Action context updates for fire-and-forget execution
     success: bool = True               # Whether execution was successful
     error: Optional[str] = None        # Error message if failed
     confidence: float = 1.0            # Confidence in the response
@@ -62,6 +63,10 @@ class ConversationContext:
     conversation_history: List[Dict[str, Any]] = field(default_factory=list)
     current_intent_context: Optional[str] = None
     last_intent_timestamp: Optional[float] = None
+    
+    # NEW: Action tracking for fire-and-forget execution
+    active_actions: Dict[str, Any] = field(default_factory=dict)      # Currently running actions by domain/type
+    recent_actions: List[Dict[str, Any]] = field(default_factory=list) # Recently completed/failed actions with metadata
     
     # Device and capability context
     available_devices: List[Dict[str, Any]] = field(default_factory=list)
@@ -163,6 +168,50 @@ class ConversationContext:
         """Get set of device types available in this context"""
         devices = self.get_device_capabilities()
         return {device.get('type', 'unknown') for device in devices}
+    
+    # NEW: Action tracking methods for fire-and-forget execution
+    def add_active_action(self, domain: str, action_info: Dict[str, Any]):
+        """Add an active action to the context"""
+        self.active_actions[domain] = {
+            **action_info,
+            'started_at': time.time(),
+            'client_id': self.client_id
+        }
+        self.last_updated = time.time()
+    
+    def complete_action(self, domain: str, success: bool = True, error: Optional[str] = None):
+        """Move an active action to recent actions as completed"""
+        if domain in self.active_actions:
+            action_info = self.active_actions.pop(domain)
+            action_info.update({
+                'completed_at': time.time(),
+                'success': success,
+                'error': error
+            })
+            self.recent_actions.append(action_info)
+            
+            # Keep only last 10 recent actions to prevent memory bloat
+            if len(self.recent_actions) > 10:
+                self.recent_actions = self.recent_actions[-10:]
+            
+            self.last_updated = time.time()
+    
+    def get_active_action_domains(self) -> List[str]:
+        """Get list of domains with currently active actions"""
+        return list(self.active_actions.keys())
+    
+    def has_active_action(self, domain: str) -> bool:
+        """Check if there's an active action in the specified domain"""
+        return domain in self.active_actions
+    
+    def get_recent_action_domains(self, limit: int = 3) -> List[str]:
+        """Get recent action domains for disambiguation"""
+        recent_domains = []
+        for action in reversed(self.recent_actions[-limit:]):
+            domain = action.get('domain')
+            if domain and domain not in recent_domains:
+                recent_domains.append(domain)
+        return recent_domains
     
     # Legacy compatibility methods
     def add_user_turn(self, intent: Intent):

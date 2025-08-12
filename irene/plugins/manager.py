@@ -11,7 +11,6 @@ from typing import Optional, Set, Type, Union, TypeVar, Generic, Any, cast
 from pathlib import Path
 
 from ..core.interfaces.plugin import PluginInterface, PluginManager
-from ..core.interfaces.command import CommandPlugin
 from ..core.interfaces.tts import TTSPlugin
 from ..core.interfaces.audio import AudioPlugin
 from ..core.interfaces.input import InputPlugin
@@ -44,7 +43,6 @@ class AsyncPluginManager:
         self._plugin_config = plugin_config  # Plugin configuration for filtering
         
         # Categorized plugin access
-        self._command_plugins: list[CommandPlugin] = []
         self._tts_plugins: list[TTSPlugin] = []
         self._audio_plugins: list[AudioPlugin] = []
         self._input_plugins: list[InputPlugin] = []
@@ -125,8 +123,8 @@ class AsyncPluginManager:
                     for path in plugin_paths:
                         await self._registry.scan_directory(path)
                 else:
-                    # Load built-in plugins via registry
-                    await self._load_builtin_plugins()
+                    # NOTE: Builtin plugin loading removed - functionality moved to intent handlers
+                    pass
                     
                 # Get discovered plugins
                 discovered_plugins = await self._registry.get_discovered_plugins()
@@ -158,73 +156,7 @@ class AsyncPluginManager:
         if errors:
             raise ExceptionGroup("Plugin initialization failed", errors)
 
-    async def _load_builtin_plugins(self) -> None:
-        """Load built-in plugins using dynamic discovery via entry-points with configuration filtering"""
-        try:
-            # Use dynamic loader for entry-points discovery
-            from ..utils.loader import dynamic_loader
-            
-            # Apply configuration-driven filtering for enabled plugins
-            enabled_plugins = []
-            if self._plugin_config:
-                # Get enabled plugins from configuration
-                enabled_builtin = self._plugin_config.enabled_plugins or []
-                disabled_builtin = self._plugin_config.disabled_plugins or []
-                builtin_config = self._plugin_config.builtin_plugins or {}
-                
-                # Build filter list based on configuration
-                enabled_plugins = enabled_builtin.copy()
-                
-                # Add plugins enabled via builtin_plugins dict
-                for plugin_name, is_enabled in builtin_config.items():
-                    if is_enabled and plugin_name not in disabled_builtin:
-                        enabled_plugins.append(plugin_name)
-                
-                logger.info(f"Configuration filtering: enabled={enabled_plugins}, disabled={disabled_builtin}")
-            
-            # Discover builtin plugins via entry-points with filtering
-            builtin_plugins = dynamic_loader.discover_providers("irene.plugins.builtin", enabled_plugins)
-            logger.info(f"Discovered {len(builtin_plugins)} builtin plugins via entry-points (after filtering)")
-            
-            # Register each builtin plugin with the registry
-            for plugin_name, plugin_class in builtin_plugins.items():
-                try:
-                    # Skip if explicitly disabled (double-check)
-                    if (self._plugin_config and 
-                        plugin_name in (self._plugin_config.disabled_plugins or [])):
-                        logger.info(f"Skipping disabled plugin: {plugin_name}")
-                        continue
-                    
-                    # Create temporary instance to extract metadata
-                    temp_instance = plugin_class()
-                    
-                    # Register in our discovery registry
-                    self._registry._discovered_plugins[plugin_name] = plugin_class
-                    self._registry._plugin_metadata[plugin_name] = {
-                        "name": temp_instance.name,
-                        "version": temp_instance.version,
-                        "description": temp_instance.description,
-                        "dependencies": temp_instance.dependencies,
-                        "optional_dependencies": temp_instance.optional_dependencies,
-                        "class": plugin_class.__name__,
-                        "module": plugin_class.__module__,
-                        "file_path": f"builtin:{plugin_class.__module__}",
-                        "config_schema": temp_instance.get_config_schema(),
-                        # Additional metadata for discovery
-                        "enabled_by_default": getattr(temp_instance, 'enabled_by_default', False),
-                        "category": getattr(temp_instance, 'category', 'unknown'),
-                        "platforms": getattr(temp_instance, 'platforms', [])
-                    }
-                    
-                    logger.debug(f"Registered builtin plugin: {plugin_name}")
-                    
-                except Exception as e:
-                    logger.warning(f"Failed to register builtin plugin {plugin_name}: {e}")
-                    continue
-                    
-        except Exception as e:
-            logger.error(f"Error loading builtin plugins: {e}")
-            raise
+    # NOTE: _load_builtin_plugins removed - builtin plugins eliminated in Phase 3
             
     async def _load_single_plugin(self, plugin_class: Type[PluginInterface]) -> None:
         """Load and initialize a single plugin class"""
@@ -241,9 +173,6 @@ class AsyncPluginManager:
             
     async def _categorize_plugin(self, plugin: PluginInterface) -> None:
         """Categorize plugin by its interfaces"""
-        if isinstance(plugin, CommandPlugin):
-            self._command_plugins.append(plugin)
-            
         if isinstance(plugin, TTSPlugin):
             self._tts_plugins.append(plugin)
             
@@ -316,7 +245,6 @@ class AsyncPluginManager:
             del self._plugins[plugin_name]
             
             # Remove from categories
-            self._command_plugins = [p for p in self._command_plugins if p.name != plugin_name]
             self._tts_plugins = [p for p in self._tts_plugins if p.name != plugin_name]
             self._audio_plugins = [p for p in self._audio_plugins if p.name != plugin_name]
             self._input_plugins = [p for p in self._input_plugins if p.name != plugin_name]
@@ -339,10 +267,7 @@ class AsyncPluginManager:
         """Get a plugin by name (synchronous)"""
         return self._plugins.get(plugin_name)
         
-    def get_command_plugins(self) -> list[CommandPlugin]:
-        """Get all command handling plugins"""
-        return self._command_plugins.copy()
-        
+
     def get_tts_plugins(self) -> list[TTSPlugin]:
         """Get all TTS plugins"""
         return self._tts_plugins.copy()
@@ -448,8 +373,6 @@ class AsyncPluginManager:
         """Get list of interfaces implemented by plugin"""
         interfaces = ["PluginInterface"]
         
-        if isinstance(plugin, CommandPlugin):
-            interfaces.append("CommandPlugin")
         if isinstance(plugin, TTSPlugin):
             interfaces.append("TTSPlugin")
         if isinstance(plugin, AudioPlugin):

@@ -15,7 +15,7 @@ from pathlib import Path
 from ..core.engine import AsyncVACore
 from ..config.models import CoreConfig, API_PROFILE
 from ..inputs.cli import CLIInput
-from ..outputs.text import TextOutput
+# TextOutput functionality now handled by unified workflow
 from ..utils.logging import setup_logging
 
 
@@ -53,12 +53,10 @@ async def async_demo():
         print("📡 Starting Irene async core...")
         await core.start()
         
-        # Set up input and output
+        # Set up CLI input (output handled by unified workflow)
         cli_input = CLIInput(prompt="irene-demo> ")
-        text_output = TextOutput(prefix="🤖 ")
         
         await core.input_manager.add_source("cli", cli_input)
-        await core.output_manager.add_target("text", text_output)
         await core.input_manager.start_source("cli")
         
         print("✅ Irene started successfully!")
@@ -86,7 +84,14 @@ async def async_demo():
                     break
                     
                 # Process command asynchronously
-                await core.process_command(command)
+                # Use unified workflow interface
+                result = await core.workflow_manager.process_text_input(
+                    text=command,
+                    session_id="async_demo",
+                    wants_audio=False,
+                    client_context={"source": "async_demo"}
+                )
+                print(f"Response: {result.text}")
                 
             except KeyboardInterrupt:
                 print("\n👋 Demo interrupted. Shutting down...")
@@ -116,18 +121,37 @@ async def demo_async_features(core: AsyncVACore):
     
     # Process multiple commands concurrently
     results = await asyncio.gather(*[
-        core.process_command(cmd, context) for cmd in commands
+        core.workflow_manager.process_text_input(
+            text=cmd,
+            session_id="async_demo_concurrent",
+            wants_audio=False,
+            client_context={"source": "async_demo", "original_context": context}
+        ) for cmd in commands
     ], return_exceptions=True)
     
     print("✅ Processed 3 commands concurrently!")
     
     # Demo 2: Async timer
     print("2️⃣  Setting up async timer...")
-    await core.process_command("timer 5 seconds demo completed", context)
+    # Use unified workflow interface
+    result = await core.workflow_manager.process_text_input(
+        text="timer 5 seconds demo completed",
+        session_id="async_demo_timer",
+        wants_audio=False,
+        client_context={"source": "async_demo", "original_context": context}
+    )
+    print(f"Timer completion response: {result.text}")
     
     # Demo 3: Check service status
     print("3️⃣  Checking background service...")
-    await core.process_command("service status", context)
+    # Use unified workflow interface
+    result = await core.workflow_manager.process_text_input(
+        text="service status",
+        session_id="async_demo_service",
+        wants_audio=False,
+        client_context={"source": "async_demo", "original_context": context}
+    )
+    print(f"Service status response: {result.text}")
     
     print("🎉 Async features demo completed!")
     print()

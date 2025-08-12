@@ -146,21 +146,11 @@ async def demo_plugin_configuration():
     # Create config with specific plugins enabled
     config = create_config_from_profile("headless")
     
-    # Manually configure which plugins are enabled
-    config.plugins.builtin_plugins.update({
-        "CoreCommandsPlugin": True,
-        "GreetingsPlugin": True,
-        "DateTimePlugin": True,
-        "RandomPlugin": False,  # Disabled
-        "ConsoleTTSPlugin": True,
-        "PyttsTTSPlugin": False,  # Disabled (would require dependencies)
-    })
-    
+    # NOTE: Builtin plugin configuration removed - functionality moved to intent handlers
     print("Plugin configuration:")
-    builtin_plugins = config.plugins.builtin_plugins
-    for plugin_name, enabled in builtin_plugins.items():
-        status = "✅ ENABLED " if enabled else "❌ DISABLED"
-        print(f"   {status} {plugin_name}")
+    print("   ✅ Intent handlers automatically discovered via entry-points")
+    print("   ✅ RandomIntentHandler (replaces RandomPlugin)")
+    print("   ✅ SystemServiceIntentHandler (replaces AsyncServiceDemoPlugin)")
     
     # Create and start engine with this configuration
     print("\nCreating AsyncVACore with plugin configuration...")
@@ -177,7 +167,14 @@ async def demo_plugin_configuration():
             
         # Test a command
         print("\nTesting command processing...")
-        await engine.process_command("привет")
+        # Use unified workflow interface
+        result = await engine.workflow_manager.process_text_input(
+            text="привет",
+            session_id="config_demo",
+            wants_audio=False,
+            client_context={"source": "config_demo"}
+        )
+        print(f"Response: {result.text}")
         
     except Exception as e:
         logger.error(f"Failed to start engine: {e}")
@@ -253,10 +250,7 @@ async def demo_deployment_profiles():
             print(f"   - Web Port: {config.components.web_port}")
             
             # Show plugin configuration
-            builtin_plugins = config.plugins.builtin_plugins
-            enabled_count = sum(1 for enabled in builtin_plugins.values() if enabled)
-            total_count = len(builtin_plugins)
-            print(f"   - Builtin Plugins: {enabled_count}/{total_count} enabled")
+            print(f"   - Intent Handlers: Available via entry-points (replaces builtin plugins)")
             
         except Exception as e:
             print(f"❌ Failed to create profile {profile_name}: {e}")

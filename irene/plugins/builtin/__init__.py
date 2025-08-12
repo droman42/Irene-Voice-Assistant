@@ -6,8 +6,9 @@ This module provides the base classes and utilities for builtin plugins.
 
 Entry-points catalog in pyproject.toml:
 [project.entry-points."irene.plugins.builtin"]
-random_plugin = "irene.plugins.builtin.random_plugin:RandomPlugin"
-async_service_demo = "irene.plugins.builtin.async_service_demo:AsyncServiceDemoPlugin"
+# Builtin plugins converted to intent handlers in Phase 3:
+# - RandomPlugin → RandomIntentHandler (random_handler.py)  
+# - AsyncServiceDemoPlugin → SystemServiceIntentHandler (system_service_handler.py)
 
 The hardcoded plugin module lists have been eliminated in favor of dynamic discovery.
 """

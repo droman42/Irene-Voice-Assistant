@@ -27,8 +27,31 @@
     "list", 
     "status",
     "create",
-    "remove"
+    "remove",
+    "start",
+    "stop",
+    "pause",
+    "resume"
   ],
+  
+  "stop_command_patterns": [
+    "стоп таймер",
+    "останови таймер",
+    "прекрати таймер", 
+    "выключи таймер",
+    "отмени таймер",
+    "убери таймер",
+    "стоп будильник",
+    "останови будильник",
+    "stop timer",
+    "cancel timer",
+    "halt timer",
+    "remove timer",
+    "stop alarm",
+    "cancel alarm"
+  ],
+  
+  "action_domain_priority": 70,
   
   "method_donations": [
     {

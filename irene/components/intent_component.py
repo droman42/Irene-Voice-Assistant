@@ -90,6 +90,25 @@ class IntentComponent(Component, WebAPIPlugin):
         """Intent system has no external dependencies"""
         return []  # No external dependencies required
     
+    def get_providers_info(self) -> str:
+        """Implementation of abstract method - Intent system doesn't use traditional providers"""
+        if not self.handler_manager:
+            return "Система интентов не инициализирована"
+        
+        handlers = self.handler_manager.get_handlers()
+        donations = self.handler_manager.get_donations()
+        
+        info_lines = [f"Система обработки интентов ({len(handlers)} обработчиков):"]
+        for name, handler in handlers.items():
+            status = "✓"
+            domains = getattr(handler, 'get_supported_domains', lambda: ["general"])()
+            info_lines.append(f"  {status} {name}: {', '.join(domains[:2])}")
+        
+        info_lines.append(f"Загружено JSON-пожертвований: {len(donations)}")
+        info_lines.append("Используется система обработчиков, а не провайдеров")
+        
+        return "\n".join(info_lines)
+    
     # PluginInterface implementation (required by WebAPIPlugin)
     @property
     def name(self) -> str:

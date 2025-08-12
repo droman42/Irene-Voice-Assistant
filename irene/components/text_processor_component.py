@@ -103,6 +103,21 @@ class TextProcessorComponent(Component, WebAPIPlugin):
             logger.info(f"Set default text processing provider to: {self.default_provider}")
         
         logger.info(f"Text processing component initialized with {enabled_count} providers")
+    
+    def get_providers_info(self) -> str:
+        """Implementation of abstract method - Get text processing providers information"""
+        if not self.providers:
+            return "Нет доступных провайдеров обработки текста"
+        
+        info_lines = [f"Доступные провайдеры обработки текста ({len(self.providers)}):"]
+        for name, provider in self.providers.items():
+            status = "✓ (по умолчанию)" if name == self.default_provider else "✓"
+            capabilities = getattr(provider, 'get_capabilities', lambda: {})()
+            stages = capabilities.get("stages", ["general"])
+            languages = capabilities.get("languages", ["ru"])
+            info_lines.append(f"  {status} {name}: {', '.join(stages[:2])}, {', '.join(languages)}")
+        
+        return "\n".join(info_lines)
         
     @property
     def name(self) -> str:

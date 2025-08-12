@@ -214,22 +214,18 @@ class WebAPIRunner:
         return config
     
     async def _setup_web_components(self, args) -> None:
-        """Setup WebInput and WebOutput components"""
+        """Setup WebInput component (output handled via unified workflow)"""
         from ..inputs.web import WebInput
-        from ..outputs.web import WebOutput
         
-        # Create web input and output
+        # Create web input (output handled by workflow via HTTP responses)
         self.web_input = WebInput(host=args.host, port=args.port)
-        self.web_output = WebOutput(host=args.host, port=args.port)
+        self.web_output = None  # Web output handled via HTTP responses, not separate component
         
         # Add to core managers
         if self.core:
             # Add web input source
             await self.core.input_manager.add_source("web", self.web_input)
             await self.core.input_manager.start_source("web")
-            
-            # Add web output target
-            await self.core.output_manager.add_target("web", self.web_output)
             
             logger.info("✅ Web components initialized")
     
@@ -372,13 +368,18 @@ class WebAPIRunner:
                 if not self.core:
                     raise HTTPException(status_code=503, detail="Assistant not initialized")
                 
-                # Process command through the assistant
-                await self.core.process_command(request.command)
+                # Process command through unified workflow interface
+                result = await self.core.workflow_manager.process_text_input(
+                    text=request.command,
+                    session_id="webapi_session",
+                    wants_audio=False,
+                    client_context={"source": "rest_api"}
+                )
                 
                 return CommandResponse(
-                    success=True,
-                    response=f"Command '{request.command}' processed successfully",
-                    metadata={"processed_via": "rest_api"}
+                    success=result.success,
+                    response=result.text or f"Command '{request.command}' processed successfully",
+                    metadata={"processed_via": "rest_api", "intent_result": result.metadata}
                 )
                 
             except Exception as e:
@@ -470,16 +471,12 @@ class WebAPIRunner:
             if self.web_input:
                 info["web_input"] = self.web_input.get_connection_info()
             
-            if self.web_output:
-                info["web_output"] = {
-                    **self.web_output.get_settings(),
-                    "client_info": self.web_output.get_client_info()
-                }
+            # Web output handled via HTTP responses (unified workflow)
             
             if self.core:
                 info["core"] = {
                     "input_sources": list(self.core.input_manager._sources.keys()),
-                    "output_targets": list(self.core.output_manager._targets.keys()),
+                    "workflows": list(self.core.workflow_manager.workflows.keys()),
                     "plugins": self.core.plugin_manager.plugin_count
                 }
             
@@ -574,6 +571,7 @@ class WebAPIRunner:
                 text: str
                 session_id: str = "default"
                 context: Optional[Dict[str, Any]] = None
+                wants_audio: bool = False  # Support TTS output for all entry points
                 skip_wake_word: bool = True
                 
             class IntentExecutionResponse(BaseModel):
@@ -600,21 +598,13 @@ class WebAPIRunner:
                     if not self.core:
                         raise HTTPException(status_code=503, detail="Assistant not initialized")
                     
-                    # Check if we have a workflow manager available
-                    workflow_manager = getattr(self.core, 'workflow_manager', None)
-                    if not workflow_manager:
-                        # Fallback to legacy command processing
-                        await self.core.process_command(request.text)
-                        return IntentExecutionResponse(
-                            success=True,
-                            intent_name="legacy.command",
-                            confidence=1.0,
-                            response_text=f"Command '{request.text}' processed (legacy mode)",
-                            metadata={"processing_mode": "legacy"}
-                        )
-                    
-                    # Use the new intent system
-                    result = await workflow_manager.process_text_input(request.text, request.session_id)
+                    # Use unified workflow interface (no more dual-path)
+                    result = await self.core.workflow_manager.process_text_input(
+                        text=request.text,
+                        session_id=request.session_id,
+                        wants_audio=request.wants_audio,
+                        client_context={"source": "webapi_intent"}
+                    )
                     
                     return IntentExecutionResponse(
                         success=result.success,

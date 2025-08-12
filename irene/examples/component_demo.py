@@ -51,12 +51,32 @@ async def demo_deployment_profile(profile_name: str, component_config: Component
         
         # Test basic functionality
         print(f"\nTesting command processing...")
-        await core.process_command("hello")
-        await core.process_command("what time is it")
+        # Use unified workflow interface
+        result1 = await core.workflow_manager.process_text_input(
+            text="hello",
+            session_id="component_demo",
+            wants_audio=False,
+            client_context={"source": "component_demo"}
+        )
+        print(f"Response 1: {result1.text}")
         
-        # Test say() method (component-aware)
-        print(f"\nTesting say() method...")
-        await core.say("Testing component-aware speech output")
+        result2 = await core.workflow_manager.process_text_input(
+            text="what time is it",
+            session_id="component_demo",
+            wants_audio=False,
+            client_context={"source": "component_demo"}
+        )
+        print(f"Response 2: {result2.text}")
+        
+        # Test TTS output via workflow (modern approach)
+        print(f"\nTesting TTS output via workflow...")
+        tts_result = await core.workflow_manager.process_text_input(
+            text="Testing component-aware speech output",
+            session_id="component_demo_tts",
+            wants_audio=True,  # Request audio output
+            client_context={"source": "component_demo"}
+        )
+        print(f"TTS Response: {tts_result.text}")
         
         print(f"✅ {profile_name} demo completed successfully!")
         

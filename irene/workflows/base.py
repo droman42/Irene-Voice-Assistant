@@ -68,6 +68,16 @@ class Workflow(EntryPointMetadata, ABC):
         self.logger = logging.getLogger(f"{__name__}.{self.name}")
         self.components: Dict[str, Any] = {}
         self.initialized = False
+        
+        # Pipeline stage configuration for conditional processing
+        self._pipeline_stages = {
+            "voice_trigger": True,
+            "asr": True, 
+            "text_processing": True,
+            "nlu": True,
+            "intent_execution": True,
+            "tts": True
+        }
     
     @abstractmethod
     async def initialize(self):
@@ -124,6 +134,63 @@ class Workflow(EntryPointMetadata, ABC):
             Component instance or None if not found
         """
         return self.components.get(name)
+    
+    def configure_pipeline_stages(self, context: RequestContext) -> Dict[str, bool]:
+        """
+        Configure pipeline stages based on request context.
+        
+        This method determines which pipeline stages should be enabled
+        based on the input type and request parameters. Supports the
+        unified architecture with conditional stage skipping.
+        
+        Args:
+            context: Request context with skip flags and input type
+            
+        Returns:
+            Dictionary mapping stage names to enabled/disabled status
+        """
+        stages = self._pipeline_stages.copy()
+        
+        # Voice trigger stage - conditional based on context
+        if context.skip_wake_word or context.source == "text":
+            stages["voice_trigger"] = False
+        
+        # ASR stage - disabled for text input
+        if context.source == "text":
+            stages["asr"] = False
+        
+        # TTS stage - conditional based on wants_audio preference
+        if not context.wants_audio:
+            stages["tts"] = False
+        
+        return stages
+    
+    def is_stage_enabled(self, stage_name: str, context: RequestContext) -> bool:
+        """
+        Check if a specific pipeline stage is enabled for this context.
+        
+        Args:
+            stage_name: Name of the pipeline stage
+            context: Request context
+            
+        Returns:
+            True if stage is enabled, False otherwise
+        """
+        configured_stages = self.configure_pipeline_stages(context)
+        return configured_stages.get(stage_name, False)
+    
+    def get_enabled_stages(self, context: RequestContext) -> List[str]:
+        """
+        Get list of enabled pipeline stages for this context.
+        
+        Args:
+            context: Request context
+            
+        Returns:
+            List of enabled stage names
+        """
+        configured_stages = self.configure_pipeline_stages(context)
+        return [stage for stage, enabled in configured_stages.items() if enabled]
     
     async def shutdown(self):
         """Shutdown the workflow and clean up resources."""
@@ -190,31 +257,7 @@ class Workflow(EntryPointMetadata, ABC):
         capabilities["component_capabilities"] = component_caps
         return capabilities
     
-    async def _route_response(self, result: IntentResult, context: RequestContext):
-        """
-        Route the response to appropriate output channels.
-        
-        Args:
-            result: The intent result to output
-            context: Request context
-        """
-        # Text output (always available)
-        if hasattr(self, 'text_output') and self.text_output:
-            await self.text_output.send_text(result.text)
-        
-        # Audio output (if requested and available)
-        if context.wants_audio and result.should_speak:
-            if hasattr(self, 'tts') and self.tts:
-                try:
-                    await self.tts.speak(result.text)
-                except Exception as e:
-                    self.logger.error(f"TTS error: {e}")
-            else:
-                self.logger.warning("TTS requested but not available")
-        
-        # Web output (if source is web)
-        if context.source == "web" and hasattr(self, 'web_output') and self.web_output:
-            await self.web_output.send_response(result, context)
+
     
     def __str__(self) -> str:
         """String representation of the workflow."""

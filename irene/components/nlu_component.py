@@ -597,6 +597,24 @@ class NLUComponent(Component, WebAPIPlugin):
         
         return fallback_intent
     
+    def get_providers_info(self) -> str:
+        """Implementation of abstract method - Get NLU providers information"""
+        if not self.providers:
+            return "Нет доступных провайдеров NLU"
+        
+        info_lines = [f"Доступные провайдеры NLU ({len(self.providers)}):"]
+        for name, provider in self.providers.items():
+            status = "✓ (по умолчанию)" if name == self.default_provider else "✓"
+            capabilities = getattr(provider, 'get_capabilities', lambda: {})()
+            languages = capabilities.get("languages", ["unknown"])
+            domains = capabilities.get("domains", ["general"])
+            info_lines.append(f"  {status} {name}: {', '.join(languages[:2])}, {', '.join(domains[:2])}")
+        
+        info_lines.append(f"Порог уверенности: {self.confidence_threshold}")
+        info_lines.append(f"Резервный интент: {self.fallback_intent}")
+        
+        return "\n".join(info_lines)
+    
     async def recognize_with_context(self, text: str, context: ConversationContext) -> Intent:
         """
         Context-aware intent recognition with enhanced entity resolution and disambiguation.

@@ -97,6 +97,11 @@ Examples:
         action="store_true",
         help="Test greeting command and exit (legacy compatibility)"
     )
+    parser.add_argument(
+        "--enable-tts", 
+        action="store_true",
+        help="Enable TTS audio output for CLI responses (Phase 5 support)"
+    )
     
     # Logging options
     parser.add_argument(
@@ -303,7 +308,15 @@ async def main():
             try:
                 if not args.quiet:
                     print(f"🔤 Executing command: '{args.command}'")
-                await core.process_command(args.command)
+                # Use unified workflow interface
+                result = await core.workflow_manager.process_text_input(
+                    text=args.command,
+                    session_id="cli_session",
+                    wants_audio=args.enable_tts,  # Phase 5: TTS support for CLI
+                    client_context={"source": "cli", "quiet": args.quiet}
+                )
+                if result.text and not args.quiet:
+                    print(f"📝 Response: {result.text}")
                 
                 # Exit unless interactive mode is forced
                 if not args.interactive:
@@ -339,8 +352,15 @@ async def main():
                 elif not command:
                     continue
                 
-                # Process the command
-                await core.process_command(command)
+                # Process the command using unified workflow interface
+                result = await core.workflow_manager.process_text_input(
+                    text=command,
+                    session_id="cli_interactive",
+                    wants_audio=args.enable_tts,  # Phase 5: TTS support for CLI interactive mode
+                    client_context={"source": "cli_interactive"}
+                )
+                if result.text:
+                    print(f"📝 {result.text}")
                 
             except KeyboardInterrupt:
                 if not args.quiet:
@@ -460,7 +480,15 @@ class CLIRunner:
             if parsed_args.command:
                 if not parsed_args.quiet:
                     print(f"🔤 Executing command: '{parsed_args.command}'")
-                await self.core.process_command(parsed_args.command)
+                # Use unified workflow interface
+                result = await self.core.workflow_manager.process_text_input(
+                    text=parsed_args.command,
+                    session_id="cli_session",
+                    wants_audio=getattr(parsed_args, 'enable_tts', False),  # Phase 5: TTS support
+                    client_context={"source": "cli", "quiet": parsed_args.quiet}
+                )
+                if result.text and not parsed_args.quiet:
+                    print(f"📝 Response: {result.text}")
                 
                 if not parsed_args.interactive:
                     if not parsed_args.quiet:
@@ -505,7 +533,15 @@ class CLIRunner:
                     elif not command:
                         continue
                     
-                    await self.core.process_command(command)
+                    # Use unified workflow interface
+                    result = await self.core.workflow_manager.process_text_input(
+                        text=command,
+                        session_id="cli_interactive",
+                        wants_audio=getattr(args, 'enable_tts', False),  # Phase 5: TTS support
+                        client_context={"source": "cli_interactive"}
+                    )
+                    if result.text:
+                        print(f"📝 {result.text}")
                     
                 except KeyboardInterrupt:
                     if not args.quiet:

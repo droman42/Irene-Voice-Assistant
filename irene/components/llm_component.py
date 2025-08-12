@@ -12,9 +12,7 @@ from fastapi import APIRouter, HTTPException
 from .base import Component
 from ..core.interfaces.llm import LLMPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
-from ..core.interfaces.command import CommandPlugin
-from ..core.context import Context
-from ..core.commands import CommandResult
+
 
 # Import LLM provider base class and dynamic loader
 from ..providers.llm import LLMProvider
@@ -23,7 +21,7 @@ from ..utils.loader import dynamic_loader
 logger = logging.getLogger(__name__)
 
 
-class LLMComponent(Component, LLMPlugin, CommandPlugin, WebAPIPlugin):
+class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
     """
     LLM Component - Language Model Coordinator
     
@@ -155,53 +153,37 @@ class LLMComponent(Component, LLMPlugin, CommandPlugin, WebAPIPlugin):
             logger.error(f"LLM enhancement failed with {provider_name}: {e}")
             return text  # Return original text on error
     
-    # CommandPlugin interface - voice control
-    def get_triggers(self) -> List[str]:
-        """Get command triggers for LLM control"""
-        return [
-            "улучши", "исправь", "переведи", "переформулируй", "проверь",
-            "чат", "ответь", "объясни", "переключись на", "суммируй"
-        ]
+    # Public methods for intent handler delegation
+
     
-    async def can_handle(self, command: str, context: Context) -> bool:
-        """Check if this command is LLM-related"""
-        triggers = self.get_triggers()
-        command_lower = command.lower()
-        return any(trigger in command_lower for trigger in triggers)
+    def set_default_provider(self, provider_name: str) -> bool:
+        """Set default LLM provider - simple atomic operation"""
+        if provider_name in self.providers:
+            self.default_provider = provider_name
+            return True
+        return False
     
-    async def handle_command(self, command: str, context: Context) -> CommandResult:
-        """Handle LLM voice commands"""
-        if "улучши" in command or "исправь" in command:
-            # Extract text to enhance from command
-            text_to_enhance = self._extract_text_from_command(command)
-            if text_to_enhance:
-                enhanced = await self.enhance_text(text_to_enhance, task="improve")
-                return CommandResult(success=True, response=f"Улучшенный текст: {enhanced}")
-            else:
-                return CommandResult(success=False, error="Не найден текст для улучшения")
+    def get_providers_info(self) -> str:
+        """Implementation of abstract method - Get LLM providers information"""
+        return self._get_providers_info()
+    
+    def parse_provider_name_from_text(self, text: str) -> Optional[str]:
+        """Override base method with LLM-specific aliases and logic"""
+        # First try base implementation
+        result = super().parse_provider_name_from_text(text)
+        if result:
+            return result
         
-        elif "переведи" in command:
-            # Translation command handling
-            text_and_lang = self._extract_translation_request(command)
-            if text_and_lang:
-                text, target_lang = text_and_lang
-                translated = await self.enhance_text(text, task="translation", target_language=target_lang)
-                return CommandResult(success=True, response=f"Перевод: {translated}")
-        
-        elif "переключись на" in command:
-            # Provider switching
-            new_provider = self._parse_provider_name(command)
-            if new_provider in self.providers:
-                self.default_provider = new_provider
-                return CommandResult(success=True, response=f"Переключился на {new_provider}")
-            else:
-                return CommandResult(success=False, error=f"Провайдер {new_provider} недоступен")
-        
-        elif "покажи провайдеры" in command:
-            info = self._get_providers_info()
-            return CommandResult(success=True, response=info)
-            
-        return CommandResult(success=False, error="Неизвестная команда LLM")
+        # LLM-specific aliases
+        return self._parse_provider_name(text)
+    
+    def extract_text_from_command(self, command: str) -> Optional[str]:
+        """Extract text to enhance from command - public method for intent handlers"""
+        return self._extract_text_from_command(command)
+    
+    def extract_translation_request(self, command: str) -> Optional[tuple[str, str]]:
+        """Extract text and target language from command - public method for intent handlers"""
+        return self._extract_translation_request(command)
     
     def _extract_text_from_command(self, command: str) -> Optional[str]:
         """Extract text to enhance from voice command"""
@@ -230,7 +212,7 @@ class LLMComponent(Component, LLMPlugin, CommandPlugin, WebAPIPlugin):
                     return text, "English"
         return None
     
-    def _parse_provider_name(self, command: str) -> str:
+    def _parse_provider_name(self, command: str) -> Optional[str]:
         """Extract provider name from voice command"""
         command_lower = command.lower()
         for provider_name in self.providers.keys():
@@ -249,7 +231,7 @@ class LLMComponent(Component, LLMPlugin, CommandPlugin, WebAPIPlugin):
             if alias in command_lower and provider_name in self.providers:
                 return provider_name
         
-        return ""
+        return None
     
     def _get_providers_info(self) -> str:
         """Get formatted information about available providers"""

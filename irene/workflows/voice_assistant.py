@@ -1,14 +1,19 @@
 """
-Voice Assistant Workflow - Complete voice assistant workflow with intent system
+Unified Voice Assistant Workflow - Single workflow for all entry points
 
-This workflow implements the main pipeline:
-Audio → Voice Trigger → ASR → Text Processing → Intent Recognition → Intent Execution → Response
+This workflow implements the unified pipeline design with conditional stages:
+Audio → Voice Trigger → ASR → Text Processing → NLU → Intent → Response (+TTS)
 
-Enhanced with existing audio_helpers.py utilities for optimal performance.
+Supports all three entry points with stage skipping:
+- Voice Assistant: Full pipeline (skip_wake_word=False)
+- CLI/Text: Skip voice trigger + ASR stages (text input only)
+- WebAPI Audio: Skip voice trigger only (skip_wake_word=True)
 """
 
 import asyncio
 import logging
+import uuid
+from pathlib import Path
 from typing import AsyncIterator, Optional, Dict, Any, List
 
 from .base import Workflow, RequestContext
@@ -20,11 +25,29 @@ from ..config.manager import ConfigValidationError
 logger = logging.getLogger(__name__)
 
 
-class VoiceAssistantWorkflow(Workflow):
-    """Complete voice assistant workflow with intent system"""
+
+class UnifiedVoiceAssistantWorkflow(Workflow):
+    """
+    Unified Voice Assistant Workflow - Single workflow for all entry points
+    
+    This workflow implements the unified pipeline design with conditional stages:
+    Audio → Voice Trigger → ASR → Text Processing → NLU → Intent → Response (+TTS)
+    
+    Supports all three entry points with stage skipping:
+    - Voice Assistant: Full pipeline (skip_wake_word=False)
+    - CLI/Text: Skip voice trigger + ASR stages (text input only)
+    - WebAPI Audio: Skip voice trigger only (skip_wake_word=True)
+    
+    Features:
+    - Conditional pipeline stages based on input type
+    - Universal TTS output via wants_audio parameter
+    - Action execution framework with fire-and-forget patterns
+    - Action context tracking for disambiguation
+    """
     
     def __init__(self):
         super().__init__()
+        # Component references
         self.voice_trigger = None
         self.asr = None
         self.text_processor = None
@@ -35,310 +58,328 @@ class VoiceAssistantWorkflow(Workflow):
         self.context_manager = None
         self.buffer_size = None
         
+        # Pipeline stage flags
+        self._voice_trigger_enabled = True
+        self._asr_enabled = True
+        self._text_processing_enabled = True
+        self._nlu_enabled = True
+        self._intent_execution_enabled = True
+        self._tts_enabled = True
+    
     async def initialize(self):
-        """Initialize audio pipeline using existing audio_helpers.py utilities"""
+        """Initialize unified workflow with all required components"""
         if self.initialized:
             return
             
-        self.logger.info("Initializing VoiceAssistantWorkflow...")
+        self.logger.info("Initializing UnifiedVoiceAssistantWorkflow...")
         
-        # Validate audio capability before starting
+        # Validate audio capability
         try:
-            capabilities = await test_audio_playback_capability()  # From audio_helpers.py
+            capabilities = await test_audio_playback_capability()
             if not capabilities.get('devices_available', False):
-                raise ConfigValidationError("No audio devices available")
-            
-            self.logger.info(f"Audio capabilities validated: {capabilities}")
-            
+                self.logger.warning("No audio devices available - audio features limited")
+            else:
+                self.logger.info(f"Audio capabilities validated: {capabilities}")
         except Exception as e:
-            self.logger.error(f"Audio capability validation failed: {e}")
-            raise ConfigValidationError(f"Audio system not available: {e}")
-            
-        # Configure optimal buffer for voice trigger + ASR pipeline
-        self.buffer_size = calculate_audio_buffer_size(16000, 100.0)  # From audio_helpers.py
+            self.logger.warning(f"Audio capability validation failed: {e}")
+        
+        # Configure audio buffer
+        self.buffer_size = calculate_audio_buffer_size(16000, 100.0)
         self.logger.info(f"Configured audio buffer size: {self.buffer_size}")
         
-        # Validate required components
-        required_components = ['asr', 'nlu', 'intent_orchestrator', 'context_manager']
+        # Validate required components for unified workflow
+        required_components = ['nlu', 'intent_orchestrator', 'context_manager']
         for comp_name in required_components:
             if comp_name not in self.components:
                 raise ConfigValidationError(f"Required component '{comp_name}' not available")
         
-        # Get component references
-        self.voice_trigger = self.components.get('voice_trigger')  # Optional
-        self.asr = self.components['asr']
-        self.text_processor = self.components.get('text_processor')  # Optional but recommended
-        self.nlu = self.components['nlu']
-        self.intent_orchestrator = self.components['intent_orchestrator']
-        self.tts = self.components.get('tts')  # Optional
-        self.audio = self.components.get('audio')  # Optional
-        self.context_manager = self.components['context_manager']
+        # TTS-Audio dependency validation (Phase 2 implementation)
+        if self.components.get('tts') and not self.components.get('audio'):
+            raise ConfigValidationError(
+                "TTS component requires Audio component. "
+                "Either disable TTS or enable Audio component."
+            )
         
-        self.logger.info("VoiceAssistantWorkflow initialized successfully")
+        # Get component references (some are optional for different entry points)
+        self.voice_trigger = self.components.get('voice_trigger')  # Optional - for voice entry only
+        self.asr = self.components.get('asr')  # Optional - for audio input only  
+        self.text_processor = self.components.get('text_processor')  # Optional but recommended
+        self.nlu = self.components['nlu']  # Required
+        self.intent_orchestrator = self.components['intent_orchestrator']  # Required
+        self.tts = self.components.get('tts')  # Optional - for audio output
+        self.audio = self.components.get('audio')  # Optional - for audio output
+        self.context_manager = self.components['context_manager']  # Required
+        
+        self.logger.info("UnifiedVoiceAssistantWorkflow initialized successfully")
         self.initialized = True
+    
+    async def process_text_input(self, text: str, context: RequestContext) -> IntentResult:
+        """
+        Process text input through unified pipeline (skips audio stages)
+        
+        Pipeline: Text → Text Processing → NLU → Intent → Response (+optional TTS)
+        
+        Args:
+            text: Input text to process
+            context: Request context with client info and preferences
+            
+        Returns:
+            IntentResult with response and optional action metadata
+        """
+        if not self.initialized:
+            await self.initialize()
+        
+        self.logger.debug(f"Processing text input: '{text[:50]}...' from {context.source}")
+        
+        try:
+            # Create conversation context
+            conversation_context = await self._create_conversation_context(context)
+            
+            # Process pipeline starting from text processing
+            result = await self._process_pipeline(
+                input_data=text,
+                context=context,
+                conversation_context=conversation_context,
+                skip_wake_word=True,    # Always skip for text input
+                skip_asr=True          # Always skip for text input
+            )
+            
+            # Handle TTS if requested
+            if context.wants_audio and result.should_speak:
+                await self._handle_tts_output(result, context)
+            
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Text processing error: {e}")
+            return IntentResult(
+                text="Sorry, there was an error processing your request.",
+                success=False,
+                error=str(e),
+                confidence=0.0
+            )
     
     async def process_audio_stream(self, audio_stream: AsyncIterator[AudioData], context: RequestContext) -> AsyncIterator[IntentResult]:
         """
-        Main workflow: Audio → Wake Word → ASR → NLU → Intent Execution → Response
+        Process audio stream through unified pipeline
+        
+        Pipeline: Audio → [Voice Trigger] → ASR → Text Processing → NLU → Intent → Response (+TTS)
         
         Args:
-            audio_stream: Async iterator of audio data from input source
-            context: Request context with session info and preferences
+            audio_stream: Async iterator of audio data
+            context: Request context with skip_wake_word flag and client info
             
         Yields:
             IntentResult objects as they are generated
         """
         if not self.initialized:
             await self.initialize()
-            
-        self.logger.info(f"Starting voice assistant workflow for session {context.session_id}")
         
-        # Get or create conversation context with client information
-        conv_context = await self.context_manager.get_context_with_request_info(context.session_id, context)
-        
-        # Track audio processing state
-        listening_for_wake_word = not context.skip_wake_word and self.voice_trigger
-        audio_buffer = []
-        wake_word_detected = False
+        self.logger.debug(f"Processing audio stream from {context.source}, skip_wake_word={context.skip_wake_word}")
         
         try:
-            async for audio_data in audio_stream:
-                # 1. Voice Trigger Detection (if enabled and not skipped)
-                if listening_for_wake_word and not wake_word_detected:
-                    if self.voice_trigger and await self.voice_trigger.is_available():
-                        try:
-                            wake_result = await self.voice_trigger.detect(audio_data)
-                            
-                            if wake_result.detected:
-                                self.logger.info(f"Wake word detected: {wake_result.word} (confidence: {wake_result.confidence:.2f})")
-                                wake_word_detected = True
-                                audio_buffer = []  # Start fresh after wake word
-                                
-                                # Yield wake word confirmation if requested
-                                if context.metadata.get('notify_wake_word', False):
-                                    yield IntentResult(
-                                        text=f"Wake word '{wake_result.word}' detected",
-                                        should_speak=False,
-                                        metadata={'type': 'wake_word_detected', 'word': wake_result.word}
-                                    )
-                            else:
-                                continue  # Keep listening for wake word
-                                
-                        except Exception as e:
-                            self.logger.error(f"Voice trigger error: {e}")
-                            # Continue without voice trigger
-                            wake_word_detected = True
-                    else:
-                        # Voice trigger not available, skip wake word detection
-                        wake_word_detected = True
+            # Create conversation context
+            conversation_context = await self._create_conversation_context(context)
+            
+            # Process audio stream through pipeline
+            async for result in self._process_audio_pipeline(
+                audio_stream=audio_stream,
+                context=context,
+                conversation_context=conversation_context
+            ):
+                yield result
                 
-                # 2. Collect audio for ASR (after wake word or if wake word skipped)
-                if wake_word_detected or context.skip_wake_word:
-                    audio_buffer.append(audio_data)
-                    
-                    # Process when we have enough audio or silence detected
-                    if len(audio_buffer) >= 10:  # Adjust based on buffer_size
-                        # Combine audio data
-                        combined_audio = self._combine_audio_data(audio_buffer)
-                        
-                        # 3. Speech Recognition
-                        try:
-                            text = await self._transcribe_audio(combined_audio)
-                            
-                            if text and text.strip():
-                                # Process the recognized text
-                                result = await self._process_text_pipeline(text, conv_context, context)
-                                if result:
-                                    yield result
-                                
-                                # Reset for next interaction
-                                audio_buffer = []
-                                wake_word_detected = False if listening_for_wake_word else True
-                                
-                        except Exception as e:
-                            self.logger.error(f"ASR processing error: {e}")
-                            yield IntentResult(
-                                text="Sorry, I couldn't understand that.",
-                                should_speak=True,
-                                success=False,
-                                error=str(e)
-                            )
-                            
-                            # Reset state
-                            audio_buffer = []
-                            wake_word_detected = False if listening_for_wake_word else True
-                            
         except Exception as e:
-            self.logger.error(f"Audio stream processing error: {e}")
+            self.logger.error(f"Audio processing error: {e}")
             yield IntentResult(
-                text="Sorry, there was an audio processing error.",
-                should_speak=True,
+                text="Sorry, there was an error processing the audio.",
                 success=False,
-                error=str(e)
+                error=str(e),
+                confidence=0.0
             )
     
-    async def process_text_input(self, text: str, context: RequestContext) -> IntentResult:
+    async def _process_pipeline(self, input_data: str, context: RequestContext, 
+                              conversation_context: ConversationContext,
+                              skip_wake_word: bool = False, skip_asr: bool = False) -> IntentResult:
         """
-        Process text input through the workflow (no audio components).
+        Core unified pipeline processing with conditional stages
         
         Args:
-            text: Input text to process
+            input_data: Text input (from direct text or ASR output)
             context: Request context
+            conversation_context: Conversation context for tracking
+            skip_wake_word: Whether wake word detection was skipped
+            skip_asr: Whether ASR processing was skipped
             
         Returns:
-            IntentResult from processing
+            IntentResult with response and action metadata
         """
-        if not self.initialized:
-            await self.initialize()
-            
-        self.logger.info(f"Processing text input: '{text[:50]}...' for session {context.session_id}")
+        processed_text = input_data
         
-        # Get or create conversation context with client information
-        conv_context = await self.context_manager.get_context_with_request_info(context.session_id, context)
+        # Stage 1: Text Processing (if enabled and component available)
+        if self._text_processing_enabled and self.text_processor:
+            self.logger.debug("Stage: Text Processing")
+            processed_text = await self.text_processor.process(processed_text)
         
-        return await self._process_text_pipeline(text, conv_context, context)
+        # Stage 2: NLU (Natural Language Understanding)
+        self.logger.debug("Stage: NLU")
+        intent = await self.nlu.process(processed_text, conversation_context)
+        
+        # Stage 3: Intent Execution
+        self.logger.debug(f"Stage: Intent Execution - {intent.name}")
+        result = await self.intent_orchestrator.execute(intent, conversation_context)
+        
+        # Stage 4: Action Metadata Processing (fire-and-forget)
+        if result.action_metadata:
+            await self._process_action_metadata(result.action_metadata, conversation_context)
+        
+        # Update conversation history
+        conversation_context.add_to_history(
+            user_text=input_data,
+            response=result.text,
+            intent=intent.name
+        )
+        
+        return result
     
-    async def _transcribe_audio(self, audio_data: AudioData) -> Optional[str]:
-        """Transcribe audio using ASR component."""
-        if not self.asr or not await self.asr.is_available():
-            raise RuntimeError("ASR component not available")
+    async def _process_audio_pipeline(self, audio_stream: AsyncIterator[AudioData], 
+                                    context: RequestContext, conversation_context: ConversationContext) -> AsyncIterator[IntentResult]:
+        """
+        Process audio stream through conditional pipeline stages
         
-        try:
-            # Use the ASR component to transcribe
-            return await self.asr.transcribe(audio_data.data, 
-                                           sample_rate=audio_data.sample_rate,
-                                           channels=audio_data.channels)
-        except Exception as e:
-            self.logger.error(f"ASR transcription failed: {e}")
-            return None
-    
-    async def _process_text_pipeline(self, text: str, conv_context: ConversationContext, request_context: RequestContext) -> IntentResult:
+        Pipeline stages based on context.skip_wake_word:
+        - False (Voice): Audio → Voice Trigger → ASR → Text Processing → NLU → Intent → Response
+        - True (WebAPI): Audio → ASR → Text Processing → NLU → Intent → Response
         """
-        Process text through: Text Processing → Intent Recognition → Intent Execution → Response
+        audio_buffer = []
+        wake_word_detected = context.skip_wake_word  # If skipping, assume already "detected"
         
-        Args:
-            text: Recognized or input text
-            conv_context: Conversation context
-            request_context: Request context
+        async for audio_data in audio_stream:
+            audio_buffer.append(audio_data)
             
-        Returns:
-            IntentResult from processing
-        """
-        try:
-            # 3. Text Processing (using existing irene/utils/text_processing.py)
-            improved_text = text
-            if self.text_processor and await self.text_processor.is_available():
-                try:
-                    improved_text = await self.text_processor.improve(text, conv_context, stage="asr_output")
-                    if improved_text != text:
-                        self.logger.debug(f"Text improved: '{text}' → '{improved_text}'")
-                except Exception as e:
-                    self.logger.warning(f"Text processing failed, using original: {e}")
-                    improved_text = text
+            # Stage 1: Voice Trigger Detection (conditional)
+            if not wake_word_detected and self.voice_trigger:
+                wake_result = await self.voice_trigger.process_audio(audio_data)
+                if wake_result.detected:
+                    self.logger.debug("Wake word detected, starting ASR processing")
+                    wake_word_detected = True
+                    audio_buffer = []  # Clear buffer, start fresh for ASR
+                continue
             
-            # 4. Intent Recognition with Cascading Coordination
-            start_time = asyncio.get_event_loop().time()
+            # If no wake word detected yet, continue buffering
+            if not wake_word_detected:
+                continue
             
-            # Use context-aware recognition if client context is available
-            if conv_context.client_id:
-                intent = await self.nlu.recognize_with_context(improved_text, conv_context)
-                self.logger.debug("Using context-aware NLU recognition")
-            else:
-                intent = await self.nlu.recognize(improved_text, conv_context)
-                self.logger.debug("Using standard NLU recognition")
-            
-            # Log cascading performance metrics
-            recognition_time = (asyncio.get_event_loop().time() - start_time) * 1000  # ms
-            provider_used = intent.entities.get("_recognition_provider", "unknown")
-            cascade_attempts = intent.entities.get("_cascade_attempts", 1)
-            
-            self.logger.info(f"Intent recognized: {intent.name} (confidence: {intent.confidence:.2f}, "
-                           f"provider: {provider_used}, attempts: {cascade_attempts}, time: {recognition_time:.1f}ms)")
-            
-            # 5. Intent Execution (NEW!)
-            result = await self.intent_orchestrator.execute_intent(intent, conv_context)
-            
-            # 6. Response Output
-            await self._route_response(result, request_context, conv_context)
-            
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Text processing pipeline failed: {e}")
-            return IntentResult(
-                text="Sorry, I encountered an error processing your request.",
-                should_speak=True,
-                success=False,
-                error=str(e)
-            )
-    
-    async def _route_response(self, result: IntentResult, request_context: RequestContext, conv_context: ConversationContext):
-        """
-        Route response through appropriate output channels.
-        
-        Args:
-            result: Intent execution result
-            request_context: Request context
-            conv_context: Conversation context
-        """
-        try:
-            # Update conversation context
-            conv_context.add_assistant_turn(result)
-            
-            # Handle TTS if requested and available
-            if result.should_speak and request_context.wants_audio:
-                if self.tts and await self.tts.is_available():
-                    try:
-                        # Generate speech
-                        audio_data = await self.tts.synthesize(result.text)
-                        
-                        # Play audio if audio component available
-                        if self.audio and await self.audio.is_available():
-                            await self.audio.play(audio_data)
-                            
-                    except Exception as e:
-                        self.logger.error(f"TTS/Audio output failed: {e}")
-                        # Continue without audio output
-            
-            # Handle additional actions
-            for action in result.actions:
-                try:
-                    await self._execute_action(action, conv_context)
-                except Exception as e:
-                    self.logger.error(f"Action execution failed for '{action}': {e}")
+            # Stage 2: ASR (Automatic Speech Recognition)
+            if self.asr:
+                # Process buffered audio through ASR
+                if audio_buffer:
+                    combined_audio = await self._combine_audio_buffer(audio_buffer)
+                    audio_buffer = []
                     
+                    asr_result = await self.asr.process_audio(combined_audio)
+                    if asr_result and asr_result.strip():
+                        self.logger.debug(f"ASR result: {asr_result}")
+                        
+                        # Process through unified pipeline
+                        result = await self._process_pipeline(
+                            input_data=asr_result,
+                            context=context,
+                            conversation_context=conversation_context,
+                            skip_wake_word=True,  # Already processed
+                            skip_asr=True        # Already processed
+                        )
+                        
+                        # Handle TTS if requested
+                        if context.wants_audio and result.should_speak:
+                            await self._handle_tts_output(result, context)
+                        
+                        yield result
+                        
+                        # Reset for next interaction
+                        wake_word_detected = context.skip_wake_word
+    
+    async def _create_conversation_context(self, context: RequestContext) -> ConversationContext:
+        """Create or retrieve conversation context from context manager"""
+        return await self.context_manager.get_or_create_context(
+            session_id=context.session_id,
+            client_id=context.client_id,
+            client_metadata=context.metadata
+        )
+    
+    async def _process_action_metadata(self, action_metadata: Dict[str, Any], 
+                                     conversation_context: ConversationContext):
+        """Process action metadata and update conversation context"""
+        if 'active_action' in action_metadata:
+            active_action = action_metadata['active_action']
+            for domain, action_info in active_action.items():
+                conversation_context.add_active_action(domain, action_info)
+        
+        # Additional action metadata processing can be added here
+        # (e.g., action completion callbacks, error handling, etc.)
+    
+    async def _handle_tts_output(self, result: IntentResult, context: RequestContext):
+        """Handle TTS output using temp file coordination"""
+        if not (self.tts and self.audio and result.text):
+            return
+            
+        # Generate unique temporary file path
+        temp_filename = f"tts_{uuid.uuid4().hex}.wav"
+        temp_path = self.temp_audio_dir / temp_filename
+        
+        try:
+            # Step 1: TTS generates audio file
+            self.logger.debug(f"Generating TTS audio: {temp_path}")
+            await self.tts.synthesize_to_file(result.text, temp_path)
+            
+            # Step 2: Audio plays the file
+            self.logger.debug(f"Playing audio file: {temp_path}")
+            await self.audio.play_file(temp_path)
+            
+            self.logger.info(f"Successfully played TTS audio for: {result.text[:50]}...")
+            
         except Exception as e:
-            self.logger.error(f"Response routing failed: {e}")
+            self.logger.warning(f"TTS-Audio coordination failed: {e}")
+            
+        finally:
+            # Step 3: MANDATORY cleanup
+            if temp_path.exists():
+                temp_path.unlink()
+                self.logger.debug(f"Cleaned up temp file: {temp_path}")
     
-    async def _execute_action(self, action: str, conv_context: ConversationContext):
-        """Execute additional actions from intent result."""
-        # TODO: Implement action execution system
-        # This could include things like setting timers, playing music, etc.
-        self.logger.debug(f"Action execution not yet implemented for: {action}")
-    
-    def _combine_audio_data(self, audio_buffer: list) -> AudioData:
-        """Combine multiple AudioData objects into one."""
+    async def _combine_audio_buffer(self, audio_buffer: List[AudioData]) -> AudioData:
+        """Combine multiple AudioData objects into a single object"""
         if not audio_buffer:
-            return AudioData(data=b'', timestamp=0.0)
+            raise ValueError("Cannot combine empty audio buffer")
+        
+        if len(audio_buffer) == 1:
+            return audio_buffer[0]
         
         # Combine audio data
+        first_audio = audio_buffer[0]
         combined_data = b''.join(audio.data for audio in audio_buffer)
         
-        # Use properties from first audio data
-        first_audio = audio_buffer[0]
         return AudioData(
             data=combined_data,
             timestamp=first_audio.timestamp,
             sample_rate=first_audio.sample_rate,
             channels=first_audio.channels,
             format=first_audio.format
-        ) 
+        )
     
     def __repr__(self) -> str:
-        return f"VoiceAssistantWorkflow(initialized={self.initialized}, components={len(self.components)})"
+        return f"UnifiedVoiceAssistantWorkflow(initialized={self.initialized}, components={len(self.components)})"
     
-    # Build dependency methods (TODO #5 Phase 2)
+    @property
+    def temp_audio_dir(self) -> Path:
+        """Get temp audio directory from injected configuration"""
+        config = self.get_component('config')
+        if not config:
+            raise ConfigValidationError("Configuration not available in workflow")
+        return Path(config.storage.temp_audio_dir)
+    
+    # Build dependency methods
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
-        """Voice assistant workflow needs core audio processing libraries"""
-        return ["sounddevice>=0.4.0", "soundfile>=0.12.0"] 
+        """Workflows coordinate components - minimal direct dependencies"""
+        return [] 

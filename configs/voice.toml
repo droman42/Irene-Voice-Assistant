@@ -137,8 +137,8 @@ disabled = ["train_schedule"]  # Specialized handlers
 # PLUGIN SYSTEM - Development Plugins
 # ============================================================
 [plugins]
-enabled = ["random_plugin"]  # Fun plugin for testing
-disabled = ["async_service_demo"]
+enabled = []  # Builtin plugins converted to intent handlers in Phase 3
+disabled = []  # No builtin plugins remain
 
 # ============================================================
 # WEB API - Development Interface

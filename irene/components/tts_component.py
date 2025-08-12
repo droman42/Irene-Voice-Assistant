@@ -14,9 +14,7 @@ from pathlib import Path
 from .base import Component
 from ..core.interfaces.tts import TTSPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
-from ..core.interfaces.command import CommandPlugin
-from ..core.context import Context
-from ..core.commands import CommandResult
+
 # Import TTS provider base class and dynamic loader
 from ..providers.tts import TTSProvider
 from ..utils.loader import dynamic_loader
@@ -24,7 +22,7 @@ from ..utils.loader import dynamic_loader
 logger = logging.getLogger(__name__)
 
 
-class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
+class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
     """
     TTS component that coordinates multiple TTS providers.
     
@@ -286,26 +284,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
             logger.error(f"Failed to load fallback console provider: {e}")
     
     # TTSPlugin interface - delegates to providers
-    async def speak(self, text: str, **kwargs) -> None:
-        """Convert text to speech using configured provider with lazy loading support"""
-        provider_name = kwargs.get("provider", self.default_provider)
-        
-        # Try to get provider, with lazy loading if enabled
-        provider = await self._get_provider(provider_name)
-        
-        if provider:
-            try:
-                # Pass core reference for audio playback
-                kwargs["core"] = self.core
-                await provider.speak(text, **kwargs)
-            except Exception as e:
-                logger.error(f"TTS provider {provider_name} failed: {e}")
-                await self._speak_with_fallback(text, **kwargs)
-        else:
-            logger.warning(f"TTS provider {provider_name} not available")
-            await self._speak_with_fallback(text, **kwargs)
-    
-    async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
+    async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """Generate speech file using configured provider with lazy loading support"""
         provider_name = kwargs.get("provider", self.default_provider)
         
@@ -314,12 +293,15 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
         
         if provider:
             try:
-                await provider.to_file(text, output_path, **kwargs)
+                await provider.synthesize_to_file(text, output_path, **kwargs)
             except Exception as e:
                 logger.error(f"TTS provider {provider_name} failed: {e}")
-                raise
+                await self._synthesize_with_fallback(text, output_path, **kwargs)
         else:
-            raise ValueError(f"TTS provider {provider_name} not available")
+            logger.warning(f"TTS provider {provider_name} not available")
+            await self._synthesize_with_fallback(text, output_path, **kwargs)
+    
+
     
     def get_supported_voices(self) -> List[str]:
         """Get voices from all available providers"""
@@ -356,13 +338,12 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
         
         return None
     
-    async def _speak_with_fallback(self, text: str, **kwargs) -> None:
+    async def _synthesize_with_fallback(self, text: str, output_path: Path, **kwargs) -> None:
         """Try fallback providers when primary fails"""
         for fallback_provider in self.fallback_providers:
             if fallback_provider in self.providers:
                 try:
-                    kwargs["core"] = self.core
-                    await self.providers[fallback_provider].speak(text, **kwargs)
+                    await self.providers[fallback_provider].synthesize_to_file(text, output_path, **kwargs)
                     logger.info(f"Used fallback TTS provider: {fallback_provider}")
                     return
                 except Exception as e:
@@ -373,125 +354,12 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
         logger.error("All TTS providers failed")
         raise RuntimeError("No TTS providers available")
     
-    # CommandPlugin interface - voice control
-    def get_triggers(self) -> List[str]:
-        """Get command triggers for TTS control"""
-        return [
-            "скажи", "говори", "произнеси", "голос", "переключись",
-            "покажи голоса", "список голосов", "говори голосом"
-        ]
+    # Public methods for intent handler delegation
+
     
-    async def can_handle(self, command: str, context: Context) -> bool:
-        """Check if this command is TTS-related"""
-        triggers = self.get_triggers()
-        command_lower = command.lower()
-        return any(trigger in command_lower for trigger in triggers)
-    
-    async def handle_command(self, command: str, context: Context) -> CommandResult:
-        """Handle TTS voice commands"""
-        command_lower = command.lower()
-        
-        try:
-            if "скажи" in command_lower and "голосом" in command_lower:
-                # "скажи привет голосом ксении"
-                result = await self._handle_speak_with_voice_command(command)
-                return result
-                
-            elif "переключись на" in command_lower:
-                # "переключись на силеро"
-                result = await self._handle_switch_provider_command(command)
-                return result
-                
-            elif any(phrase in command_lower for phrase in ["покажи голоса", "список голосов"]):
-                # "покажи голоса" or "список голосов"
-                result = await self._handle_list_voices_command()
-                return result
-                
-            else:
-                return CommandResult(
-                    success=False, 
-                    response="Неизвестная команда управления TTS"
-                )
-                
-        except Exception as e:
-            logger.error(f"TTS command handling error: {e}")
-            return CommandResult(
-                success=False,
-                response=f"Ошибка обработки команды TTS: {e}"
-            )
-    
-    async def _handle_speak_with_voice_command(self, command: str) -> CommandResult:
-        """Handle 'скажи ... голосом ...' commands"""
-        # Simple parsing - extract text and voice
-        parts = command.lower().split()
-        
-        if "скажи" in parts and "голосом" in parts:
-            try:
-                speak_idx = parts.index("скажи")
-                voice_idx = parts.index("голосом")
-                
-                # Extract text between "скажи" and "голосом"
-                text_parts = parts[speak_idx + 1:voice_idx]
-                text = " ".join(text_parts)
-                
-                # Extract voice/provider after "голосом"
-                if voice_idx + 1 < len(parts):
-                    voice_name = parts[voice_idx + 1]
-                    
-                    # Map voice names to providers
-                    provider_mapping = {
-                        "ксении": ("silero_v3", {"speaker": "xenia"}),
-                        "кcении": ("silero_v3", {"speaker": "xenia"}),
-                        "айдара": ("silero_v3", {"speaker": "aidar"}),
-                        "силеро": ("silero_v3", {}),
-                        "консоли": ("console", {}),
-                        "системным": ("pyttsx", {})
-                    }
-                    
-                    if voice_name in provider_mapping:
-                        provider, params = provider_mapping[voice_name]
-                        if provider in self.providers:
-                            await self.speak(text, provider=provider, **params)
-                            return CommandResult(
-                                success=True,
-                                response=f"Сказал '{text}' голосом {voice_name}"
-                            )
-                        else:
-                            return CommandResult(
-                                success=False,
-                                response=f"Голос {voice_name} недоступен"
-                            )
-                    else:
-                        # Use default provider
-                        await self.speak(text)
-                        return CommandResult(
-                            success=True,
-                            response=f"Сказал '{text}' обычным голосом"
-                        )
-                else:
-                    # No voice specified, use default
-                    await self.speak(text)
-                    return CommandResult(
-                        success=True,
-                        response=f"Сказал '{text}'"
-                    )
-                    
-            except Exception as e:
-                return CommandResult(
-                    success=False,
-                    response=f"Ошибка обработки команды: {e}"
-                )
-        
-        return CommandResult(
-            success=False,
-            response="Не удалось распознать команду"
-        )
-    
-    async def _handle_switch_provider_command(self, command: str) -> CommandResult:
-        """Handle provider switching commands"""
-        command_lower = command.lower()
-        
-        # Simple provider name mapping
+    def set_default_provider(self, provider_name: str) -> bool:
+        """Set default TTS provider - simple atomic operation"""
+        # Map common names to actual provider names
         provider_mapping = {
             "силеро": "silero_v3",
             "силеро3": "silero_v3", 
@@ -501,32 +369,27 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
             "воск": "vosk_tts"
         }
         
-        for name, provider in provider_mapping.items():
-            if name in command_lower:
-                if provider in self.providers:
-                    self.default_provider = provider
-                    return CommandResult(
-                        success=True,
-                        response=f"Переключился на TTS провайдер: {name}"
-                    )
-                else:
-                    return CommandResult(
-                        success=False,
-                        response=f"TTS провайдер {name} недоступен"
-                    )
-        
-        return CommandResult(
-            success=False,
-            response="Неизвестный TTS провайдер"
-        )
+        # Try direct match first
+        if provider_name in self.providers:
+            self.default_provider = provider_name
+            return True
+            
+        # Try mapped name
+        mapped_name = provider_mapping.get(provider_name.lower())
+        if mapped_name and mapped_name in self.providers:
+            self.default_provider = mapped_name
+            return True
+            
+        return False
     
-    async def _handle_list_voices_command(self) -> CommandResult:
-        """Handle list voices commands"""
+    def switch_provider(self, provider_name: str) -> bool:
+        """Override base method with TTS-specific provider name mapping"""
+        return self.set_default_provider(provider_name)
+    
+    def get_providers_info(self) -> str:
+        """Implementation of abstract method - Get TTS providers information"""
         if not self.providers:
-            return CommandResult(
-                success=False,
-                response="Нет доступных TTS провайдеров"
-            )
+            return "Нет доступных TTS провайдеров"
         
         info = []
         info.append(f"Доступные TTS провайдеры ({len(self.providers)}):")
@@ -544,11 +407,9 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin, CommandPlugin):
             info.append(f"  Языки: {', '.join(languages)}")
             info.append("")
         
-        return CommandResult(
-            success=True,
-            response="\n".join(info)
-        )
+        return "\n".join(info)
     
+
     # WebAPIPlugin interface - unified API
     def get_router(self) -> Optional[Any]:
         """Get FastAPI router with TTS endpoints"""

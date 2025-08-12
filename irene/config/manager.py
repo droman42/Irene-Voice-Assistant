@@ -266,56 +266,9 @@ class ConfigManager:
     def _create_documented_toml(self, config: CoreConfig) -> str:
         """Create TOML content with documentation and comments"""
         
-        # Get plugin metadata using dynamic discovery (entry-points based)
+        # NOTE: Builtin plugin metadata discovery removed - functionality moved to intent handlers
         plugin_metadata = {}
-        try:
-            from ..utils.loader import dynamic_loader
-            builtin_plugins_classes = dynamic_loader.discover_providers("irene.plugins.builtin", [])
-            
-            for plugin_name, plugin_class in builtin_plugins_classes.items():
-                try:
-                    temp_instance = plugin_class()
-                    plugin_metadata[plugin_name] = {
-                        "description": temp_instance.description,
-                        "dependencies": temp_instance.dependencies,
-                        "optional_dependencies": temp_instance.optional_dependencies,
-                        "category": getattr(temp_instance, 'category', 'unknown'),
-                        "platforms": getattr(temp_instance, 'platforms', [])
-                    }
-                except Exception:
-                    # Fallback for plugins that can't be instantiated
-                    plugin_metadata[plugin_name] = {
-                        "description": f"{plugin_name}",
-                        "dependencies": [],
-                        "optional_dependencies": [],
-                        "category": "unknown",
-                        "platforms": []
-                    }
-        except Exception:
-            plugin_metadata = {}
-        
-        # Generate plugin sections dynamically
         plugin_sections = {}
-        builtin_plugins = getattr(config.plugins, 'builtin_plugins', {})
-        
-        for plugin_name, enabled in builtin_plugins.items():
-            metadata = plugin_metadata.get(plugin_name, {})
-            description = metadata.get("description", plugin_name)
-            dependencies = metadata.get("dependencies", []) + metadata.get("optional_dependencies", [])
-            platforms = metadata.get("platforms", [])
-            
-            comment = f"# {description}"
-            if dependencies:
-                deps_str = ", ".join(dependencies)
-                comment += f" (requires {deps_str})"
-            if platforms:
-                plat_str = ", ".join(platforms)
-                comment += f" ({plat_str} only)"
-                
-            plugin_sections[plugin_name] = {
-                'enabled': str(enabled).lower(),
-                'comment': comment
-            }
         
         # Generate TOML content
         content = """# Irene Voice Assistant v13 Configuration
@@ -354,8 +307,7 @@ plugin_directories = {plugins_plugin_directories}
 enabled_plugins = {plugins_enabled_plugins}
 disabled_plugins = {plugins_disabled_plugins}
 
-# Built-in plugin configuration
-[plugins.builtin_plugins]
+# NOTE: Built-in plugins section removed - functionality moved to intent handlers
 """.format(
     name=config.name,
     version=config.version,

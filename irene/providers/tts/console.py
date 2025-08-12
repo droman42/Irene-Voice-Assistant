@@ -110,39 +110,7 @@ class ConsoleTTSProvider(TTSProvider):
         """Console TTS supports all platforms"""
         return ["linux", "windows", "macos"]
     
-    async def speak(self, text: str, **kwargs) -> None:
-        """
-        'Speak' text by printing to console.
-        
-        Args:
-            text: Text to display
-            **kwargs: color, style (ignored for basic console output)
-        """
-        # Extract optional parameters
-        color = kwargs.get("color", "blue")
-        style = kwargs.get("style", "console")
-        
-        # Simulate speech timing if enabled
-        if self.timing_simulation:
-            word_count = len(text.split())
-            delay = word_count * self.simulate_delay
-            await asyncio.sleep(min(delay, 3.0))  # Cap at 3 seconds
-        else:
-            await asyncio.sleep(0.01)  # Minimal async delay
-        
-        output_text = f"{self.prefix}{text}"
-        
-        if (self._termcolor_available and 
-            self.color_output and 
-            self._colored_print and 
-            style in ["console", "colored"]):
-            # Print in specified color for TTS output
-            self._colored_print(output_text, color)
-        else:
-            # Plain text output
-            print(output_text)
-    
-    async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
+    async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """
         Save text to file instead of audio.
         

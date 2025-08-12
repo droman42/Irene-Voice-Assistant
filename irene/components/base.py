@@ -31,6 +31,77 @@ class Component(EntryPointMetadata, ABC):
         """
         pass
     
+    @abstractmethod
+    def get_providers_info(self) -> str:
+        """
+        Get human-readable information about available providers.
+        
+        Returns:
+            Formatted string with provider information for user display
+        """
+        pass
+    
+    def parse_provider_name_from_text(self, text: str) -> Optional[str]:
+        """
+        Extract provider name from user text/voice command.
+        
+        Args:
+            text: User input text (voice command, API request, etc.)
+            
+        Returns:
+            Provider name if found, None otherwise
+            
+        Note: Default implementation provides basic keyword matching.
+              Components can override for component-specific aliases.
+        """
+        text_lower = text.lower()
+        
+        # Try direct provider name match
+        for provider_name in self.providers.keys():
+            if provider_name.lower() in text_lower:
+                return provider_name
+        
+        return None
+    
+    def switch_provider(self, provider_name: str) -> bool:
+        """
+        Switch to a different provider (alias for set_default_provider).
+        
+        Args:
+            provider_name: Name of provider to switch to
+            
+        Returns:
+            True if switch successful, False otherwise
+        """
+        return self.set_default_provider(provider_name)
+    
+    def get_provider_capabilities(self) -> Dict[str, Any]:
+        """
+        Get capabilities of all providers.
+        
+        Returns:
+            Dictionary mapping provider names to their capabilities
+        """
+        capabilities = {}
+        for name, provider in self.providers.items():
+            if hasattr(provider, 'get_capabilities'):
+                try:
+                    capabilities[name] = provider.get_capabilities()
+                except Exception as e:
+                    capabilities[name] = {"error": str(e)}
+            else:
+                capabilities[name] = {"available": True}
+        
+        return capabilities
+    
+    def list_available_providers(self) -> List[str]:
+        """Get list of available provider names."""
+        return list(self.providers.keys())
+    
+    def is_provider_available(self, provider_name: str) -> bool:
+        """Check if a specific provider is available."""
+        return provider_name in self.providers
+    
     async def initialize(self):
         """Initialize the component and its providers."""
         self.logger.info(f"Initializing component: {self.name}")
@@ -62,18 +133,23 @@ class Component(EntryPointMetadata, ABC):
             self.default_provider = name
         self.logger.info(f"Added provider '{name}' to component {self.name}")
     
-    def set_default_provider(self, name: str):
+    def set_default_provider(self, name: str) -> bool:
         """
         Set the default provider for this component.
         
         Args:
             name: Provider name to set as default
+            
+        Returns:
+            True if provider was set successfully, False otherwise
         """
         if name in self.providers:
             self.default_provider = name
             self.logger.info(f"Set default provider for {self.name}: {name}")
+            return True
         else:
-            raise ValueError(f"Provider '{name}' not found in component {self.name}")
+            self.logger.warning(f"Provider '{name}' not found in component {self.name}")
+            return False
     
     def get_current_provider(self) -> Optional[Any]:
         """

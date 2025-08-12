@@ -6,7 +6,7 @@ against their JSON schema to ensure correctness during build time and deployment
 
 Usage:
     python -m irene.tools.intent_validator --validate-all
-    python -m irene.tools.intent_validator --file irene/intents/handlers/timer.json
+    python -m irene.tools.intent_validator --file irene/intents/handlers/donations/timer.json
     python -m irene.tools.intent_validator --handler timer
 """
 
@@ -355,7 +355,7 @@ Examples:
   python -m irene.tools.intent_validator --validate-all
 
   # Validate a specific JSON file
-  python -m irene.tools.intent_validator --file irene/intents/handlers/timer.json
+  python -m irene.tools.intent_validator --file irene/intents/handlers/donations/timer.json
 
   # Validate a specific handler by name
   python -m irene.tools.intent_validator --handler timer

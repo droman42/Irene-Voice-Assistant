@@ -247,6 +247,23 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
             return list(self.providers.values())[0]
         return None
     
+    def get_providers_info(self) -> str:
+        """Implementation of abstract method - Get voice trigger providers information"""
+        if not self.providers:
+            return "Нет доступных провайдеров активации по голосу"
+        
+        info_lines = [f"Доступные провайдеры активации ({len(self.providers)}):"]
+        for name, provider in self.providers.items():
+            status = "✓ (по умолчанию)" if name == self.default_provider else "✓"
+            capabilities = provider.get_capabilities()
+            wake_words = capabilities.get("wake_words", self.wake_words)
+            info_lines.append(f"  {status} {name}: {', '.join(wake_words[:3])}")
+        
+        info_lines.append(f"Порог обнаружения: {self.threshold}")
+        info_lines.append(f"Активные слова: {', '.join(self.wake_words)}")
+        
+        return "\n".join(info_lines)
+    
     def get_wake_words(self) -> List[str]:
         """Get current wake words."""
         return self.wake_words.copy()

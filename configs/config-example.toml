@@ -27,6 +27,14 @@ metrics_port = 9090
 enable_profiling = false
 
 # ============================================================
+# STORAGE CONFIGURATION - TTS-Audio Coordination
+# ============================================================
+[storage]
+# Directory for temporary TTS audio files during workflow coordination
+temp_audio_dir = "./cache/temp/audio"  # Can be overridden by IRENE_TEMP_AUDIO_DIR
+auto_create_dirs = true                # Automatically create storage directories
+
+# ============================================================
 # ASSET MANAGEMENT - Unified Model and Cache Storage
 # ============================================================
 [assets]
@@ -109,7 +117,7 @@ discovery_paths = ["irene.intents.handlers", "custom.intents.handlers"]
 # PLUGIN SYSTEM - Fully Dynamic (No Builtin vs External Distinction)
 # ============================================================
 [plugins]
-enabled = ["random_plugin", "async_service_demo"]
+enabled = []  # Builtin plugins converted to intent handlers in Phase 3
 disabled = ["deprecated_plugin"]
 
 # Unified plugin discovery

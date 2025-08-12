@@ -18,11 +18,8 @@ try:
 except ImportError:
     MICROPHONE_AVAILABLE = False
 
-try:
-    from .outputs.tts import TTSOutput
-    TTS_AVAILABLE = True
-except ImportError:
-    TTS_AVAILABLE = False
+# TTS availability is now handled through component system
+TTS_AVAILABLE = True  # Components handle their own availability
 
 __all__ = [
     "AsyncVACore",

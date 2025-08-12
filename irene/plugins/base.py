@@ -11,9 +11,7 @@ from typing import Dict, Any, List, Optional
 from abc import abstractmethod
 
 from ..core.interfaces.plugin import PluginInterface
-from ..core.interfaces.command import CommandPlugin
-from ..core.context import Context
-from ..core.commands import CommandResult
+
 from ..core.metadata import EntryPointMetadata
 
 logger = logging.getLogger(__name__)
@@ -63,71 +61,6 @@ class BasePlugin(EntryPointMetadata, PluginInterface):
         """Get reference to core engine"""
         return self._core
 
-
-class BaseCommandPlugin(BasePlugin, CommandPlugin):
-    """
-    Base class for command plugins.
-    
-    Provides common command handling patterns and utilities.
-    """
-    
-    def __init__(self):
-        super().__init__()
-        self._triggers = []
-        
-    async def can_handle(self, command: str, context: Context) -> bool:
-        """Default implementation checks triggers"""
-        command_lower = command.lower().strip()
-        triggers = [trigger.lower() for trigger in self.get_triggers()]
-        
-        if self.supports_partial_matching():
-            return any(trigger in command_lower for trigger in triggers)
-        else:
-            return any(command_lower.startswith(trigger) for trigger in triggers)
-            
-    def add_trigger(self, trigger: str) -> None:
-        """Add a trigger word/phrase"""
-        if trigger not in self._triggers:
-            self._triggers.append(trigger)
-            
-    def remove_trigger(self, trigger: str) -> None:
-        """Remove a trigger word/phrase"""
-        if trigger in self._triggers:
-            self._triggers.remove(trigger)
-            
-    def get_triggers(self) -> List[str]:
-        """Get list of triggers"""
-        return self._triggers.copy()
-        
-    async def handle_command(self, command: str, context: Context) -> CommandResult:
-        """
-        Default command handling with error catching.
-        Subclasses should override _handle_command_impl
-        """
-        try:
-            return await self._handle_command_impl(command, context)
-        except Exception as e:
-            self.logger.error(f"Error handling command '{command}': {e}")
-            return CommandResult.error_result(f"Command failed: {str(e)}")
-            
-    @abstractmethod
-    async def _handle_command_impl(self, command: str, context: Context) -> CommandResult:
-        """Implementation method for command handling"""
-        pass
-        
-    def extract_parameters(self, command: str, trigger: str) -> str:
-        """Extract parameters from command after removing trigger"""
-        command_lower = command.lower()
-        trigger_lower = trigger.lower()
-        
-        if command_lower.startswith(trigger_lower):
-            return command[len(trigger):].strip()
-        return ""
-        
-    async def send_response(self, text: str) -> None:
-        """Send response through core engine"""
-        if self._core:
-            await self._core.say(text)
 
 
 class ConfigurablePlugin(BasePlugin):

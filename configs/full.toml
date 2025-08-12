@@ -24,6 +24,13 @@ metrics_port = 9090
 enable_profiling = true
 
 # ============================================================
+# STORAGE CONFIGURATION - TTS-Audio Coordination
+# ============================================================
+[storage]
+temp_audio_dir = "./cache/temp/audio"  # Directory for temporary TTS audio files
+auto_create_dirs = true                # Automatically create storage directories
+
+# ============================================================
 # ASSET MANAGEMENT - Full Storage
 # ============================================================
 [assets]
@@ -191,10 +198,34 @@ enabled = ["conversation", "greetings", "timer", "datetime", "system", "train_sc
 disabled = []
 
 # ============================================================
+# ACTION EXECUTION - Fire-and-Forget Action Framework
+# ============================================================
+[actions]
+enabled = true
+
+# Domain priority configuration for action ambiguity resolution
+# Higher numbers = higher priority when multiple actions could be stopped
+[actions.domain_priorities]
+music = 100           # Music/audio playback (highest priority)
+smart_home = 80       # Smart home devices (lights, climate, etc.)
+timers = 70           # Timer and reminder actions
+media = 60            # Video/streaming media
+system = 50           # System control actions
+conversation = 30     # Conversational actions (lowest priority)
+
+# Action execution settings
+[actions.execution]
+timeout_seconds = 30.0                    # Maximum time for action execution
+failure_follow_up_enabled = true          # Send follow-up notifications on failure
+context_tracking_enabled = true           # Track actions in conversation context
+max_active_actions_per_domain = 3         # Maximum concurrent actions per domain
+action_history_limit = 10                 # Maximum recent actions to remember
+
+# ============================================================
 # PLUGIN SYSTEM - All Plugins
 # ============================================================
 [plugins]
-enabled = ["random_plugin", "async_service_demo"]
+enabled = []  # Builtin plugins converted to intent handlers in Phase 3
 disabled = []
 
 # ============================================================

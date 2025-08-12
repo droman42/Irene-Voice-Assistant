@@ -450,7 +450,7 @@ Open questions status (ALL RESOLVED):
 
 Based on the complete architectural analysis and all 6 resolved questions, the implementation is structured in 5 phases for systematic migration from legacy multiple pipelines to the unified architecture.
 
-### Phase 1: Foundation & Models Enhancement
+### Phase 1: Foundation & Models Enhancement - ✅ **COMPLETED**
 **Objective:** Prepare data models and core infrastructure for unified pipeline
 
 **Key Changes:**
@@ -465,11 +465,11 @@ Based on the complete architectural analysis and all 6 resolved questions, the i
 - `configs/*.toml` - Add action priority configuration section
 
 **Success Criteria:**
-- ✅ Models support action context tracking
-- ✅ Unified workflow class ready for all entry points
-- ✅ Configuration supports action ambiguity resolution
+- ✅ Models support action context tracking - **COMPLETED** (IntentResult.action_metadata + ConversationContext.active_actions/recent_actions)
+- ✅ Unified workflow class ready for all entry points - **COMPLETED** (UnifiedVoiceAssistantWorkflow with conditional pipeline stages)
+- ✅ Configuration supports action ambiguity resolution - **COMPLETED** (actions.domain_priorities in configs/full.toml + development.toml)
 
-### Phase 2: Enhanced Workflow Manager Interface
+### Phase 2: Enhanced Workflow Manager Interface - ✅ **COMPLETED**
 **Objective:** Implement Q1 decision with enhanced WorkflowManager methods
 
 **Key Changes:**
@@ -484,11 +484,11 @@ Based on the complete architectural analysis and all 6 resolved questions, the i
 - `irene/core/engine.py` - Ensure workflow_manager initialization
 
 **Success Criteria:**
-- ✅ Single workflow supports all 3 entry points (Voice, CLI, WebAPI)
-- ✅ Conditional stage skipping (voice trigger, ASR) based on input type
-- ✅ Action metadata flows from handlers to conversation context
+- ✅ Single workflow supports all 3 entry points (Voice, CLI, WebAPI) - **COMPLETED** (UnifiedVoiceAssistantWorkflow integrated via _get_or_create_unified_workflow)
+- ✅ Conditional stage skipping (voice trigger, ASR) based on input type - **COMPLETED** (RequestContext-based stage configuration in base.py)
+- ✅ Action metadata flows from handlers to conversation context - **COMPLETED** (_process_action_metadata_integration method)
 
-### Phase 3: Legacy System Migration (Q2 + Q4)
+### Phase 3: Legacy System Migration (Q2 + Q4) - ✅ **COMPLETED**
 **Objective:** Complete elimination of CommandProcessor system and process_command() migration
 
 **Key Changes:**
@@ -498,6 +498,13 @@ Based on the complete architectural analysis and all 6 resolved questions, the i
 - **Migrate builtin plugins** to intent handlers (`RandomIntentHandler`, `SystemServiceIntentHandler`)
 - **Update CLI and WebAPI runners** to use unified workflow interface
 
+**🚨 CRITICAL REQUIREMENT: Intent Handler + JSON Donation Files**
+- **MANDATORY**: Every intent handler class MUST have a corresponding JSON donation file
+- **File naming**: `{HandlerName}.json` (e.g., `RandomIntentHandler.json`, `SystemServiceIntentHandler.json`)
+- **Location**: `irene/intents/handlers/donations/` directory
+- **Content**: Pattern matching definitions for intent recognition in Russian and English
+- **No exceptions**: Intent handlers without donation files will not function in the unified system
+
 **Files Modified:**
 - `irene/core/engine.py` - Delete process_command(), remove CommandProcessor dependency
 - `irene/runners/cli.py` - Update all process_command() calls
@@ -506,14 +513,16 @@ Based on the complete architectural analysis and all 6 resolved questions, the i
 - `irene/tests/*.py` - Update all test cases
 - Delete: `irene/core/commands.py`, `irene/core/interfaces/command.py`
 - `irene/intents/handlers/` - Add RandomIntentHandler, SystemServiceIntentHandler
+- **`irene/intents/handlers/donations/` - REQUIRED: random_handler.json, system_service_handler.json**
 
 **Success Criteria:**
-- ✅ No `core.process_command()` calls exist in codebase
-- ✅ CommandProcessor system completely removed
-- ✅ All entry points use unified workflow interface
-- ✅ Builtin plugins converted to intent handlers
+- ✅ No `core.process_command()` calls exist in codebase - **COMPLETED**
+- ✅ CommandProcessor system completely removed - **COMPLETED**
+- ✅ All entry points use unified workflow interface - **COMPLETED**
+- ✅ Builtin plugins converted to intent handlers - **COMPLETED**
+- ✅ **JSON donation files created for all new intent handlers (random_handler.json, system_service_handler.json)** - **COMPLETED**
 
-### Phase 4: Component CommandPlugin Removal (Q3)
+### Phase 4: Component CommandPlugin Removal (Q3) - ✅ **COMPLETED**
 **Objective:** Convert component hardcoded commands to proper intent handlers
 
 **Key Changes:**
@@ -526,23 +535,47 @@ Based on the complete architectural analysis and all 6 resolved questions, the i
   - `VoiceSynthesisIntentHandler` - TTS with specific voices
   - `ProviderControlIntentHandler` - Provider switching across components
   - `SpeechRecognitionIntentHandler` - ASR configuration
-- **Create JSON donation files** for pattern matching instead of hardcoded Russian strings
+
+**🚨 CRITICAL REQUIREMENTS: Intent Handler Creation Checklist**
+
+**1. JSON Donation Files (MANDATORY)**
+- **MANDATORY**: Each of the 6 intent handlers MUST have a corresponding JSON donation file
+- **File naming**: `{handler_file_name}.json` (e.g., `audio_playback_handler.py` → `audio_playback_handler.json`)
+- **Location**: `irene/intents/handlers/donations/` directory
+- **Content**: Comprehensive pattern matching for Russian command recognition (extracted from hardcoded strings)
+- **Coverage**: Must include all original hardcoded patterns from components plus variations
+- **No exceptions**: Component functionality depends entirely on proper JSON donation file patterns
+
+**2. No Hardcodings in Handler Code (MANDATORY)**
+- **Use donation-driven routing exclusively**: `return await self.execute_with_donation_routing(intent, context)`
+- **No manual keyword checking**: Remove hardcoded pattern lists from `can_handle()` methods
+- **No manual if/elif chains**: Let donation system handle method routing via `method_donations`
+- **Proper can_handle() pattern**: Check donation patterns only, raise error if donation missing
+- **Follow existing handlers**: Use SystemIntentHandler as reference for proper donation-driven architecture
+
+**3. Entry Point Registration (MANDATORY)**
+- **pyproject.toml registration**: Add each handler to `[project.entry-points."irene.intents.handlers"]` section
+- **Entry point naming**: Use handler file name as key (e.g., `audio_playback_handler = "irene.intents.handlers.audio_playback_handler:AudioPlaybackIntentHandler"`)
+- **Discovery requirement**: Without entry-point registration, handlers will not be discovered by the system
+- **Dynamic loading**: Entry points enable configuration-driven handler enabling/disabling
 
 **Files Modified:**
 - `irene/components/audio_component.py` - Remove CommandPlugin, extract audio control methods
 - `irene/components/llm_component.py` - Remove CommandPlugin, extract translation/enhancement methods  
 - `irene/components/asr_component.py` - Remove CommandPlugin, extract configuration methods
 - `irene/components/tts_component.py` - Remove CommandPlugin, extract voice synthesis methods
-- `irene/intents/handlers/` - Create 6 new intent handlers
-- `irene/intents/handlers/*.json` - Create donation files with Russian command patterns
+- `irene/intents/handlers/` - Create 6 new intent handlers (audio_playback_handler.py, translation_handler.py, text_enhancement_handler.py, voice_synthesis_handler.py, provider_control_handler.py, speech_recognition_handler.py)
+- **`irene/intents/handlers/donations/` - REQUIRED: All 6 JSON donation files with handler file names**
+- **`pyproject.toml` - REQUIRED: Add 6 entry-point registrations for new intent handlers**
 
 **Success Criteria:**
-- ✅ No components implement CommandPlugin interface
-- ✅ All hardcoded command logic moved to proper intent handlers
-- ✅ Component functionality preserved through delegation
-- ✅ Commands work through unified intent system
+- ✅ No components implement CommandPlugin interface - **COMPLETED**
+- ✅ All hardcoded command logic moved to proper intent handlers - **COMPLETED**
+- ✅ Component functionality preserved through delegation - **COMPLETED**
+- ✅ Commands work through unified intent system - **COMPLETED**
+- ✅ **JSON donation files created for all 6 component intent handlers with complete pattern coverage** - **COMPLETED**
 
-### Phase 5: WebAPI Unification & Action Framework (Q5 + Q6)
+### Phase 5: WebAPI Unification & Action Framework (Q5 + Q6) - ✅ **COMPLETED**
 **Objective:** Complete WebAPI unification and implement fire-and-forget action execution
 
 **Key Changes:**
@@ -552,19 +585,29 @@ Based on the complete architectural analysis and all 6 resolved questions, the i
 - **Implement action failure follow-up** with context updates
 - **Add TTS support** for all entry points based on client preferences
 
+**🚨 CRITICAL REQUIREMENT: Intent Handler + JSON Donation Files**
+- **MANDATORY**: All example action intent handlers MUST have corresponding JSON donation files
+- **File naming**: `{HandlerName}.json` (e.g., `SmartHomeIntentHandler.json`, `MediaControlIntentHandler.json`)
+- **Location**: `irene/intents/handlers/donations/` directory
+- **Content**: Action-specific patterns for fire-and-forget execution and "stop" command disambiguation
+- **Action patterns**: Must include action initiation, status checking, and stopping commands
+- **No exceptions**: Action framework demonstration requires complete pattern coverage
+
 **Files Modified:**
 - `irene/runners/webapi_runner.py` - Complete unification, remove legacy fallbacks
 - `irene/intents/handlers/base.py` - Helper methods for action execution patterns
 - Example action intent handlers (smart home, media control) for demonstration
 - `irene/core/workflow_manager.py` - Action metadata processing and context updates
 - `irene/intents/context.py` - Action ambiguity resolution logic
+- **`irene/intents/handlers/donations/` - REQUIRED: JSON donation files for all example action handlers**
 
 **Success Criteria:**
-- ✅ WebAPI audio always bypasses voice trigger (user control + efficiency)  
-- ✅ All entry points support optional TTS based on client preferences
-- ✅ Intent handlers execute actions via fire-and-forget pattern
-- ✅ Action context tracking enables "stop" command disambiguation
-- ✅ Action failures trigger follow-up notifications when possible
+- ✅ WebAPI audio always bypasses voice trigger (user control + efficiency) - **COMPLETED** (WebAPI IntentExecutionRequest.wants_audio support)
+- ✅ All entry points support optional TTS based on client preferences - **COMPLETED** (CLI --enable-tts flag, WebAPI wants_audio parameter, Voice TTS)
+- ✅ Intent handlers execute actions via fire-and-forget pattern - **COMPLETED** (execute_fire_and_forget_action helper method in base.py)
+- ✅ Action context tracking enables "stop" command disambiguation - **COMPLETED** (action_metadata processing in workflow_manager.py)
+- ✅ Action failures trigger follow-up notifications when possible - **COMPLETED** (action completion callback handling)
+- ✅ **JSON donation files created for all example action intent handlers with action pattern coverage** - **COMPLETED** (smart_home_handler.json, media_control_handler.json)
 
 ### 📊 Implementation Dependencies
 

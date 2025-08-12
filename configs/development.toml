@@ -157,10 +157,33 @@ enabled = ["conversation", "greetings", "timer", "datetime", "system", "train_sc
 disabled = []
 
 # ============================================================
+# ACTION EXECUTION - Fire-and-Forget Action Framework
+# ============================================================
+[actions]
+enabled = true
+
+# Domain priority configuration for action ambiguity resolution
+[actions.domain_priorities]
+music = 100           # Music/audio playback (highest priority)
+smart_home = 80       # Smart home devices (lights, climate, etc.)
+timers = 70           # Timer and reminder actions
+media = 60            # Video/streaming media
+system = 50           # System control actions
+conversation = 30     # Conversational actions (lowest priority)
+
+# Action execution settings (development-friendly)
+[actions.execution]
+timeout_seconds = 60.0                    # Extended timeout for debugging
+failure_follow_up_enabled = true          # Send follow-up notifications on failure
+context_tracking_enabled = true           # Track actions in conversation context
+max_active_actions_per_domain = 5         # Higher limit for testing
+action_history_limit = 15                 # More history for debugging
+
+# ============================================================
 # PLUGIN SYSTEM - All Plugins for Testing
 # ============================================================
 [plugins]
-enabled = ["random_plugin", "async_service_demo"]
+enabled = []  # Builtin plugins converted to intent handlers in Phase 3
 disabled = []
 
 # Plugin debugging

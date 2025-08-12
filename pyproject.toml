@@ -236,8 +236,7 @@ text_processor = "irene.components.text_processor_component:TextProcessorCompone
 intent_system = "irene.components.intent_component:IntentComponent"
 
 [project.entry-points."irene.workflows"]
-voice_assistant = "irene.workflows.voice_assistant:VoiceAssistantWorkflow"
-continuous_listening = "irene.workflows.continuous_listening:ContinuousListeningWorkflow"
+unified_voice_assistant = "irene.workflows.voice_assistant:UnifiedVoiceAssistantWorkflow"
 
 [project.entry-points."irene.intents.handlers"]
 conversation = "irene.intents.handlers.conversation:ConversationIntentHandler"
@@ -246,20 +245,24 @@ timer = "irene.intents.handlers.timer:TimerIntentHandler"
 datetime = "irene.intents.handlers.datetime:DateTimeIntentHandler"
 system = "irene.intents.handlers.system:SystemIntentHandler"
 train_schedule = "irene.intents.handlers.train_schedule:TrainScheduleIntentHandler"
+random_handler = "irene.intents.handlers.random_handler:RandomIntentHandler"
+system_service_handler = "irene.intents.handlers.system_service_handler:SystemServiceIntentHandler"
+audio_playback_handler = "irene.intents.handlers.audio_playback_handler:AudioPlaybackIntentHandler"
+translation_handler = "irene.intents.handlers.translation_handler:TranslationIntentHandler"
+text_enhancement_handler = "irene.intents.handlers.text_enhancement_handler:TextEnhancementIntentHandler"
+voice_synthesis_handler = "irene.intents.handlers.voice_synthesis_handler:VoiceSynthesisIntentHandler"
+provider_control_handler = "irene.intents.handlers.provider_control_handler:ProviderControlIntentHandler"
+speech_recognition_handler = "irene.intents.handlers.speech_recognition_handler:SpeechRecognitionIntentHandler"
 
 [project.entry-points."irene.inputs"]
 cli = "irene.inputs.cli:CLIInput"
 microphone = "irene.inputs.microphone:MicrophoneInput"
 web = "irene.inputs.web:WebInput"
 
-[project.entry-points."irene.outputs"]
-text = "irene.outputs.text:TextOutput"
-tts = "irene.outputs.tts:TTSOutput"
-web = "irene.outputs.web:WebOutput"
 
-[project.entry-points."irene.plugins.builtin"]
-random_plugin = "irene.plugins.builtin.random_plugin:RandomPlugin"
-async_service_demo = "irene.plugins.builtin.async_service_demo:AsyncServiceDemoPlugin"
+
+# NOTE: Builtin plugins section removed - no builtin plugins in unified architecture
+# All functionality moved to intent handlers with JSON donations
 
 [project.entry-points."irene.runners"]
 cli = "irene.runners.cli:CLIRunner"

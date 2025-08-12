@@ -33,7 +33,9 @@ class DonationLoader:
         
         for handler_path in handler_paths:
             handler_name = handler_path.stem
-            json_path = handler_path.parent / f"{handler_name}.json"
+            # NEW: Look for JSON donations in the donations subdirectory
+            donations_dir = handler_path.parent / "donations"
+            json_path = donations_dir / f"{handler_name}.json"
             
             try:
                 if not json_path.exists():
@@ -287,6 +289,12 @@ class EnhancedHandlerManager:
             handler_dir = Path("irene/intents/handlers")
         
         handler_paths = self._discover_handler_files(handler_dir)
+        
+        # Ensure donations subdirectory exists
+        donations_dir = handler_dir / "donations"
+        if not donations_dir.exists():
+            logger.warning(f"Donations directory does not exist: {donations_dir}. Creating it...")
+            donations_dir.mkdir(parents=True, exist_ok=True)
         
         # Load and validate JSON donations (FATAL on error)
         self.donations = await self.donation_loader.discover_and_load_donations(handler_paths)

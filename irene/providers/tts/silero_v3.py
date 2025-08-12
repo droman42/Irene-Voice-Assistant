@@ -145,46 +145,7 @@ class SileroV3TTSProvider(TTSProvider):
         except Exception:
             return False
     
-    async def speak(self, text: str, **kwargs) -> None:
-        """
-        Convert text to speech and play it.
-        
-        Args:
-            text: Text to convert to speech
-            **kwargs: speaker, sample_rate, put_accent, put_yo, core (for audio playback)
-        """
-        if not self._available or not self._model:
-            await self._ensure_model_loaded()
-            
-        # Create temporary file for audio
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-            temp_path = Path(temp_file.name)
-            
-        try:
-            await self.to_file(text, temp_path, **kwargs)
-            
-            # Play the generated audio file using audio plugins
-            core = kwargs.get('core')
-            if core and hasattr(core, 'output_manager'):
-                # Get available audio plugins and play
-                audio_plugins = getattr(core.output_manager, '_audio_plugins', [])
-                if audio_plugins:
-                    # Use first available audio plugin
-                    for plugin in audio_plugins:
-                        if plugin.is_available():
-                            await plugin.play_file(temp_path)
-                            break
-                    else:
-                        logger.warning("No audio plugins available for playback")
-                else:
-                    logger.warning("No audio output system available")
-                    
-        finally:
-            # Clean up temporary file
-            if temp_path.exists():
-                temp_path.unlink()
-    
-    async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
+    async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """
         Convert text to speech and save to audio file.
         

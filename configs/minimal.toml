@@ -121,7 +121,7 @@ default = "asr_text_processor"
 # ============================================================
 [plugins]
 enabled = []
-disabled = ["random_plugin", "async_service_demo"]
+disabled = []  # Builtin plugins converted to intent handlers in Phase 3
 
 # ============================================================
 # WEB API - Disabled

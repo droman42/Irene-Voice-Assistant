@@ -16,9 +16,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.audio import AudioPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
-from ..core.interfaces.command import CommandPlugin
-from ..core.context import Context
-from ..core.commands import CommandResult
+
 
 # Import audio provider base class and dynamic loader
 from ..providers.audio import AudioProvider
@@ -35,7 +33,7 @@ class AudioPlayRequest(BaseModel):
     device: Optional[str] = None
 
 
-class AudioComponent(Component, AudioPlugin, WebAPIPlugin, CommandPlugin):
+class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     """
     Audio Component that manages multiple audio providers.
     
@@ -264,49 +262,29 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin, CommandPlugin):
             except Exception as e:
                 logger.debug(f"Error setting volume on provider: {e}")
     
-    # CommandPlugin interface - voice control
-    def get_triggers(self) -> List[str]:
-        """Get command triggers for audio control"""
-        return [
-            "играй", "воспроизведи", "останови", "стоп", "музыка", "аудио",
-            "переключись на", "покажи аудио", "список аудио", "громкость"
-        ]
+    # Public methods for intent handler delegation
+
     
-    async def can_handle(self, command: str, context: Context) -> bool:
-        """Check if this command is audio-related"""
-        triggers = self.get_triggers()
-        command_lower = command.lower()
-        return any(trigger in command_lower for trigger in triggers)
+    def set_default_provider(self, provider_name: str) -> bool:
+        """Set default audio provider - simple atomic operation"""
+        if provider_name in self.providers:
+            self.default_provider = provider_name
+            return True
+        return False
     
-    async def handle_command(self, command: str, context: Context) -> CommandResult:
-        """Handle voice commands for audio control"""
-        command_lower = command.lower()
+    def get_providers_info(self) -> str:
+        """Implementation of abstract method - Get audio providers information"""
+        return self._get_providers_info()
+    
+    def parse_provider_name_from_text(self, text: str) -> Optional[str]:
+        """Override base method with audio-specific logic"""
+        # First try base implementation
+        result = super().parse_provider_name_from_text(text)
+        if result:
+            return result
         
-        if "играй" in command_lower or "воспроизведи" in command_lower:
-            # "играй музыку", "воспроизведи файл"
-            return CommandResult(success=True, response="Команды воспроизведения аудио доступны через веб-API")
-            
-        elif "останови" in command_lower and ("аудио" in command_lower or "музыку" in command_lower):
-            # "останови аудио", "останови музыку"
-            await self.stop_playback()
-            return CommandResult(success=True, response="Воспроизведение аудио остановлено")
-            
-        elif "переключись на" in command_lower and ("аудио" in command_lower):
-            # "переключись на sounddevice аудио"
-            provider_name = self._parse_provider_name(command_lower)
-            if provider_name and provider_name in self.providers:
-                self.default_provider = provider_name
-                return CommandResult(success=True, response=f"Переключился на аудио провайдер {provider_name}")
-            else:
-                available = ", ".join(self.providers.keys())
-                return CommandResult(success=False, response=f"Неизвестный провайдер. Доступные: {available}")
-                
-        elif "покажи аудио" in command_lower or "список аудио" in command_lower:
-            # "покажи аудио провайдеры", "список аудио устройств"
-            info = self._get_providers_info()
-            return CommandResult(success=True, response=info)
-        
-        return CommandResult(success=False, response="Неизвестная аудио команда")
+        # Audio-specific logic
+        return self._parse_provider_name(text.lower())
     
     # WebAPIPlugin interface - unified API
     def get_router(self) -> APIRouter:

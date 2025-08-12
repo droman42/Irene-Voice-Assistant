@@ -6,7 +6,7 @@ with the Irene v13 async architecture.
 """
 
 from .plugin import PluginInterface, PluginManager
-from .command import CommandPlugin  
+# CommandPlugin removed in Phase 3  
 from .tts import TTSPlugin
 from .audio import AudioPlugin
 from .input import InputPlugin
@@ -17,7 +17,7 @@ from .llm import LLMPlugin
 __all__ = [
     "PluginInterface",
     "PluginManager", 
-    "CommandPlugin",
+
     "TTSPlugin",
     "AudioPlugin", 
     "InputPlugin",

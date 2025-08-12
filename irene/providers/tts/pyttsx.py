@@ -132,30 +132,7 @@ class PyttsTTSProvider(TTSProvider):
         """Pyttsx3 supports all platforms"""
         return ["linux", "windows", "macos"]
     
-    async def speak(self, text: str, **kwargs) -> None:
-        """
-        Convert text to speech and play it.
-        
-        Args:
-            text: Text to speak
-            **kwargs: voice_id, rate, volume
-        """
-        if not await self.is_available():
-            raise RuntimeError("Pyttsx3 TTS engine not available")
-            
-        # Update settings if provided
-        await self._update_settings_from_kwargs(**kwargs)
-        
-        # Use asyncio.to_thread to make blocking pyttsx3 calls non-blocking
-        await asyncio.to_thread(self._speak_sync, text)
-    
-    def _speak_sync(self, text: str) -> None:
-        """Synchronous speech method for threading"""
-        if self._engine:
-            self._engine.say(str(text))
-            self._engine.runAndWait()
-    
-    async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
+    async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """
         Convert text to speech and save to audio file.
         

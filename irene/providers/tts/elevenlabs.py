@@ -101,26 +101,7 @@ class ElevenLabsTTSProvider(TTSProvider):
             logger.warning(f"ElevenLabs API check failed: {e}")
             return False
     
-    async def speak(self, text: str, **kwargs) -> None:
-        """Generate and play speech using ElevenLabs"""
-        voice_id = kwargs.get("voice_id", self.voice_id)
-        stability = kwargs.get("stability", self.stability)
-        similarity_boost = kwargs.get("similarity_boost", self.similarity_boost)
-        
-        try:
-            # Generate audio
-            audio_data = await self._generate_audio(
-                text, voice_id, stability, similarity_boost
-            )
-            
-            # Note: Audio playback should be handled by the calling code
-            # TTS providers only generate audio, they don't play it
-            logger.info("ElevenLabs audio generated successfully. Use to_file() method to save audio.")
-                
-        except Exception as e:
-            logger.error(f"ElevenLabs speech generation failed: {e}")
-    
-    async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
+    async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """Generate audio file using ElevenLabs"""
         voice_id = kwargs.get("voice_id", self.voice_id)
         stability = kwargs.get("stability", self.stability)

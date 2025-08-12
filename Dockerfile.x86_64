@@ -217,7 +217,7 @@ ENV IRENE_CONFIG_FILE=/app/runtime-config.toml
 ENV PYTHONPATH=/app
 
 # Default command (can be overridden)
-CMD ["python", "-m", "irene.runners.cli", "--config", "/app/runtime-config.toml"]
+CMD ["python", "-m", "irene.runners.webapi_runner", "--config", "/app/runtime-config.toml", "--host", "0.0.0.0", "--port", "6000"]
 
-# Expose common ports (only if web API is enabled in config)
-EXPOSE 8000 9090 
+# Expose web API port
+EXPOSE 6000 

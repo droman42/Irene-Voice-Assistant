@@ -7,7 +7,7 @@ This module contains the main AsyncVACore engine and core system components.
 from .engine import AsyncVACore
 from .context import Context, ContextManager
 from .timers import AsyncTimerManager
-from .commands import CommandProcessor, CommandResult
+# CommandResult removed - use IntentResult instead
 from .components import ComponentManager, ComponentNotAvailable, Component
 from .metadata import EntryPointMetadata
 
@@ -16,8 +16,8 @@ __all__ = [
     "Context",
     "ContextManager", 
     "AsyncTimerManager",
-    "CommandProcessor",
-    "CommandResult",
+
+
     "ComponentManager",
     "ComponentNotAvailable",
     "Component",

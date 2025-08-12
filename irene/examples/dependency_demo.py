@@ -100,7 +100,14 @@ async def main():
             print(f"   Detected profile: {detected_profile}")
             
             # Test a simple command
-            await core.process_command("hello")
+            # Use unified workflow interface
+            result = await core.workflow_manager.process_text_input(
+                text="hello",
+                session_id="dependency_demo",
+                wants_audio=False,
+                client_context={"source": "dependency_demo"}
+            )
+            print(f"Response: {result.text}")
             
         except Exception as e:
             print(f"   ❌ Failed to start: {e}")
@@ -142,7 +149,14 @@ async def main():
         for command in test_commands:
             print(f"Testing command: '{command}'")
             try:
-                await core.process_command(command)
+                # Use unified workflow interface
+                result = await core.workflow_manager.process_text_input(
+                    text=command,
+                    session_id="dependency_demo_interactive",
+                    wants_audio=False,
+                    client_context={"source": "dependency_demo"}
+                )
+                print(f"Response: {result.text}")
                 print("  ✅ Command processed successfully")
             except Exception as e:
                 print(f"  ⚠️  Command failed: {e}")

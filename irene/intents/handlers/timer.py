@@ -106,7 +106,7 @@ class TimerIntentHandler(IntentHandler):
         return True
     
     async def _handle_set_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
-        """Handle timer creation intent"""
+        """Handle timer creation intent with fire-and-forget action execution"""
         # Extract timer parameters from intent entities or text
         duration = intent.entities.get('duration')
         unit = intent.entities.get('unit', 'seconds')
@@ -127,22 +127,31 @@ class TimerIntentHandler(IntentHandler):
             # Convert to seconds
             duration_seconds = self._convert_to_seconds(int(duration), unit)
             
-            # Create timer
-            timer_id = await self._create_timer(duration_seconds, message, context.session_id)
+            # Generate timer ID for action tracking
+            self.timer_counter += 1
+            timer_id = f"timer_{self.timer_counter}"
+            
+            # Use fire-and-forget action execution for timer creation
+            action_metadata = await self.execute_fire_and_forget_action(
+                self._create_timer_action,
+                action_name=timer_id,
+                domain="timers",
+                duration_seconds=duration_seconds,
+                message=message,
+                session_id=context.session_id,
+                timer_id=timer_id
+            )
             
             # Format response
             time_str = self._format_duration(duration_seconds)
             response = f"Таймер установлен на {time_str}. Сообщение: {message}"
             
-            return IntentResult(
-                text=response,
+            return self.create_action_result(
+                response_text=response,
+                action_name=timer_id,
+                domain="timers",
                 should_speak=True,
-                metadata={
-                    "timer_id": timer_id,
-                    "duration_seconds": duration_seconds,
-                    "message": message
-                },
-                actions=[f"timer_started:{timer_id}"]
+                action_metadata=action_metadata
             )
             
         except ValueError as e:
@@ -153,7 +162,12 @@ class TimerIntentHandler(IntentHandler):
             )
     
     async def _handle_cancel_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
-        """Handle timer cancellation intent"""
+        """Handle timer cancellation intent with stop command disambiguation"""
+        # Check for stop commands first
+        stop_info = self.parse_stop_command(intent)
+        if stop_info and stop_info.get("is_stop_command"):
+            return await self._handle_stop_command(stop_info, context)
+        
         timer_id = intent.entities.get('timer_id')
         
         # If no specific timer ID, cancel all timers for this session
@@ -167,36 +181,83 @@ class TimerIntentHandler(IntentHandler):
                     should_speak=True
                 )
             
-            # Cancel all session timers
-            cancelled_count = 0
-            for tid in session_timers:
-                if await self._cancel_timer(tid):
-                    cancelled_count += 1
+            # Use fire-and-forget action for cancelling multiple timers
+            action_metadata = await self.execute_fire_and_forget_action(
+                self._cancel_multiple_timers_action,
+                action_name="cancel_all_timers",
+                domain="timers",
+                session_timers=session_timers,
+                session_id=context.session_id
+            )
             
-            if cancelled_count == 1:
-                response = "Таймер отменён."
-            else:
-                response = f"Отменено {cancelled_count} таймеров."
-                
-            return IntentResult(
-                text=response,
+            return self.create_action_result(
+                response_text=f"Отменяю {len(session_timers)} таймеров",
+                action_name="cancel_all_timers",
+                domain="timers",
                 should_speak=True,
-                metadata={"cancelled_timers": cancelled_count}
+                action_metadata=action_metadata
             )
         
-        # Cancel specific timer
-        if await self._cancel_timer(timer_id):
-            return IntentResult(
-                text=f"Таймер {timer_id} отменён.",
-                should_speak=True,
-                metadata={"cancelled_timer_id": timer_id}
-            )
-        else:
+        # Cancel specific timer with fire-and-forget action
+        if timer_id not in self.active_timers:
             return IntentResult(
                 text=f"Таймер {timer_id} не найден.",
                 should_speak=True,
                 success=False
             )
+        
+        action_metadata = await self.execute_fire_and_forget_action(
+            self._cancel_single_timer_action,
+            action_name=f"cancel_{timer_id}",
+            domain="timers",
+            timer_id=timer_id
+        )
+        
+        return self.create_action_result(
+            response_text=f"Отменяю таймер {timer_id}",
+            action_name=f"cancel_{timer_id}",
+            domain="timers",
+            should_speak=True,
+            action_metadata=action_metadata
+        )
+    
+    async def _handle_stop_command(self, stop_info: dict, context: ConversationContext) -> IntentResult:
+        """Handle stop commands for timer actions with disambiguation"""
+        target_domains = stop_info.get("target_domains", [])
+        
+        # Check if stop command targets timers domain
+        if not target_domains or "timer" in target_domains or "timers" in target_domains:
+            session_timers = [tid for tid, timer in self.active_timers.items() 
+                            if timer['session_id'] == context.session_id]
+            
+            if not session_timers:
+                return self._create_success_result(
+                    text="Нет активных таймеров для остановки",
+                    should_speak=True
+                )
+            
+            # Cancel all active timers for this session
+            action_metadata = await self.execute_fire_and_forget_action(
+                self._cancel_multiple_timers_action,
+                action_name="stop_all_timers",
+                domain="timers",
+                session_timers=session_timers,
+                session_id=context.session_id
+            )
+            
+            return self.create_action_result(
+                response_text=f"Останавливаю все таймеры ({len(session_timers)})",
+                action_name="stop_all_timers",
+                domain="timers",
+                should_speak=True,
+                action_metadata=action_metadata
+            )
+        
+        # Not targeting timers domain
+        return self._create_success_result(
+            text="Команда остановки не относится к таймерам",
+            should_speak=False
+        )
     
     async def _handle_list_timers(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle list timers intent"""
@@ -355,11 +416,8 @@ class TimerIntentHandler(IntentHandler):
             else:
                 return f"{hours} ч {remaining_minutes} мин"
     
-    async def _create_timer(self, duration_seconds: int, message: str, session_id: str) -> str:
-        """Create and start a new timer"""
-        self.timer_counter += 1
-        timer_id = f"timer_{self.timer_counter}"
-        
+    async def _create_timer_action(self, duration_seconds: int, message: str, session_id: str, timer_id: str) -> str:
+        """Fire-and-forget timer creation action"""
         start_time = datetime.now().timestamp()
         end_time = start_time + duration_seconds
         
@@ -373,19 +431,36 @@ class TimerIntentHandler(IntentHandler):
             "task": None
         }
         
-        # Create async task for timer completion
+        # Create async task for timer completion with fire-and-forget notification
         async def timer_callback():
             try:
                 await asyncio.sleep(duration_seconds)
+                # Fire-and-forget completion notification
+                await self.execute_fire_and_forget_action(
+                    self._timer_completion_notification,
+                    action_name=f"{timer_id}_completion",
+                    domain="timers",
+                    timer_id=timer_id,
+                    message=message,
+                    session_id=session_id
+                )
                 await self._timer_completed(timer_id)
             except asyncio.CancelledError:
                 logger.debug(f"Timer {timer_id} was cancelled")
+                # Remove from active actions in context
+                # TODO: Integrate with context manager to remove cancelled action
         
         timer_info["task"] = asyncio.create_task(timer_callback())
         self.active_timers[timer_id] = timer_info
         
         logger.info(f"Created timer {timer_id} for {duration_seconds} seconds")
         return timer_id
+    
+    async def _create_timer(self, duration_seconds: int, message: str, session_id: str) -> str:
+        """Legacy create timer method - kept for backward compatibility"""
+        self.timer_counter += 1
+        timer_id = f"timer_{self.timer_counter}"
+        return await self._create_timer_action(duration_seconds, message, session_id, timer_id)
     
     async def _cancel_timer(self, timer_id: str) -> bool:
         """Cancel a specific timer"""
@@ -400,23 +475,61 @@ class TimerIntentHandler(IntentHandler):
         logger.info(f"Cancelled timer {timer_id}")
         return True
     
+    async def _timer_completion_notification(self, timer_id: str, message: str, session_id: str) -> bool:
+        """Fire-and-forget timer completion notification"""
+        # TODO: Integrate with TTS/output system to actually speak the completion
+        # For now, we log and could send through notification channels
+        logger.info(f"🔔 Timer {timer_id} completed: {message}")
+        
+        # In a real implementation, this would:
+        # 1. Send TTS notification: "Timer completed: {message}"
+        # 2. Play completion sound
+        # 3. Send push notification if supported
+        # 4. Update UI if web interface is connected
+        
+        # Simulate notification delivery
+        await asyncio.sleep(0.1)  # Simulate notification processing time
+        return True
+    
     async def _timer_completed(self, timer_id: str):
-        """Handle timer completion"""
+        """Handle timer completion cleanup"""
         if timer_id not in self.active_timers:
             return
         
         timer = self.active_timers[timer_id]
         message = timer["message"]
         
-        # TODO: Send notification through appropriate channels
-        # This would integrate with TTS/audio output or notification system
-        logger.info(f"Timer {timer_id} completed: {message}")
+        logger.info(f"Timer {timer_id} completed and cleaned up: {message}")
         
         # Clean up completed timer
         del self.active_timers[timer_id]
     
 
     
+    async def _cancel_single_timer_action(self, timer_id: str) -> bool:
+        """Fire-and-forget single timer cancellation action"""
+        if timer_id not in self.active_timers:
+            logger.warning(f"Timer {timer_id} not found for cancellation")
+            return False
+        
+        timer = self.active_timers[timer_id]
+        if timer["task"]:
+            timer["task"].cancel()
+        
+        del self.active_timers[timer_id]
+        logger.info(f"🛑 Timer {timer_id} cancelled via fire-and-forget action")
+        return True
+    
+    async def _cancel_multiple_timers_action(self, session_timers: list, session_id: str) -> int:
+        """Fire-and-forget multiple timer cancellation action"""
+        cancelled_count = 0
+        for timer_id in session_timers:
+            if await self._cancel_single_timer_action(timer_id):
+                cancelled_count += 1
+        
+        logger.info(f"🛑 Cancelled {cancelled_count} timers for session {session_id} via fire-and-forget action")
+        return cancelled_count
+
     async def cleanup(self) -> None:
         """Clean up all active timers"""
         for timer_id in list(self.active_timers.keys()):

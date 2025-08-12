@@ -1,0 +1,296 @@
+{
+  "$schema": "../../schemas/donation/v1.0.json",
+  "schema_version": "1.0",
+  "handler_domain": "audio",
+  "description": "Audio playback control commands - music and audio control",
+  
+  "intent_name_patterns": [
+    "audio.play",
+    "audio.stop",
+    "audio.switch",
+    "audio.list"
+  ],
+  
+  "action_patterns": [
+    "play",
+    "stop",
+    "switch",
+    "list",
+    "control",
+    "start",
+    "pause",
+    "resume",
+    "next",
+    "previous",
+    "volume"
+  ],
+  
+  "action_domain_priority": 90,
+  
+  "stop_command_patterns": [
+    "стоп аудио",
+    "останови аудио",
+    "прекрати аудио",
+    "выключи аудио",
+    "стоп музыка",
+    "останови музыку",
+    "прекрати музыку",
+    "выключи музыку",
+    "стоп воспроизведение",
+    "останови воспроизведение",
+    "stop audio",
+    "stop music", 
+    "halt audio",
+    "pause audio",
+    "stop playback",
+    "halt playback"
+  ],
+  
+  "domain_patterns": [
+    "audio",
+    "music",
+    "playback"
+  ],
+
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": ["ru", "en"],
+      "description": "Response language preference"
+    }
+  ],
+  
+  "method_donations": [
+    {
+      "method_name": "_handle_play_audio",
+      "intent_suffix": "play",
+      "description": "Start audio playback",
+      
+      "phrases": [
+        "играй музыку", "воспроизведи файл", "включи аудио", "запусти музыку",
+        "play music", "play audio", "start playback", "воспроизведи",
+        "играй", "включи музыку", "запусти аудио", "start music",
+        "играй аудио", "воспроизведи музыку", "play", "воспроизведи аудио"
+      ],
+      
+      "lemmas": ["играть", "воспроизводить", "включать", "запускать", "музыка", "аудио", "файл"],
+      
+      "parameters": [
+        {
+          "name": "file_path",
+          "type": "string",
+          "required": false,
+          "description": "Path to audio file to play",
+          "extraction_patterns": [
+            {"pattern": [{"LEMMA": {"IN": ["играть", "воспроизводить"]}}, {"IS_ALPHA": true, "OP": "+"}], "label": "FILE_PATH"},
+            {"pattern": [{"TEXT": {"REGEX": "play|воспроизведи"}}, {"IS_ALPHA": true, "OP": "+"}], "label": "FILE_PATH"}
+          ],
+          "aliases": ["файл", "трек", "песня"]
+        }
+      ],
+      
+      "token_patterns": [
+        [{"LEMMA": "играть"}, {"LEMMA": {"IN": ["музыка", "аудио"]}}],
+        [{"LEMMA": "воспроизводить"}, {"LEMMA": {"IN": ["файл", "музыка", "аудио"]}}],
+        [{"LEMMA": "включать"}, {"LEMMA": {"IN": ["музыка", "аудио"]}}],
+        [{"LEMMA": "запускать"}, {"LEMMA": {"IN": ["музыка", "аудио"]}}],
+        [{"TEXT": "play"}, {"TEXT": {"IN": ["music", "audio"]}}],
+        [{"TEXT": "start"}, {"TEXT": {"IN": ["playback", "music", "audio"]}}]
+      ],
+      
+      "slot_patterns": {
+        "FILE_PATH": [
+          [{"LEMMA": {"IN": ["играть", "воспроизводить"]}}, {"IS_ALPHA": true, "OP": "+"}],
+          [{"TEXT": {"REGEX": "play|воспроизведи"}}, {"IS_ALPHA": true, "OP": "+"}]
+        ]
+      },
+      
+      "examples": [
+        {
+          "text": "играй музыку",
+          "parameters": {}
+        },
+        {
+          "text": "воспроизведи файл music.mp3",
+          "parameters": {"file_path": "music.mp3"}
+        },
+        {
+          "text": "включи аудио",
+          "parameters": {}
+        },
+        {
+          "text": "play music",
+          "parameters": {}
+        }
+      ],
+      
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_stop_audio",
+      "intent_suffix": "stop",
+      "description": "Stop audio playback",
+      
+      "phrases": [
+        "останови аудио", "останови музыку", "стоп", "выключи аудио",
+        "stop audio", "stop music", "stop playback", "остановка",
+        "останови воспроизведение", "выключи музыку", "прекрати играть",
+        "stop", "pause", "пауза", "останови", "стоп аудио", "стоп музыка"
+      ],
+      
+      "lemmas": ["останавливать", "стоп", "выключать", "прекращать", "пауза", "музыка", "аудио"],
+      
+      "parameters": [],
+      
+      "token_patterns": [
+        [{"LEMMA": "останавливать"}, {"LEMMA": {"IN": ["аудио", "музыка", "воспроизведение"]}}],
+        [{"LEMMA": "выключать"}, {"LEMMA": {"IN": ["аудио", "музыка"]}}],
+        [{"LEMMA": "прекращать"}, {"LEMMA": "играть"}],
+        [{"TEXT": "stop"}, {"TEXT": {"IN": ["audio", "music", "playback"]}}],
+        [{"TEXT": {"IN": ["стоп", "stop"]}}],
+        [{"TEXT": {"IN": ["пауза", "pause"]}}]
+      ],
+      
+      "slot_patterns": {},
+      
+      "examples": [
+        {
+          "text": "останови аудио",
+          "parameters": {}
+        },
+        {
+          "text": "останови музыку",
+          "parameters": {}
+        },
+        {
+          "text": "стоп",
+          "parameters": {}
+        },
+        {
+          "text": "stop music",
+          "parameters": {}
+        }
+      ],
+      
+      "boost": 1.4
+    },
+    {
+      "method_name": "_handle_switch_audio_provider",
+      "intent_suffix": "switch",
+      "description": "Switch audio provider",
+      
+      "phrases": [
+        "переключись на аудио", "смени аудио провайдер", "используй аудио",
+        "switch audio provider", "change audio", "переключись на sounddevice",
+        "смени на pulseaudio", "используй alsa", "переключи аудио",
+        "switch to", "change to", "use audio provider"
+      ],
+      
+      "lemmas": ["переключаться", "менять", "использовать", "аудио", "провайдер"],
+      
+      "parameters": [
+        {
+          "name": "provider",
+          "type": "choice",
+          "required": true,
+          "choices": ["sounddevice", "pulseaudio", "alsa", "portaudio"],
+          "description": "Audio provider to switch to",
+          "extraction_patterns": [
+            {"pattern": [{"LEMMA": "переключаться"}, {"TEXT": "на"}, {"IS_ALPHA": true}], "label": "PROVIDER"},
+            {"pattern": [{"TEXT": {"IN": ["switch", "change"]}}, {"TEXT": "to"}, {"IS_ALPHA": true}], "label": "PROVIDER"}
+          ],
+          "aliases": ["драйвер", "система"]
+        }
+      ],
+      
+      "token_patterns": [
+        [{"LEMMA": "переключаться"}, {"TEXT": "на"}, {"LEMMA": "аудио"}],
+        [{"LEMMA": "переключаться"}, {"TEXT": "на"}, {"IS_ALPHA": true}, {"LEMMA": "аудио"}],
+        [{"LEMMA": "менять"}, {"LEMMA": {"IN": ["аудио", "провайдер"]}}],
+        [{"TEXT": "switch"}, {"TEXT": "audio"}, {"TEXT": "provider"}],
+        [{"TEXT": "switch"}, {"TEXT": "to"}, {"IS_ALPHA": true}],
+        [{"TEXT": "change"}, {"TEXT": "audio"}]
+      ],
+      
+      "slot_patterns": {
+        "PROVIDER": [
+          [{"LEMMA": "переключаться"}, {"TEXT": "на"}, {"IS_ALPHA": true}],
+          [{"TEXT": {"IN": ["switch", "change"]}}, {"TEXT": "to"}, {"IS_ALPHA": true}]
+        ]
+      },
+      
+      "examples": [
+        {
+          "text": "переключись на sounddevice аудио",
+          "parameters": {"provider": "sounddevice"}
+        },
+        {
+          "text": "смени аудио провайдер на pulseaudio",
+          "parameters": {"provider": "pulseaudio"}
+        },
+        {
+          "text": "switch audio provider to alsa",
+          "parameters": {"provider": "alsa"}
+        }
+      ],
+      
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_list_audio_providers",
+      "intent_suffix": "list",
+      "description": "List available audio providers",
+      
+      "phrases": [
+        "покажи аудио провайдеры", "список аудио устройств", "какие аудио",
+        "show audio providers", "list audio devices", "аудио провайдеры",
+        "покажи аудио", "список аудио", "доступные аудио", "available audio",
+        "what audio providers", "audio devices", "аудио устройства"
+      ],
+      
+      "lemmas": ["показывать", "список", "аудио", "провайдер", "устройство", "доступный"],
+      
+      "parameters": [],
+      
+      "token_patterns": [
+        [{"LEMMA": "показывать"}, {"LEMMA": "аудио"}, {"LEMMA": {"IN": ["провайдер", "устройство"]}}],
+        [{"LEMMA": "список"}, {"LEMMA": "аудио"}],
+        [{"TEXT": "show"}, {"TEXT": "audio"}, {"TEXT": {"IN": ["providers", "devices"]}}],
+        [{"TEXT": "list"}, {"TEXT": "audio"}],
+        [{"LEMMA": "доступный"}, {"LEMMA": "аудио"}],
+        [{"TEXT": "available"}, {"TEXT": "audio"}]
+      ],
+      
+      "slot_patterns": {},
+      
+      "examples": [
+        {
+          "text": "покажи аудио провайдеры",
+          "parameters": {}
+        },
+        {
+          "text": "список аудио устройств",
+          "parameters": {}
+        },
+        {
+          "text": "show audio providers",
+          "parameters": {}
+        },
+        {
+          "text": "доступные аудио",
+          "parameters": {}
+        }
+      ],
+      
+      "boost": 1.1
+    }
+  ],
+  
+  "negative_patterns": [
+    [{"LEMMA": {"IN": ["нет", "не"]}}, {"LEMMA": {"IN": ["играть", "воспроизводить", "аудио", "музыка"]}}],
+    [{"TEXT": {"REGEX": "no|not"}}, {"TEXT": {"REGEX": "play|audio|music"}}]
+  ]
+}

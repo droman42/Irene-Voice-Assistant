@@ -96,9 +96,7 @@ graph TB
     end
     
     subgraph "🎼 Оркестрация Workflow"
-        VoiceWorkflow[VoiceAssistantWorkflow<br/>Complete Pipeline]
-        TextWorkflow[TextAssistantWorkflow<br/>Text-only Pipeline]
-        APIWorkflow[APIServiceWorkflow<br/>API-only Mode]
+        UnifiedWorkflow[UnifiedVoiceAssistantWorkflow<br/>Single workflow for all entry points<br/>Conditional pipeline stages]
     end
     
     subgraph "🔗 Динамическая загрузка (TODO #1)"
