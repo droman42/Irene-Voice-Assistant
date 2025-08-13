@@ -85,18 +85,29 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
             config = getattr(core.config.plugins, "universal_llm", {})
             
             # Initialize enabled providers with ABC error handling
-            providers_config = config.get("providers", {})
+            # Handle both dict and Pydantic config objects
+            if isinstance(config, dict):
+                providers_config = config.get("providers", {})
+            else:
+                providers_config = getattr(config, 'providers', {})
             
             # Discover only enabled providers from entry-points (configuration-driven filtering)
             enabled_providers = [name for name, provider_config in providers_config.items() 
-                                if provider_config.get("enabled", False)]
+                                if (provider_config.get("enabled", False) if isinstance(provider_config, dict) 
+                                    else getattr(provider_config, "enabled", False))]
             
             self._provider_classes = dynamic_loader.discover_providers("irene.providers.llm", enabled_providers)
             logger.info(f"Discovered {len(self._provider_classes)} enabled LLM providers: {list(self._provider_classes.keys())}")
             
             for provider_name, provider_class in self._provider_classes.items():
-                provider_config = providers_config.get(provider_name, {})
-                if provider_config.get("enabled", False):
+                if isinstance(providers_config, dict):
+                    provider_config = providers_config.get(provider_name, {})
+                    provider_enabled = provider_config.get("enabled", False)
+                else:
+                    provider_config = getattr(providers_config, provider_name, {})
+                    provider_enabled = getattr(provider_config, "enabled", False) if hasattr(provider_config, "enabled") else False
+                
+                if provider_enabled:
                     try:
                         provider = provider_class(provider_config)
                         if await provider.is_available():
@@ -110,8 +121,12 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
                         logger.warning(f"Failed to load LLM provider {provider_name}: {e}")
             
             # Set defaults from config
-            self.default_provider = config.get("default_provider", "openai")
-            self.default_task = config.get("default_task", "improve")
+            if isinstance(config, dict):
+                self.default_provider = config.get("default_provider", "openai")
+                self.default_task = config.get("default_task", "improve")
+            else:
+                self.default_provider = getattr(config, "default_provider", "openai")
+                self.default_task = getattr(config, "default_task", "improve")
             
             # Ensure we have at least one provider
             if not self.providers:

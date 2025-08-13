@@ -21,13 +21,16 @@ class TTSPlugin(PluginInterface):
     """
     
     @abstractmethod
-    async def speak(self, text: str, **kwargs) -> None:
+    async def speak(self, text: str, **kwargs) -> str:
         """
-        Convert text to speech and play it.
+        Convert text to speech and return filename.
         
         Args:
             text: Text to convert to speech
             **kwargs: Engine-specific parameters (voice, speed, etc.)
+            
+        Returns:
+            str: Filename of the generated audio file
         """
         pass
         

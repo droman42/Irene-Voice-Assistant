@@ -92,18 +92,29 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
             config = getattr(core.config.plugins, "universal_asr", {})
             
             # Initialize enabled providers with ABC error handling
-            providers_config = config.get("providers", {})
+            # Handle both dict and Pydantic config objects
+            if isinstance(config, dict):
+                providers_config = config.get("providers", {})
+            else:
+                providers_config = getattr(config, 'providers', {})
             
             # Discover only enabled providers from entry-points (configuration-driven filtering)
             enabled_providers = [name for name, provider_config in providers_config.items() 
-                                if provider_config.get("enabled", False)]
+                                if (provider_config.get("enabled", False) if isinstance(provider_config, dict) 
+                                    else getattr(provider_config, "enabled", False))]
             
             self._provider_classes = dynamic_loader.discover_providers("irene.providers.asr", enabled_providers)
             logger.info(f"Discovered {len(self._provider_classes)} enabled ASR providers: {list(self._provider_classes.keys())}")
             
             for provider_name, provider_class in self._provider_classes.items():
-                provider_config = providers_config.get(provider_name, {})
-                if provider_config.get("enabled", False):
+                if isinstance(providers_config, dict):
+                    provider_config = providers_config.get(provider_name, {})
+                    provider_enabled = provider_config.get("enabled", False)
+                else:
+                    provider_config = getattr(providers_config, provider_name, {})
+                    provider_enabled = getattr(provider_config, "enabled", False) if hasattr(provider_config, "enabled") else False
+                
+                if provider_enabled:
                     try:
                         provider = provider_class(provider_config)
                         if await provider.is_available():
@@ -117,8 +128,12 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                         logger.warning(f"Failed to load ASR provider {provider_name}: {e}")
             
             # Set defaults from config
-            self.default_provider = config.get("default_provider", "vosk")
-            self.default_language = config.get("default_language", "ru")
+            if isinstance(config, dict):
+                self.default_provider = config.get("default_provider", "vosk")
+                self.default_language = config.get("default_language", "ru")
+            else:
+                self.default_provider = getattr(config, "default_provider", "vosk")
+                self.default_language = getattr(config, "default_language", "ru")
             
             # Ensure we have at least one provider
             if not self.providers:
@@ -351,6 +366,10 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     def get_python_dependencies(cls) -> List[str]:
         """ASR component needs web API functionality"""
         return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0", "websockets>=11.0.0"]
+    
+    async def stop(self) -> None:
+        """Stop the ASR component (alias for shutdown)"""
+        await self.shutdown()
     
     # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
     @classmethod

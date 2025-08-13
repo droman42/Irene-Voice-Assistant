@@ -8,8 +8,10 @@ and provides unified web APIs and voice command interfaces.
 
 import asyncio
 import logging
+import base64
 from typing import Dict, Any, List, Optional, Type
 from pathlib import Path
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -304,8 +306,39 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
             logger.warning(f"TTS provider {provider_name} not available")
             await self._synthesize_with_fallback(text, output_path, **kwargs)
     
-
+    async def speak(self, text: str, **kwargs) -> str:
+        """
+        Convert text to speech and save to timestamped file.
+        
+        Args:
+            text: Text to convert to speech
+            **kwargs: Engine-specific parameters (voice, speed, etc.)
+            
+        Returns:
+            str: Filename of the generated audio file
+        """
+        # Generate timestamped filename in current directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Include milliseconds
+        filename = f"tts_{timestamp}.wav"
+        output_path = Path.cwd() / filename
+        
+        # Use existing synthesize_to_file implementation
+        await self.synthesize_to_file(text, output_path, **kwargs)
+        
+        return filename
     
+    async def to_file(self, text: str, output_path: Path, **kwargs) -> None:
+        """
+        Convert text to speech and save to specified file.
+        
+        Args:
+            text: Text to convert to speech
+            output_path: Where to save the audio file
+            **kwargs: Engine-specific parameters
+        """
+        # Delegate to existing synthesize_to_file implementation
+        await self.synthesize_to_file(text, output_path, **kwargs)
+
     def get_supported_voices(self) -> List[str]:
         """Get voices from all available providers"""
         voices = []
@@ -436,6 +469,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
                 success: bool
                 provider: str
                 text: str
+                audio_content: Optional[str] = None  # Base64 encoded audio data
                 error: Optional[str] = None
                 
             class ProvidersResponse(BaseModel):
@@ -458,13 +492,31 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
                     if request.language:
                         kwargs["language"] = request.language
                     
-                    await self.speak(request.text, provider=provider, **kwargs)
+                    # Call speak method which returns filename
+                    filename = await self.speak(request.text, provider=provider, **kwargs)
                     
-                    return TTSResponse(
-                        success=True,
-                        provider=provider,
-                        text=request.text
-                    )
+                    # Read the generated file and encode as base64
+                    file_path = Path.cwd() / filename
+                    try:
+                        with open(file_path, 'rb') as audio_file:
+                            audio_data = audio_file.read()
+                            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+                        
+                        # Delete the temporary file
+                        file_path.unlink()
+                        
+                        return TTSResponse(
+                            success=True,
+                            provider=provider,
+                            text=request.text,
+                            audio_content=audio_base64
+                        )
+                    except Exception as file_error:
+                        logger.error(f"Failed to read/process audio file {filename}: {file_error}")
+                        # Try to clean up file if it exists
+                        if file_path.exists():
+                            file_path.unlink()
+                        raise HTTPException(500, f"Failed to process audio file: {file_error}")
                     
                 except Exception as e:
                     logger.error(f"TTS API error: {e}")

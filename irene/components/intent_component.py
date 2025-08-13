@@ -60,7 +60,11 @@ class IntentComponent(Component, WebAPIPlugin):
         
         # Initialize intent handler manager
         self.handler_manager = IntentHandlerManager()
-        handler_config = intent_config.get("handlers", {})
+        # Handle both dict and Pydantic config objects
+        if isinstance(intent_config, dict):
+            handler_config = intent_config.get("handlers", {})
+        else:
+            handler_config = getattr(intent_config, "handlers", {})
         
         await self.handler_manager.initialize(handler_config)
         
@@ -205,7 +209,12 @@ class IntentComponent(Component, WebAPIPlugin):
                     return {"error": "Intent system not initialized"}
                 
                 try:
-                    await self.handler_manager.reload_handlers(self._config.get("handlers", {}))
+                    # Handle both dict and Pydantic config objects
+                    if isinstance(self._config, dict):
+                        handlers_config = self._config.get("handlers", {})
+                    else:
+                        handlers_config = getattr(self._config, "handlers", {})
+                    await self.handler_manager.reload_handlers(handlers_config)
                     
                     # Update references
                     self.intent_registry = self.handler_manager.get_registry()
