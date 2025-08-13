@@ -113,76 +113,6 @@ class InputSource(EntryPointMetadata, ABC):
         return True
 
 
-class LegacyInputSource(ABC):
-    """Legacy interface for backward compatibility - deprecated"""
-    
-    @abstractmethod
-    async def get_command(self) -> Optional[str]:
-        """Get the next command (non-blocking, returns None if no command available)"""
-        pass
-        
-    @abstractmethod
-    async def start(self) -> None:
-        """Start the input source"""
-        pass
-        
-    @abstractmethod
-    async def stop(self) -> None:
-        """Stop the input source"""
-        pass
-        
-    @abstractmethod
-    def is_available(self) -> bool:
-        """Check if input source is available"""
-        pass
-
-
-class LegacyInputAdapter(InputSource):
-    """
-    Adapter to make legacy InputSource work with new interface.
-    
-    Wraps legacy sources to provide new AsyncIterator interface.
-    """
-    
-    def __init__(self, legacy_source: LegacyInputSource):
-        self.legacy_source = legacy_source
-        self._listening = False
-        self.logger = logging.getLogger(f"adapter.{legacy_source.__class__.__name__}")
-        
-    async def listen(self) -> AsyncIterator[InputData]:
-        """Adapt legacy get_command to async iterator"""
-        while self._listening:
-            try:
-                command = await self.legacy_source.get_command()
-                if command and command.strip():
-                    yield command.strip()
-                await asyncio.sleep(0.1)
-            except Exception as e:
-                self.logger.error(f"Error in legacy input adapter: {e}")
-                break
-                
-    async def start_listening(self) -> None:
-        """Start the legacy source"""
-        await self.legacy_source.start()
-        self._listening = True
-        
-    async def stop_listening(self) -> None:
-        """Stop the legacy source"""
-        self._listening = False
-        await self.legacy_source.stop()
-        
-    def is_listening(self) -> bool:
-        """Check if adapter is listening"""
-        return self._listening
-        
-    def is_available(self) -> bool:
-        """Check if legacy source is available"""
-        return self.legacy_source.is_available()
-        
-    def get_input_type(self) -> str:
-        """Get input type from legacy source"""
-        return getattr(self.legacy_source, 'input_type', 'legacy')
-
 
 class InputManager:
     """
@@ -247,7 +177,6 @@ class InputManager:
             logger.warning(f"Input source '{name}' is not available")
             return
             
-        # No need for legacy adapter - modern sources implement InputSource directly
         self._sources[name] = source
         logger.info(f"Added input source: {name} ({source.get_input_type()})")
         

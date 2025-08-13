@@ -107,6 +107,7 @@ tts_cache/
 # Centralized logging - ignore all log files in logs folder but keep the directory
 logs/*.log
 logs/*.txt
+logs/*.json
 
 model/*.mdl
 model/graph/*.fst

@@ -194,6 +194,87 @@ class DependencyValidator:
         
         return result
     
+    def collect_all_dependencies(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Collect all dependencies for each entry-point.
+        
+        Returns:
+            Dictionary mapping entry-point names to their dependency information
+        """
+        dependencies_data = {}
+        
+        # Discover all entry-points using dynamic loader
+        pyproject = self._load_pyproject()
+        entry_points = pyproject.get("project", {}).get("entry-points", {})
+        
+        # Collect dependencies for each entry-point
+        for namespace, providers in entry_points.items():
+            if not namespace.startswith("irene."):
+                continue
+                
+            logger.info(f"Collecting dependencies for namespace: {namespace}")
+            
+            for provider_name, entry_point_spec in providers.items():
+                # Parse entry-point specification: "module.path:ClassName"
+                try:
+                    module_path, class_name = entry_point_spec.split(":")
+                    file_path = module_path.replace(".", "/") + ".py"
+                    
+                    # Import the entry-point class
+                    result = ValidationResult(
+                        entry_point=f"{file_path}:{class_name}",
+                        platform="",
+                        is_valid=False
+                    )
+                    
+                    entry_point_class = self._import_entry_point_class(file_path, class_name, result)
+                    if not entry_point_class:
+                        logger.warning(f"Failed to import {namespace}.{provider_name}: {result.errors}")
+                        continue
+                    
+                    # Collect dependency information
+                    entry_point_key = f"{namespace}.{provider_name}"
+                    dependencies_data[entry_point_key] = {
+                        "module_path": module_path,
+                        "class_name": class_name,
+                        "file_path": file_path,
+                        "python_dependencies": [],
+                        "platform_dependencies": {},
+                        "supported_platforms": [],
+                        "errors": []
+                    }
+                    
+                    # Get Python dependencies
+                    try:
+                        python_deps = entry_point_class.get_python_dependencies()
+                        dependencies_data[entry_point_key]["python_dependencies"] = python_deps or []
+                    except Exception as e:
+                        dependencies_data[entry_point_key]["errors"].append(f"Failed to get Python dependencies: {str(e)}")
+                    
+                    # Get platform dependencies
+                    try:
+                        platform_deps = entry_point_class.get_platform_dependencies()
+                        dependencies_data[entry_point_key]["platform_dependencies"] = platform_deps or {}
+                    except Exception as e:
+                        dependencies_data[entry_point_key]["errors"].append(f"Failed to get platform dependencies: {str(e)}")
+                    
+                    # Get supported platforms
+                    try:
+                        supported_platforms = entry_point_class.get_platform_support()
+                        dependencies_data[entry_point_key]["supported_platforms"] = supported_platforms or []
+                    except Exception as e:
+                        dependencies_data[entry_point_key]["errors"].append(f"Failed to get platform support: {str(e)}")
+                        
+                except ValueError as e:
+                    logger.error(f"Invalid entry-point specification '{entry_point_spec}': {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Failed to collect dependencies for {namespace}.{provider_name}: {e}")
+                    continue
+        
+        logger.info(f"Dependency collection complete: {len(dependencies_data)} entry-points processed")
+        return dependencies_data
+
     def validate_all_entry_points(self, platforms: List[str]) -> ValidationReport:
         """
         Validate all entry-points across specified platforms.
@@ -567,6 +648,14 @@ Examples:
   # Generate JSON report for automation
   python -m irene.tools.dependency_validator \\
       --validate-all --platform ubuntu --json
+
+  # Collect all dependencies for entry-points
+  python -m irene.tools.dependency_validator \\
+      --collect-dependencies
+
+  # Collect dependencies with custom output path
+  python -m irene.tools.dependency_validator \\
+      --collect-dependencies --output my_dependencies.json
         """
     )
     
@@ -594,6 +683,15 @@ Examples:
         help="Validate all entry-points in the project"
     )
     parser.add_argument(
+        "--collect-dependencies",
+        action="store_true",
+        help="Collect all dependencies for each entry-point and output to JSON file"
+    )
+    parser.add_argument(
+        "--output",
+        help="Output path for dependency collection JSON file (default: logs/entry_points.json)"
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Output results in JSON format"
@@ -616,7 +714,28 @@ Examples:
     try:
         validator = DependencyValidator()
         
-        if args.validate_all:
+        if args.collect_dependencies:
+            # Collect all dependencies and output to JSON file
+            logger.info("Collecting dependencies for all entry-points...")
+            dependencies_data = validator.collect_all_dependencies()
+            
+            # Determine output path
+            output_path = args.output or "logs/entry_points.json"
+            output_file = Path(output_path)
+            
+            # Ensure the output directory exists
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write dependencies to JSON file
+            with open(output_file, 'w') as f:
+                json.dump(dependencies_data, f, indent=2)
+            
+            logger.info(f"Dependencies collected and saved to: {output_file}")
+            print(f"✅ Dependencies for {len(dependencies_data)} entry-points saved to: {output_file}")
+            
+            return 0
+        
+        elif args.validate_all:
             # Multi-platform validation
             if args.platforms:
                 platforms = [p.strip() for p in args.platforms.split(",")]
@@ -673,7 +792,7 @@ Examples:
             return 0 if result.is_valid else 1
         
         else:
-            parser.error("Must specify either --validate-all or --file/--class/--platform")
+            parser.error("Must specify either --collect-dependencies, --validate-all, or --file/--class/--platform")
             
     except Exception as e:
         logger.error(f"Validation failed: {e}")
