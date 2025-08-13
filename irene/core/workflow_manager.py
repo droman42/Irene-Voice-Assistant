@@ -61,7 +61,7 @@ class WorkflowManager:
         """Inject required components into a workflow"""
         try:
             # Get components from component manager
-            components = await self.component_manager.get_available_components()
+            components = self.component_manager.get_available_components()
             
             # Inject components into workflow
             for name, component in components.items():

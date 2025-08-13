@@ -10,7 +10,7 @@ import sys
 from typing import AsyncIterator, Optional, List, Dict
 import logging
 
-from .base import InputSource
+from .base import InputSource, InputData
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class CLIInput(InputSource):
         """CLI input supports all platforms"""
         return ["linux", "windows", "macos"]
         
-    async def listen(self) -> AsyncIterator[str]:
+    async def listen(self) -> AsyncIterator[InputData]:
         """
         Listen for CLI commands and yield them as they arrive.
         

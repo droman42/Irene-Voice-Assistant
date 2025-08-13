@@ -7,12 +7,16 @@ for the core engine.
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional, AsyncIterator
+from typing import List, Dict, Any, Optional, AsyncIterator, Union
 from abc import ABC, abstractmethod
 
 from ..core.metadata import EntryPointMetadata
+from ..intents.models import AudioData
 
 logger = logging.getLogger(__name__)
+
+# Type alias for input data - can be text commands or raw audio data
+InputData = Union[str, AudioData]
 
 
 class ComponentNotAvailable(Exception):
@@ -28,15 +32,18 @@ class InputSource(EntryPointMetadata, ABC):
     """
     
     @abstractmethod
-    def listen(self) -> AsyncIterator[str]:
+    def listen(self) -> AsyncIterator[InputData]:
         """
-        Start listening for input and yield commands as they arrive.
+        Start listening for input and yield data as it arrives.
         
         Yields:
-            Command strings as they are received
+            InputData - either text commands (str) or audio data (AudioData)
+            - CLI/Web text: str
+            - Microphone: AudioData
+            - Web audio: Could be either
         """
         # This is an async generator method
-        # Implementations should use: async def listen(self) -> AsyncIterator[str]:
+        # Implementations should use: async def listen(self) -> AsyncIterator[InputData]:
         # with yield statements inside
         return
         yield  # This makes it an async generator
@@ -142,7 +149,7 @@ class LegacyInputAdapter(InputSource):
         self._listening = False
         self.logger = logging.getLogger(f"adapter.{legacy_source.__class__.__name__}")
         
-    async def listen(self) -> AsyncIterator[str]:
+    async def listen(self) -> AsyncIterator[InputData]:
         """Adapt legacy get_command to async iterator"""
         while self._listening:
             try:
@@ -206,33 +213,26 @@ class InputManager:
         logger.info("InputManager initialized")
         
     async def _discover_input_sources(self) -> None:
-        """UPDATED: Inject ASR plugin into microphone input"""
+        """Discover available input sources without plugin injection (separation of concerns)"""
         try:
             # Add CLI input (always available)
             from .cli import CLIInput
             cli_input = CLIInput()
             await self.add_source("cli", cli_input)
             
-            # Try to add microphone input with ASR plugin injection
+            # Try to add microphone input (pure audio capture)
             try:
                 from .microphone import MicrophoneInput
-                
-                # Get ASR plugin from core
-                asr_plugin = None
-                if hasattr(self.component_manager, 'core'):
-                    asr_plugin = self.component_manager.core.plugin_manager.get_plugin("universal_asr")
-                
-                mic_input = MicrophoneInput(asr_plugin=asr_plugin)
+                mic_input = MicrophoneInput()  # No plugin injection
                 if mic_input.is_available():
                     await self.add_source("microphone", mic_input)
             except (ImportError, ComponentNotAvailable) as e:
                 logger.info(f"Microphone input not available: {e}")
                 
-            # Try to add web input with core reference for ASR
+            # Try to add web input (pure command/audio capture)
             try:
                 from .web import WebInput
-                web_input = WebInput()
-                web_input.core = self.component_manager.core  # Inject core reference
+                web_input = WebInput()  # No core reference injection
                 if web_input.is_available():
                     await self.add_source("web", web_input)
             except (ImportError, ComponentNotAvailable) as e:
@@ -306,9 +306,14 @@ class InputManager:
     async def _listen_to_source(self, source_name: str, source: InputSource) -> None:
         """Listen to a specific source using async iterator"""
         try:
-            async for command in source.listen():
-                if command and command.strip():
-                    await self._input_queue.put((source_name, command.strip()))
+            async for data in source.listen():
+                if data:
+                    # Handle different input data types
+                    if isinstance(data, str) and data.strip():
+                        await self._input_queue.put((source_name, data.strip()))
+                    elif isinstance(data, AudioData):
+                        await self._input_queue.put((source_name, data))
+                    # Note: AudioData objects are passed through directly to workflow for processing
                     
         except asyncio.CancelledError:
             logger.debug(f"Listening cancelled for source: {source_name}")
@@ -320,12 +325,12 @@ class InputManager:
         for name in list(self._sources.keys()):
             await self.start_source(name)
             
-    async def get_next_input(self) -> tuple[str, str]:
+    async def get_next_input(self) -> tuple[str, InputData]:
         """
-        Get the next input command.
+        Get the next input data.
         
         Returns:
-            Tuple of (source_name, command)
+            Tuple of (source_name, input_data) where input_data can be str or AudioData
         """
         return await self._input_queue.get()
         

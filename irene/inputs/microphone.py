@@ -17,7 +17,7 @@ import time
 from typing import AsyncIterator, Dict, Any, Optional, List
 from pathlib import Path
 
-from .base import InputSource, ComponentNotAvailable
+from .base import InputSource, ComponentNotAvailable, InputData
 from ..intents.models import AudioData
 from ..utils.audio_helpers import get_default_audio_device, AudioFormatConverter
 from ..utils.loader import safe_import
@@ -88,7 +88,7 @@ class MicrophoneInput(InputSource):
             "samplerate": self.samplerate,
             "blocksize": self.blocksize,
             "sounddevice_available": self._sd_available,
-            "asr_plugin_available": self.asr_plugin is not None
+            "device": self.device
         }
         
     async def configure_input(self, **settings) -> None:
@@ -195,7 +195,7 @@ class MicrophoneInput(InputSource):
         """Check if currently listening"""
         return self._listening
         
-    async def listen(self) -> AsyncIterator[AudioData]:
+    async def listen(self) -> AsyncIterator[InputData]:
         """
         Pure audio stream - no business logic
         

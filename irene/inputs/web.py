@@ -1,29 +1,26 @@
 """
-Web Input Source - Web interface input with audio processing
+Web Input Source - Pure web interface input capture
 
-ENHANCED: Provides web-based input via WebSockets or HTTP for remote control
-and web application integration. Now supports audio chunk processing via ASR.
+Provides web-based input via WebSockets or HTTP for remote control
+and web application integration. Pure capture without processing (separation of concerns).
 """
 
 import asyncio
 import logging
-import time
-from typing import AsyncIterator, Dict, Any, Optional, cast, List
+from typing import AsyncIterator, Dict, Any, Optional, List
 import json
-import base64
 
-from .base import InputSource, ComponentNotAvailable
-from ..core.interfaces.asr import ASRPlugin
-from ..core.interfaces.llm import LLMPlugin
+from .base import InputSource, ComponentNotAvailable, InputData
 
 logger = logging.getLogger(__name__)
 
 
 class WebInput(InputSource):
     """
-    ENHANCED: Web input source for receiving commands via web interface.
+    Web input source for receiving commands via web interface.
     
-    Supports WebSocket and HTTP-based command input with audio processing.
+    Pure input capture - supports WebSocket and HTTP-based command input.
+    Raw audio data is passed through without processing (separation of concerns).
     Requires FastAPI/uvicorn for operation.
     """
     
@@ -34,10 +31,6 @@ class WebInput(InputSource):
         self._command_queue: Optional[asyncio.Queue] = None
         self._web_server = None
         self._websocket_connections: list = []
-        self.core = None  # Core reference for ASR plugin access
-        
-        # Client context support
-        self._client_contexts: Dict[str, Dict[str, Any]] = {}  # WebSocket ID -> client context
         
         # Check for required dependencies
         try:
@@ -128,7 +121,7 @@ class WebInput(InputSource):
         """Check if currently listening"""
         return self._listening
         
-    async def listen(self) -> AsyncIterator[str]:
+    async def listen(self) -> AsyncIterator[InputData]:
         """
         Listen for web commands and yield them.
         
@@ -181,15 +174,15 @@ class WebInput(InputSource):
             
     async def handle_websocket_message(self, websocket, message_data: str) -> None:
         """
-        ENHANCED: Handle both text and audio messages
+        Handle WebSocket messages - simplified to pure input capture
         Expected formats:
         - Text: {"type": "command", "command": "text"}
-        - Audio: {"type": "audio_chunk", "data": "base64_audio", "language": "ru", "enhance": false}
+        - Raw Audio: {"type": "audio_data", "data": "base64_audio"} (no processing)
         """
         try:
             message = json.loads(message_data)
             
-            # Existing text command handling
+            # Handle text command messages
             if message.get("type") == "command":
                 command = message.get("command", "").strip()
                 if command:
@@ -212,13 +205,19 @@ class WebInput(InputSource):
                     }
                     await websocket.send_text(json.dumps(response))
                     
-            # NEW: Audio chunk handling via ASR plugin
-            elif message.get("type") == "audio_chunk":
-                await self._handle_audio_chunk(websocket, message)
-                
-            # NEW: Client registration handling
-            elif message.get("type") == "register_client":
-                await self._handle_client_registration(websocket, message)
+            # Handle raw audio data (no processing - pure capture)
+            elif message.get("type") == "audio_data":
+                audio_data = message.get("data", "")
+                if audio_data:
+                    # Queue raw audio data for workflow processing
+                    await self.send_command(f"AUDIO_DATA:{audio_data}")
+                    
+                    response = {
+                        "type": "ack",
+                        "success": True,
+                        "message": "Audio data received"
+                    }
+                    await websocket.send_text(json.dumps(response))
                 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in WebSocket message: {e}")
@@ -237,165 +236,7 @@ class WebInput(InputSource):
             }
             await websocket.send_text(json.dumps(response))
     
-    async def _handle_audio_chunk(self, websocket, message: dict) -> None:
-        """NEW: Process audio chunk using ASR plugin"""
-        try:
-            # Get ASR plugin from core
-            if not self.core:
-                raise ComponentNotAvailable("Core reference not available")
-                
-            asr_plugin = self.core.plugin_manager.get_asr_plugin("universal_asr")
-            if not asr_plugin:
-                raise ComponentNotAvailable("ASR plugin not available")
-            
-            # Decode base64 audio
-            audio_data = base64.b64decode(message["data"])
-            language = message.get("language", "ru")
-            enhance = message.get("enhance", False)
-            
-            # Transcribe audio using ASR plugin
-            # Cast to ASRPlugin since we've already checked it's not None
-            asr_plugin_typed = cast(ASRPlugin, asr_plugin)
-            text = await asr_plugin_typed.transcribe_audio(
-                audio_data, language=language
-            )
-            
-            if text.strip():
-                # Optional LLM enhancement
-                enhanced_text = None
-                if enhance:
-                    llm_plugin = self.core.plugin_manager.get_llm_plugin("universal_llm")
-                    if llm_plugin:
-                        try:
-                            # Cast to LLMPlugin since we've already checked it's not None
-                            llm_plugin_typed = cast(LLMPlugin, llm_plugin)
-                            enhanced_text = await llm_plugin_typed.enhance_text(text, task="improve_speech_recognition")
-                        except Exception as e:
-                            logger.warning(f"LLM enhancement failed: {e}")
-                
-                # Use enhanced text if available, otherwise use original
-                final_text = enhanced_text if enhanced_text else text
-                
-                # Send transcribed text as command
-                await self.send_command(final_text.strip())
-                
-                # Send result back to client
-                response = {
-                    "type": "transcription_result",
-                    "original_audio_size": len(audio_data),
-                    "transcribed_text": text,
-                    "enhanced_text": enhanced_text,
-                    "final_text": final_text,
-                    "enhanced": enhance and enhanced_text is not None,
-                    "language": language,
-                    "success": True
-                }
-                await websocket.send_text(json.dumps(response))
-            else:
-                # No text recognized
-                response = {
-                    "type": "transcription_result",
-                    "transcribed_text": "",
-                    "enhanced": False,
-                    "language": language,
-                    "success": True,
-                    "message": "No speech detected"
-                }
-                await websocket.send_text(json.dumps(response))
-                
-        except Exception as e:
-            logger.error(f"Audio processing failed: {e}")
-            error_response = {
-                "type": "error",
-                "success": False,
-                "error": str(e),
-                "error_type": "audio_processing"
-            }
-            await websocket.send_text(json.dumps(error_response))
-    
-    async def _handle_client_registration(self, websocket, message: dict) -> None:
-        """Handle client registration from web interface"""
-        try:
-            client_id = message.get("client_id")
-            room_name = message.get("room_name") 
-            language = message.get("language", "ru")
-            user_agent = message.get("user_agent")
-            device_capabilities = message.get("device_capabilities", {})
-            
-            if not client_id or not room_name:
-                response = {
-                    "type": "registration_error",
-                    "success": False,
-                    "error": "client_id and room_name are required"
-                }
-                await websocket.send_text(json.dumps(response))
-                return
-            
-            # Store client context for this WebSocket connection
-            websocket_id = id(websocket)
-            self._client_contexts[websocket_id] = {
-                "client_id": client_id,
-                "room_name": room_name,
-                "language": language,
-                "user_agent": user_agent,
-                "device_capabilities": device_capabilities,
-                "connection_time": time.time(),
-                "source": "web"
-            }
-            
-            # Register with client registry if available
-            if self.core:
-                from ..core.client_registry import get_client_registry
-                registry = get_client_registry()
-                
-                success = await registry.register_web_client(
-                    client_id=client_id,
-                    room_name=room_name,
-                    user_agent=user_agent,
-                    language=language
-                )
-                
-                if success:
-                    logger.info(f"Registered web client '{client_id}' in room '{room_name}'")
-                    response = {
-                        "type": "registration_success",
-                        "success": True,
-                        "client_id": client_id,
-                        "room_name": room_name,
-                        "language": language
-                    }
-                else:
-                    response = {
-                        "type": "registration_error", 
-                        "success": False,
-                        "error": "Failed to register with client registry"
-                    }
-            else:
-                # No core available, just confirm local storage
-                response = {
-                    "type": "registration_success",
-                    "success": True,
-                    "client_id": client_id,
-                    "room_name": room_name,
-                    "language": language,
-                    "note": "Registered locally only"
-                }
-            
-            await websocket.send_text(json.dumps(response))
-            
-        except Exception as e:
-            logger.error(f"Client registration failed: {e}")
-            error_response = {
-                "type": "registration_error",
-                "success": False,
-                "error": str(e)
-            }
-            await websocket.send_text(json.dumps(error_response))
-    
-    def get_client_context_for_websocket(self, websocket) -> Optional[Dict[str, Any]]:
-        """Get client context for a WebSocket connection"""
-        websocket_id = id(websocket)
-        return self._client_contexts.get(websocket_id)
+
     
     def get_connection_info(self) -> Dict[str, Any]:
         """Get detailed connection information"""
