@@ -10,9 +10,9 @@ This module provides intelligent validation of entry-point metadata for:
 - External package metadata compliance
 
 Usage:
-    python -m irene.tools.dependency_validator --file irene/providers/audio/sounddevice.py --class SoundDeviceAudioProvider --platform ubuntu
-    python -m irene.tools.dependency_validator --validate-all --platform alpine
-    python -m irene.tools.dependency_validator --validate-all --platforms ubuntu,alpine,centos,macos
+    python -m irene.tools.dependency_validator --file irene/providers/audio/sounddevice.py --class SoundDeviceAudioProvider --platform linux.ubuntu
+    python -m irene.tools.dependency_validator --validate-all --platform linux.alpine
+    python -m irene.tools.dependency_validator --validate-all --platforms linux.ubuntu,linux.alpine,macos,windows
 """
 
 import argparse
@@ -89,20 +89,19 @@ class DependencyValidator:
         
         # Known package repositories per platform (subset for validation)
         self._known_packages = {
-            "ubuntu": {
+            "linux.ubuntu": {
                 "libportaudio2", "libsndfile1", "libffi-dev", "ffmpeg", "espeak", "espeak-data",
                 "alsa-utils", "libavformat58", "libavcodec58", "libasound2-dev", "libatomic1"
             },
-            "alpine": {
+            "linux.alpine": {
                 "portaudio-dev", "libsndfile-dev", "libffi-dev", "ffmpeg", "espeak", "espeak-data",
                 "alsa-utils", "ffmpeg-dev", "alsa-lib-dev", "libatomic", "ffmpeg-libs"
             },
-            "centos": {
-                "portaudio-devel", "libsndfile-devel", "libffi-devel", "ffmpeg", "espeak", "espeak-data",
-                "alsa-utils", "ffmpeg-devel", "alsa-lib-devel", "libatomic"
-            },
             "macos": {
                 "portaudio", "libsndfile", "libffi", "ffmpeg", "espeak"
+            },
+            "windows": {
+                # Windows package validation typically not needed
             }
         }
         
@@ -137,7 +136,7 @@ class DependencyValidator:
         Args:
             file_path: Path to Python file containing the entry-point class
             class_name: Name of the entry-point class
-            platform: Target platform (ubuntu, alpine, centos, macos)
+            platform: Target platform (linux.ubuntu, linux.alpine, macos, windows)
             
         Returns:
             ValidationResult with detailed validation status
@@ -525,6 +524,8 @@ class DependencyValidator:
             consistency_valid = True
             
             # Check that all supported platforms have dependency mappings
+            # Note: After Phase 6 harmonization, both get_platform_support() and get_platform_dependencies()
+            # use identical platform keys, eliminating false positive warnings
             for platform in platform_support:
                 if platform not in platform_deps:
                     result.warnings.append(f"Platform '{platform}' in support list but no dependencies defined")
@@ -535,8 +536,8 @@ class DependencyValidator:
                 result.warnings.append(f"Platforms with no system dependencies: {empty_platforms}")
             
             # Check for common package naming patterns
-            ubuntu_packages = set(platform_deps.get("ubuntu", []))
-            alpine_packages = set(platform_deps.get("alpine", []))
+            ubuntu_packages = set(platform_deps.get("linux.ubuntu", []))
+            alpine_packages = set(platform_deps.get("linux.alpine", []))
             
             if ubuntu_packages and alpine_packages:
                 # Look for potential naming inconsistencies
@@ -635,19 +636,19 @@ Examples:
   python -m irene.tools.dependency_validator \\
       --file irene/providers/audio/sounddevice.py \\
       --class SoundDeviceAudioProvider \\
-      --platform ubuntu
+      --platform linux.ubuntu
 
   # Validate all entry-points for specific platform
   python -m irene.tools.dependency_validator \\
-      --validate-all --platform alpine
+      --validate-all --platform linux.alpine
 
   # Cross-platform validation for CI/CD
   python -m irene.tools.dependency_validator \\
-      --validate-all --platforms ubuntu,alpine,centos,macos
+      --validate-all --platforms linux.ubuntu,linux.alpine,macos,windows
 
   # Generate JSON report for automation
   python -m irene.tools.dependency_validator \\
-      --validate-all --platform ubuntu --json
+      --validate-all --platform linux.ubuntu --json
 
   # Collect all dependencies for entry-points
   python -m irene.tools.dependency_validator \\
@@ -670,7 +671,7 @@ Examples:
     )
     parser.add_argument(
         "--platform",
-        choices=["ubuntu", "alpine", "centos", "macos"],
+        choices=["linux.ubuntu", "linux.alpine", "macos", "windows"],
         help="Target platform for validation"
     )
     parser.add_argument(
@@ -742,7 +743,7 @@ Examples:
             elif args.platform:
                 platforms = [args.platform]
             else:
-                platforms = ["ubuntu"]  # Default platform
+                platforms = ["linux.ubuntu"]  # Default platform
             
             logger.info(f"Validating all entry-points for platforms: {platforms}")
             report = validator.validate_all_entry_points(platforms)

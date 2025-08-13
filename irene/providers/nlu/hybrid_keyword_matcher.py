@@ -640,16 +640,16 @@ class HybridKeywordMatcherProvider(NLUProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Hybrid keyword matcher system dependencies for rapidfuzz compilation"""
         return {
-            "ubuntu": ["build-essential", "python3-dev"],
-            "alpine": ["build-base", "python3-dev"],  # Alpine equivalent of build-essential
-            "centos": ["gcc", "gcc-c++", "python3-devel"],
-            "macos": []  # Xcode Command Line Tools provide build tools
+            "linux.ubuntu": ["build-essential", "python3-dev"],
+            "linux.alpine": ["build-base", "python3-dev"],
+            "macos": [],  # Xcode Command Line Tools provide build tools
+            "windows": []  # Windows build tools handled differently
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Hybrid keyword matcher supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def extract_entities(self, text: str, intent_name: str) -> Dict[str, Any]:
         """Extract entities for a given intent using basic patterns"""

@@ -8,8 +8,9 @@ Phase 3 of TODO #2: Updated to use new stage-specific providers
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 
+from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import ConversationContext
@@ -399,13 +400,25 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Text processor component has no system dependencies - coordinates providers only"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Text processor component supports all platforms"""
-        return ["linux", "windows", "macos"] 
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
+    @classmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for this component"""
+        from ..config.models import TextProcessingConfig  # Note: "Processing" not "Processor"
+        return TextProcessingConfig
+    
+    @classmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to this component's config"""
+        return "plugins.universal_text_processor" 

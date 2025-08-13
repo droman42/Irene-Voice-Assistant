@@ -273,13 +273,13 @@ class Workflow(EntryPointMetadata, ABC):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Workflows have no system dependencies - coordinate components only"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Workflows support all platforms"""
-        return ["linux", "windows", "macos"] 
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"] 

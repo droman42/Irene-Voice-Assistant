@@ -39,16 +39,16 @@ class SpeechRecognitionIntentHandler(IntentHandler):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Speech recognition handler has no system dependencies"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Speech recognition handler supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process speech recognition intents"""

@@ -531,16 +531,16 @@ class SpaCyNLUProvider(NLUProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """spaCy NLU system dependencies for Cython/C++ compilation"""
         return {
-            "ubuntu": ["build-essential", "python3-dev"],
-            "alpine": ["build-base", "python3-dev"],  # Alpine equivalent of build-essential
-            "centos": ["gcc", "gcc-c++", "python3-devel"],
-            "macos": []  # Xcode Command Line Tools provide build tools
+            "linux.ubuntu": ["build-essential", "python3-dev"],
+            "linux.alpine": ["build-base", "python3-dev"],
+            "macos": [],  # Xcode Command Line Tools provide build tools
+            "windows": []  # Windows build tools handled differently
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """spaCy NLU supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def process_intent(self, text: str, **kwargs) -> Dict[str, Any]:
         """

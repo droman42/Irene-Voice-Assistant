@@ -240,16 +240,16 @@ class WhisperASRProvider(ASRProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Platform-specific system packages for Whisper"""
         return {
-            "ubuntu": ["ffmpeg"],
-            "alpine": ["ffmpeg"],  # ARMv7 Alpine
-            "centos": ["ffmpeg"],
-            "macos": []  # Homebrew handles ffmpeg
+            "linux.ubuntu": ["ffmpeg"],
+            "linux.alpine": ["ffmpeg"],
+            "macos": ["ffmpeg"],  # Homebrew handles ffmpeg
+            "windows": ["FFmpeg.FFmpeg"]  # Windows package management differs
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Whisper supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     def get_supported_languages(self) -> List[str]:
         """Return list of supported language codes"""

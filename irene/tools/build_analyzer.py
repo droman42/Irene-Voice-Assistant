@@ -86,6 +86,15 @@ class IreneBuildAnalyzer:
         self._entry_points_cache: Optional[Dict[str, List[str]]] = None
         self._metadata_cache: Dict[str, Any] = {}  # Cache for provider metadata
         
+        # Platform mapping for backward compatibility
+        self._platform_mapping = {
+            "ubuntu": "linux.ubuntu",
+            "alpine": "linux.alpine",
+            "centos": None,  # Removed - will error
+            "macos": "macos",
+            "windows": "windows"
+        }
+        
     def _find_project_root(self) -> Path:
         """Find the project root directory by looking for pyproject.toml."""
         current = Path.cwd()
@@ -96,6 +105,33 @@ class IreneBuildAnalyzer:
         
         # Fallback to current directory
         return Path.cwd()
+    
+    def _normalize_platform_name(self, platform: str) -> str:
+        """
+        Normalize platform name for backward compatibility.
+        
+        Args:
+            platform: Original platform name (may be old format)
+            
+        Returns:
+            Normalized platform name (new format)
+            
+        Raises:
+            ValueError: If platform is not supported
+        """
+        if platform in ["linux.ubuntu", "linux.alpine", "macos", "windows"]:
+            # Already using new format
+            return platform
+        
+        if platform in self._platform_mapping:
+            mapped = self._platform_mapping[platform]
+            if mapped is None:
+                raise ValueError(f"Platform '{platform}' is no longer supported (removed in Phase 2)")
+            
+            logger.warning(f"Platform '{platform}' is deprecated, use '{mapped}' instead")
+            return mapped
+        
+        raise ValueError(f"Unknown platform '{platform}'. Supported platforms: linux.ubuntu, linux.alpine, macos, windows")
     
     def analyze_runtime_requirements(self, config_path: str) -> BuildRequirements:
         """
@@ -201,25 +237,27 @@ class IreneBuildAnalyzer:
         
         return result
     
-    def generate_docker_commands(self, requirements: BuildRequirements, platform: str = "ubuntu") -> List[str]:
+    def generate_docker_commands(self, requirements: BuildRequirements, platform: str = "linux.ubuntu") -> List[str]:
         """
         Generate Docker commands for installing system dependencies.
         
         Args:
             requirements: BuildRequirements with system packages
-            platform: Target platform (ubuntu, alpine, centos, macos)
+            platform: Target platform (linux.ubuntu, linux.alpine, macos, windows)
             
         Returns:
             List of Docker RUN commands
         """
-        packages = requirements.system_packages.get(platform, set())
+        # Normalize platform name for backward compatibility
+        normalized_platform = self._normalize_platform_name(platform)
+        packages = requirements.system_packages.get(normalized_platform, set())
         if not packages:
             return []
         
         # Sort packages for consistent output
         sorted_packages = sorted(packages)
         
-        if platform == "alpine":
+        if normalized_platform == "linux.alpine":
             commands = [
                 "# Install system dependencies for enabled providers",
                 "RUN apk update && apk add --no-cache \\",
@@ -233,7 +271,7 @@ class IreneBuildAnalyzer:
                     line += " \\"
                 commands.append(line)
                 
-        else:  # ubuntu/debian
+        elif normalized_platform == "linux.ubuntu":  # ubuntu/debian
             commands = [
                 "# Install system dependencies for enabled providers",
                 "RUN apt-get update && apt-get install -y \\",
@@ -253,52 +291,62 @@ class IreneBuildAnalyzer:
                 "    && rm -rf /var/lib/apt/lists/*"
             ])
         
+        else:
+            # For macos and windows, Docker commands are not typically used
+            commands = [
+                f"# Docker installation not supported for platform: {normalized_platform}",
+                f"# System packages needed: {', '.join(sorted_packages)}"
+            ]
+        
         return commands
     
-    def generate_system_install_commands(self, requirements: BuildRequirements, platform: str = "ubuntu") -> List[str]:
+    def generate_system_install_commands(self, requirements: BuildRequirements, platform: str = "linux.ubuntu") -> List[str]:
         """
         Generate system installation commands for different platforms.
         
         Args:
             requirements: BuildRequirements with system packages
-            platform: Target platform (ubuntu, alpine, centos, macos)
+            platform: Target platform (linux.ubuntu, linux.alpine, macos, windows)
             
         Returns:
             List of installation commands
         """
-        packages = requirements.system_packages.get(platform, set())
+        # Normalize platform name for backward compatibility
+        normalized_platform = self._normalize_platform_name(platform)
+        packages = requirements.system_packages.get(normalized_platform, set())
         if not packages:
             return []
         
         sorted_packages = sorted(packages)
         package_list = " ".join(sorted_packages)
         
-        if platform == "ubuntu":
+        if normalized_platform == "linux.ubuntu":
             return [
                 "# Install system dependencies",
                 f"sudo apt-get update",
                 f"sudo apt-get install -y {package_list}",
             ]
-        elif platform == "alpine":
+        elif normalized_platform == "linux.alpine":
             return [
                 "# Install system dependencies",
                 f"sudo apk update",
                 f"sudo apk add {package_list}",
             ]
-        elif platform == "centos":
-            return [
-                "# Install system dependencies",
-                f"sudo yum update",
-                f"sudo yum install -y {package_list}",
-            ]
-        elif platform == "macos":
+        elif normalized_platform == "macos":
             return [
                 "# Install system dependencies",
                 f"brew update",
                 f"brew install {package_list}",
             ]
+        elif normalized_platform == "windows":
+            return [
+                "# Install system dependencies",
+                f"# Windows system package installation varies by package manager",
+                f"# Required packages: {package_list}",
+                f"# Consider using chocolatey, winget, or vcpkg",
+            ]
         else:
-            return [f"# Unknown platform: {platform}"]
+            return [f"# Unknown platform: {normalized_platform}"]
     
     def generate_python_requirements(self, requirements: BuildRequirements) -> List[str]:
         """
@@ -673,7 +721,7 @@ class IreneBuildAnalyzer:
         Replaces hardcoded PROVIDER_SYSTEM_DEPENDENCIES and PROVIDER_PYTHON_DEPENDENCIES.
         """
         # Initialize platform containers
-        platforms = ["ubuntu", "alpine", "centos", "macos"]
+        platforms = ["linux.ubuntu", "linux.alpine", "macos", "windows"]
         for platform in platforms:
             requirements.system_packages[platform] = set()
         
@@ -860,8 +908,8 @@ Examples:
     )
     parser.add_argument(
         "--platform",
-        choices=["ubuntu", "alpine", "centos", "macos"],
-        default="ubuntu",
+        choices=["linux.ubuntu", "linux.alpine", "macos", "windows"],
+        default="linux.ubuntu",
         help="Target platform for system dependencies"
     )
     parser.add_argument(

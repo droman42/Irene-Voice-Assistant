@@ -38,16 +38,16 @@ class ProviderControlIntentHandler(IntentHandler):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Provider control handler has no system dependencies"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Provider control handler supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process provider control intents"""

@@ -97,16 +97,16 @@ class ConsoleAudioProvider(AudioProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Console audio has no system dependencies"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Console audio supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """

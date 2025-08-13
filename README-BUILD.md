@@ -56,18 +56,18 @@ uv run python -m irene.tools.build_analyzer --config configs/minimal.toml
 # Анализ для конкретной платформы
 uv run python -m irene.tools.build_analyzer \
     --config configs/voice.toml \
-    --platform alpine
+    --platform linux.alpine
 
 # Генерация Docker команд
 uv run python -m irene.tools.build_analyzer \
     --config configs/full.toml \
-    --platform ubuntu \
+    --platform linux.ubuntu \
     --docker
 
 # JSON вывод для автоматизации
 uv run python -m irene.tools.build_analyzer \
     --config configs/voice.toml \
-    --platform alpine \
+    --platform linux.alpine \
     --json
 ```
 
@@ -83,7 +83,7 @@ uv run python -m irene.tools.build_analyzer \
 ### Пример вывода
 
 ```bash
-$ uv run python -m irene.tools.build_analyzer --config configs/voice.toml --platform alpine
+$ uv run python -m irene.tools.build_analyzer --config configs/voice.toml --platform linux.alpine
 
 🔍 Анализ сборки для профиля: voice
 📦 Python модули: 22
@@ -245,7 +245,7 @@ cd irene-voice-assistant
 # 2. Анализ зависимостей для вашей системы
 uv run python -m irene.tools.build_analyzer \
     --config configs/voice.toml \
-    --platform ubuntu \
+    --platform linux.ubuntu \
     --system-install
 
 # 3. Установка системных зависимостей
@@ -350,7 +350,7 @@ port = 8000
 uv run python -m irene.tools.dependency_validator \
     --file irene/providers/audio/sounddevice.py \
     --class SoundDeviceAudioProvider \
-    --platform ubuntu
+    --platform linux.ubuntu
 
 # Результат:
 # 🔍 Результат валидации: ✅ ВАЛИДНО
@@ -365,24 +365,24 @@ uv run python -m irene.tools.dependency_validator \
 # Валидация всех entry-points для одной платформы
 uv run python -m irene.tools.dependency_validator \
     --validate-all \
-    --platform alpine
+    --platform linux.alpine
 
 # Кроссплатформенная валидация для CI/CD
 uv run python -m irene.tools.dependency_validator \
     --validate-all \
-    --platforms ubuntu,alpine,centos,macos
+    --platforms linux.ubuntu,linux.alpine,macos,windows
 
 # JSON вывод для автоматизации
 uv run python -m irene.tools.dependency_validator \
     --validate-all \
-    --platform ubuntu \
+    --platform linux.ubuntu \
     --json
 ```
 
 ### Пример вывода валидации
 
 ```bash
-$ uv run python -m irene.tools.dependency_validator --validate-all --platform ubuntu
+$ uv run python -m irene.tools.dependency_validator --validate-all --platform linux.ubuntu
 
 🔍 Отчет о валидации зависимостей
 ==================================================
@@ -414,7 +414,7 @@ $ uv run python -m irene.tools.dependency_validator --validate-all --platform ub
     "total_warnings": 143
   },
   "platform_summary": {
-    "ubuntu": {
+    "linux.ubuntu": {
       "total": 53,
       "passed": 47,
       "failed": 6,
@@ -425,7 +425,7 @@ $ uv run python -m irene.tools.dependency_validator --validate-all --platform ub
   "validation_results": {
     "irene.providers.audio.sounddevice@ubuntu": {
       "entry_point": "irene/providers/audio/sounddevice.py:SoundDeviceAudioProvider",
-      "platform": "ubuntu",
+      "platform": "linux.ubuntu",
       "is_valid": true,
       "errors": [],
       "warnings": [],
@@ -463,7 +463,7 @@ jobs:
           source ~/.cargo/env
           uv run python -m irene.tools.dependency_validator \
             --validate-all \
-            --platforms ubuntu,alpine \
+            --platforms linux.ubuntu,linux.alpine \
             --json > validation-report.json
             
       - name: Загрузка отчета
@@ -486,7 +486,7 @@ CHANGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' |
 if [ -n "$CHANGED_FILES" ]; then
     echo "Найдены измененные entry-point файлы, запуск валидации..."
     
-    if ! uv run python -m irene.tools.dependency_validator --validate-all --platform ubuntu; then
+    if ! uv run python -m irene.tools.dependency_validator --validate-all --platform linux.ubuntu; then
         echo "❌ Валидация зависимостей не прошла!"
         exit 1
     fi
@@ -547,10 +547,10 @@ class MyCustomProvider(ProviderBase, EntryPointMetadata):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Системные зависимости по платформам."""
         return {
-            "ubuntu": ["libssl-dev", "libcurl4-openssl-dev"],
-            "alpine": ["openssl-dev", "curl-dev"],
-            "centos": ["openssl-devel", "libcurl-devel"],
-            "macos": []  # Homebrew управляет зависимостями
+            "linux.ubuntu": ["libssl-dev", "libcurl4-openssl-dev"],
+            "linux.alpine": ["openssl-dev", "curl-dev"],
+            "macos": [],  # Homebrew управляет зависимостями
+            "windows": []  # Windows package management differs
         }
     
     @classmethod
@@ -583,12 +583,12 @@ my_provider = "your_package.providers.my_provider:MyCustomProvider"
 uv run python -m irene.tools.dependency_validator \
     --file your_package/providers/my_provider.py \
     --class MyCustomProvider \
-    --platform ubuntu
+    --platform linux.ubuntu
 
 # Валидация всех entry-points вашего пакета
 uv run python -m irene.tools.dependency_validator \
     --validate-all \
-    --platforms ubuntu,alpine,macos
+    --platforms linux.ubuntu,linux.alpine,macos
 ```
 
 ### Использование внешнего пакета
@@ -606,7 +606,7 @@ enabled = ["audio", "tts", "my_custom_component"]
 # Анализ конфигурации с внешним пакетом
 uv run python -m irene.tools.build_analyzer \
     --config configs/custom.toml \
-    --platform ubuntu
+    --platform linux.ubuntu
 ```
 
 ### Лучшие практики для внешних пакетов

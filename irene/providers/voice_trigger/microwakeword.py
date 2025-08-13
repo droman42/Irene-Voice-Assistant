@@ -482,16 +482,16 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """microWakeWord has no system dependencies - pure Python/TensorFlow Lite"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """microWakeWord supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def cleanup(self) -> None:
         """Clean up microWakeWord resources."""

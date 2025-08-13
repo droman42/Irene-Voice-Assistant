@@ -6,8 +6,9 @@ loader.py for dependency validation, following the implementation plan.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 
+from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import AudioData, WakeWordResult
@@ -407,13 +408,25 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Voice trigger component has no system dependencies - coordinates providers only"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Voice trigger component supports all platforms"""
-        return ["linux", "windows", "macos"] 
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
+    @classmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for this component"""
+        from ..config.models import VoiceTriggerConfig  # Note: NOT Universal*
+        return VoiceTriggerConfig
+    
+    @classmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to this component's config"""
+        return "plugins.voice_trigger"  # Note: NO "universal_" prefix 

@@ -7,7 +7,7 @@ Manages multiple audio providers based on configuration and provides unified web
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional, AsyncIterator
+from typing import Dict, Any, List, Optional, AsyncIterator, Type
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, UploadFile, File  # type: ignore
@@ -490,4 +490,16 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """Audio component needs web API functionality"""
-        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"] 
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+    
+    # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
+    @classmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for this component"""
+        from ..config.models import UniversalAudioConfig
+        return UniversalAudioConfig
+    
+    @classmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to this component's config"""
+        return "plugins.universal_audio" 

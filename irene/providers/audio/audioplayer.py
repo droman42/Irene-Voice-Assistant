@@ -93,18 +93,18 @@ class AudioPlayerAudioProvider(AudioProvider):
         
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
-        """Platform-specific system packages for AudioPlayer"""
+        """AudioPlayer is cross-platform, no system dependencies"""
         return {
-            "ubuntu": ["libavformat58", "libavcodec58"],
-            "alpine": ["ffmpeg-libs"],  # ARMv7 Alpine
-            "centos": ["ffmpeg-libs"],
-            "macos": []  # Homebrew handles dependencies automatically
+            "linux.ubuntu": ["ffmpeg"],
+            "linux.alpine": ["ffmpeg"],
+            "macos": ["ffmpeg"],
+            "windows": ["FFmpeg.FFmpeg"]
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """AudioPlayer supports all major platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using audioplayer."""

@@ -99,16 +99,16 @@ class ConsoleTTSProvider(TTSProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Console TTS has no system dependencies"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Console TTS supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """

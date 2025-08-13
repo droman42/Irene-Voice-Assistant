@@ -296,13 +296,13 @@ class NumberTextProcessor(TextProcessingProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Number text processor has no system dependencies"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Number text processor supports all platforms"""
-        return ["linux", "windows", "macos"] 
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"] 

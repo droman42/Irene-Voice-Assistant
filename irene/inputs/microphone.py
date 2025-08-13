@@ -263,6 +263,21 @@ class MicrophoneInput(InputSource):
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Input sources have no system dependencies - interface logic only"""
+        return {
+            "linux.ubuntu": ["libportaudio2", "libsndfile1"],
+            "linux.alpine": ["portaudio", "libsndfile"],
+            "macos": ["portaudio", "libsndfile"],
+            "windows": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Input sources support all platforms"""
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """Microphone input needs audio processing libraries"""
         return ["sounddevice>=0.4.0", "soundfile>=0.12.0"] 

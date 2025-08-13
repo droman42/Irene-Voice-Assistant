@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..config.models import ComponentConfig
+from ..config.models import ComponentConfig, CoreConfig
 from ..utils.loader import DependencyChecker, get_component_status
 from ..components import (
     TTSComponent,
@@ -35,108 +35,6 @@ class ComponentNotAvailable(Exception):
     """Raised when optional component dependencies are missing"""
     pass
 
-
-class ComponentLoader:
-    """
-    Graceful component loading with dependency checking.
-    
-    Features:
-    - Automatic dependency detection
-    - Graceful fallback handling  
-    - Component availability caching
-    - Detailed error reporting
-    - Optional component loading
-    """
-    
-    _availability_cache: dict[str, bool] = {}
-    _error_cache: dict[str, str] = {}
-    
-    @classmethod
-    def is_available(cls, component_name: str, dependencies: list[str]) -> bool:
-        """
-        Check if component dependencies are available.
-        
-        Args:
-            component_name: Name of the component for caching
-            dependencies: List of module names to check
-            
-        Returns:
-            True if all dependencies are available
-        """
-        if component_name in cls._availability_cache:
-            return cls._availability_cache[component_name]
-            
-        try:
-            for dependency in dependencies:
-                __import__(dependency)
-            cls._availability_cache[component_name] = True
-            return True
-            
-        except ImportError as e:
-            error_msg = f"Missing dependencies for {component_name}: {e}"
-            cls._error_cache[component_name] = error_msg
-            cls._availability_cache[component_name] = False
-            logger.debug(error_msg)
-            return False
-    
-    @classmethod
-    def load_microphone_component(cls) -> Optional['MicrophoneComponent']:
-        """Load microphone component with graceful fallback"""
-        if cls.is_available("microphone", ["vosk", "sounddevice"]):
-            try:
-                return MicrophoneComponent()
-            except Exception as e:
-                logger.warning(f"Failed to create MicrophoneComponent: {e}")
-                return None
-        return None
-    
-    @classmethod
-    def load_tts_component(cls) -> Optional['TTSComponent']:
-        """Load TTS component with graceful fallback"""
-        if cls.is_available("tts", ["pyttsx3"]):
-            try:
-                return TTSComponent()
-            except Exception as e:
-                logger.warning(f"Failed to create TTSComponent: {e}")
-                return None
-        return None
-    
-    @classmethod  
-    def load_audio_output_component(cls) -> Optional['AudioOutputComponent']:
-        """Load audio output component with graceful fallback"""
-        if cls.is_available("audio_output", ["sounddevice", "soundfile"]):
-            try:
-                return AudioOutputComponent()
-            except Exception as e:
-                logger.warning(f"Failed to create AudioOutputComponent: {e}")
-                return None
-        return None
-    
-    @classmethod
-    def load_web_api_component(cls) -> Optional['WebAPIComponent']:
-        """Load web API component with graceful fallback"""
-        if cls.is_available("web_api", ["fastapi", "uvicorn"]):
-            try:
-                return WebAPIComponent()
-            except Exception as e:
-                logger.warning(f"Failed to create WebAPIComponent: {e}")
-                return None
-        return None
-    
-    @classmethod
-    def get_availability_report(cls) -> dict[str, Any]:
-        """Get detailed component availability report"""
-        return {
-            "availability": cls._availability_cache.copy(),
-            "errors": cls._error_cache.copy(),
-            "checked_components": list(cls._availability_cache.keys())
-        }
-    
-    @classmethod
-    def clear_cache(cls) -> None:
-        """Clear availability cache (useful for testing)"""
-        cls._availability_cache.clear()
-        cls._error_cache.clear()
 
 
 @dataclass
@@ -182,7 +80,13 @@ class Component(ABC):
         
     def is_available(self) -> bool:
         """Check if component dependencies are available"""
-        return ComponentLoader.is_available(self.name, self.get_dependencies())
+        dependencies = self.get_dependencies()
+        try:
+            for dependency in dependencies:
+                __import__(dependency)
+            return True
+        except ImportError:
+            return False
         
     async def start(self) -> bool:
         """Start the component with error handling"""
@@ -212,129 +116,6 @@ class Component(ABC):
             self.logger.error(f"Error stopping component {self.name}: {e}")
 
 
-class MicrophoneComponent(Component):
-    """Microphone input component using VOSK and sounddevice"""
-    
-    def __init__(self):
-        super().__init__("microphone")
-        self._device = None
-        self._stream = None
-        
-    def get_dependencies(self) -> list[str]:
-        return ["vosk", "sounddevice", "soundfile"]
-        
-    async def initialize(self) -> None:
-        """Initialize microphone with VOSK model"""
-        if not self.is_available():
-            raise ComponentNotAvailable("Microphone dependencies not available")
-            
-        # Dynamic imports
-        import sounddevice as sd  # type: ignore
-        import vosk  # type: ignore
-        
-        # Initialize VOSK model (would need actual model path)
-        self.logger.info("Microphone component initialized")
-        
-    async def shutdown(self) -> None:
-        """Cleanup microphone resources"""
-        if self._stream:
-            self._stream.stop()
-            self._stream.close()
-        self.logger.info("Microphone component shutdown")
-
-
-class TTSComponent(Component):
-    """Text-to-speech component using pyttsx3"""
-    
-    def __init__(self):
-        super().__init__("tts")
-        self._engine = None
-        
-    def get_dependencies(self) -> list[str]:
-        return ["pyttsx3"]
-        
-    async def initialize(self) -> None:
-        """Initialize TTS engine"""
-        if not self.is_available():
-            raise ComponentNotAvailable("TTS dependencies not available")
-            
-        # Dynamic import
-        import pyttsx3  # type: ignore
-        
-        self._engine = pyttsx3.init()
-        self.logger.info("TTS component initialized")
-        
-    async def shutdown(self) -> None:
-        """Cleanup TTS resources"""
-        if self._engine:
-            self._engine.stop()
-        self.logger.info("TTS component shutdown")
-        
-    async def speak(self, text: str) -> None:
-        """Speak text using TTS engine"""
-        if not self.initialized or not self._engine:
-            raise ComponentNotAvailable("TTS component not initialized")
-            
-        # Non-blocking TTS call
-        await asyncio.to_thread(self._engine.say, text)
-        await asyncio.to_thread(self._engine.runAndWait)
-
-
-class AudioOutputComponent(Component):
-    """Audio output component using sounddevice"""
-    
-    def __init__(self):
-        super().__init__("audio_output")
-        
-    def get_dependencies(self) -> list[str]:
-        return ["sounddevice", "soundfile"]
-        
-    async def initialize(self) -> None:
-        """Initialize audio output"""
-        if not self.is_available():
-            raise ComponentNotAvailable("Audio output dependencies not available")
-            
-        # Dynamic imports
-        import sounddevice as sd  # type: ignore
-        import soundfile as sf  # type: ignore
-        
-        self.logger.info("Audio output component initialized")
-        
-    async def shutdown(self) -> None:
-        """Cleanup audio resources"""
-        self.logger.info("Audio output component shutdown")
-
-
-class WebAPIComponent(Component):
-    """Web API component using FastAPI and uvicorn"""
-    
-    def __init__(self):
-        super().__init__("web_api")
-        self._app = None
-        self._server = None
-        
-    def get_dependencies(self) -> list[str]:
-        return ["fastapi", "uvicorn"]
-        
-    async def initialize(self) -> None:
-        """Initialize FastAPI application"""
-        if not self.is_available():
-            raise ComponentNotAvailable("Web API dependencies not available")
-            
-        # Dynamic imports
-        from fastapi import FastAPI  # type: ignore
-        import uvicorn  # type: ignore
-        
-        self._app = FastAPI(title="Irene Voice Assistant API")
-        self.logger.info("Web API component initialized")
-        
-    async def shutdown(self) -> None:
-        """Shutdown web server"""
-        if self._server:
-            self._server.shutdown()
-        self.logger.info("Web API component shutdown")
-
-
 class ComponentManager:
     """
     Manages optional components with graceful dependency checking.
@@ -355,92 +136,58 @@ class ComponentManager:
         self.dependency_checker = DependencyChecker()  # From loader.py
     
     def get_available_components(self) -> Dict[str, Type]:
-        """Get available fundamental components with dependency validation"""
-        components = {
-            "tts": TTSComponent,
-            "asr": ASRComponent, 
-            "llm": LLMComponent,
-            "audio": AudioComponent,
-            "voice_trigger": VoiceTriggerComponent,  # NEW
-            "nlu": NLUComponent,                     # NEW
-            "text_processor": TextProcessorComponent, # NEW
-            "intent_system": IntentComponent         # NEW - Intent handler system
-        }
-        
-        # Use loader.py to validate each component's dependencies
-        available = {}
-        for name, cls in components.items():
-            try:
-                component_instance = cls()
-                deps = component_instance.get_dependencies()
-                if self.dependency_checker.check(name, deps):
-                    available[name] = cls
-                else:
-                    logger.warning(f"Component {name} not available - missing dependencies: {deps}")
-            except Exception as e:
-                logger.error(f"Error checking component {name}: {e}")
-        
-        return available
+        """Get available components through existing entry-point discovery"""
+        # Use EXISTING dynamic_loader instead of hardcoded dictionary
+        from ..utils.loader import dynamic_loader
+        return dynamic_loader.discover_providers("irene.components")
         
     async def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status using loader.py utilities"""
         return get_component_status()  # From loader.py
         
-    async def initialize_components(self) -> None:
-        """Initialize all configured components using ComponentLoader"""
+    async def initialize_components(self, core) -> None:
+        """Initialize all configured components using existing entry-point system"""
         if self._initialized:
             return
             
-        logger.info("Initializing components...")
+        logger.info("Initializing unified component system...")
         
-        # Use ComponentLoader for graceful loading
-        component_loaders = {
-            "microphone": (self.config.microphone, ComponentLoader.load_microphone_component),
-            "tts": (self.config.tts, ComponentLoader.load_tts_component),
-            "audio_output": (self.config.audio_output, ComponentLoader.load_audio_output_component),
-            "web_api": (self.config.web_api, ComponentLoader.load_web_api_component),
-        }
-        
-        # Load and start components concurrently
-        initialization_tasks = []
-        
-        for component_name, (enabled, loader_func) in component_loaders.items():
-            if enabled:
-                task = asyncio.create_task(self._initialize_single_component(component_name, loader_func))
-                initialization_tasks.append(task)
-        
-        # Wait for all components to initialize
-        if initialization_tasks:
-            results = await asyncio.gather(*initialization_tasks, return_exceptions=True)
-            
-            # Log results
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    logger.warning(f"Component initialization failed: {result}")
+        # Initialize all components using entry-point system
+        await self._initialize_components_from_entrypoints(core)
         
         self._initialized = True
         
         # Log deployment profile
         profile = self.get_deployment_profile()
         logger.info(f"Components initialized. Deployment profile: {profile}")
-        
-    async def _initialize_single_component(self, name: str, loader_func) -> None:
-        """Initialize a single component with error handling"""
-        try:
-            component = loader_func()
-            if component:
-                success = await component.start()
-                if success:
-                    self._components[name] = component
-                    logger.info(f"Component '{name}' loaded successfully")
-                else:
-                    logger.warning(f"Component '{name}' failed to start")
-            else:
-                logger.info(f"Component '{name}' not available (dependencies missing)")
-                
-        except Exception as e:
-            logger.error(f"Error initializing component '{name}': {e}")
     
+    async def _initialize_components_from_entrypoints(self, core) -> None:
+        """Initialize components using entry-point discovery"""
+        # Use EXISTING entry-point discovery system
+        available_components = self.get_available_components()
+        
+        for name, component_class in available_components.items():
+            if self._is_component_enabled(name, core.config):
+                try:
+                    # Create component instance
+                    component_instance = component_class()
+                    
+                    # Initialize with core reference
+                    await component_instance.initialize(core)
+                    
+                    # Store in components dict
+                    self._components[name] = component_instance
+                    
+                    logger.info(f"Initialized component '{name}' successfully")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to initialize component '{name}': {e}")
+
+    def _is_component_enabled(self, component_name: str, config: CoreConfig) -> bool:
+        """Check if component is enabled using its own config declaration"""
+        from ..config.resolver import is_component_enabled_by_name
+        return is_component_enabled_by_name(component_name, config)
+        
     def has_component(self, name: str) -> bool:
         """Check if a component is available and initialized"""
         return name in self._components and self._components[name].initialized
@@ -452,66 +199,40 @@ class ComponentManager:
     def get_active_components(self) -> list[str]:
         """Get list of active (initialized) component names"""
         return list(self._components.keys())
+    
+    def get_components(self) -> Dict[str, Component]:
+        """Get all component instances (NEW METHOD for WorkflowManager)"""
+        return self._components.copy()
         
     def get_deployment_profile(self) -> str:
         """Auto-detect current deployment profile based on available components"""
         available = set(self._components.keys())
         
-        # Check for new intelligent voice assistant profile
+        # Detect profile based on modern component combinations
         if ("voice_trigger" in available and "nlu" in available and 
             "asr" in available and "tts" in available):
-            return "Smart Voice Assistant"  # New system
-        elif "microphone" in available and "tts" in available and "web_api" in available:
-            return "Voice Assistant (Legacy)"  # Current system
-        elif "web_api" in available:
-            return "API Server"
+            return "Smart Voice Assistant"  # Complete modern system
+        elif "tts" in available and "audio" in available and "asr" in available:
+            return "Voice Assistant"  # Voice without wake word
+        elif "llm" in available and "nlu" in available:
+            return "Text Assistant"  # NLU + LLM processing
         elif available:
             return "Custom"
         else:
-            return "Headless"
+            return "Minimal"
             
     def get_component_info(self) -> dict[str, ComponentInfo]:
-        """Get information about all components"""
+        """Get information about all initialized components"""
         info = {}
         
-        # Check configured components
-        component_configs = {
-            "microphone": self.config.microphone,
-            "tts": self.config.tts, 
-            "audio_output": self.config.audio_output,
-            "web_api": self.config.web_api,
-        }
-        
-        for name, enabled in component_configs.items():
-            component = self._components.get(name)
-            
-            if component:
-                info[name] = ComponentInfo(
-                    name=name,
-                    available=True,
-                    initialized=component.initialized,
-                    dependencies=component.get_dependencies()
-                )
-            else:
-                # Check availability even if not loaded
-                loader_map = {
-                    "microphone": ["vosk", "sounddevice"],
-                    "tts": ["pyttsx3"],
-                    "audio_output": ["sounddevice", "soundfile"],
-                    "web_api": ["fastapi", "uvicorn"],
-                }
-                
-                dependencies = loader_map.get(name, [])
-                available = ComponentLoader.is_available(name, dependencies)
-                error_msg = None if available else ComponentLoader._error_cache.get(name)
-                
-                info[name] = ComponentInfo(
-                    name=name,
-                    available=available,
-                    initialized=False,
-                    error_message=error_msg,
-                    dependencies=dependencies
-                )
+        # Only report on actually initialized components
+        for name, component in self._components.items():
+            info[name] = ComponentInfo(
+                name=name,
+                available=True,
+                initialized=component.initialized,
+                dependencies=component.get_dependencies()
+            )
                 
         return info
     

@@ -360,16 +360,16 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """OpenWakeWord has no system dependencies - pure Python/TensorFlow"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """OpenWakeWord supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def initialize(self) -> None:
         """Initialize OpenWakeWord detection"""

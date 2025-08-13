@@ -7,8 +7,9 @@ through multiple NLU providers with web API support.
 
 import logging
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 
+from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import Intent, ConversationContext
@@ -774,13 +775,25 @@ class NLUComponent(Component, WebAPIPlugin):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """NLU component has no system dependencies - coordinates providers only"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """NLU component supports all platforms"""
-        return ["linux", "windows", "macos"] 
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
+    @classmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for this component"""
+        from ..config.models import UniversalNLUConfig
+        return UniversalNLUConfig
+    
+    @classmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to this component's config"""
+        return "components.nlu"  # Different section! 

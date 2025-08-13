@@ -229,16 +229,16 @@ class VoskTTSProvider(TTSProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Platform-specific system packages for Vosk TTS"""
         return {
-            "ubuntu": ["libffi-dev"],
-            "alpine": ["libffi-dev"],  # ARMv7 Alpine
-            "centos": ["libffi-devel"],
-            "macos": []  # macOS includes FFI libraries
+            "linux.ubuntu": ["libffi-dev"],
+            "linux.alpine": ["libffi-dev"],
+            "macos": [],  # macOS includes FFI libraries
+            "windows": []  # Windows package management differs
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Vosk TTS supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def validate_parameters(self, **kwargs) -> bool:
         """Validate provider-specific parameters"""

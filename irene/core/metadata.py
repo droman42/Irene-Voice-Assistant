@@ -72,11 +72,12 @@ class EntryPointMetadata(ABC):
         Supported platforms for this entry-point.
         
         Returns:
-            List of supported platforms: ["linux", "windows", "macos", "armv7", etc.]
+            List of supported platforms: ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+            Uses same platform keys as get_platform_dependencies() for consistency.
             
         Default supports all common platforms. Override for platform-specific limitations.
         """
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
         
     @classmethod  
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
@@ -87,25 +88,25 @@ class EntryPointMetadata(ABC):
             Dictionary mapping platform names to lists of required system packages.
             
         Platform keys:
-            - "ubuntu": Ubuntu/Debian system packages (apt)
-            - "alpine": Alpine Linux packages (apk) - used for ARMv7 builds
-            - "centos": CentOS/RHEL packages (yum/dnf)  
+            - "linux.ubuntu": Ubuntu/Debian system packages (apt)
+            - "linux.alpine": Alpine Linux packages (apk) - used for ARMv7 builds
             - "macos": macOS Homebrew packages (brew)
+            - "windows": Windows system packages (typically none needed)
             
         Examples:
             Audio providers might return:
             {
-                "ubuntu": ["libportaudio2", "libsndfile1"],
-                "alpine": ["portaudio-dev", "libsndfile-dev"],  
-                "centos": ["portaudio-devel", "libsndfile-devel"],
-                "macos": []  # Homebrew handles dependencies automatically
+                "linux.ubuntu": ["libportaudio2", "libsndfile1"],
+                "linux.alpine": ["portaudio-dev", "libsndfile-dev"],  
+                "macos": [],  # Homebrew handles dependencies automatically
+                "windows": []  # Windows package management differs
             }
         """
         return {
-            "ubuntu": [],  # Ubuntu/Debian system packages
-            "alpine": [],  # Alpine Linux (ARMv7) packages
-            "centos": [],  # CentOS/RHEL packages
-            "macos": []    # macOS Homebrew packages
+            "linux.ubuntu": [],  # Ubuntu/Debian system packages
+            "linux.alpine": [],  # Alpine Linux (ARMv7) packages
+            "macos": [],          # macOS Homebrew packages
+            "windows": []         # Windows system packages
         }
         
     # Asset configuration helper methods (moved from providers/base.py)

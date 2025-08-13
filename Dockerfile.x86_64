@@ -43,7 +43,7 @@ ENV CONFIG_PROFILE=${CONFIG_PROFILE}
 RUN echo "🔍 Analyzing configuration profile: ${CONFIG_PROFILE}" && \
     python -m irene.tools.build_analyzer \
     --config configs/${CONFIG_PROFILE}.toml \
-    --platform ubuntu \
+    --platform linux.ubuntu \
     --json > /tmp/build-requirements.json && \
     echo "📋 Build requirements generated successfully"
 

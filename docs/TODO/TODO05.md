@@ -87,10 +87,10 @@ class EntryPointMetadata(ABC):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Platform-specific system package mappings."""
         return {
-            "ubuntu": [],  # Ubuntu/Debian system packages
-            "alpine": [],  # Alpine Linux (ARMv7) packages
-            "centos": [],  # CentOS/RHEL packages
-            "macos": []    # macOS Homebrew packages
+            "linux.ubuntu": [],  # Ubuntu/Debian system packages
+            "linux.alpine": [],  # Alpine Linux (ARMv7) packages
+            "macos": [],          # macOS Homebrew packages
+            "windows": []         # Windows system packages
         }
         
     # Asset configuration helper methods (moved from providers/base.py)
@@ -151,10 +151,10 @@ class SoundDeviceAudioProvider(AudioProvider):  # Already inherits EntryPointMet
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         return {
-            "ubuntu": ["libportaudio2", "libsndfile1"],
-            "alpine": ["portaudio-dev", "libsndfile-dev"],  # ARMv7 Alpine
-            "centos": ["portaudio-devel", "libsndfile-devel"],
-            "macos": []  # Homebrew handles dependencies
+            "linux.ubuntu": ["libportaudio2", "libsndfile1"],
+            "linux.alpine": ["portaudio-dev", "libsndfile-dev"],
+            "macos": [],  # Homebrew handles dependencies
+            "windows": []  # Windows package management differs
         }
 ```
 
@@ -173,10 +173,10 @@ class TTSComponent(Component, EntryPointMetadata):  # NEW inheritance
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         return {
-            "ubuntu": [],  # Components coordinate providers, no direct system deps
-            "alpine": [], 
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],  # Components coordinate providers, no direct system deps
+            "linux.alpine": [], 
+            "macos": [],
+            "windows": []
         }
         
     # Asset methods (new for components)
@@ -521,16 +521,16 @@ class DependencyValidator:
 python -m irene.tools.dependency_validator \
     --file irene/providers/audio/sounddevice.py \
     --class SoundDeviceAudioProvider \
-    --platform ubuntu
+    --platform linux.ubuntu
 
 # Comprehensive validation for CI/CD
 python -m irene.tools.dependency_validator \
-    --validate-all --platforms ubuntu,alpine,centos,macos \
+    --validate-all --platforms linux.ubuntu,linux.alpine,macos,windows \
     --json
 
 # Platform-specific validation
 python -m irene.tools.dependency_validator \
-    --validate-all --platform alpine
+    --validate-all --platform linux.alpine
 ```
 
 ### **Validation Results**
@@ -558,7 +558,7 @@ The tool provides comprehensive automation capabilities:
 #### **Phase 3: Build System Integration** ✅ **COMPLETED** (Priority: Critical)
 - ✅ Remove ALL hardcoded mappings from build analyzer (PROVIDER_SYSTEM_DEPENDENCIES, PROVIDER_PYTHON_DEPENDENCIES)
 - ✅ Replace hardcoded namespace list with dynamic discovery from pyproject.toml
-- ✅ Update Docker builds to use platform-specific metadata queries (--platform alpine/ubuntu)
+- ✅ Update Docker builds to use platform-specific metadata queries (--platform linux.alpine/ubuntu)
 - ✅ Implement dynamic provider metadata loading with caching
 - ✅ Add platform-specific Docker command generation (apk vs apt)
 - ✅ Complete validation system for entry-point metadata
@@ -572,15 +572,15 @@ The tool provides comprehensive automation capabilities:
 python -m irene.tools.dependency_validator \
     --file irene/providers/audio/sounddevice.py \
     --class SoundDeviceAudioProvider \
-    --platform ubuntu
+    --platform linux.ubuntu
 
 # Validate all entry-points for specific platform
 python -m irene.tools.dependency_validator \
-    --validate-all --platform alpine
+    --validate-all --platform linux.alpine
 
 # Cross-platform validation for CI/CD
 python -m irene.tools.dependency_validator \
-    --validate-all --platforms ubuntu,alpine,centos,macos
+    --validate-all --platforms linux.ubuntu,linux.alpine,macos,windows
 ```
 
 **Smart Validation Features:**
@@ -655,8 +655,8 @@ class DependencyValidator:
 
 #### **Phase 3: Build System Integration** ✅ **COMPLETED**
 - ✅ `irene/tools/build_analyzer.py` (removed ALL hardcoded mappings, replaced with metadata queries)
-- ✅ `Dockerfile.armv7` (removed hardcoded Ubuntu→Alpine conversion, uses --platform alpine)
-- ✅ `Dockerfile.x86_64` (integrated dynamic metadata queries, uses --platform ubuntu)
+- ✅ `Dockerfile.armv7` (removed hardcoded Ubuntu→Alpine conversion, uses --platform linux.alpine)
+- ✅ `Dockerfile.x86_64` (integrated dynamic metadata queries, uses --platform linux.ubuntu)
 
 #### **Phase 4: Validation Tool** ✅ **COMPLETED**
 - ✅ `irene/tools/dependency_validator.py` (comprehensive validation tool with CLI interface)

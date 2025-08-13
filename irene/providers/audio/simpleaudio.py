@@ -93,18 +93,18 @@ class SimpleAudioProvider(AudioProvider):
         
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
-        """Platform-specific system packages for SimpleAudio"""
+        """SimpleAudio is cross-platform, no system dependencies"""
         return {
-            "ubuntu": ["libasound2-dev"],
-            "alpine": ["alsa-lib-dev"],  # ARMv7 Alpine
-            "centos": ["alsa-lib-devel"],
-            "macos": []  # Homebrew handles dependencies automatically
+            "linux.ubuntu": ["libasound2"],
+            "linux.alpine": ["alsa-lib"],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """SimpleAudio supports all major platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using simpleaudio."""

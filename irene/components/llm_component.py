@@ -5,10 +5,11 @@ LLM Coordinator managing multiple LLM providers.
 Provides unified web API (/llm/*), voice commands, and text enhancement capabilities.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 import logging
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.llm import LLMPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
@@ -79,6 +80,7 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
         
     async def initialize(self, core) -> None:
         """Initialize LLM providers from configuration"""
+        await super().initialize(core)
         try:
             config = getattr(core.config.plugins, "universal_llm", {})
             
@@ -330,4 +332,16 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """LLM component needs web API functionality"""
-        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"] 
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+    
+    # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
+    @classmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for this component"""
+        from ..config.models import UniversalLLMConfig
+        return UniversalLLMConfig
+    
+    @classmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to this component's config"""
+        return "plugins.universal_llm" 

@@ -121,16 +121,16 @@ class PyttsTTSProvider(TTSProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Platform-specific system packages for pyttsx3"""
         return {
-            "ubuntu": ["espeak", "espeak-data"],
-            "alpine": ["espeak", "espeak-data"],  # ARMv7 Alpine
-            "centos": ["espeak", "espeak-data"],
-            "macos": []  # macOS has built-in TTS
+            "linux.ubuntu": ["espeak-ng", "espeak-ng-data", "espeak-ng-espeak"],
+            "linux.alpine": ["espeak-ng"],
+            "macos": [],  # macOS has built-in TTS
+            "windows": []  # Windows has built-in TTS
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Pyttsx3 supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
         """

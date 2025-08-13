@@ -95,16 +95,16 @@ class AplayAudioProvider(AudioProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Platform-specific system packages for aplay"""
         return {
-            "ubuntu": ["alsa-utils"],
-            "alpine": ["alsa-utils"],  # ARMv7 Alpine
-            "centos": ["alsa-utils"],
-            "macos": []  # Not typically available on macOS
+            "linux.ubuntu": ["alsa-utils"],
+            "linux.alpine": ["alsa-utils"],
+            "macos": [],  # Not supported
+            "windows": []  # Not supported
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Aplay is primarily available on Linux systems"""
-        return ["linux"]
+        return ["linux.ubuntu", "linux.alpine"]
     
     async def play_file(self, file_path: Path, **kwargs) -> None:
         """Play an audio file using aplay command."""

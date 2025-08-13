@@ -5,7 +5,7 @@ Speech Recognition Coordinator managing multiple ASR providers.
 Provides unified web API (/asr/*), voice commands, and multi-source audio processing.
 """
 
-from typing import Dict, Any, List, Optional, AsyncIterator
+from typing import Dict, Any, List, Optional, AsyncIterator, Type
 from pathlib import Path
 import json
 import time
@@ -13,6 +13,7 @@ import base64
 import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect  # type: ignore
+from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.asr import ASRPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
@@ -84,6 +85,7 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         
     async def initialize(self, core) -> None:
         """Initialize ASR providers from configuration"""
+        await super().initialize(core)
         try:
             self.core = core  # Store core reference
             
@@ -348,4 +350,16 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """ASR component needs web API functionality"""
-        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0", "websockets>=11.0.0"] 
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0", "websockets>=11.0.0"]
+    
+    # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
+    @classmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for this component"""
+        from ..config.models import UniversalASRConfig
+        return UniversalASRConfig
+    
+    @classmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to this component's config"""
+        return "plugins.universal_asr" 

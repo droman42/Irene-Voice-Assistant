@@ -49,8 +49,8 @@ class AsyncVACore:
         logger.info("Starting Irene Voice Assistant v13...")
         
         try:
-            # Initialize components first
-            await self.component_manager.initialize_components()
+            # Initialize components first - PASS CORE REFERENCE
+            await self.component_manager.initialize_components(self)
             
             await self.context_manager.start()
             await self.timer_manager.start()

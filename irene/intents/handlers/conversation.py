@@ -88,16 +88,16 @@ class ConversationIntentHandler(IntentHandler):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Conversation handler has no system dependencies - uses LLM providers through components"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Conversation handler supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process conversation intents"""

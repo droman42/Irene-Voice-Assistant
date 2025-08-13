@@ -8,8 +8,10 @@ and provides unified web APIs and voice command interfaces.
 
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 from pathlib import Path
+
+from pydantic import BaseModel
 
 from .base import Component
 from ..core.interfaces.tts import TTSPlugin
@@ -85,6 +87,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
         
     async def initialize(self, core) -> None:
         """Initialize providers with concurrent loading and lazy loading support"""
+        await super().initialize(core)
         self.core = core
         
         # Get configuration first to determine enabled providers
@@ -520,4 +523,16 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """TTS component needs web API functionality"""
-        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"] 
+        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+    
+    # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
+    @classmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for this component"""
+        from ..config.models import UniversalTTSConfig
+        return UniversalTTSConfig
+    
+    @classmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to this component's config"""
+        return "plugins.universal_tts" 

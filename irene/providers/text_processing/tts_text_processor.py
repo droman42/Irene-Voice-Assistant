@@ -353,16 +353,16 @@ class TTSTextProcessor(TextProcessingProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """TTS text processor has no system dependencies"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """TTS text processor supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def process(self, text: str, stage: str, **kwargs) -> str:
         """

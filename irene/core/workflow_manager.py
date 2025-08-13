@@ -60,11 +60,11 @@ class WorkflowManager:
     async def _inject_components(self, workflow: Workflow) -> None:
         """Inject required components into a workflow"""
         try:
-            # Get components from component manager
-            components = self.component_manager.get_available_components()
+            # Get actual component instances, not classes
+            component_instances = self.component_manager.get_components()
             
-            # Inject components into workflow
-            for name, component in components.items():
+            # Inject component instances into workflow
+            for name, component in component_instances.items():
                 workflow.add_component(name, component)
             
             # NEW: Inject intent orchestrator from IntentComponent if available
@@ -79,7 +79,7 @@ class WorkflowManager:
             if hasattr(self.component_manager, 'context_manager'):
                 workflow.add_component('context_manager', self.component_manager.context_manager)
             
-            # Inject configuration for temp_audio_dir access (Phase 2 implementation)
+            # Inject configuration for temp_audio_dir access
             workflow.add_component('config', self.component_manager.config)
                 
             logger.debug(f"Injected {len(workflow.components)} components into {workflow.name}")

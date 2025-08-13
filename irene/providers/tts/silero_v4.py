@@ -212,16 +212,16 @@ class SileroV4TTSProvider(TTSProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Platform-specific system packages for Silero v4"""
         return {
-            "ubuntu": ["libsndfile1"],
-            "alpine": ["libsndfile-dev"],  # ARMv7 Alpine
-            "centos": ["libsndfile-devel"],
-            "macos": []  # macOS includes audio libraries
+            "linux.ubuntu": ["libsndfile1"],
+            "linux.alpine": ["libsndfile"],
+            "macos": ["libsndfile"],  # macOS includes audio libraries
+            "windows": []  # Windows package management differs
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Silero v4 supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
 
     async def _ensure_model_loaded(self) -> None:
         """Ensure model is loaded and ready with caching optimization"""

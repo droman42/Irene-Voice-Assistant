@@ -254,16 +254,16 @@ class GoogleCloudASRProvider(ASRProvider):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Google Cloud ASR is cloud-based, no system dependencies"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Google Cloud ASR supports all platforms"""
-        return ["linux", "windows", "macos"]
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     def get_supported_languages(self) -> List[str]:
         """Return list of supported language codes"""

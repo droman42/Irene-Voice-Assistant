@@ -2,9 +2,11 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 
+from pydantic import BaseModel
 from ..core.metadata import EntryPointMetadata
+from ..config.models import CoreConfig
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,48 @@ class Component(EntryPointMetadata, ABC):
             Formatted string with provider information for user display
         """
         pass
+    
+    @classmethod
+    @abstractmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for this component"""
+        pass
+    
+    @classmethod  
+    @abstractmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to this component's config"""
+        pass
+    
+    def get_config(self, core_config: CoreConfig) -> Optional[BaseModel]:
+        """Get this component's configuration instance"""
+        config_class = self.get_config_class()
+        config_path = self.get_config_path()
+        # TODO: This will be implemented in Phase 2 - Config Path Resolution System
+        from ..config.resolver import extract_config_by_path
+        return extract_config_by_path(core_config, config_path, config_class)
+    
+    def is_enabled(self, core_config: CoreConfig) -> bool:
+        """Check if this component is enabled via its config"""
+        config = self.get_config(core_config)
+        if config is None:
+            return False
+        return getattr(config, 'enabled', True)
+    
+    @classmethod
+    def is_enabled_in_config(cls, core_config: CoreConfig) -> bool:
+        """Class method to check if component is enabled without instantiation"""
+        try:
+            config_class = cls.get_config_class()
+            config_path = cls.get_config_path()
+            # TODO: This will be implemented in Phase 2 - Config Path Resolution System
+            from ..config.resolver import extract_config_by_path
+            config = extract_config_by_path(core_config, config_path, config_class)
+            if config is None:
+                return False
+            return getattr(config, 'enabled', True)
+        except Exception:
+            return False
     
     def parse_provider_name_from_text(self, text: str) -> Optional[str]:
         """
@@ -102,7 +146,7 @@ class Component(EntryPointMetadata, ABC):
         """Check if a specific provider is available."""
         return provider_name in self.providers
     
-    async def initialize(self):
+    async def initialize(self, core=None):
         """Initialize the component and its providers."""
         self.logger.info(f"Initializing component: {self.name}")
         self.initialized = True
@@ -290,13 +334,13 @@ class Component(EntryPointMetadata, ABC):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Components have no system dependencies - coordinate providers only"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Components support all platforms"""
-        return ["linux", "windows", "macos"] 
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"] 

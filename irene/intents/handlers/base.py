@@ -478,13 +478,13 @@ class IntentHandler(EntryPointMetadata, ABC):
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
         """Intent handlers have no system dependencies - pure logic"""
         return {
-            "ubuntu": [],
-            "alpine": [],
-            "centos": [],
-            "macos": []
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
         }
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Intent handlers support all platforms"""
-        return ["linux", "windows", "macos"] 
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"] 

@@ -788,14 +788,33 @@ class IntentsConfig:
     train_schedule: TrainScheduleConfig = field(default_factory=TrainScheduleConfig)
 
 
-@dataclass  
-class VoiceTriggerConfig:
-    """Configuration for voice trigger (wake word detection)"""
-    provider: str = "openwakeword"
-    wake_words: list[str] = field(default_factory=lambda: ["irene", "jarvis"])
-    threshold: float = 0.8
-    buffer_seconds: float = 1.0
-    timeout_seconds: float = 5.0
+class VoiceTriggerConfig(BaseModel):
+    """Voice trigger / wake word configuration"""
+    enabled: bool = Field(default=False, description="Enable voice trigger")
+    default_provider: str = Field(default="openwakeword", description="Default voice trigger provider")
+    wake_words: List[str] = Field(
+        default_factory=lambda: ["irene", "jarvis"],
+        description="Wake words to detect"
+    )
+    confidence_threshold: float = Field(default=0.8, description="Detection confidence threshold")
+    buffer_seconds: float = Field(default=1.0, description="Audio buffer duration in seconds")
+    timeout_seconds: float = Field(default=5.0, description="Detection timeout in seconds")
+    providers: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "openwakeword": {
+                "enabled": True,
+                "model_paths": {},  # Uses IRENE_MODELS_ROOT
+                "inference_framework": "onnx",
+                "vad_threshold": 0.5
+            },
+            "porcupine": {
+                "enabled": False,
+                "access_key": "",  # Requires API key
+                "keywords": ["jarvis"]
+            }
+        },
+        description="Provider-specific configurations"
+    )
 
 
 def create_config_from_profile(profile_name: str) -> CoreConfig:
