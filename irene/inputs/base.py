@@ -120,13 +120,15 @@ class InputManager:
     
     Features:
     - Multiple input source support
-    - Automatic source discovery
+    - Automatic source discovery based on configuration
     - Non-blocking input collection
     - Graceful component handling
+    - V14 input configuration integration
     """
     
-    def __init__(self, component_manager):
+    def __init__(self, component_manager, input_config=None):
         self.component_manager = component_manager
+        self.input_config = input_config
         self._sources: dict[str, InputSource] = {}
         self._active_sources: list[str] = []
         self._listen_tasks: dict[str, asyncio.Task] = {}
@@ -143,31 +145,52 @@ class InputManager:
         logger.info("InputManager initialized")
         
     async def _discover_input_sources(self) -> None:
-        """Discover available input sources without plugin injection (separation of concerns)"""
+        """Discover available input sources based on V14 configuration"""
         try:
-            # Add CLI input (always available)
-            from .cli import CLIInput
-            cli_input = CLIInput()
-            await self.add_source("cli", cli_input)
+            # Add CLI input if enabled in configuration
+            if self.input_config is None or self.input_config.cli:
+                from .cli import CLIInput
+                cli_input = CLIInput()
+                if self.input_config and self.input_config.cli_config:
+                    await cli_input.configure_input(**self.input_config.cli_config.model_dump())
+                await self.add_source("cli", cli_input)
+                logger.info("Added CLI input source")
             
-            # Try to add microphone input (pure audio capture)
-            try:
-                from .microphone import MicrophoneInput
-                mic_input = MicrophoneInput()  # No plugin injection
-                if mic_input.is_available():
-                    await self.add_source("microphone", mic_input)
-            except (ImportError, ComponentNotAvailable) as e:
-                logger.info(f"Microphone input not available: {e}")
-                
-            # Try to add web input (pure command/audio capture)
-            try:
-                from .web import WebInput
-                web_input = WebInput()  # No core reference injection
-                if web_input.is_available():
-                    await self.add_source("web", web_input)
-            except (ImportError, ComponentNotAvailable) as e:
-                logger.info(f"Web input not available: {e}")
-                
+            # Add microphone input if enabled in configuration
+            if self.input_config is None or self.input_config.microphone:
+                try:
+                    from .microphone import MicrophoneInput
+                    mic_input = MicrophoneInput()
+                    if mic_input.is_available():
+                        # Apply microphone configuration
+                        if self.input_config and self.input_config.microphone_config:
+                            mic_config = self.input_config.microphone_config
+                            await mic_input.configure_input(
+                                device_id=mic_config.device_id,
+                                samplerate=mic_config.sample_rate,
+                                blocksize=mic_config.chunk_size
+                            )
+                        
+                        await self.add_source("microphone", mic_input)
+                        logger.info("Added microphone input source with V14 configuration")
+                    else:
+                        logger.info("Microphone hardware not available")
+                except (ImportError, ComponentNotAvailable) as e:
+                    logger.info(f"Microphone input not available: {e}")
+                    
+            # Add web input if enabled in configuration
+            if self.input_config is None or self.input_config.web:
+                try:
+                    from .web import WebInput
+                    web_input = WebInput()
+                    if web_input.is_available():
+                        if self.input_config and self.input_config.web_config:
+                            await web_input.configure_input(**self.input_config.web_config.model_dump())
+                        await self.add_source("web", web_input)
+                        logger.info("Added web input source")
+                except (ImportError, ComponentNotAvailable) as e:
+                    logger.info(f"Web input not available: {e}")
+                    
         except Exception as e:
             logger.error(f"Error discovering input sources: {e}")
         

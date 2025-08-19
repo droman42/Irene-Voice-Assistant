@@ -1,239 +1,126 @@
 # ============================================================
-# IRENE VOICE ASSISTANT - VOICE DEVELOPMENT CONFIGURATION
+# IRENE VOICE ASSISTANT v14.0.0 - CLEAN ARCHITECTURE
 # ============================================================
-# Balanced configuration for voice assistant development.
-# Focus on voice processing with local and cloud capabilities.
-# Perfect for desktop development and testing voice features.
 
-[core]
 name = "Irene"
-version = "13.0.0"
-debug = true
+version = "14.0.0"
+debug = false
 log_level = "INFO"
-language = "en-US"
-timezone = "UTC"
 
-# Runtime performance settings
-max_concurrent_commands = 5
-command_timeout_seconds = 30.0
-context_timeout_minutes = 15
-
-# Development monitoring
-enable_metrics = true
+# ============================================================
+# SYSTEM CAPABILITIES - Hardware & Services
+# ============================================================
+[system]
+microphone_enabled = false      # Hardware capability
+audio_playback_enabled = false  # Hardware capability
+web_api_enabled = true         # Service capability
+web_port = 8000
+metrics_enabled = false
 metrics_port = 9090
-enable_profiling = false
 
 # ============================================================
-# ASSET MANAGEMENT - Development Storage
-# ============================================================
-[assets]
-models_root = "./models"
-cache_root = "./cache"
-data_root = "./data"
-credentials_root = "./credentials"
-
-# ============================================================
-# COMPONENT SYSTEM - Voice-Focused Components
-# ============================================================
-[components]
-enabled = ["audio", "tts", "asr", "voice_trigger", "nlu", "text_processor", "intent_system"]
-disabled = ["llm"]  # Optional for voice testing
-
-# ============================================================
-# WORKFLOW SYSTEM - Voice Assistant Workflow
-# ============================================================
-[workflows]
-enabled = ["voice_assistant"]
-disabled = ["continuous_listening"]
-default = "voice_assistant"
-
-# ============================================================
-# INPUT/OUTPUT SYSTEM - Voice Focused
+# INPUT SOURCES - Data Entry Points
 # ============================================================
 [inputs]
-enabled = ["microphone", "cli"]
-disabled = ["web"]
-default = "microphone"
+microphone = false              # Microphone input source
+web = true                     # Web interface input
+cli = true                     # Command line input
+default_input = "web"
 
-[outputs]
-enabled = ["tts", "text"]
-disabled = ["web"]
-default = "tts"
-
-# ============================================================
-# PROVIDER SYSTEM - Voice Optimized Selection
-# ============================================================
-[providers.audio]
-# High-quality audio for development
-enabled = ["sounddevice", "console"]
-disabled = ["aplay", "audioplayer", "simpleaudio"]
-default = "sounddevice"
-fallback_providers = []
-
-[providers.tts]
-# Quality TTS with fallbacks
-enabled = ["elevenlabs", "pyttsx", "console"]
-disabled = ["silero_v3", "silero_v4", "vosk_tts"]
-default = "elevenlabs"
-fallback_providers = []
-
-[providers.asr]
-# Local and cloud ASR for testing
-enabled = ["vosk", "whisper"]
-disabled = ["google_cloud"]  # Optional cloud service
-default = "vosk"
-fallback_providers = []
-
-[providers.llm]
-# Optional LLM for advanced conversations
-enabled = []  # Enable as needed
-disabled = ["openai", "anthropic", "vsegpt"]
-
-[providers.voice_trigger]
-# Both wake word systems for testing
-enabled = ["openwakeword", "microwakeword"]
-disabled = []
-default = "openwakeword"
-fallback_providers = []
-
-[components.nlu]
-# Voice-optimized NLU with fast keyword matching
+# Microphone Input Configuration
+[inputs.microphone_config]
 enabled = true
-confidence_threshold = 0.6  # Lower for voice recognition accuracy
-provider_cascade_order = ["keyword_matcher"]
+# device_id = null   # Uncomment and set to specify audio device (null = default device)
+sample_rate = 16000      # Audio sample rate (Hz)
+channels = 1            # 1 = mono, 2 = stereo
+chunk_size = 1024        # Audio buffer size
+
+# Web Input Configuration
+[inputs.web_config]
+enabled = true
+websocket_enabled = true
+rest_api_enabled = true
+
+# CLI Input Configuration
+[inputs.cli_config]
+enabled = true
+prompt_prefix = "irene> "
+history_enabled = true
+
+# ============================================================
+# COMPONENT CONFIGURATIONS - Provider Management
+# ============================================================
+[tts]
+enabled = true
+default_provider = "console"
+fallback_providers = ['console']
+
+
+[audio]
+enabled = true
+default_provider = "console"
+fallback_providers = ['console']
+concurrent_playback = false
+
+
+[asr]
+enabled = true
+default_provider = "whisper"
+fallback_providers = ['whisper']
+
+
+[llm]
+enabled = false
+default_provider = "openai"
+fallback_providers = ['anthropic', 'vsegpt']
+
+
+[voice_trigger]
+enabled = true
+default_provider = "openwakeword"
+wake_words = ['irene', 'jarvis']
+confidence_threshold = 0.8
+buffer_seconds = 1.0
+timeout_seconds = 5.0
+
+
+[nlu]
+enabled = true
+default_provider = "hybrid_keyword_matcher"
+confidence_threshold = 0.7
 fallback_intent = "conversation.general"
+provider_cascade_order = ['hybrid_keyword_matcher', 'spacy_nlu']
+max_cascade_attempts = 4
+cascade_timeout_ms = 200
+cache_recognition_results = false
+cache_ttl_seconds = 300
 
-# JSON donation system for voice
-donation_collection_enabled = true
-parameter_extraction_enabled = true
-context_processing_enabled = true
 
-# Voice-optimized performance
-max_cascade_attempts = 2
-cascade_timeout_ms = 50  # Fast response for voice
-cache_recognition_results = true
-cache_ttl_seconds = 600
-
-[providers.text_processing]
-# Comprehensive text processing for voice
-enabled = ["asr_text_processor", "general_text_processor", "tts_text_processor"]
-disabled = ["number_text_processor"]
-default = "general_text_processor"
-
-# ============================================================
-# INTENT SYSTEM - Voice Command Processing
-# ============================================================
-[intents]
+[text_processor]
 enabled = true
-confidence_threshold = 0.6  # Lower threshold for development
-fallback_handler = "conversation"
+stages = ['asr_output', 'tts_input', 'command_input', 'general']
 
-[intents.handlers]
-# Core intent handlers for voice commands
-enabled = ["conversation", "greetings", "timer", "datetime", "system"]
-disabled = ["train_schedule"]  # Specialized handlers
+
 
 # ============================================================
-# PLUGIN SYSTEM - Development Plugins
+# WORKFLOWS - Processing Pipelines
 # ============================================================
-[plugins]
-enabled = []  # Builtin plugins converted to intent handlers in Phase 3
-disabled = []  # No builtin plugins remain
-
-# ============================================================
-# WEB API - Development Interface
-# ============================================================
-[webapi]
-enabled = true
-host = "127.0.0.1"  # Local only for development
-port = 8000
-cors_enabled = true
-static_files = true
+[workflows]
+enabled = ['unified_voice_assistant']
+default = "unified_voice_assistant"
 
 # ============================================================
-# PROVIDER CONFIGURATIONS - Voice Optimized
+# ASSET MANAGEMENT - Environment-Driven
 # ============================================================
+[assets]
+auto_create_dirs = true
+# Paths use environment variable defaults:
+# IRENE_ASSETS_ROOT (default: ~/.cache/irene)
 
-# ElevenLabs TTS Configuration
-[providers.tts.elevenlabs]
-api_key = "${ELEVENLABS_API_KEY}"
-voice_id = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice
-model = "eleven_multilingual_v2"
-stability = 0.6
-similarity_boost = 0.8
-optimize_streaming_latency = 2
+# Language and locale
+language = "en-US"
 
-# Pyttsx3 TTS Configuration (fallback)
-[providers.tts.pyttsx]
-rate = 180
-volume = 0.8
-voice_index = 0
-
-# Vosk ASR Configuration
-[providers.asr.vosk]
-model_path = "models/vosk-model-en-us-0.22"
-sample_rate = 16000
-alternatives = 3  # Generate alternatives for better accuracy
-
-# Whisper ASR Configuration
-[providers.asr.whisper]
-model_size = "base"  # Balanced speed/accuracy
-device = "cpu"
-language = "en"
-temperature = 0.0
-
-# OpenWakeWord Configuration
-[providers.voice_trigger.openwakeword]
-model_paths = ["models/openwakeword/alexa_v0.1.onnx", "models/openwakeword/hey_jarvis_v0.1.onnx"]
-chunk_size = 1280
-sensitivity = 0.5
-vad_threshold = 0.5
-
-# MicroWakeWord Configuration
-[providers.voice_trigger.microwakeword]
-model_path = "models/microwakeword/irene_model.tflite"
-threshold = 0.8
-sample_rate = 16000
-
-# SoundDevice Audio Configuration
-[providers.audio.sounddevice]
-# input_device = null   # Use default input device (commented out due to TOML syntax)
-# output_device = null  # Use default output device (commented out due to TOML syntax)
-sample_rate = 16000
-channels = 1
-latency = "low"
-dtype = "int16"
-
-# NLU Provider Configurations for Voice
-
-# Hybrid Keyword Matcher Provider (voice-optimized)
-[components.nlu.providers.keyword_matcher]
-enabled = true
-provider_class = "HybridKeywordMatcherProvider"
-pattern_confidence = 0.9
-fuzzy_enabled = true
-fuzzy_threshold = 0.8
-fuzzy_confidence_base = 0.7
-confidence_threshold = 0.6  # Lower for voice accuracy
-
-# Disable spaCy providers for voice deployment
-[components.nlu.providers.spacy_nlu]
-enabled = false
-
-enabled = false
-
-# Voice-specific settings
-[voice]
-# Wake word settings
-wake_word_timeout = 5.0
-continuous_listening = false
-voice_activity_timeout = 3.0
-
-# Audio processing
-noise_suppression = true
-echo_cancellation = true
-auto_gain_control = true
-
-# Response settings
-response_timeout = 10.0
-interrupt_on_speech = true 
+# Runtime settings
+max_concurrent_commands = 10
+command_timeout_seconds = 30.0
+context_timeout_minutes = 30

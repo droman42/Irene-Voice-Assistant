@@ -1,125 +1,126 @@
 # ============================================================
-# IRENE VOICE ASSISTANT - MINIMAL CONFIGURATION PROFILE
+# IRENE VOICE ASSISTANT v14.0.0 - CLEAN ARCHITECTURE
 # ============================================================
-# Ultra-lightweight deployment configuration.
-# Uses only console providers, no audio, minimal dependencies.
-# Perfect for text-only deployments, API servers, and testing.
 
-[core]
 name = "Irene"
-version = "13.0.0"
+version = "14.0.0"
 debug = false
 log_level = "INFO"
-language = "en-US"
 
 # ============================================================
-# ASSET MANAGEMENT - Minimal Storage
+# SYSTEM CAPABILITIES - Hardware & Services
 # ============================================================
-[assets]
-models_root = "./models"
-cache_root = "./cache"
-data_root = "./data"
+[system]
+microphone_enabled = false      # Hardware capability
+audio_playback_enabled = false  # Hardware capability
+web_api_enabled = true         # Service capability
+web_port = 8000
+metrics_enabled = false
+metrics_port = 9090
 
 # ============================================================
-# COMPONENT SYSTEM - Minimal Components Only
-# ============================================================
-[components]
-# Only essential components for text processing
-enabled = ["text_processor", "intent_system"]
-disabled = ["audio", "tts", "asr", "voice_trigger", "llm", "nlu"]
-
-# ============================================================
-# WORKFLOW SYSTEM - Minimal Workflow
-# ============================================================
-[workflows]
-enabled = []  # No default workflows - manual operation only
-disabled = ["voice_assistant", "continuous_listening"]
-
-# ============================================================
-# INPUT/OUTPUT SYSTEM - Console Only
+# INPUT SOURCES - Data Entry Points
 # ============================================================
 [inputs]
-enabled = ["cli"]
-disabled = ["microphone", "web"]
-default = "cli"
+microphone = false              # Microphone input source
+web = true                     # Web interface input
+cli = true                     # Command line input
+default_input = "web"
 
-[outputs]
-enabled = ["text"]
-disabled = ["tts", "web"]
-default = "text"
-
-# ============================================================
-# PROVIDER SYSTEM - Console Providers Only
-# ============================================================
-[providers.audio]
-enabled = []  # No audio providers
-disabled = ["sounddevice", "console", "aplay", "audioplayer", "simpleaudio"]
-
-[providers.tts]
-enabled = []  # No TTS providers
-disabled = ["elevenlabs", "pyttsx", "silero_v3", "silero_v4", "vosk_tts", "console"]
-
-[providers.asr]
-enabled = []  # No ASR providers
-disabled = ["vosk", "whisper", "google_cloud"]
-
-[providers.llm]
-enabled = []  # No LLM providers
-disabled = ["openai", "anthropic", "vsegpt"]
-
-[providers.voice_trigger]
-enabled = []  # No voice trigger
-disabled = ["openwakeword", "microwakeword"]
-
-[components.nlu]
-# Ultra-constrained deployment (20MB) - keyword matching only
+# Microphone Input Configuration
+[inputs.microphone_config]
 enabled = true
+# device_id = null   # Uncomment and set to specify audio device (null = default device)
+sample_rate = 16000      # Audio sample rate (Hz)
+channels = 1            # 1 = mono, 2 = stereo
+chunk_size = 1024        # Audio buffer size
+
+# Web Input Configuration
+[inputs.web_config]
+enabled = true
+websocket_enabled = true
+rest_api_enabled = true
+
+# CLI Input Configuration
+[inputs.cli_config]
+enabled = true
+prompt_prefix = "irene> "
+history_enabled = true
+
+# ============================================================
+# COMPONENT CONFIGURATIONS - Provider Management
+# ============================================================
+[tts]
+enabled = false
+default_provider = "console"
+fallback_providers = ['console']
+
+
+[audio]
+enabled = false
+default_provider = "console"
+fallback_providers = ['console']
+concurrent_playback = false
+
+
+[asr]
+enabled = false
+default_provider = "whisper"
+fallback_providers = ['whisper']
+
+
+[llm]
+enabled = false
+default_provider = "openai"
+fallback_providers = ['anthropic', 'vsegpt']
+
+
+[voice_trigger]
+enabled = false
+default_provider = "openwakeword"
+wake_words = ['irene', 'jarvis']
 confidence_threshold = 0.8
-provider_cascade_order = ["keyword_matcher"]
+buffer_seconds = 1.0
+timeout_seconds = 5.0
+
+
+[nlu]
+enabled = false
+default_provider = "hybrid_keyword_matcher"
+confidence_threshold = 0.7
 fallback_intent = "conversation.general"
+provider_cascade_order = ['hybrid_keyword_matcher', 'spacy_nlu']
+max_cascade_attempts = 4
+cascade_timeout_ms = 200
+cache_recognition_results = false
+cache_ttl_seconds = 300
 
-# Minimal JSON donation system
-donation_collection_enabled = true
-parameter_extraction_enabled = false  # Disabled for memory savings
-context_processing_enabled = false    # Disabled for memory savings
 
-# Performance optimization for constrained devices
-max_cascade_attempts = 2
-cascade_timeout_ms = 50
-cache_recognition_results = false  # Disabled for memory savings
-cache_ttl_seconds = 0
-
-# Hybrid Keyword Matcher Provider (minimal)
-[components.nlu.providers.keyword_matcher]
+[text_processor]
 enabled = true
-provider_class = "HybridKeywordMatcherProvider"
-pattern_confidence = 0.9
-fuzzy_enabled = false  # Disabled for memory savings
-confidence_threshold = 0.8
+stages = ['asr_output', 'tts_input', 'command_input', 'general']
 
-# Disable all spaCy providers for minimal deployment
-[components.nlu.providers.spacy_nlu]
-enabled = false
 
-enabled = false
-
-[providers.text_processing]
-# Minimal text processing
-enabled = ["asr_text_processor"]
-disabled = ["general_text_processor", "tts_text_processor", "number_text_processor"]
-default = "asr_text_processor"
 
 # ============================================================
-# PLUGIN SYSTEM - No Plugins
+# WORKFLOWS - Processing Pipelines
 # ============================================================
-[plugins]
-enabled = []
-disabled = []  # Builtin plugins converted to intent handlers in Phase 3
+[workflows]
+enabled = ['unified_voice_assistant']
+default = "unified_voice_assistant"
 
 # ============================================================
-# WEB API - Disabled
+# ASSET MANAGEMENT - Environment-Driven
 # ============================================================
-[webapi]
-enabled = false
-host = "127.0.0.1"
-port = 8000 
+[assets]
+auto_create_dirs = true
+# Paths use environment variable defaults:
+# IRENE_ASSETS_ROOT (default: ~/.cache/irene)
+
+# Language and locale
+language = "en-US"
+
+# Runtime settings
+max_concurrent_commands = 10
+command_timeout_seconds = 30.0
+context_timeout_minutes = 30

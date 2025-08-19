@@ -1,23 +1,25 @@
 """
 Configuration Models - Pydantic models for type-safe configuration
 
-Defines the configuration structure for the entire Irene system
-with validation, schema support, and environment variable integration.
+Phase 1 Implementation: Complete architectural redesign with clean separation of concerns.
+- System capabilities (hardware & services)
+- Input sources (data entry points)  
+- Components (processing pipeline)
+- Component-specific configurations
+- Asset management (environment-driven)
+- Workflows (processing pipelines)
 
 Requires: pydantic>=2.0.0, pydantic-settings>=2.0.0
 """
 
 import os
-from typing import Optional, Any, Dict, List
+import re
+from typing import Optional, Any, Dict, List, Type, Union
 from pathlib import Path
 from enum import Enum
-from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
-
-
-# NOTE: Builtin plugins removed in Phase 3 - all functionality moved to intent handlers
 
 
 class LogLevel(str, Enum):
@@ -29,57 +31,160 @@ class LogLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
-class ComponentConfig(BaseModel):
-    """Configuration for optional components"""
-    microphone: bool = Field(default=False, description="Enable microphone input")
-    tts: bool = Field(default=False, description="Enable TTS output")
-    audio_output: bool = Field(default=False, description="Enable audio playback")
-    web_api: bool = Field(default=True, description="Enable web API server")
+# ============================================================
+# SYSTEM CAPABILITIES CONFIGURATION
+# ============================================================
+
+class SystemConfig(BaseModel):
+    """System-level capability and service configuration"""
+    # Hardware capabilities
+    microphone_enabled: bool = Field(default=False, description="Enable microphone hardware capability")
+    audio_playback_enabled: bool = Field(default=False, description="Enable audio playback hardware capability")
     
-    # Component-specific settings
-    microphone_device: Optional[str] = Field(default=None, description="Microphone device ID")
-    tts_voice: Optional[str] = Field(default=None, description="TTS voice name")
-    audio_device: Optional[str] = Field(default=None, description="Audio output device ID")
+    # Service capabilities  
+    web_api_enabled: bool = Field(default=True, description="Enable web API service")
     web_port: int = Field(default=8000, ge=1, le=65535, description="Web API server port")
+    metrics_enabled: bool = Field(default=False, description="Enable metrics collection service")
+    metrics_port: int = Field(default=9090, ge=1, le=65535, description="Metrics server port")
     
-    @field_validator('web_port')
+    @field_validator('web_port', 'metrics_port')
     @classmethod
-    def validate_web_port(cls, v):
+    def validate_ports(cls, v):
         if not (1 <= v <= 65535):
-            raise ValueError('Web port must be between 1 and 65535')
+            raise ValueError('Port must be between 1 and 65535')
         return v
 
 
-class UniversalTTSConfig(BaseModel):
-    """Universal TTS plugin configuration"""
-    enabled: bool = Field(default=True, description="Enable Universal TTS plugin")
+# ============================================================
+# INPUT SOURCES CONFIGURATION
+# ============================================================
+
+class MicrophoneInputConfig(BaseModel):
+    """Microphone input configuration"""
+    enabled: bool = Field(default=True, description="Enable microphone input")
+    device_id: Optional[int] = Field(default=None, description="Audio device ID (None = default)")
+    sample_rate: int = Field(default=16000, description="Audio sample rate in Hz")
+    channels: int = Field(default=1, description="Number of audio channels")
+    chunk_size: int = Field(default=1024, description="Audio buffer chunk size")
+    
+    @field_validator('sample_rate')
+    @classmethod
+    def validate_sample_rate(cls, v):
+        valid_rates = [8000, 16000, 22050, 44100, 48000]
+        if v not in valid_rates:
+            raise ValueError(f"sample_rate must be one of: {valid_rates}")
+        return v
+    
+    @field_validator('channels')
+    @classmethod
+    def validate_channels(cls, v):
+        if v not in [1, 2]:
+            raise ValueError("channels must be 1 (mono) or 2 (stereo)")
+        return v
+    
+    @field_validator('chunk_size')
+    @classmethod
+    def validate_chunk_size(cls, v):
+        if v <= 0 or v > 8192:
+            raise ValueError("chunk_size must be between 1 and 8192")
+        return v
+
+
+class WebInputConfig(BaseModel):
+    """Web input configuration"""
+    enabled: bool = Field(default=True, description="Enable web input")
+    websocket_enabled: bool = Field(default=True, description="Enable WebSocket input")
+    rest_api_enabled: bool = Field(default=True, description="Enable REST API input")
+
+
+class CLIInputConfig(BaseModel):
+    """CLI input configuration"""
+    enabled: bool = Field(default=True, description="Enable CLI input")
+    prompt_prefix: str = Field(default="irene> ", description="CLI prompt prefix")
+    history_enabled: bool = Field(default=True, description="Enable command history")
+
+
+class InputConfig(BaseModel):
+    """Input source configuration"""
+    microphone: bool = Field(default=False, description="Enable microphone input source")
+    web: bool = Field(default=True, description="Enable web interface input")
+    cli: bool = Field(default=True, description="Enable command line input")
+    default_input: str = Field(default="cli", description="Default input source")
+    
+    # Input-specific configurations
+    microphone_config: MicrophoneInputConfig = Field(default_factory=MicrophoneInputConfig, description="Microphone input configuration")
+    web_config: WebInputConfig = Field(default_factory=WebInputConfig, description="Web input configuration")
+    cli_config: CLIInputConfig = Field(default_factory=CLIInputConfig, description="CLI input configuration")
+    
+    @field_validator('default_input')
+    @classmethod
+    def validate_default_input(cls, v):
+        valid_inputs = ["microphone", "web", "cli"]
+        if v not in valid_inputs:
+            raise ValueError(f"default_input must be one of: {valid_inputs}")
+        return v
+
+
+# ============================================================
+# COMPONENT CONFIGURATION
+# ============================================================
+
+class ComponentConfig(BaseModel):
+    """Processing component configuration (actual components only)"""
+    # Actual components from irene/components/
+    tts: bool = Field(default=False, description="Enable text-to-speech component")
+    asr: bool = Field(default=False, description="Enable automatic speech recognition component")
+    audio: bool = Field(default=False, description="Enable audio playback component")
+    llm: bool = Field(default=False, description="Enable large language model component")
+    voice_trigger: bool = Field(default=False, description="Enable wake word detection component")
+    nlu: bool = Field(default=False, description="Enable natural language understanding component")
+    text_processor: bool = Field(default=False, description="Enable text processing pipeline component")
+    intent_system: bool = Field(default=True, description="Enable intent handling component (essential)")
+
+
+# ============================================================
+# COMPONENT-SPECIFIC CONFIGURATIONS
+# ============================================================
+
+class TTSConfig(BaseModel):
+    """TTS component configuration"""
+    enabled: bool = Field(default=False, description="Enable TTS component")
     default_provider: str = Field(default="console", description="Default TTS provider")
-    fallback_providers: list[str] = Field(
-        default_factory=lambda: ["console"],
-        description="Fallback providers in order of preference"
-    )
-    providers: dict[str, dict[str, Any]] = Field(
+    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback providers in order")
+    providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {
             "console": {
                 "enabled": True,
                 "color_output": True,
-                "timing_simulation": False
+                "timing_simulation": True,
+                "prefix": "TTS: "
+            },
+            "elevenlabs": {
+                "enabled": False,
+                "api_key": "${ELEVENLABS_API_KEY}",
+                "voice_id": "21m00Tcm4TlvDq8ikWAM",
+                "model": "eleven_monolingual_v1",
+                "stability": 0.5,
+                "similarity_boost": 0.5
+            },
+            "silero": {
+                "enabled": False,
+                "model_path": "",  # Uses IRENE_ASSETS_ROOT/models
+                "speaker": "aidar",
+                "sample_rate": 48000
             }
         },
         description="Provider-specific configurations"
     )
 
 
-class UniversalAudioConfig(BaseModel):
-    """Universal Audio plugin configuration"""
-    enabled: bool = Field(default=True, description="Enable Universal Audio plugin")
+class AudioConfig(BaseModel):
+    """Audio component configuration"""
+    enabled: bool = Field(default=False, description="Enable Audio component")
     default_provider: str = Field(default="console", description="Default audio provider")
-    fallback_providers: list[str] = Field(
-        default_factory=lambda: ["console"],
-        description="Fallback providers in order of preference"
-    )
+    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback providers in order")
     concurrent_playback: bool = Field(default=False, description="Allow concurrent audio playback")
-    providers: dict[str, dict[str, Any]] = Field(
+    providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {
             "console": {
                 "enabled": True,
@@ -88,103 +193,114 @@ class UniversalAudioConfig(BaseModel):
             },
             "sounddevice": {
                 "enabled": False,
-                "device_id": -1,
-                "sample_rate": 44100,
-                "channels": 2,
-                "buffer_size": 1024
+                "device_id": -1,  # -1 = default device
+                "sample_rate": 44100
             },
             "audioplayer": {
                 "enabled": False,
                 "volume": 0.8,
                 "fade_in": False,
                 "fade_out": True
-            },
-            "aplay": {
-                "enabled": False,
-                "device": "default",
-                "volume": 1.0
-            },
-            "simpleaudio": {
-                "enabled": False,
-                "volume": 1.0
             }
         },
         description="Provider-specific configurations"
     )
 
 
-# Phase 4 configuration classes
-class UniversalASRConfig(BaseModel):
-    """Universal ASR plugin configuration"""
-    enabled: bool = Field(default=True, description="Enable Universal ASR plugin")
-    default_provider: str = Field(default="vosk", description="Default ASR provider")
-    default_language: str = Field(default="ru", description="Default recognition language")
-    confidence_threshold: float = Field(default=0.7, description="Minimum confidence threshold")
+class ASRConfig(BaseModel):
+    """ASR component configuration"""
+    enabled: bool = Field(default=False, description="Enable ASR component")
+    default_provider: str = Field(default="whisper", description="Default ASR provider")
+    fallback_providers: List[str] = Field(default_factory=lambda: ["whisper"], description="Fallback providers in order")
     providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {
-            "vosk": {
-                "enabled": True,
-                "model_paths": {},  # Deprecated - uses IRENE_ASSETS_ROOT/models
-                "sample_rate": 16000,
-                "confidence_threshold": 0.7,
-                "preload_models": False  # Set to True to download and cache models on startup
-            },
             "whisper": {
-                "enabled": False,
+                "enabled": True,
                 "model_size": "base",
                 "device": "cpu",
-                "download_root": "",  # Deprecated - uses IRENE_ASSETS_ROOT/models
-                "preload_models": False  # Set to True to download and cache models on startup
+                "default_language": None  # None = auto-detect
+            },
+            "vosk": {
+                "enabled": False,
+                "model_paths": {},  # Uses IRENE_ASSETS_ROOT/models
+                "sample_rate": 16000,
+                "confidence_threshold": 0.7
             },
             "google_cloud": {
                 "enabled": False,
-                "credentials_path": "",  # Deprecated - uses GOOGLE_APPLICATION_CREDENTIALS
-                "project_id": "",  # Uses GOOGLE_CLOUD_PROJECT_ID
-                "default_language": "ru-RU"
+                "credentials_path": "${GOOGLE_APPLICATION_CREDENTIALS}",
+                "project_id": "your-project-id",
+                "default_language": "en-US",
+                "sample_rate_hertz": 16000,
+                "encoding": "LINEAR16"
             }
         },
-        description="ASR provider configurations"
+        description="Provider-specific configurations"
     )
 
 
-# TTS configuration will be added to existing UniversalTTSConfig class
-
-
-class UniversalLLMConfig(BaseModel):
-    """Universal LLM plugin configuration"""
-    enabled: bool = Field(default=True, description="Enable Universal LLM plugin")
+class LLMConfig(BaseModel):
+    """LLM component configuration"""
+    enabled: bool = Field(default=False, description="Enable LLM component")
     default_provider: str = Field(default="openai", description="Default LLM provider")
-    default_task: str = Field(default="improve_speech_recognition", description="Default enhancement task")
+    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback providers in order")
     providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {
             "openai": {
                 "enabled": True,
-                "api_key_env": "",  # Deprecated - uses OPENAI_API_KEY environment variable
+                "api_key": "${OPENAI_API_KEY}",
                 "default_model": "gpt-4",
-                "max_tokens": 150,
-                "temperature": 0.3
-            },
-            "vsegpt": {
-                "enabled": False,
-                "api_key_env": "",  # Deprecated - uses VSEGPT_API_KEY environment variable
-                "default_model": "openai/gpt-4o-mini",
                 "max_tokens": 150,
                 "temperature": 0.3
             },
             "anthropic": {
                 "enabled": False,
-                "api_key_env": "",  # Deprecated - uses ANTHROPIC_API_KEY environment variable
+                "api_key": "${ANTHROPIC_API_KEY}",
                 "default_model": "claude-3-haiku-20240307",
-                "max_tokens": 150
+                "max_tokens": 150,
+                "temperature": 0.3
+            },
+            "console": {
+                "enabled": True,
+                "response": "LLM response would appear here"
             }
         },
-        description="LLM provider configurations"
+        description="Provider-specific configurations"
     )
 
 
-class UniversalNLUConfig(BaseModel):
-    """Universal NLU component configuration"""
-    enabled: bool = Field(default=True, description="Enable Universal NLU component")
+class VoiceTriggerConfig(BaseModel):
+    """Voice trigger / wake word component configuration"""
+    enabled: bool = Field(default=False, description="Enable voice trigger component")
+    default_provider: str = Field(default="openwakeword", description="Default voice trigger provider")
+    wake_words: List[str] = Field(
+        default_factory=lambda: ["irene", "jarvis"],
+        description="Wake words to detect"
+    )
+    confidence_threshold: float = Field(default=0.8, description="Detection confidence threshold")
+    buffer_seconds: float = Field(default=1.0, description="Audio buffer duration in seconds")
+    timeout_seconds: float = Field(default=5.0, description="Detection timeout in seconds")
+    providers: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "openwakeword": {
+                "enabled": True,
+                "model_paths": {},  # Uses IRENE_ASSETS_ROOT/models
+                "inference_framework": "onnx",
+                "vad_threshold": 0.5
+            },
+            "porcupine": {
+                "enabled": False,
+                "access_key": "${PICOVOICE_ACCESS_KEY}",
+                "keywords": ["jarvis"]
+            }
+        },
+        description="Provider-specific configurations"
+    )
+
+
+class NLUConfig(BaseModel):
+    """NLU component configuration"""
+    enabled: bool = Field(default=False, description="Enable NLU component")
     default_provider: str = Field(default="hybrid_keyword_matcher", description="Default NLU provider")
     confidence_threshold: float = Field(default=0.7, description="Global confidence threshold")
     fallback_intent: str = Field(default="conversation.general", description="Fallback intent name")
@@ -201,7 +317,6 @@ class UniversalNLUConfig(BaseModel):
     cache_recognition_results: bool = Field(default=False, description="Cache recognition results")
     cache_ttl_seconds: int = Field(default=300, description="Cache TTL in seconds")
     
-    # Provider instances configuration
     providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {
             "hybrid_keyword_matcher": {
@@ -223,9 +338,9 @@ class UniversalNLUConfig(BaseModel):
     )
 
 
-class TextProcessingConfig(BaseModel):
-    """Text processing pipeline configuration"""
-    enabled: bool = Field(default=True, description="Enable text processing pipeline")
+class TextProcessorConfig(BaseModel):
+    """Text processing pipeline component configuration"""
+    enabled: bool = Field(default=False, description="Enable text processing pipeline component")
     stages: List[str] = Field(
         default_factory=lambda: ["asr_output", "tts_input", "command_input", "general"],
         description="Processing stages"
@@ -253,32 +368,9 @@ class TextProcessingConfig(BaseModel):
     )
 
 
-class IntentHandlerConfig(BaseModel):
-    """Intent handler configuration for dynamic discovery"""
-    enabled: list[str] = Field(
-        default=["conversation", "greetings", "timer", "datetime", "system"],
-        description="List of enabled intent handlers"
-    )
-    disabled: list[str] = Field(
-        default=["train_schedule"],
-        description="List of explicitly disabled intent handlers"
-    )
-    auto_discover: bool = Field(
-        default=True,
-        description="Automatically discover handlers via entry-points"
-    )
-    discovery_paths: list[str] = Field(
-        default=["irene.intents.handlers"],
-        description="Entry-point namespaces to discover handlers from"
-    )
-
-
 class IntentSystemConfig(BaseModel):
-    """Intent system configuration"""
-    enabled: bool = Field(
-        default=True,
-        description="Enable the intent system"
-    )
+    """Intent system component configuration"""
+    enabled: bool = Field(default=True, description="Enable intent system component")
     confidence_threshold: float = Field(
         default=0.7,
         ge=0.0,
@@ -289,169 +381,26 @@ class IntentSystemConfig(BaseModel):
         default="conversation.general",
         description="Fallback intent when recognition fails"
     )
-    handlers: IntentHandlerConfig = Field(
-        default_factory=IntentHandlerConfig,
+    handlers: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "enabled": ["conversation", "greetings", "timer", "datetime", "system"],
+            "disabled": ["train_schedule"],
+            "auto_discover": True,
+            "discovery_paths": ["irene.intents.handlers"]
+        },
         description="Intent handler configuration"
     )
 
 
-class PluginConfig(BaseModel):
-    """Plugin system configuration"""
-    plugin_directories: list[Path] = Field(
-        default_factory=lambda: [Path("./plugins")],
-        description="Directories to scan for plugins"
-    )
-    enabled_plugins: list[str] = Field(
-        default_factory=list,
-        description="List of explicitly enabled plugins"
-    )
-    disabled_plugins: list[str] = Field(
-        default_factory=list,
-        description="List of explicitly disabled plugins"
-    )
-    # NOTE: builtin_plugins removed - functionality moved to intent handlers
-    plugin_settings: dict[str, dict[str, Any]] = Field(
-        default_factory=dict,
-        description="Plugin-specific settings"
-    )
-    auto_discover: bool = Field(
-        default=True,
-        description="Automatically discover plugins in plugin directories"
-    )
-    
-    # Universal plugin configurations
-    universal_tts: UniversalTTSConfig = Field(
-        default_factory=UniversalTTSConfig,
-        description="Universal TTS plugin configuration"
-    )
-    universal_audio: UniversalAudioConfig = Field(
-        default_factory=UniversalAudioConfig,
-        description="Universal Audio plugin configuration"
-    )
-    # Phase 4 additions
-    universal_asr: "UniversalASRConfig" = Field(
-        default_factory=lambda: UniversalASRConfig(),
-        description="Universal ASR plugin configuration"
-    )
-    universal_llm: "UniversalLLMConfig" = Field(
-        default_factory=lambda: UniversalLLMConfig(),
-        description="Universal LLM plugin configuration"
-    )
-    text_processing: "TextProcessingConfig" = Field(
-        default_factory=lambda: TextProcessingConfig(),
-        description="Text processing pipeline configuration"
-    )
-    universal_nlu: "UniversalNLUConfig" = Field(
-        default_factory=lambda: UniversalNLUConfig(),
-        description="Universal NLU component configuration"
-    )
-    
-    @field_validator('plugin_directories')
-    @classmethod
-    def convert_paths(cls, v):
-        if isinstance(v, list):
-            return [Path(p) if not isinstance(p, Path) else p for p in v]
-        return v
-
-
-class SecurityConfig(BaseModel):
-    """Security and access control configuration"""
-    enable_authentication: bool = Field(default=False, description="Enable API authentication")
-    api_keys: list[str] = Field(default_factory=list, description="Valid API keys")
-    allowed_hosts: list[str] = Field(
-        default_factory=lambda: ["localhost", "127.0.0.1"],
-        description="Allowed host addresses"
-    )
-    cors_origins: list[str] = Field(
-        default_factory=lambda: ["*"],
-        description="CORS allowed origins"
-    )
-
-
-class StorageConfig(BaseModel):
-    """Storage configuration for temporary files and coordination"""
-    
-    # Temporary audio directory for TTS-Audio coordination
-    temp_audio_dir: Path = Field(
-        default_factory=lambda: Path(os.getenv("IRENE_TEMP_AUDIO_DIR", "~/.cache/irene/temp/audio")).expanduser(),
-        description="Directory for temporary TTS audio files"
-    )
-    
-    # Auto-create directories on initialization
-    auto_create_dirs: bool = Field(default=True, description="Automatically create storage directories")
-    
-    def model_post_init(self, __context):
-        """Create directories and validate permissions after initialization if auto_create_dirs is True"""
-        if self.auto_create_dirs:
-            self._create_directories()
-            self._validate_permissions()
-    
-    def _create_directories(self) -> None:
-        """Create all necessary storage directories with proper logging"""
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        directories = [self.temp_audio_dir]
-        
-        for directory in directories:
-            try:
-                directory.mkdir(parents=True, exist_ok=True)
-                logger.debug(f"Created storage directory: {directory}")
-            except PermissionError as e:
-                logger.error(f"Permission denied creating directory {directory}: {e}")
-                raise
-            except OSError as e:
-                logger.error(f"Failed to create directory {directory}: {e}")
-                raise
-            except Exception as e:
-                logger.error(f"Unexpected error creating directory {directory}: {e}")
-                raise
-    
-    def _validate_permissions(self) -> None:
-        """Validate that storage directories have proper read/write permissions"""
-        import logging
-        import tempfile
-        import uuid
-        logger = logging.getLogger(__name__)
-        
-        directories = [self.temp_audio_dir]
-        
-        for directory in directories:
-            try:
-                # Test write permissions by creating a temporary file
-                test_filename = f"irene_test_{uuid.uuid4().hex}.tmp"
-                test_file = directory / test_filename
-                
-                # Write test
-                test_file.write_text("test")
-                
-                # Read test
-                content = test_file.read_text()
-                if content != "test":
-                    raise PermissionError(f"Read test failed for directory {directory}")
-                
-                # Cleanup test file
-                test_file.unlink()
-                
-                logger.debug(f"Validated permissions for directory: {directory}")
-                
-            except PermissionError as e:
-                logger.error(f"Permission validation failed for directory {directory}: {e}")
-                raise
-            except OSError as e:
-                logger.error(f"File system validation failed for directory {directory}: {e}")
-                raise
-            except Exception as e:
-                logger.error(f"Unexpected error validating directory {directory}: {e}")
-                raise
-
+# ============================================================
+# ASSET MANAGEMENT CONFIGURATION (Environment-Driven)
+# ============================================================
 
 class AssetConfig(BaseModel):
-    """Centralized asset management configuration with environment variable support"""
-    
-    # Single root directory from environment variable
+    """Environment-driven asset configuration"""
     assets_root: Path = Field(
-        default_factory=lambda: Path(os.getenv("IRENE_ASSETS_ROOT", "~/.cache/irene")).expanduser()
+        default_factory=lambda: Path(os.getenv("IRENE_ASSETS_ROOT", "~/.cache/irene")).expanduser(),
+        description="Root directory for all assets (models, cache, credentials)"
     )
     
     # Subdirectories under assets root
@@ -467,165 +416,8 @@ class AssetConfig(BaseModel):
     def credentials_root(self) -> Path:
         return self.assets_root / "credentials"
     
-    # Auto-create directories on initialization
-    auto_create_dirs: bool = Field(default=True)
+    auto_create_dirs: bool = Field(default=True, description="Automatically create directories")
     
-    # Model registry with download information
-    model_registry: Dict[str, Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "whisper": {
-                "tiny": {"size": "39MB", "url": "auto"},
-                "base": {"size": "74MB", "url": "auto"},
-                "small": {"size": "244MB", "url": "auto"},
-                "medium": {"size": "769MB", "url": "auto"},
-                "large": {"size": "1550MB", "url": "auto"}
-            },
-            "silero": {
-                "v3_ru": {
-                    "url": "https://models.silero.ai/models/tts/ru/v3_1_ru.pt",
-                    "size": "36MB",
-                    "checksum": None
-                },
-                "v4_ru": {
-                    "url": "https://models.silero.ai/models/tts/ru/v4_ru.pt", 
-                    "size": "50MB",
-                    "checksum": None
-                }
-            },
-            "vosk": {
-                "ru_small": {
-                    "url": "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip",
-                    "size": "50MB",
-                    "extract": True,
-                    "checksum": None
-                },
-                "en_us": {
-                    "url": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
-                    "size": "1.8GB", 
-                    "extract": True,
-                    "checksum": None
-                },
-                "tts": {
-                    "url": "https://alphacephei.com/vosk/models/vosk-tts-ru.zip",
-                    "size": "100MB",
-                    "extract": True,
-                    "checksum": None
-                }
-            },
-            "spacy": {
-                "ru_core_news_sm": {
-                    "url": "spacy",
-                    "size": "15MB",
-                    "format": "package",
-                    "checksum": None,
-                    "description": "Russian small core model for spaCy"
-                },
-                "ru_core_news_md": {
-                    "url": "spacy", 
-                    "size": "50MB",
-                    "format": "package",
-                    "checksum": None,
-                    "description": "Russian medium core model for spaCy"
-                },
-                "ru_core_news_lg": {
-                    "url": "spacy",
-                    "size": "140MB", 
-                    "format": "package",
-                    "checksum": None,
-                    "description": "Russian large core model for spaCy"
-                },
-                "en_core_web_sm": {
-                    "url": "spacy",
-                    "size": "15MB",
-                    "format": "package", 
-                    "checksum": None,
-                    "description": "English small core model for spaCy"
-                },
-                "en_core_web_md": {
-                    "url": "spacy",
-                    "size": "50MB",
-                    "format": "package",
-                    "checksum": None,
-                    "description": "English medium core model for spaCy"
-                },
-                "en_core_web_lg": {
-                    "url": "spacy",
-                    "size": "140MB",
-                    "format": "package",
-                    "checksum": None,
-                    "description": "English large core model for spaCy"
-                }
-            },
-            "openwakeword": {
-                "alexa_v0.1": {
-                    "url": "auto",
-                    "size": "~10MB",
-                    "format": "onnx",
-                    "checksum": None,
-                    "description": "Pre-trained model for 'alexa' wake word"
-                },
-                "hey_jarvis_v0.1": {
-                    "url": "auto", 
-                    "size": "~10MB",
-                    "format": "onnx",
-                    "checksum": None,
-                    "description": "Pre-trained model for 'hey jarvis' wake phrase"
-                },
-                "hey_mycroft_v0.1": {
-                    "url": "auto",
-                    "size": "~10MB",
-                    "format": "onnx", 
-                    "checksum": None,
-                    "description": "Pre-trained model for 'hey mycroft' wake phrase"
-                }
-            },
-            "microwakeword": {
-                "irene_model": {
-                    "url": "local",  # Local model to be provided
-                    "size": "~5MB",
-                    "format": "tflite",
-                    "checksum": None,
-                    "description": "Custom microWakeWord model for 'irene' wake word"
-                },
-                "jarvis_model": {
-                    "url": "local",  # Local model to be provided
-                    "size": "~5MB", 
-                    "format": "tflite",
-                    "checksum": None,
-                    "description": "Custom microWakeWord model for 'jarvis' wake word"
-                },
-                "hey_irene_model": {
-                    "url": "local",  # Local model to be provided
-                    "size": "~5MB",
-                    "format": "tflite",
-                    "checksum": None,
-                    "description": "Custom microWakeWord model for 'hey irene' wake phrase"
-                }
-            }
-        }
-    )
-    
-    # Cache directory helper properties (kept for compatibility)
-    @property
-    def downloads_cache_dir(self) -> Path:
-        return self.cache_root / "downloads"
-        
-    @property
-    def runtime_cache_dir(self) -> Path:
-        return self.cache_root / "runtime"
-        
-    @property
-    def tts_cache_dir(self) -> Path:
-        return self.cache_root / "tts"
-        
-    @property
-    def temp_dir(self) -> Path:
-        return self.cache_root / "temp"
-        
-    # Provider model directories are now configuration-driven via AssetManager
-    # Hardcoded directory properties removed in TODO #4 Phase 2
-    # Use AssetManager.get_model_path() for provider-specific paths
-
     def model_post_init(self, __context):
         """Create directories after initialization if auto_create_dirs is True"""
         if self.auto_create_dirs:
@@ -637,15 +429,8 @@ class AssetConfig(BaseModel):
             self.assets_root,
             self.models_root,
             self.cache_root,
-            self.credentials_root,
-            self.downloads_cache_dir,
-            self.runtime_cache_dir,
-            self.tts_cache_dir,
-            self.temp_dir
+            self.credentials_root
         ]
-        
-        # Provider-specific model directories are now created on-demand by AssetManager
-        # when get_model_path() is called (TODO #4 Phase 2)
         
         for directory in directories:
             try:
@@ -655,110 +440,336 @@ class AssetConfig(BaseModel):
                 pass
 
 
-class CoreConfig(BaseSettings):
-    """Main configuration for the Irene core system with environment variable support"""
+# ============================================================
+# WORKFLOW CONFIGURATION
+# ============================================================
+
+class WorkflowConfig(BaseModel):
+    """Workflow processing pipeline configuration"""
+    enabled: List[str] = Field(
+        default_factory=lambda: ["unified_voice_assistant"],
+        description="List of enabled workflows"
+    )
+    default: str = Field(
+        default="unified_voice_assistant",
+        description="Default workflow to execute"
+    )
     
-    # Basic settings
+    @field_validator('default')
+    @classmethod
+    def validate_default_workflow(cls, v, info):
+        # Note: We can't access 'enabled' during field validation due to model construction order
+        # This validation will be handled in the model_validator
+        return v
+
+
+# ============================================================
+# ENVIRONMENT VARIABLE UTILITIES
+# ============================================================
+
+class EnvironmentVariableResolver:
+    """Utility class for resolving ${VAR} patterns in configuration"""
+    
+    @staticmethod
+    def substitute_env_vars(value: Any) -> Any:
+        """Replace ${VAR} patterns with environment variable values"""
+        if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+            var_name = value[2:-1]
+            env_value = os.getenv(var_name)
+            if env_value is None:
+                raise ValueError(f"Required environment variable {var_name} is not set")
+            return env_value
+        elif isinstance(value, dict):
+            return {k: EnvironmentVariableResolver.substitute_env_vars(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [EnvironmentVariableResolver.substitute_env_vars(v) for v in value]
+        return value
+    
+    @staticmethod
+    def find_env_var_patterns(config: Dict[str, Any]) -> List[str]:
+        """Find all ${VAR} patterns in configuration"""
+        patterns = []
+        
+        def _scan_value(value: Any):
+            if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                var_name = value[2:-1]
+                patterns.append(var_name)
+            elif isinstance(value, dict):
+                for v in value.values():
+                    _scan_value(v)
+            elif isinstance(value, list):
+                for v in value:
+                    _scan_value(v)
+        
+        _scan_value(config)
+        return patterns
+    
+    @staticmethod
+    def validate_environment_variables(config: Dict[str, Any]) -> None:
+        """Validate all ${VAR} patterns have corresponding environment variables"""
+        patterns = EnvironmentVariableResolver.find_env_var_patterns(config)
+        missing_vars = []
+        
+        for var_name in patterns:
+            if os.getenv(var_name) is None:
+                missing_vars.append(var_name)
+        
+        if missing_vars:
+            raise ValueError(f"Missing required environment variables: {missing_vars}")
+
+
+# ============================================================
+# COMPONENT LOADING SYSTEM
+# ============================================================
+
+class ComponentRegistry:
+    """Registry for initialized components"""
+    
+    def __init__(self):
+        self._components: Dict[str, Any] = {}
+    
+    def register(self, name: str, component: Any) -> None:
+        """Register a component"""
+        self._components[name] = component
+    
+    def get(self, name: str) -> Optional[Any]:
+        """Get a component by name"""
+        return self._components.get(name)
+    
+    def has(self, name: str) -> bool:
+        """Check if component is registered"""
+        return name in self._components
+    
+    def list_components(self) -> List[str]:
+        """List all registered component names"""
+        return list(self._components.keys())
+
+
+class ComponentLoader:
+    """Component loader using entry-point discovery"""
+    
+    def __init__(self):
+        from ..utils.loader import dynamic_loader
+        self.dynamic_loader = dynamic_loader
+    
+    def load_components(self, config: ComponentConfig) -> ComponentRegistry:
+        """Load components based on configuration using entry-point discovery"""
+        registry = ComponentRegistry()
+        
+        # Get available components via entry-points
+        available_components = self.dynamic_loader.discover_providers("irene.components")
+        
+        # Load enabled components
+        for component_name in available_components:
+            if self._is_component_enabled(component_name, config):
+                try:
+                    component_class = available_components[component_name]
+                    component_instance = component_class()
+                    registry.register(component_name, component_instance)
+                except Exception as e:
+                    # Log error but continue with other components
+                    import logging
+                    logging.getLogger(__name__).error(f"Failed to load component '{component_name}': {e}")
+        
+        return registry
+    
+    def _is_component_enabled(self, component_name: str, config: ComponentConfig) -> bool:
+        """Check if component is enabled in configuration"""
+        return getattr(config, component_name, False)
+    
+    def get_available_components(self) -> Dict[str, Type]:
+        """Get available components via entry-point discovery"""
+        return self.dynamic_loader.discover_providers("irene.components")
+
+
+# ============================================================
+# CORE CONFIGURATION (NEW ARCHITECTURE)
+# ============================================================
+
+class CoreConfig(BaseSettings):
+    """Main configuration for Irene Voice Assistant v14+ with clean architecture"""
+    
+    # Core settings
     name: str = Field(default="Irene", description="Assistant name")
-    version: str = Field(default="13.0.0", description="Version")
+    version: str = Field(default="14.0.0", description="Version")
     debug: bool = Field(default=False, description="Enable debug mode")
     log_level: LogLevel = Field(default=LogLevel.INFO, description="Logging level")
     
-    # Component configuration
-    components: ComponentConfig = Field(default_factory=ComponentConfig)
+    # New architecture sections
+    system: SystemConfig = Field(default_factory=SystemConfig, description="System capabilities configuration")
+    inputs: InputConfig = Field(default_factory=InputConfig, description="Input sources configuration")
+    components: ComponentConfig = Field(default_factory=ComponentConfig, description="Component configuration")
+    assets: AssetConfig = Field(default_factory=AssetConfig, description="Asset management configuration")
+    workflows: WorkflowConfig = Field(default_factory=WorkflowConfig, description="Workflow configuration")
     
-    # Plugin configuration  
-    plugins: PluginConfig = Field(default_factory=PluginConfig)
+    # Component-specific configurations
+    tts: TTSConfig = Field(default_factory=TTSConfig, description="TTS component configuration")
+    audio: AudioConfig = Field(default_factory=AudioConfig, description="Audio component configuration")
+    asr: ASRConfig = Field(default_factory=ASRConfig, description="ASR component configuration")
+    llm: LLMConfig = Field(default_factory=LLMConfig, description="LLM component configuration")
+    voice_trigger: VoiceTriggerConfig = Field(default_factory=VoiceTriggerConfig, description="Voice trigger component configuration")
+    nlu: NLUConfig = Field(default_factory=NLUConfig, description="NLU component configuration")
+    text_processor: TextProcessorConfig = Field(default_factory=TextProcessorConfig, description="Text processor component configuration")
+    intent_system: IntentSystemConfig = Field(default_factory=IntentSystemConfig, description="Intent system component configuration")
     
-    # Security configuration
-    security: SecurityConfig = Field(default_factory=SecurityConfig)
-    
-    # Asset management configuration
-    assets: AssetConfig = Field(default_factory=AssetConfig)
-    
-    # Storage configuration
-    storage: StorageConfig = Field(default_factory=StorageConfig)
-    
-    # Intent system configuration
-    intents: IntentSystemConfig = Field(default_factory=IntentSystemConfig)
-    
-    # System paths (deprecated - use assets configuration instead)
-    data_directory: Path = Field(default=Path("./data"), description="Data storage directory")
-    log_directory: Path = Field(default=Path("./logs"), description="Log storage directory")
-    cache_directory: Path = Field(default=Path("./cache"), description="Cache directory (deprecated - use assets.cache_root under IRENE_ASSETS_ROOT)")
+    # Language and locale
+    language: str = Field(default="en-US", description="Primary language")
+    timezone: Optional[str] = Field(default=None, description="Timezone (e.g., UTC, America/New_York)")
     
     # Runtime settings
     max_concurrent_commands: int = Field(default=10, ge=1, description="Maximum concurrent commands")
     command_timeout_seconds: float = Field(default=30.0, gt=0, description="Command timeout in seconds")
     context_timeout_minutes: int = Field(default=30, ge=1, description="Context timeout in minutes")
     
-    # Language and locale
-    language: str = Field(default="en-US", description="Primary language")
-    timezone: Optional[str] = Field(default=None, description="Timezone (e.g., UTC, America/New_York)")
-    
-    # Advanced settings
-    enable_metrics: bool = Field(default=False, description="Enable metrics collection")
-    metrics_port: int = Field(default=9090, ge=1, le=65535, description="Metrics server port")
-    enable_profiling: bool = Field(default=False, description="Enable performance profiling")
-    
     model_config = {
         "env_prefix": "IRENE_",
         "env_nested_delimiter": "__",
         "case_sensitive": False,
     }
-        
-    @field_validator('data_directory', 'log_directory', 'cache_directory')
-    @classmethod
-    def convert_path_fields(cls, v):
-        return Path(v) if not isinstance(v, Path) else v
-        
+    
     @model_validator(mode='after')
-    def validate_component_plugin_consistency(self):
-        """Ensure component configuration is consistent with plugin availability"""
-        components = self.components
-        plugins = self.plugins
+    def validate_system_dependencies(self):
+        """Validate cross-component dependencies"""
+        # TTS requires Audio component
+        if self.components.tts and not self.components.audio:
+            raise ValueError("TTS component requires Audio component. Either disable TTS or enable Audio component.")
         
-        if components and plugins:
-            # NOTE: Auto-plugin enabling removed - builtin plugins eliminated in Phase 3
-            # Audio and TTS functionality now handled by components and intent handlers
-            pass
+        # Microphone hardware requires microphone input
+        if self.system.microphone_enabled and not self.inputs.microphone:
+            raise ValueError("Microphone hardware enabled but input source disabled")
         
-        # TTS-Audio dependency validation (Phase 1 implementation)
-        tts_enabled = components and components.tts
-        audio_enabled = components and components.audio_output
+        # Component-specific config sync
+        self.tts.enabled = self.components.tts
+        self.audio.enabled = self.components.audio
+        self.asr.enabled = self.components.asr
+        self.llm.enabled = self.components.llm
+        self.voice_trigger.enabled = self.components.voice_trigger
+        self.nlu.enabled = self.components.nlu
+        self.text_processor.enabled = self.components.text_processor
+        self.intent_system.enabled = self.components.intent_system
         
-        if tts_enabled and not audio_enabled:
-            raise ValueError(
-                "TTS component requires Audio component. "
-                "Either disable TTS or enable Audio component."
-            )
-                
+        # Validate default workflow is in enabled list
+        if self.workflows.default not in self.workflows.enabled:
+            raise ValueError(f"Default workflow '{self.workflows.default}' must be in enabled workflows list")
+        
+        return self
+    
+    @model_validator(mode='after') 
+    def validate_entry_point_consistency(self):
+        """Validate component names match entry-points"""
+        try:
+            loader = ComponentLoader()
+            available_components = loader.get_available_components()
+            
+            # Check that all enabled components have corresponding entry-points
+            enabled_components = []
+            for attr_name in ['tts', 'asr', 'audio', 'llm', 'voice_trigger', 'nlu', 'text_processor', 'intent_system']:
+                if getattr(self.components, attr_name, False):
+                    enabled_components.append(attr_name)
+            
+            missing_components = []
+            for component_name in enabled_components:
+                if component_name not in available_components:
+                    missing_components.append(component_name)
+            
+            if missing_components:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Enabled components missing entry-points: {missing_components}. "
+                    f"Available components: {list(available_components.keys())}"
+                )
+        except Exception as e:
+            # Don't fail configuration loading due to entry-point validation issues
+            import logging
+            logging.getLogger(__name__).warning(f"Entry-point validation failed: {e}")
+        
         return self
 
+    def resolve_environment_variables(self) -> 'CoreConfig':
+        """Resolve all ${VAR} patterns in configuration"""
+        config_dict = self.model_dump()
+        
+        # Validate environment variables exist
+        EnvironmentVariableResolver.validate_environment_variables(config_dict)
+        
+        # Substitute environment variables
+        resolved_dict = EnvironmentVariableResolver.substitute_env_vars(config_dict)
+        
+        # Return new instance with resolved values
+        return CoreConfig.model_validate(resolved_dict)
 
-# Asset management configuration classes defined below
 
-# Deployment profile presets
-VOICE_PROFILE = ComponentConfig(
-    microphone=True, 
-    tts=True, 
-    audio_output=True, 
-    web_api=True
-)
+# ============================================================
+# DEPLOYMENT PROFILE PRESETS (Backwards Compatibility)
+# ============================================================
 
-API_PROFILE = ComponentConfig(
-    microphone=False, 
-    tts=False, 
-    audio_output=False, 
-    web_api=True
-)
+def create_voice_profile() -> CoreConfig:
+    """Create voice assistant profile configuration"""
+    config = CoreConfig()
+    # System capabilities
+    config.system.microphone_enabled = True
+    config.system.audio_playback_enabled = True
+    config.system.web_api_enabled = True
+    # Input sources
+    config.inputs.microphone = True
+    config.inputs.web = True
+    config.inputs.cli = True
+    config.inputs.default_input = "microphone"
+    # Components
+    config.components.tts = True
+    config.components.asr = True
+    config.components.audio = True
+    config.components.voice_trigger = True
+    config.components.nlu = True
+    config.components.text_processor = True
+    config.components.intent_system = True
+    return config
 
-HEADLESS_PROFILE = ComponentConfig(
-    microphone=False, 
-    tts=False, 
-    audio_output=False, 
-    web_api=False
-)
+
+def create_api_profile() -> CoreConfig:
+    """Create API-only profile configuration"""
+    config = CoreConfig()
+    # System capabilities
+    config.system.microphone_enabled = False
+    config.system.audio_playback_enabled = False
+    config.system.web_api_enabled = True
+    # Input sources
+    config.inputs.microphone = False
+    config.inputs.web = True
+    config.inputs.cli = False
+    config.inputs.default_input = "web"
+    # Components
+    config.components.tts = False
+    config.components.asr = False
+    config.components.audio = False
+    config.components.voice_trigger = False
+    config.components.nlu = True
+    config.components.text_processor = True
+    config.components.intent_system = True
+    return config
+
+
+def create_headless_profile() -> CoreConfig:
+    """Create headless profile configuration"""
+    config = CoreConfig()
+    # System capabilities
+    config.system.microphone_enabled = False
+    config.system.audio_playback_enabled = False
+    config.system.web_api_enabled = False
+    # Input sources
+    config.inputs.microphone = False
+    config.inputs.web = False
+    config.inputs.cli = True
+    config.inputs.default_input = "cli"
+    # Components
+    config.components.tts = False
+    config.components.asr = False
+    config.components.audio = False
+    config.components.voice_trigger = False
+    config.components.nlu = True
+    config.components.text_processor = True
+    config.components.intent_system = True
+    return config
 
 
 def create_default_config() -> CoreConfig:
@@ -766,68 +777,15 @@ def create_default_config() -> CoreConfig:
     return CoreConfig()
 
 
-@dataclass
-class TrainScheduleConfig:
-    """Configuration for train schedule intent handler"""
-    enabled: bool = False
-    api_key: str = ""
-    from_station: str = "s9600681"  # Default Moscow Leningradsky
-    to_station: str = "s2000002"    # Default Sergiev Posad
-    max_results: int = 3
-    timeout_seconds: int = 10
-
-
-@dataclass
-class IntentsConfig:
-    """Configuration for the intent system"""
-    enabled: bool = True
-    confidence_threshold: float = 0.7
-    fallback_handler: str = "conversation"
-    max_history_turns: int = 10
-    session_timeout: int = 1800  # 30 minutes
-    train_schedule: TrainScheduleConfig = field(default_factory=TrainScheduleConfig)
-
-
-class VoiceTriggerConfig(BaseModel):
-    """Voice trigger / wake word configuration"""
-    enabled: bool = Field(default=False, description="Enable voice trigger")
-    default_provider: str = Field(default="openwakeword", description="Default voice trigger provider")
-    wake_words: List[str] = Field(
-        default_factory=lambda: ["irene", "jarvis"],
-        description="Wake words to detect"
-    )
-    confidence_threshold: float = Field(default=0.8, description="Detection confidence threshold")
-    buffer_seconds: float = Field(default=1.0, description="Audio buffer duration in seconds")
-    timeout_seconds: float = Field(default=5.0, description="Detection timeout in seconds")
-    providers: Dict[str, Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "openwakeword": {
-                "enabled": True,
-                "model_paths": {},  # Uses IRENE_ASSETS_ROOT/models
-                "inference_framework": "onnx",
-                "vad_threshold": 0.5
-            },
-            "porcupine": {
-                "enabled": False,
-                "access_key": "",  # Requires API key
-                "keywords": ["jarvis"]
-            }
-        },
-        description="Provider-specific configurations"
-    )
-
-
 def create_config_from_profile(profile_name: str) -> CoreConfig:
     """Create configuration from a deployment profile"""
     profiles = {
-        "voice": VOICE_PROFILE,
-        "api": API_PROFILE, 
-        "headless": HEADLESS_PROFILE
+        "voice": create_voice_profile,
+        "api": create_api_profile, 
+        "headless": create_headless_profile
     }
     
     if profile_name not in profiles:
         raise ValueError(f"Unknown profile: {profile_name}. Available: {list(profiles.keys())}")
         
-    config = CoreConfig()
-    config.components = profiles[profile_name]
-    return config 
+    return profiles[profile_name]()

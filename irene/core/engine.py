@@ -35,9 +35,9 @@ class AsyncVACore:
     
     def __init__(self, config: CoreConfig):
         self.config = config
-        self.component_manager = ComponentManager(config.components)
+        self.component_manager = ComponentManager(config)
         self.plugin_manager = AsyncPluginManager()
-        self.input_manager = InputManager(self.component_manager)
+        self.input_manager = InputManager(self.component_manager, config.inputs)
         self.context_manager = ContextManager()
         self.timer_manager = AsyncTimerManager()
 

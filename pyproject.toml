@@ -14,7 +14,7 @@ dependencies = [
     # Configuration and validation (now required)
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
-    "tomli>=1.2.0; python_version<'3.11'", # tomllib is built-in for 3.11+
+
     "tomli-w>=1.0.0", # For TOML writing support
     # Logging and utilities
     "termcolor>=1.1.0",
@@ -179,6 +179,13 @@ irene-convert-to-esp32 = "wake_word_training.scripts.converters.to_esp32:main"
 irene-convert-to-onnx = "wake_word_training.scripts.converters.to_onnx:main"
 irene-convert-to-tflite = "wake_word_training.scripts.converters.to_tflite:main"
 
+# Configuration and build management tools
+irene-config-migrate = "irene.tools.config_migrator:main"
+irene-config-validate = "irene.tools.config_validator_cli:main"
+irene-build-analyze = "irene.tools.build_analyzer:main"
+irene-dependency-validate = "irene.tools.dependency_validator:main"
+irene-intent-validate = "irene.tools.intent_validator:main"
+
 # ============================================================
 # ENTRY-POINTS CATALOG - Provider Discovery System
 # ============================================================
@@ -219,7 +226,7 @@ openwakeword = "irene.providers.voice_trigger.openwakeword:OpenWakeWordProvider"
 microwakeword = "irene.providers.voice_trigger.microwakeword:MicroWakeWordProvider"
 
 [project.entry-points."irene.providers.nlu"]
-keyword_matcher = "irene.providers.nlu.hybrid_keyword_matcher:HybridKeywordMatcherProvider"
+hybrid_keyword_matcher = "irene.providers.nlu.hybrid_keyword_matcher:HybridKeywordMatcherProvider"
 spacy_nlu = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
 
 [project.entry-points."irene.providers.text_processing"]

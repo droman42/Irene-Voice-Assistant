@@ -1160,7 +1160,6 @@ requires-dist = [
     { name = "termcolor", specifier = ">=1.1.0" },
     { name = "tf2onnx", marker = "extra == 'wake-word-training'", specifier = ">=1.15.0" },
     { name = "tflite-runtime", marker = "extra == 'voice-trigger'", specifier = ">=2.12.0" },
-    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=1.2.0" },
     { name = "tomli-w", specifier = ">=1.0.0" },
     { name = "torch", marker = "extra == 'advanced-asr'", specifier = ">=1.13.0" },
     { name = "torchaudio", marker = "extra == 'advanced-asr'", specifier = ">=0.13.0" },

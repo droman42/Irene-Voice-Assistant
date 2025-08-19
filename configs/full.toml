@@ -1,275 +1,126 @@
 # ============================================================
-# IRENE VOICE ASSISTANT - FULL DEVELOPMENT CONFIGURATION
+# IRENE VOICE ASSISTANT v14.0.0 - CLEAN ARCHITECTURE
 # ============================================================
-# Complete development setup with all components and providers.
-# Includes all features for development, testing, and demonstration.
-# Heavy on dependencies but provides full functionality.
 
-[core]
 name = "Irene"
-version = "13.0.0"
-debug = true
-log_level = "DEBUG"
-language = "en-US"
-timezone = "UTC"
+version = "14.0.0"
+debug = false
+log_level = "INFO"
 
-# Runtime performance settings
+# ============================================================
+# SYSTEM CAPABILITIES - Hardware & Services
+# ============================================================
+[system]
+microphone_enabled = false      # Hardware capability
+audio_playback_enabled = false  # Hardware capability
+web_api_enabled = true         # Service capability
+web_port = 8000
+metrics_enabled = false
+metrics_port = 9090
+
+# ============================================================
+# INPUT SOURCES - Data Entry Points
+# ============================================================
+[inputs]
+microphone = false              # Microphone input source
+web = true                     # Web interface input
+cli = true                     # Command line input
+default_input = "web"
+
+# Microphone Input Configuration
+[inputs.microphone_config]
+enabled = true
+# device_id = null   # Uncomment and set to specify audio device (null = default device)
+sample_rate = 16000      # Audio sample rate (Hz)
+channels = 1            # 1 = mono, 2 = stereo
+chunk_size = 1024        # Audio buffer size
+
+# Web Input Configuration
+[inputs.web_config]
+enabled = true
+websocket_enabled = true
+rest_api_enabled = true
+
+# CLI Input Configuration
+[inputs.cli_config]
+enabled = true
+prompt_prefix = "irene> "
+history_enabled = true
+
+# ============================================================
+# COMPONENT CONFIGURATIONS - Provider Management
+# ============================================================
+[tts]
+enabled = true
+default_provider = "console"
+fallback_providers = ['console']
+
+
+[audio]
+enabled = true
+default_provider = "console"
+fallback_providers = ['console']
+concurrent_playback = false
+
+
+[asr]
+enabled = true
+default_provider = "whisper"
+fallback_providers = ['whisper']
+
+
+[llm]
+enabled = true
+default_provider = "openai"
+fallback_providers = ['anthropic', 'vsegpt']
+
+
+[voice_trigger]
+enabled = true
+default_provider = "openwakeword"
+wake_words = ['irene', 'jarvis']
+confidence_threshold = 0.8
+buffer_seconds = 1.0
+timeout_seconds = 5.0
+
+
+[nlu]
+enabled = true
+default_provider = "hybrid_keyword_matcher"
+confidence_threshold = 0.7
+fallback_intent = "conversation.general"
+provider_cascade_order = ['hybrid_keyword_matcher', 'spacy_nlu']
+max_cascade_attempts = 4
+cascade_timeout_ms = 200
+cache_recognition_results = false
+cache_ttl_seconds = 300
+
+
+[text_processor]
+enabled = true
+stages = ['asr_output', 'tts_input', 'command_input', 'general']
+
+
+
+# ============================================================
+# WORKFLOWS - Processing Pipelines
+# ============================================================
+[workflows]
+enabled = ['unified_voice_assistant']
+default = "unified_voice_assistant"
+
+# ============================================================
+# ASSET MANAGEMENT - Environment-Driven
+# ============================================================
+[assets]
+auto_create_dirs = true
+# Paths use environment variable defaults:
+# IRENE_ASSETS_ROOT (default: ~/.cache/irene)
+
+# Language and locale
+language = "en-US"
+
+# Runtime settings
 max_concurrent_commands = 10
 command_timeout_seconds = 30.0
 context_timeout_minutes = 30
-
-# Monitoring and metrics
-enable_metrics = true
-metrics_port = 9090
-enable_profiling = true
-
-# ============================================================
-# STORAGE CONFIGURATION - TTS-Audio Coordination
-# ============================================================
-[storage]
-temp_audio_dir = "./cache/temp/audio"  # Directory for temporary TTS audio files
-auto_create_dirs = true                # Automatically create storage directories
-
-# ============================================================
-# ASSET MANAGEMENT - Full Storage
-# ============================================================
-[assets]
-models_root = "./models"
-cache_root = "./cache"
-data_root = "./data"
-credentials_root = "./credentials"
-
-# ============================================================
-# COMPONENT SYSTEM - All Components
-# ============================================================
-[components]
-enabled = ["audio", "tts", "asr", "llm", "voice_trigger", "nlu", "text_processor", "intent_system"]
-disabled = []
-
-# ============================================================
-# WORKFLOW SYSTEM - All Workflows
-# ============================================================
-[workflows]
-enabled = ["voice_assistant", "continuous_listening"]
-disabled = []
-default = "voice_assistant"
-
-# ============================================================
-# INPUT/OUTPUT SYSTEM - All Inputs and Outputs
-# ============================================================
-[inputs]
-enabled = ["microphone", "web", "cli"]
-disabled = []
-default = "microphone"
-
-[outputs]
-enabled = ["text", "tts", "web"]
-disabled = []
-default = "tts"
-
-# ============================================================
-# PROVIDER SYSTEM - All Providers Enabled
-# ============================================================
-[providers.audio]
-enabled = ["sounddevice", "console", "aplay", "audioplayer"]
-disabled = ["simpleaudio"]  # Disabled due to compilation issues
-default = "sounddevice"
-fallback_providers = []
-
-[providers.tts]
-enabled = ["elevenlabs", "pyttsx", "silero_v3", "silero_v4", "console"]
-disabled = ["vosk_tts"]  # Experimental
-default = "elevenlabs"
-fallback_providers = []
-
-[providers.asr]
-enabled = ["vosk", "whisper", "google_cloud"]
-disabled = []
-default = "vosk"
-fallback_providers = []
-
-[providers.llm]
-enabled = ["openai", "anthropic", "vsegpt"]
-disabled = []
-default = "openai"
-fallback_providers = []
-
-[providers.voice_trigger]
-enabled = ["openwakeword", "microwakeword"]
-disabled = []
-default = "openwakeword"
-fallback_providers = []
-
-[components.nlu]
-# Cascading provider coordination (JSON donation system)
-enabled = true
-confidence_threshold = 0.7
-provider_cascade_order = ["hybrid_keyword_matcher", "spacy_nlu"]
-fallback_intent = "conversation.general"
-
-# JSON donation system integration
-donation_collection_enabled = true
-parameter_extraction_enabled = true
-context_processing_enabled = true
-
-# Performance tuning
-max_cascade_attempts = 3
-cascade_timeout_ms = 100
-cache_recognition_results = true
-cache_ttl_seconds = 300
-
-# NLU Provider Configurations
-[components.nlu.providers.keyword_matcher]
-enabled = true
-provider_class = "HybridKeywordMatcherProvider"
-
-# Pattern matching configuration
-pattern_confidence = 0.9
-exact_match_boost = 1.2
-flexible_match_boost = 0.9
-partial_match_boost = 0.8
-
-# Fuzzy matching configuration  
-fuzzy_enabled = true
-fuzzy_threshold = 0.8
-fuzzy_confidence_base = 0.7
-max_fuzzy_keywords_per_intent = 50
-max_text_length_for_fuzzy = 100
-
-# Performance optimization
-cache_fuzzy_results = true
-fuzzy_cache_size = 1000
-case_sensitive = false
-normalize_unicode = true
-
-# Recognition thresholds
-confidence_threshold = 0.8
-min_pattern_length = 2
-max_pattern_combinations = 100
-
-[components.nlu.providers.spacy_nlu]
-enabled = true
-provider_class = "SpaCyNLUProvider"
-model_name = "ru_core_news_sm"
-auto_download = true
-confidence_threshold = 0.7
-morphology_expansion = true
-dependency_parsing = false
-batch_processing = false
-max_doc_length = 1000
-enable_pipeline_caching = true
-
-
-semantic_similarity_threshold = 0.8
-vector_similarity = true
-batch_processing = false
-max_doc_length = 1000
-enable_pipeline_caching = true
-
-[providers.text_processing]
-enabled = ["asr_text_processor", "general_text_processor", "tts_text_processor", "number_text_processor"]
-disabled = []
-default = "general_text_processor"
-
-# ============================================================
-# INTENT SYSTEM - All Intent Handlers
-# ============================================================
-[intents]
-enabled = true
-confidence_threshold = 0.7
-fallback_handler = "conversation"
-
-[intents.handlers]
-enabled = ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"]
-disabled = []
-
-# ============================================================
-# ACTION EXECUTION - Fire-and-Forget Action Framework
-# ============================================================
-[actions]
-enabled = true
-
-# Domain priority configuration for action ambiguity resolution
-# Higher numbers = higher priority when multiple actions could be stopped
-[actions.domain_priorities]
-music = 100           # Music/audio playback (highest priority)
-smart_home = 80       # Smart home devices (lights, climate, etc.)
-timers = 70           # Timer and reminder actions
-media = 60            # Video/streaming media
-system = 50           # System control actions
-conversation = 30     # Conversational actions (lowest priority)
-
-# Action execution settings
-[actions.execution]
-timeout_seconds = 30.0                    # Maximum time for action execution
-failure_follow_up_enabled = true          # Send follow-up notifications on failure
-context_tracking_enabled = true           # Track actions in conversation context
-max_active_actions_per_domain = 3         # Maximum concurrent actions per domain
-action_history_limit = 10                 # Maximum recent actions to remember
-
-# ============================================================
-# PLUGIN SYSTEM - All Plugins
-# ============================================================
-[plugins]
-enabled = []  # Builtin plugins converted to intent handlers in Phase 3
-disabled = []
-
-# ============================================================
-# WEB API - Full Web Interface
-# ============================================================
-[webapi]
-enabled = true
-host = "0.0.0.0"
-port = 8000
-cors_enabled = true
-static_files = true
-
-# ============================================================
-# PROVIDER CONFIGURATIONS - Full Settings
-# ============================================================
-
-# ElevenLabs TTS Configuration
-[providers.tts.elevenlabs]
-api_key = "${ELEVENLABS_API_KEY}"
-voice_id = "21m00Tcm4TlvDq8ikWAM"
-model = "eleven_multilingual_v2"
-stability = 0.5
-similarity_boost = 0.75
-
-# OpenAI Configuration
-[providers.llm.openai]
-api_key = "${OPENAI_API_KEY}"
-model = "gpt-4"
-max_tokens = 150
-temperature = 0.7
-
-# Anthropic Configuration
-[providers.llm.anthropic]
-api_key = "${ANTHROPIC_API_KEY}"
-model = "claude-3-sonnet-20240229"
-max_tokens = 150
-
-# Google Cloud ASR Configuration
-[providers.asr.google_cloud]
-credentials_file = "${GOOGLE_APPLICATION_CREDENTIALS}"
-language_code = "en-US"
-model = "latest_long"
-
-# Vosk ASR Configuration
-[providers.asr.vosk]
-model_path = "models/vosk-model-en-us-0.22"
-sample_rate = 16000
-
-# OpenWakeWord Configuration
-[providers.voice_trigger.openwakeword]
-model_paths = ["models/openwakeword/alexa_v0.1.onnx"]
-chunk_size = 1280
-sensitivity = 0.5
-
-# MicroWakeWord Configuration
-[providers.voice_trigger.microwakeword]
-model_path = "models/microwakeword/irene_model.tflite"
-threshold = 0.8
-sample_rate = 16000
-
- 

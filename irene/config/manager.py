@@ -5,7 +5,7 @@ Handles configuration file loading, saving, validation, and management
 with support for multiple formats (TOML, JSON), environment variables,
 hot-reload, and automatic default generation.
 
-Requires: pydantic>=2.0.0, tomli>=1.2.0, tomli-w>=1.0.0
+Requires: pydantic>=2.0.0, tomli-w>=1.0.0
 """
 
 import asyncio
@@ -15,18 +15,18 @@ import os
 from pathlib import Path
 from typing import Optional, Union, Any, Callable
 
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib  # type: ignore
+import tomllib
 
 import tomli_w  # type: ignore
 from pydantic import ValidationError  # type: ignore
 
 from .models import (
-    CoreConfig, ComponentConfig, PluginConfig, SecurityConfig, 
-    create_default_config, create_config_from_profile  # type: ignore[attr-defined]
+    CoreConfig, SystemConfig, InputConfig, ComponentConfig, AssetConfig, WorkflowConfig,
+    TTSConfig, AudioConfig, ASRConfig, LLMConfig, VoiceTriggerConfig, NLUConfig, 
+    TextProcessorConfig, IntentSystemConfig,
+    create_default_config, create_config_from_profile, EnvironmentVariableResolver
 )
+from .migration import migrate_config, ConfigurationCompatibilityChecker
 
 logger = logging.getLogger(__name__)
 
@@ -264,93 +264,223 @@ class ConfigManager:
         await asyncio.to_thread(config_path.write_text, toml_content, encoding='utf-8')
         
     def _create_documented_toml(self, config: CoreConfig) -> str:
-        """Create TOML content with documentation and comments"""
+        """Create V14 TOML content with clean architecture and comprehensive documentation"""
         
-        # NOTE: Builtin plugin metadata discovery removed - functionality moved to intent handlers
-        plugin_metadata = {}
-        plugin_sections = {}
-        
-        # Generate TOML content
-        content = """# Irene Voice Assistant v13 Configuration
-# This file configures all aspects of the Irene voice assistant
-# See: https://github.com/irene-voice-assistant/irene for documentation
+        # Generate V14 TOML content with clean architecture
+        content = f"""# ============================================================
+# IRENE VOICE ASSISTANT v{config.version} - CLEAN ARCHITECTURE
+# ============================================================
 
-# Basic assistant settings
-name = "{name}"
-version = "{version}"
-debug = {debug}
-log_level = "{log_level}"
-language = "{language}"
+name = "{config.name}"
+version = "{config.version}"
+debug = {str(config.debug).lower()}
+log_level = "{config.log_level.value}"
 
-# System directories
-data_directory = "{data_directory}"
-log_directory = "{log_directory}"
-cache_directory = "{cache_directory}"
+# ============================================================
+# SYSTEM CAPABILITIES - Hardware & Services
+# ============================================================
+[system]
+microphone_enabled = {str(config.system.microphone_enabled).lower()}      # Hardware capability
+audio_playback_enabled = {str(config.system.audio_playback_enabled).lower()}  # Hardware capability
+web_api_enabled = {str(config.system.web_api_enabled).lower()}         # Service capability
+web_port = {config.system.web_port}
+metrics_enabled = {str(config.system.metrics_enabled).lower()}
+metrics_port = {config.system.metrics_port}
 
-# Runtime settings
-max_concurrent_commands = {max_concurrent_commands}
-command_timeout_seconds = {command_timeout_seconds}
-context_timeout_minutes = {context_timeout_minutes}
+# ============================================================
+# INPUT SOURCES - Data Entry Points
+# ============================================================
+[inputs]
+microphone = {str(config.inputs.microphone).lower()}              # Microphone input source
+web = {str(config.inputs.web).lower()}                     # Web interface input
+cli = {str(config.inputs.cli).lower()}                     # Command line input
+default_input = "{config.inputs.default_input}"
 
-# Component configuration - Enable/disable major features
-[components]
-microphone = {components_microphone}      # Enable voice input
-tts = {components_tts}                   # Enable text-to-speech
-audio_output = {components_audio_output}  # Enable audio playback
-web_api = {components_web_api}           # Enable web API server
-web_port = {components_web_port}
+# Microphone Input Configuration
+[inputs.microphone_config]
+enabled = {str(config.inputs.microphone_config.enabled).lower()}
+# device_id = null   # Uncomment and set to specify audio device (null = default device)
+sample_rate = {config.inputs.microphone_config.sample_rate}      # Audio sample rate (Hz)
+channels = {config.inputs.microphone_config.channels}            # 1 = mono, 2 = stereo
+chunk_size = {config.inputs.microphone_config.chunk_size}        # Audio buffer size
 
-# Plugin system configuration
-[plugins]
-auto_discover = {plugins_auto_discover}
-plugin_directories = {plugins_plugin_directories}
-enabled_plugins = {plugins_enabled_plugins}
-disabled_plugins = {plugins_disabled_plugins}
+# Web Input Configuration
+[inputs.web_config]
+enabled = {str(config.inputs.web_config.enabled).lower()}
+websocket_enabled = {str(config.inputs.web_config.websocket_enabled).lower()}
+rest_api_enabled = {str(config.inputs.web_config.rest_api_enabled).lower()}
 
-# NOTE: Built-in plugins section removed - functionality moved to intent handlers
-""".format(
-    name=config.name,
-    version=config.version,
-    debug=str(config.debug).lower(),
-    log_level=config.log_level.value,
-    language=config.language,
-    data_directory=str(config.data_directory),
-    log_directory=str(config.log_directory),
-    cache_directory=str(config.cache_directory),
-    max_concurrent_commands=config.max_concurrent_commands,
-    command_timeout_seconds=config.command_timeout_seconds,
-    context_timeout_minutes=config.context_timeout_minutes,
-    components_microphone=str(config.components.microphone).lower(),
-    components_tts=str(config.components.tts).lower(),
-    components_audio_output=str(config.components.audio_output).lower(),
-    components_web_api=str(config.components.web_api).lower(),
-    components_web_port=config.components.web_port,
-    plugins_auto_discover=str(getattr(config.plugins, 'auto_discover', True)).lower(),
-    plugins_plugin_directories=str([str(p) for p in config.plugins.plugin_directories]),
-    plugins_enabled_plugins=str(config.plugins.enabled_plugins),
-    plugins_disabled_plugins=str(config.plugins.disabled_plugins),
-)
+# CLI Input Configuration
+[inputs.cli_config]
+enabled = {str(config.inputs.cli_config.enabled).lower()}
+prompt_prefix = "{config.inputs.cli_config.prompt_prefix}"
+history_enabled = {str(config.inputs.cli_config.history_enabled).lower()}
 
-        # Add plugin sections dynamically
-        for plugin_name, plugin_info in plugin_sections.items():
-            content += f"{plugin_info['comment']}\n"
-            content += f"{plugin_name} = {plugin_info['enabled']}\n\n"
-        
-        # Add remaining sections
+# ============================================================
+# COMPONENT CONFIGURATIONS - Provider Management
+# ============================================================"""
+
+        # Add component-specific configurations
+        # Generate all component sections, using ComponentConfig booleans for enabled status
+        content += self._generate_tts_config_section(config.tts, config.components.tts)
+        content += self._generate_audio_config_section(config.audio, config.components.audio)
+        content += self._generate_asr_config_section(config.asr, config.components.asr)
+        content += self._generate_llm_config_section(config.llm, config.components.llm)
+        content += self._generate_voice_trigger_config_section(config.voice_trigger, config.components.voice_trigger)
+        content += self._generate_nlu_config_section(config.nlu, config.components.nlu)
+        content += self._generate_text_processor_config_section(config.text_processor, config.components.text_processor)
+            
+        # Add workflows section
         content += f"""
-# Security and access control
-[security]
-enable_authentication = {str(config.security.enable_authentication).lower()}
-api_keys = {str(config.security.api_keys)}
-allowed_hosts = {str(config.security.allowed_hosts)}
-cors_origins = {str(config.security.cors_origins)}
 
-# Advanced settings
-enable_metrics = {str(config.enable_metrics).lower()}
-metrics_port = {config.metrics_port}
-enable_profiling = {str(config.enable_profiling).lower()}
+# ============================================================
+# WORKFLOWS - Processing Pipelines
+# ============================================================
+[workflows]
+enabled = {str(config.workflows.enabled)}
+default = "{config.workflows.default}"
+
+# ============================================================
+# ASSET MANAGEMENT - Environment-Driven
+# ============================================================
+[assets]
+auto_create_dirs = {str(config.assets.auto_create_dirs).lower()}
+# Paths use environment variable defaults:
+# IRENE_ASSETS_ROOT (default: ~/.cache/irene)
+
+# Language and locale
+language = "{config.language}"
 """
+        
+        if config.timezone:
+            content += f'timezone = "{config.timezone}"\n'
+        
+        # Runtime settings
+        content += f"""
+# Runtime settings
+max_concurrent_commands = {config.max_concurrent_commands}
+command_timeout_seconds = {config.command_timeout_seconds}
+context_timeout_minutes = {config.context_timeout_minutes}
+"""
+        
         return content
+    
+    def _generate_tts_config_section(self, tts_config, enabled: bool) -> str:
+        """Generate TTS component configuration section"""
+        return f"""
+[tts]
+enabled = {str(enabled).lower()}
+default_provider = "{tts_config.default_provider}"
+fallback_providers = {str(tts_config.fallback_providers)}
+
+{self._generate_provider_sections("tts.providers", tts_config.providers)}"""
+
+    def _generate_audio_config_section(self, audio_config, enabled: bool) -> str:
+        """Generate Audio component configuration section"""
+        return f"""
+[audio]
+enabled = {str(enabled).lower()}
+default_provider = "{audio_config.default_provider}"
+fallback_providers = {str(audio_config.fallback_providers)}
+concurrent_playback = {str(audio_config.concurrent_playback).lower()}
+
+{self._generate_provider_sections("audio.providers", audio_config.providers)}"""
+
+    def _generate_asr_config_section(self, asr_config, enabled: bool) -> str:
+        """Generate ASR component configuration section"""
+        return f"""
+[asr]
+enabled = {str(enabled).lower()}
+default_provider = "{asr_config.default_provider}"
+fallback_providers = {str(asr_config.fallback_providers)}
+
+{self._generate_provider_sections("asr.providers", asr_config.providers)}"""
+
+    def _generate_llm_config_section(self, llm_config, enabled: bool) -> str:
+        """Generate LLM component configuration section"""
+        return f"""
+[llm]
+enabled = {str(enabled).lower()}
+default_provider = "{llm_config.default_provider}"
+fallback_providers = {str(llm_config.fallback_providers)}
+
+{self._generate_provider_sections("llm.providers", llm_config.providers)}"""
+
+    def _generate_voice_trigger_config_section(self, vt_config, enabled: bool) -> str:
+        """Generate Voice Trigger component configuration section"""
+        return f"""
+[voice_trigger]
+enabled = {str(enabled).lower()}
+default_provider = "{vt_config.default_provider}"
+wake_words = {str(vt_config.wake_words)}
+confidence_threshold = {vt_config.confidence_threshold}
+buffer_seconds = {vt_config.buffer_seconds}
+timeout_seconds = {vt_config.timeout_seconds}
+
+{self._generate_provider_sections("voice_trigger.providers", vt_config.providers)}"""
+
+    def _generate_nlu_config_section(self, nlu_config, enabled: bool) -> str:
+        """Generate NLU component configuration section"""
+        return f"""
+[nlu]
+enabled = {str(enabled).lower()}
+default_provider = "{nlu_config.default_provider}"
+confidence_threshold = {nlu_config.confidence_threshold}
+fallback_intent = "{nlu_config.fallback_intent}"
+provider_cascade_order = {str(nlu_config.provider_cascade_order)}
+max_cascade_attempts = {nlu_config.max_cascade_attempts}
+cascade_timeout_ms = {nlu_config.cascade_timeout_ms}
+cache_recognition_results = {str(nlu_config.cache_recognition_results).lower()}
+cache_ttl_seconds = {nlu_config.cache_ttl_seconds}
+
+{self._generate_provider_sections("nlu.providers", nlu_config.providers)}"""
+
+    def _generate_text_processor_config_section(self, tp_config, enabled: bool) -> str:
+        """Generate Text Processor component configuration section"""
+        return f"""
+[text_processor]
+enabled = {str(enabled).lower()}
+stages = {str(tp_config.stages)}
+
+{self._generate_normalizer_sections("text_processor.normalizers", tp_config.normalizers)}"""
+
+    def _generate_provider_sections(self, base_path: str, providers: dict) -> str:
+        """Generate provider configuration sections"""
+        sections = []
+        for provider_name, provider_config in providers.items():
+            section = f"[{base_path}.{provider_name}]"
+            for key, value in provider_config.items():
+                if isinstance(value, bool):
+                    sections.append(f"{key} = {str(value).lower()}")
+                elif isinstance(value, str):
+                    sections.append(f'{key} = "{value}"')
+                elif isinstance(value, (int, float)):
+                    sections.append(f"{key} = {value}")
+                elif isinstance(value, list):
+                    sections.append(f"{key} = {str(value)}")
+                else:
+                    sections.append(f"{key} = {str(value)}")
+            sections.append("")
+        return "\n".join([section] + sections) if sections else ""
+
+    def _generate_normalizer_sections(self, base_path: str, normalizers: dict) -> str:
+        """Generate normalizer configuration sections"""
+        sections = []
+        for normalizer_name, normalizer_config in normalizers.items():
+            section = f"[{base_path}.{normalizer_name}]"
+            for key, value in normalizer_config.items():
+                if isinstance(value, bool):
+                    sections.append(f"{key} = {str(value).lower()}")
+                elif isinstance(value, str):
+                    sections.append(f'{key} = "{value}"')
+                elif isinstance(value, (int, float)):
+                    sections.append(f"{key} = {value}")
+                elif isinstance(value, list):
+                    sections.append(f"{key} = {str(value)}")
+                else:
+                    sections.append(f"{key} = {str(value)}")
+            sections.append("")
+        return "\n".join([section] + sections) if sections else ""
         
     async def _watch_config_file(self, config_path: Path) -> None:
         """Watch configuration file for changes and reload"""
@@ -403,16 +533,28 @@ enable_profiling = {str(config.enable_profiling).lower()}
         return await asyncio.to_thread(json.dumps, data, indent=2)
         
     async def _dict_to_config_validated(self, data: dict[str, Any]) -> CoreConfig:
-        """Convert dictionary to CoreConfig with validation"""
+        """Convert dictionary to CoreConfig with validation and v13→v14 migration"""
         try:
+            # Check if migration is needed
+            if ConfigurationCompatibilityChecker.requires_migration(data):
+                logger.info("Detected v13 configuration format, performing automatic migration to v14")
+                config = await asyncio.to_thread(migrate_config, data)
+                logger.info("Configuration migration completed successfully")
+                return config
+            
+            # Resolve environment variables if needed
+            resolved_data = EnvironmentVariableResolver.substitute_env_vars(data)
+            
             # Use getattr to work around type checker limitations with Pydantic v2
             model_validate = getattr(CoreConfig, 'model_validate', None)
             if model_validate:
-                return model_validate(data)
+                return model_validate(resolved_data)
             else:
                 raise RuntimeError("CoreConfig.model_validate not available")
         except ValidationError as e:
             raise ConfigValidationError(f"Configuration validation failed: {e}")
+        except Exception as e:
+            raise ConfigValidationError(f"Configuration processing failed: {e}")
         
     def _config_to_dict(self, config: CoreConfig) -> dict[str, Any]:
         """Convert CoreConfig to dictionary"""

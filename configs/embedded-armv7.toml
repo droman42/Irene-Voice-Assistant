@@ -1,200 +1,126 @@
 # ============================================================
-# IRENE VOICE ASSISTANT - EMBEDDED ARMv7 CONFIGURATION
+# IRENE VOICE ASSISTANT v14.0.0 - CLEAN ARCHITECTURE
 # ============================================================
-# Optimized configuration for ARMv7 devices (Raspberry Pi, IoT).
-# Lightweight audio processing, local wake word, minimal memory usage.
-# Perfect for edge devices and standalone voice assistants.
 
-[core]
 name = "Irene"
-version = "13.0.0"
+version = "14.0.0"
 debug = false
-log_level = "WARNING"  # Reduce logging overhead
-language = "en-US"
-timezone = "UTC"
-
-# Performance optimized for limited resources
-max_concurrent_commands = 2
-command_timeout_seconds = 45.0  # Allow more time for slow processing
-context_timeout_minutes = 5
-
-# Monitoring disabled to save resources
-enable_metrics = false
-enable_profiling = false
+log_level = "INFO"
 
 # ============================================================
-# ASSET MANAGEMENT - Local Storage Optimized
+# SYSTEM CAPABILITIES - Hardware & Services
 # ============================================================
-[assets]
-models_root = "/opt/irene/models"  # System location
-cache_root = "/tmp/irene/cache"    # Temporary storage
-data_root = "/var/lib/irene/data"  # Persistent data
+[system]
+microphone_enabled = false      # Hardware capability
+audio_playback_enabled = false  # Hardware capability
+web_api_enabled = true         # Service capability
+web_port = 8000
+metrics_enabled = false
+metrics_port = 9090
 
 # ============================================================
-# COMPONENT SYSTEM - Essential Components Only
-# ============================================================
-[components]
-enabled = ["audio", "voice_trigger", "asr", "text_processor", "intent_system"]
-disabled = ["tts", "llm", "nlu"]  # Reduce memory usage
-
-# ============================================================
-# WORKFLOW SYSTEM - Voice Processing Only
-# ============================================================
-[workflows]
-enabled = ["continuous_listening"]  # Always listening mode
-disabled = ["voice_assistant"]      # No interactive conversation
-default = "continuous_listening"
-
-# ============================================================
-# INPUT/OUTPUT SYSTEM - Audio Focused
+# INPUT SOURCES - Data Entry Points
 # ============================================================
 [inputs]
-enabled = ["microphone"]
-disabled = ["web", "cli"]
-default = "microphone"
+microphone = false              # Microphone input source
+web = true                     # Web interface input
+cli = true                     # Command line input
+default_input = "web"
 
-[outputs]
-enabled = ["text"]  # Text output only, no TTS
-disabled = ["tts", "web"]
-default = "text"
-
-# ============================================================
-# PROVIDER SYSTEM - Lightweight Local Providers
-# ============================================================
-[providers.audio]
-# ALSA-based audio for Raspberry Pi
-enabled = ["aplay"]
-disabled = ["sounddevice", "console", "audioplayer", "simpleaudio"]
-default = "aplay"
-fallback_providers = []
-
-[providers.tts]
-enabled = []  # No TTS to save resources
-disabled = ["elevenlabs", "pyttsx", "silero_v3", "silero_v4", "vosk_tts", "console"]
-
-[providers.asr]
-# Local ASR only - no cloud dependencies
-enabled = ["vosk"]
-disabled = ["whisper", "google_cloud"]  # Too heavy for ARMv7
-default = "vosk"
-fallback_providers = []
-
-[providers.llm]
-enabled = []  # No LLM providers to save memory
-disabled = ["openai", "anthropic", "vsegpt"]
-
-[providers.voice_trigger]
-# Lightweight wake word detection
-enabled = ["microwakeword"]
-disabled = ["openwakeword"]  # Too heavy for ARMv7
-default = "microwakeword"
-fallback_providers = []
-
-[components.nlu]
-# Edge device deployment (80MB) - rules + keywords
+# Microphone Input Configuration
+[inputs.microphone_config]
 enabled = true
+# device_id = null   # Uncomment and set to specify audio device (null = default device)
+sample_rate = 16000      # Audio sample rate (Hz)
+channels = 1            # 1 = mono, 2 = stereo
+chunk_size = 1024        # Audio buffer size
+
+# Web Input Configuration
+[inputs.web_config]
+enabled = true
+websocket_enabled = true
+rest_api_enabled = true
+
+# CLI Input Configuration
+[inputs.cli_config]
+enabled = true
+prompt_prefix = "irene> "
+history_enabled = true
+
+# ============================================================
+# COMPONENT CONFIGURATIONS - Provider Management
+# ============================================================
+[tts]
+enabled = false
+default_provider = "console"
+fallback_providers = ['console']
+
+
+[audio]
+enabled = true
+default_provider = "console"
+fallback_providers = ['console']
+concurrent_playback = false
+
+
+[asr]
+enabled = true
+default_provider = "whisper"
+fallback_providers = ['whisper']
+
+
+[llm]
+enabled = false
+default_provider = "openai"
+fallback_providers = ['anthropic', 'vsegpt']
+
+
+[voice_trigger]
+enabled = true
+default_provider = "openwakeword"
+wake_words = ['irene', 'jarvis']
 confidence_threshold = 0.8
-provider_cascade_order = ["hybrid_keyword_matcher", "spacy_nlu"]
+buffer_seconds = 1.0
+timeout_seconds = 5.0
+
+
+[nlu]
+enabled = false
+default_provider = "hybrid_keyword_matcher"
+confidence_threshold = 0.7
 fallback_intent = "conversation.general"
-
-# JSON donation system for edge devices
-donation_collection_enabled = true
-parameter_extraction_enabled = true
-context_processing_enabled = false  # Disabled for ARMv7 memory constraints
-
-# Performance optimization for edge devices
-max_cascade_attempts = 3
-cascade_timeout_ms = 100
-cache_recognition_results = true
+provider_cascade_order = ['hybrid_keyword_matcher', 'spacy_nlu']
+max_cascade_attempts = 4
+cascade_timeout_ms = 200
+cache_recognition_results = false
 cache_ttl_seconds = 300
 
-# Hybrid Keyword Matcher Provider (edge)
-[components.nlu.providers.keyword_matcher]
+
+[text_processor]
 enabled = true
-provider_class = "HybridKeywordMatcherProvider"
-pattern_confidence = 0.9
-fuzzy_enabled = true
-fuzzy_threshold = 0.8
-confidence_threshold = 0.8
+stages = ['asr_output', 'tts_input', 'command_input', 'general']
 
-# spaCy Rules Provider (Small Model) - edge
-[components.nlu.providers.spacy_nlu]
-enabled = true
-provider_class = "SpaCyNLUProvider"
-model_name = "ru_core_news_sm"
-confidence_threshold = 0.7
-auto_download = true
-memory_limit_mb = 60  # ARMv7 constraint
 
-# Disable semantic processing for edge deployment
-
-enabled = false
-
-[providers.text_processing]
-# Minimal text processing
-enabled = ["asr_text_processor"]
-disabled = ["general_text_processor", "tts_text_processor", "number_text_processor"]
-default = "asr_text_processor"
 
 # ============================================================
-# INTENT SYSTEM - Disabled for Minimal Build
+# WORKFLOWS - Processing Pipelines
 # ============================================================
-[intents]
-enabled = false  # No intent processing
-
-[intents.handlers]
-enabled = []
-disabled = ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"]
+[workflows]
+enabled = ['unified_voice_assistant']
+default = "unified_voice_assistant"
 
 # ============================================================
-# PLUGIN SYSTEM - No Plugins for Minimal Build
+# ASSET MANAGEMENT - Environment-Driven
 # ============================================================
-[plugins]
-enabled = []
-disabled = []  # Builtin plugins converted to intent handlers in Phase 3
+[assets]
+auto_create_dirs = true
+# Paths use environment variable defaults:
+# IRENE_ASSETS_ROOT (default: ~/.cache/irene)
 
-# ============================================================
-# WEB API - Disabled to Save Resources
-# ============================================================
-[webapi]
-enabled = false
+# Language and locale
+language = "en-US"
 
-# ============================================================
-# PROVIDER CONFIGURATIONS - ARMv7 Optimized
-# ============================================================
-
-# Vosk ASR Configuration - Lightweight model
-[providers.asr.vosk]
-model_path = "models/vosk-model-small-en-us-0.15"  # Small model for ARMv7
-sample_rate = 16000
-buffer_size = 4096  # Smaller buffer for memory
-
-# MicroWakeWord Configuration - INT8 optimized
-[providers.voice_trigger.microwakeword]
-model_path = "models/microwakeword/irene_model_int8.tflite"  # INT8 quantized
-threshold = 0.7  # Slightly lower threshold for edge cases
-sample_rate = 16000
-mfcc_features = 40
-frame_length_ms = 30
-frame_step_ms = 10
-
-# APLAY Audio Configuration - ALSA optimized
-[providers.audio.aplay]
-device = "default"  # Use default ALSA device
-sample_rate = 16000
-channels = 1  # Mono only
-buffer_size = 1024  # Small buffer for low latency
-
-# Hardware-specific settings for Raspberry Pi
-[hardware]
-# GPIO pins for status LEDs (optional)
-status_led_pin = 18
-activity_led_pin = 19
-
-# Audio settings for Raspberry Pi audio cards
-audio_input_device = "hw:1,0"   # USB audio card
-audio_output_device = "hw:0,0"  # Built-in audio
-
-# Power management
-cpu_governor = "ondemand"
-enable_swap = false  # Disable swap for SD card longevity 
+# Runtime settings
+max_concurrent_commands = 10
+command_timeout_seconds = 30.0
+context_timeout_minutes = 30

@@ -48,33 +48,44 @@ def is_component_enabled_by_name(component_name: str, config: CoreConfig) -> boo
     """
     Check if a component is enabled using entry-point name.
     
+    V14 Architecture: Direct mapping to components section:
+    - "tts" → components.tts
+    - "audio" → components.audio  
+    - "asr" → components.asr
+    - "llm" → components.llm
+    - "nlu" → components.nlu
+    - "text_processor" → components.text_processor
+    - "intent_system" → components.intent_system
+    - "voice_trigger" → components.voice_trigger
+    
     Args:
-        component_name: Entry-point name (e.g., "tts", "voice_trigger", "nlu")
-        config: Core configuration object
+        component_name: Entry-point name (e.g., "tts", "asr", "llm")
+        config: Root configuration object
         
     Returns:
         True if component is enabled, False otherwise
     """
-    # Essential components always enabled (required for core functionality)
-    essential_components = ["intent_system", "nlu", "text_processor"]
-    if component_name in essential_components:
-        return True
     
+    # V14 Direct component mapping
     try:
-        # Get component class from entry-points
-        from ..utils.loader import dynamic_loader
-        component_class = dynamic_loader.get_provider_class("irene.components", component_name)
-        
-        # Use component's own config resolution
-        return component_class.is_enabled_in_config(config)
-        
-    except Exception:
-        # Component not found or config resolution failed
+        return getattr(config.components, component_name, False)
+    except (AttributeError, TypeError):
+        # Component config not found or malformed
         return False
 
 def get_component_config_by_name(component_name: str, config: CoreConfig) -> Optional[BaseModel]:
     """
     Get component configuration using entry-point name.
+    
+    V14 Architecture: Direct access to component-specific configurations:
+    - "tts" → config.tts
+    - "audio" → config.audio
+    - "asr" → config.asr
+    - "llm" → config.llm
+    - "nlu" → config.nlu
+    - "text_processor" → config.text_processor
+    - "intent_system" → config.intent_system
+    - "voice_trigger" → config.voice_trigger
     
     Args:
         component_name: Entry-point name
@@ -84,13 +95,7 @@ def get_component_config_by_name(component_name: str, config: CoreConfig) -> Opt
         Component config instance if found, None otherwise
     """
     try:
-        from ..utils.loader import dynamic_loader
-        component_class = dynamic_loader.get_provider_class("irene.components", component_name)
-        
-        config_class = component_class.get_config_class()
-        config_path = component_class.get_config_path()
-        
-        return extract_config_by_path(config, config_path, config_class)
-        
-    except Exception:
+        # V14 Direct config access
+        return getattr(config, component_name, None)
+    except (AttributeError, TypeError):
         return None

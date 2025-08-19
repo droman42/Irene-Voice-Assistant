@@ -504,61 +504,103 @@ class IreneBuildAnalyzer:
                 logger.debug(f"Standard providers found: {namespace} -> {unique_enabled}")
     
     def _analyze_components(self, config: Dict[str, Any], requirements: BuildRequirements):
-        """Analyze enabled components from configuration."""
-        components_config = config.get("components", {})
-        enabled = components_config.get("enabled", [])
+        """
+        Analyze enabled components from configuration.
         
-        if enabled:
-            requirements.enabled_providers["irene.components"] = enabled
-            for component_name in enabled:
+        Structure uses individual component sections:
+        [tts]
+        enabled = true
+        
+        [audio] 
+        enabled = false
+        """
+        # Check individual component sections for enabled status
+        component_names = [
+            "tts", "asr", "audio", "llm", "voice_trigger", 
+            "nlu", "text_processor", "intent_system"
+        ]
+        
+        enabled_components = []
+        for component_name in component_names:
+            component_config = config.get(component_name, {})
+            if isinstance(component_config, dict) and component_config.get("enabled", False):
+                enabled_components.append(component_name)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_enabled = []
+        for component in enabled_components:
+            if component not in seen:
+                seen.add(component)
+                unique_enabled.append(component)
+        
+        if unique_enabled:
+            requirements.enabled_providers["irene.components"] = unique_enabled
+            for component_name in unique_enabled:
                 module_path = f"irene.components.{component_name}_component"
                 requirements.python_modules.add(module_path)
+            
+            logger.debug(f"Components found: {unique_enabled}")
         
-        # Analyze component-based providers (e.g., components.nlu.providers.*)
+        # Analyze component-based providers (e.g., tts.providers.*, nlu.providers.*)
         self._analyze_component_providers(config, requirements)
     
     def _analyze_component_providers(self, config: Dict[str, Any], requirements: BuildRequirements):
         """
         Analyze component-based providers from configuration.
         
-        Handles patterns like:
-        [components.nlu.providers.keyword_matcher]
+        Structure uses individual component sections:
+        [tts]
         enabled = true
+        default_provider = "elevenlabs"
         
-        [components.nlu]
-        provider_cascade_order = ["keyword_matcher"]
+        [tts.providers.elevenlabs]
+        enabled = true
+        api_key = "${ELEVENLABS_API_KEY}"
         """
-        components_config = config.get("components", {})
+        component_names = [
+            "tts", "asr", "audio", "llm", "voice_trigger", 
+            "nlu", "text_processor", "intent_system"
+        ]
         
-        for component_name, component_config in components_config.items():
+        for component_name in component_names:
+            component_config = config.get(component_name, {})
             if not isinstance(component_config, dict):
                 continue
             
-            # Look for component.providers.* subsections
-            providers_config = component_config.get("providers", {})
-            if not providers_config:
+            # Only analyze providers if the component itself is enabled
+            if not component_config.get("enabled", False):
                 continue
-            
-            # Extract enabled providers from individual provider configurations
+                
+            # Extract enabled providers from multiple sources
             enabled_providers = []
+            
+            # Method 1: Explicit provider subsections with enabled flags
+            providers_config = component_config.get("providers", {})
             for provider_name, provider_config in providers_config.items():
                 if isinstance(provider_config, dict) and provider_config.get("enabled", False):
                     enabled_providers.append(provider_name)
             
-            # Also check if there's a cascade order or enabled list that overrides individual settings
+            # Method 2: default_provider (always considered enabled if component is enabled)
+            default_provider = component_config.get("default_provider")
+            if default_provider and default_provider not in enabled_providers:
+                enabled_providers.append(default_provider)
+                
+            # Method 3: fallback_providers (always considered enabled if component is enabled)
+            fallback_providers = component_config.get("fallback_providers", [])
+            for provider in fallback_providers:
+                if provider not in enabled_providers:
+                    enabled_providers.append(provider)
+            
+            # Method 4: provider_cascade_order (if specified, these are enabled)
             cascade_order = component_config.get("provider_cascade_order", [])
-            if cascade_order:
-                # Use cascade order as the authoritative list, but filter by enabled status
-                enabled_from_cascade = []
-                for provider_name in cascade_order:
-                    provider_config = providers_config.get(provider_name, {})
-                    if isinstance(provider_config, dict) and provider_config.get("enabled", True):  # Default true for cascade
-                        enabled_from_cascade.append(provider_name)
-                enabled_providers = enabled_from_cascade
+            for provider in cascade_order:
+                if provider not in enabled_providers:
+                    enabled_providers.append(provider)
             
             # Add to requirements if we found enabled providers
             if enabled_providers:
-                namespace = f"irene.providers.{component_name}"  # e.g., irene.providers.nlu
+                namespace = f"irene.providers.{component_name}"
                 requirements.enabled_providers[namespace] = enabled_providers
                 
                 # Add provider modules to requirements
@@ -567,6 +609,8 @@ class IreneBuildAnalyzer:
                     requirements.python_modules.add(module_path)
                 
                 logger.debug(f"Component-based providers found: {namespace} -> {enabled_providers}")
+    
+
     
     def _analyze_workflows(self, config: Dict[str, Any], requirements: BuildRequirements):
         """Analyze enabled workflows from configuration."""

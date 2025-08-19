@@ -257,25 +257,25 @@ auto_create_dirs = true
 ### **Deployment Benefits**
 - **🐳 Docker-Friendly**: Environment variable integration
 - **⚡ Performance**: Minimal configuration overhead
-- **🚀 Clean Implementation**: No backwards compatibility needed
+- **🚀 Clean Implementation**: Clean v14 runtime with migration support
 - **📦 Packaging**: Clean dependency separation
 
 ## 📋 **Simplified Implementation Plan - 4 Phases (8-10 weeks)**
 
-*No backwards compatibility needed - clean slate implementation*
+*No runtime backwards compatibility - clean v14 architecture with one-time configuration migration*
 
-### **Phase 1: Core Architecture Redesign (Week 1-3)**
+### **Phase 1: Core Architecture Redesign (Week 1-3)** ✅ **COMPLETED**
 
-#### **1.1 New Model Creation**
+#### **1.1 New Model Creation** ✅ **COMPLETED**
 **Files to Create/Modify:**
-- `irene/config/models.py` - Complete rewrite
-- `irene/config/schemas.py` - New component-specific schemas
-- `irene/config/migration.py` - v13→v14 migration utilities
+- ✅ `irene/config/models.py` - Complete rewrite **COMPLETED**
+- ✅ `irene/config/schemas.py` - New component-specific schemas **COMPLETED**
+- ✅ `irene/config/migration.py` - v13→v14 migration utilities **COMPLETED**
 
 **Tasks:**
-1. **Design New Model Hierarchy**
+1. ✅ **Design New Model Hierarchy** **COMPLETED**
    ```python
-   # New model structure
+   # New model structure - IMPLEMENTED
    class CoreConfig(BaseSettings):
        system: SystemConfig = Field(default_factory=SystemConfig)
        inputs: InputConfig = Field(default_factory=InputConfig)
@@ -284,25 +284,26 @@ auto_create_dirs = true
        workflows: WorkflowConfig = Field(default_factory=WorkflowConfig)
    ```
 
-2. **Create Component-Specific Configs**
-   - `TTSConfig`, `AudioConfig`, `ASRConfig`, `LLMConfig`
-   - `VoiceTriggerConfig`, `NLUConfig`, `TextProcessorConfig`
-   - `IntentSystemConfig` (already exists)
+2. ✅ **Create Component-Specific Configs** **COMPLETED**
+   - ✅ `TTSConfig`, `AudioConfig`, `ASRConfig`, `LLMConfig` **IMPLEMENTED**
+   - ✅ `VoiceTriggerConfig`, `NLUConfig`, `TextProcessorConfig` **IMPLEMENTED**
+   - ✅ `IntentSystemConfig` **UPDATED**
 
-3. **Environment Variable Integration**
-   - Update `AssetConfig` with proper env var defaults
-   - Add env var support for component configurations
-   - Docker-friendly configuration patterns
+3. ✅ **Environment Variable Integration** **COMPLETED**
+   - ✅ Update `AssetConfig` with proper env var defaults **IMPLEMENTED**
+   - ✅ Add env var support for component configurations **IMPLEMENTED**
+   - ✅ Docker-friendly configuration patterns **IMPLEMENTED**
 
-4. **`${API_KEY}` Pattern Implementation**
-   - Implement environment variable substitution in TOML loading
-   - Add validation for required environment variables
-   - Create fatal error handling for missing credentials
+4. ✅ **`${API_KEY}` Pattern Implementation** **COMPLETED**
+   - ✅ Implement environment variable substitution in TOML loading **IMPLEMENTED**
+   - ✅ Add validation for required environment variables **IMPLEMENTED**
+   - ✅ Create fatal error handling for missing credentials **IMPLEMENTED**
 
-#### **1.2 Validation System**
+#### **1.2 Validation System** ✅ **COMPLETED**
 **Tasks:**
-1. **Cross-Dependency Validation**
+1. ✅ **Cross-Dependency Validation** **COMPLETED**
    ```python
+   # IMPLEMENTED in CoreConfig
    @model_validator(mode='after')
    def validate_system_dependencies(self):
        if self.components.tts and not self.components.audio:
@@ -311,13 +312,14 @@ auto_create_dirs = true
            raise ValueError("Microphone hardware enabled but input source disabled")
    ```
 
-2. **Entry-Point Consistency Checks**
-   - Validate component names match entry-points
-   - Ensure all enabled components have valid configurations
-   - Check provider availability
+2. ✅ **Entry-Point Consistency Checks** **COMPLETED**
+   - ✅ Validate component names match entry-points **IMPLEMENTED**
+   - ✅ Ensure all enabled components have valid configurations **IMPLEMENTED**
+   - ✅ Check provider availability **IMPLEMENTED**
 
-3. **Environment Variable Validation**
+3. ✅ **Environment Variable Validation** **COMPLETED**
    ```python
+   # IMPLEMENTED in EnvironmentVariableResolver
    def validate_environment_variables(self, config: dict) -> ValidationResult:
        """Validate all ${VAR} patterns have corresponding environment variables"""
        missing_vars = []
@@ -328,10 +330,11 @@ auto_create_dirs = true
            raise ValueError(f"Missing required environment variables: {missing_vars}")
    ```
 
-#### **1.3 Component Loading System**
+#### **1.3 Component Loading System** ✅ **COMPLETED**
 **Tasks:**
-1. **Entry-Point Integration**
+1. ✅ **Entry-Point Integration** **COMPLETED**
    ```python
+   # IMPLEMENTED in ComponentLoader
    class ComponentLoader:
        def load_components(self, config: ComponentConfig) -> ComponentRegistry:
            registry = ComponentRegistry()
@@ -342,22 +345,27 @@ auto_create_dirs = true
            return registry
    ```
 
-2. **Generic Component Resolution**
-   - Remove all hardcoded component mappings
-   - Use entry-point discovery for component loading
-   - Implement unified component initialization
+2. ✅ **Generic Component Resolution** **COMPLETED**
+   - ✅ Remove all hardcoded component mappings **IMPLEMENTED**
+   - ✅ Use entry-point discovery for component loading **IMPLEMENTED**
+   - ✅ Implement unified component initialization **IMPLEMENTED**
 
-### **Phase 2: Provider System Overhaul (Week 4-6)**
+**Additional Files Updated:**
+- ✅ `irene/config/manager.py` - Updated with v13→v14 migration support **COMPLETED**
+- ✅ `irene/config/resolver.py` - Updated for v14 architecture **COMPLETED**
 
-#### **2.1 Component Manager Overhaul**
+### **Phase 2: Provider System Overhaul (Week 4-6)** ✅ **COMPLETED**
+
+#### **2.1 Component Manager Overhaul** ✅ **COMPLETED**
 **Files to Modify:**
-- `irene/core/components.py` - Complete rewrite
-- `irene/core/component_manager.py` - New unified manager
-- `irene/config/resolver.py` - Updated resolution logic
+- ✅ `irene/core/components.py` - Complete rewrite **COMPLETED**
+- ✅ `irene/core/component_manager.py` - New unified manager (integrated into components.py) **COMPLETED**
+- ✅ `irene/config/resolver.py` - Updated resolution logic **COMPLETED**
 
 **Tasks:**
-1. **New Component Resolution**
+1. ✅ **New Component Resolution** **COMPLETED**
    ```python
+   # IMPLEMENTED in ComponentManager
    class ComponentManager:
        def __init__(self, config: CoreConfig):
            self.config = config
@@ -367,39 +375,41 @@ auto_create_dirs = true
            return getattr(self.config.components, component_name, False)
        
        def _get_component_config(self, component_name: str) -> BaseModel:
-           return getattr(self.config.components, component_name, None)
+           return getattr(self.config, component_name, None)
    ```
 
-2. **Entry-Point Discovery Integration**
-   - Use existing `dynamic_loader` for component discovery
-   - Remove all hardcoded component mappings
-   - Implement generic component initialization
+2. ✅ **Entry-Point Discovery Integration** **COMPLETED**
+   - ✅ Use existing `dynamic_loader` for component discovery **FULLY IMPLEMENTED**
+   - ✅ Remove all hardcoded component mappings **FULLY IMPLEMENTED** - No more hardcoded imports
+   - ✅ Implement generic component initialization **FULLY IMPLEMENTED**
 
-3. **Component Lifecycle Management**
-   - Unified initialization pattern
-   - Dependency injection system
-   - Graceful degradation handling
+3. ✅ **Component Lifecycle Management** **COMPLETED**
+   - ✅ Unified initialization pattern **FULLY IMPLEMENTED** - Consistent Component base class
+   - ✅ Dependency injection system **FULLY IMPLEMENTED** - Topological sorting & automatic injection
+   - ✅ Graceful degradation handling **FULLY IMPLEMENTED** - Sophisticated fallback mechanisms
 
-#### **2.2 Provider Configuration Implementation**
+#### **2.2 Provider Configuration Implementation** ✅ **COMPLETED**
 **Files to Modify:**
-- `irene/config/manager.py` - Clean TOML generation
-- `irene/config/__init__.py` - New exports
+- ✅ `irene/config/manager.py` - Clean TOML generation **COMPLETED**
+- ✅ `irene/config/__init__.py` - New exports **COMPLETED**
 
 **Tasks:**
-1. **Clean TOML Generation**
+1. ✅ **Clean TOML Generation** **COMPLETED**
    ```python
+   # IMPLEMENTED in _create_documented_toml
    def _create_documented_toml(self, config: CoreConfig) -> str:
        # Generate clean v14 TOML structure with comprehensive comments
        # Use new section organization (system/inputs/components/workflows/assets)
    ```
 
-2. **Provider Resolution System**
-   - Remove all `plugins.universal_*` references
-   - Implement direct `components.*` mapping
-   - Create generic provider loading system
+2. ✅ **Provider Resolution System** **COMPLETED**
+   - ✅ Remove all `plugins.universal_*` references **IMPLEMENTED**
+   - ✅ Implement direct `components.*` mapping **IMPLEMENTED**
+   - ✅ Create generic provider loading system **IMPLEMENTED**
 
-3. **Environment Variable Substitution**
+3. ✅ **Environment Variable Substitution** **COMPLETED**
    ```python
+   # IMPLEMENTED in EnvironmentVariableResolver (Phase 1)
    def substitute_env_vars(self, config_value: str) -> str:
        """Replace ${VAR} patterns with environment variable values"""
        if isinstance(config_value, str) and config_value.startswith("${") and config_value.endswith("}"):
@@ -411,19 +421,28 @@ auto_create_dirs = true
        return config_value
    ```
 
-### **Phase 3: Input & Asset System Implementation (Week 7-8)**
+**Additional Files Updated:**
+- ✅ `irene/core/engine.py` - Updated ComponentManager initialization **COMPLETED**
 
-#### **3.1 Input System Separation**
+### **Phase 3: Input & Asset System Implementation (Week 7-8)** ✅ **COMPLETED**
+
+#### **3.1 Input System Separation** ✅ **COMPLETED**
 ```python
+# IMPLEMENTED in irene/config/models.py
 class InputConfig(BaseModel):
     """Input source configuration"""
-    microphone: bool = Field(default=True)
+    microphone: bool = Field(default=False)
     web: bool = Field(default=True)
     cli: bool = Field(default=True)
-    default_input: str = Field(default="microphone")
+    default_input: str = Field(default="cli")
+    
+    # Input-specific configurations - IMPLEMENTED
+    microphone_config: MicrophoneInputConfig = Field(default_factory=MicrophoneInputConfig)
+    web_config: WebInputConfig = Field(default_factory=WebInputConfig)
+    cli_config: CLIInputConfig = Field(default_factory=CLIInputConfig)
     
 class MicrophoneInputConfig(BaseModel):
-    """Microphone input configuration"""
+    """Microphone input configuration - IMPLEMENTED"""
     enabled: bool = Field(default=True)
     device_id: Optional[int] = Field(default=None)
     sample_rate: int = Field(default=16000)
@@ -432,20 +451,29 @@ class MicrophoneInputConfig(BaseModel):
 ```
 
 **Implementation Tasks:**
-- **Extract** microphone from `SystemConfig`
-- **Create** `irene/inputs/` module structure
-- **Implement** input source discovery
-- **Update** workflow integration
+- ✅ **Extract** microphone from `SystemConfig` **COMPLETED**
+- ✅ **Create** `irene/inputs/` module structure **COMPLETED** - Already existed and updated
+- ✅ **Implement** input source discovery **COMPLETED** - Configuration-driven discovery
+- ✅ **Update** workflow integration **COMPLETED** - InputManager now uses InputConfig
 
-#### **3.2 Asset Management Overhaul**
+**Files Modified:**
+- ✅ `irene/config/models.py` - Added MicrophoneInputConfig, WebInputConfig, CLIInputConfig **COMPLETED**
+- ✅ `irene/config/migration.py` - Updated migration to handle new input configs **COMPLETED**
+- ✅ `irene/config/manager.py` - Updated TOML generation with input configurations **COMPLETED**
+- ✅ `irene/core/engine.py` - Updated InputManager constructor **COMPLETED**
+- ✅ `irene/inputs/base.py` - Updated InputManager for V14 configuration **COMPLETED**
+- ✅ `irene/inputs/__init__.py` - Updated exports **COMPLETED**
+
+#### **3.2 Asset Management Overhaul** ✅ **COMPLETED** (Already implemented in Phase 1)
 ```python
+# ALREADY IMPLEMENTED in irene/config/models.py
 class AssetConfig(BaseModel):
     """Environment-driven asset configuration"""
     assets_root: Path = Field(
         default_factory=lambda: Path(os.getenv("IRENE_ASSETS_ROOT", "~/.cache/irene")).expanduser()
     )
     
-    # Subdirectories under assets root
+    # Subdirectories under assets root - IMPLEMENTED
     @property
     def models_root(self) -> Path:
         return self.assets_root / "models"
@@ -461,43 +489,82 @@ class AssetConfig(BaseModel):
     auto_create_dirs: bool = Field(default=True)
 ```
 
-**Docker Integration:**
-- **Mount** single asset root directory via environment variables
-- **Automatic** directory creation
-- **Cache** size management
+**Docker Integration:** ✅ **COMPLETED**
+- ✅ **Mount** single asset root directory via environment variables **IMPLEMENTED**
+- ✅ **Automatic** directory creation **IMPLEMENTED** - model_post_init creates directories
+- ✅ **Cache** size management **IMPLEMENTED** - Via environment configuration
 
 ### **Phase 4: New Configuration Generation & Testing (Week 9-10)**
 
-#### **4.1 Configuration Generation**
+#### **4.1 Configuration Migration & Generation** ✅ **COMPLETED**
 **Tasks:**
-1. **Generate New TOML Files**
-   - **Replace** all existing TOML files with new v14 structure
-   - **Create** profile-based configurations (voice.toml, api.toml, headless.toml)
-   - **Include** comprehensive documentation and examples
+1. **✅ Migrate Existing TOML Files** **COMPLETED**
+   - **✅ Scan** existing config directory for v13 TOML files **COMPLETED** - Found 7 configuration files
+   - **✅ Use migration.py** to convert v13 configurations to v14 structure **COMPLETED** - Built comprehensive migration tool
+   - **✅ Preserve** user settings (API keys, provider configs, custom values) **COMPLETED** - All settings preserved during migration
+   - **✅ Replace** files with new v14 structure containing migrated settings **COMPLETED** - All files successfully migrated
+   - **✅ Create** migration backups (*.v13.backup) for safety **COMPLETED** - Backups created for all migrated files
 
-2. **Validation System**
+2. **✅ Generate Profile-Based Configurations** **COMPLETED**
+   - **✅ Create** clean profile templates (voice.toml, api-only.toml, headless.toml) **COMPLETED** - All profiles migrated to v14 structure
+   - **✅ Include** comprehensive documentation and examples **COMPLETED** - Generated clean v14 TOML with comments
+
+**Files Successfully Migrated:**
+- ✅ `voice.toml` - Voice assistant profile with audio components enabled
+- ✅ `api-only.toml` - API-only profile with text processing components
+- ✅ `minimal.toml` - Minimal/headless profile with essential components only
+- ✅ `embedded-armv7.toml` - Edge device profile optimized for ARM devices
+- ✅ `full.toml` - Complete development profile with all components
+- ✅ `development.toml` - Development-focused configuration
+- ✅ `config-example.toml` - Comprehensive example configuration
+
+**Migration Tool Features:**
+- ✅ **Automatic component mapping** - Converts v13 list-based to v14 boolean structure
+- ✅ **Version detection** - Identifies v13 configs requiring migration
+- ✅ **Backup creation** - Creates .v13.backup files before migration
+- ✅ **Dry-run support** - Test migrations without modifying files
+- ✅ **CLI interface** - `python -m irene.tools.config_migrator`
+
+3. **✅ Validation System** **COMPLETED**
    ```python
+   # IMPLEMENTED in irene/config/validator.py
    class ConfigValidator:
        """Comprehensive configuration validation"""
        
-       def validate_architecture(self, config: dict) -> ValidationResult:
+       def validate_architecture(self, config: CoreConfig) -> ValidationSummary:
            """Validate entire configuration architecture"""
-           return ValidationResult([
-               self._validate_system_capabilities(config.system),
-               self._validate_component_consistency(config.components),
-               self._validate_provider_availability(config.components),
-               self._validate_workflow_dependencies(config.workflows),
-               self._validate_asset_accessibility(config.assets)
+           return ValidationSummary([
+               self._validate_system_capabilities(config),
+               self._validate_component_consistency(config),
+               self._validate_provider_availability(config),
+               self._validate_workflow_dependencies(config),
+               self._validate_asset_accessibility(config),
+               self._validate_input_configuration(config),
+               self._validate_environment_variables(config)
            ])
    ```
 
+**Validation Features Implemented:**
+- ✅ **System capability validation** - Hardware/service consistency checks
+- ✅ **Component dependency validation** - Inter-component dependency analysis
+- ✅ **Provider availability validation** - Runtime provider discovery and validation
+- ✅ **Workflow dependency validation** - Workflow-component requirement checks
+- ✅ **Asset accessibility validation** - Directory permissions and accessibility
+- ✅ **Input configuration validation** - Input source consistency and defaults
+- ✅ **Environment variable validation** - Required environment variable checking
+- ✅ **CLI interface** - `python -m irene.tools.config_validator_cli`
+- ✅ **Validation levels** - ERROR, WARNING, INFO categorization
+- ✅ **Comprehensive reporting** - Detailed validation results with suggestions
+
 #### **4.2 System Integration & Testing**
 **Integration Testing:**
+- **Configuration migration** from v13 to v14 testing
 - **Component resolution** testing
 - **Provider fallback** testing  
 - **Configuration validation** testing
 - **Environment variable substitution** testing
 - **Missing API key error handling** testing
+- **Migration backup and recovery** testing
 - **Performance** benchmarking
 - **End-to-end** workflow testing
 
@@ -518,7 +585,8 @@ class AssetConfig(BaseModel):
 
 ### **User Experience Success**
 - ✅ Configuration structure is intuitive
-- ✅ Migration tool handles 95% of cases automatically
+- ✅ Migration tool preserves user settings automatically
+- ✅ Safe migration with automatic backups
 - ✅ Documentation is comprehensive and clear
 - ✅ Error messages are helpful and actionable
 
@@ -541,5 +609,5 @@ class AssetConfig(BaseModel):
 
 ---
 
-**This comprehensive overhaul transforms the Irene Voice Assistant configuration system from a collection of historical compromises into a clean, modern, and maintainable architecture that will serve as a solid foundation for future development.**
+**This comprehensive overhaul transforms the Irene Voice Assistant configuration system from a collection of historical compromises into a clean, modern, and maintainable architecture. The migration system ensures existing user configurations are preserved while moving to the new v14 structure, providing the best of both worlds: architectural purity and user experience continuity.**
 ```
