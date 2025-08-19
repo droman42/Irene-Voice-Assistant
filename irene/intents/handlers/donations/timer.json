@@ -1,9 +1,9 @@
 {
   "$schema": "../../schemas/donation/v1.0.json",
   "schema_version": "1.0",
+  "donation_version": "1.0",
   "handler_domain": "timer",
   "description": "Timer functionality with duration and message support",
-  
   "global_parameters": [
     {
       "name": "retain",
@@ -13,18 +13,16 @@
       "description": "Whether to retain state across sessions"
     }
   ],
-
   "intent_name_patterns": [
     "timer.set",
-    "timer.cancel", 
+    "timer.cancel",
     "timer.list",
     "timer.status"
   ],
-
   "action_patterns": [
     "set",
     "cancel",
-    "list", 
+    "list",
     "status",
     "create",
     "remove",
@@ -33,11 +31,10 @@
     "pause",
     "resume"
   ],
-  
   "stop_command_patterns": [
     "стоп таймер",
     "останови таймер",
-    "прекрати таймер", 
+    "прекрати таймер",
     "выключи таймер",
     "отмени таймер",
     "убери таймер",
@@ -50,24 +47,37 @@
     "stop alarm",
     "cancel alarm"
   ],
-  
   "action_domain_priority": 70,
-  
   "method_donations": [
     {
       "method_name": "_handle_set_timer",
       "intent_suffix": "set",
       "description": "Set a timer with duration and optional message",
-      
       "phrases": [
-        "поставь таймер", "установи таймер", "засеки время",
-        "заведи будильник", "установи напоминание", "напомни через",
-        "разбуди через", "таймер на", "set timer", "start timer",
-        "set alarm", "start alarm", "remind me in"
+        "поставь таймер",
+        "установи таймер",
+        "засеки время",
+        "заведи будильник",
+        "установи напоминание",
+        "напомни через",
+        "разбуди через",
+        "таймер на",
+        "set timer",
+        "start timer",
+        "set alarm",
+        "start alarm",
+        "remind me in"
       ],
-      
-      "lemmas": ["поставить", "установить", "засечь", "завести", "таймер", "будильник", "время", "напоминание"],
-      
+      "lemmas": [
+        "поставить",
+        "установить",
+        "засечь",
+        "завести",
+        "таймер",
+        "будильник",
+        "время",
+        "напоминание"
+      ],
       "parameters": [
         {
           "name": "duration",
@@ -77,15 +87,80 @@
           "min_value": 1,
           "max_value": 86400,
           "extraction_patterns": [
-            {"pattern": [{"LIKE_NUM": true}], "label": "DURATION_VALUE"},
-            {"pattern": [{"TEXT": {"REGEX": "^\\d+$"}}], "label": "DURATION_VALUE"},
-            {"pattern": [{"TEXT": {"REGEX": "(\\d+)\\s*(секунд|сек)"}}], "label": "DURATION_SECONDS"},
-            {"pattern": [{"TEXT": {"REGEX": "(\\d+)\\s*(минут|мин)"}}], "label": "DURATION_MINUTES"},
-            {"pattern": [{"TEXT": {"REGEX": "(\\d+)\\s*(час|часа|часов)"}}], "label": "DURATION_HOURS"},
-            {"pattern": [{"TEXT": {"REGEX": "на\\s+(\\d+)\\s*(секунд|сек|минут|мин|час|часа|часов)"}}], "label": "DURATION_WITH_PREFIX"},
-            {"pattern": [{"TEXT": {"REGEX": "через\\s+(\\d+)\\s*(секунд|сек|минут|мин|час|часа|часов)"}}], "label": "DURATION_WITH_THROUGH"}
+            {
+              "pattern": [
+                {
+                  "LIKE_NUM": true
+                }
+              ],
+              "label": "DURATION_VALUE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "^\\d+$"
+                  }
+                }
+              ],
+              "label": "DURATION_VALUE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "(\\d+)\\s*(секунд|сек)"
+                  }
+                }
+              ],
+              "label": "DURATION_SECONDS"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "(\\d+)\\s*(минут|мин)"
+                  }
+                }
+              ],
+              "label": "DURATION_MINUTES"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "(\\d+)\\s*(час|часа|часов)"
+                  }
+                }
+              ],
+              "label": "DURATION_HOURS"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "на\\s+(\\d+)\\s*(секунд|сек|минут|мин|час|часа|часов)"
+                  }
+                }
+              ],
+              "label": "DURATION_WITH_PREFIX"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "через\\s+(\\d+)\\s*(секунд|сек|минут|мин|час|часа|часов)"
+                  }
+                }
+              ],
+              "label": "DURATION_WITH_THROUGH"
+            }
           ],
-          "aliases": ["время", "длительность", "на"]
+          "aliases": [
+            "время",
+            "длительность",
+            "на"
+          ]
         },
         {
           "name": "unit",
@@ -93,12 +168,48 @@
           "required": false,
           "default_value": "minutes",
           "description": "Time unit for duration",
-          "choices": ["seconds", "minutes", "hours"],
-          "extraction_patterns": [
-            {"pattern": [{"LEMMA": {"IN": ["секунда", "минута", "час"]}}], "label": "TIME_UNIT"},
-            {"pattern": [{"LOWER": {"IN": ["сек", "мин", "ч", "seconds", "minutes", "hours"]}}], "label": "TIME_UNIT"}
+          "choices": [
+            "seconds",
+            "minutes",
+            "hours"
           ],
-          "aliases": ["единица", "время"]
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "секунда",
+                      "минута",
+                      "час"
+                    ]
+                  }
+                }
+              ],
+              "label": "TIME_UNIT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "сек",
+                      "мин",
+                      "ч",
+                      "seconds",
+                      "minutes",
+                      "hours"
+                    ]
+                  }
+                }
+              ],
+              "label": "TIME_UNIT"
+            }
+          ],
+          "aliases": [
+            "единица",
+            "время"
+          ]
         },
         {
           "name": "message",
@@ -107,71 +218,247 @@
           "default_value": "Таймер завершён!",
           "description": "Custom message when timer completes",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["сообщение", "напомни", "скажи"]}}, {"IS_SENT_START": false}], "label": "TIMER_MESSAGE"},
-            {"pattern": [{"TEXT": {"REGEX": "сообщение[:\\s]+(.*)"}}], "label": "TIMER_MESSAGE_COLON"},
-            {"pattern": [{"TEXT": {"REGEX": "напомни[:\\s]+(.*)"}}], "label": "TIMER_MESSAGE_REMIND"},
-            {"pattern": [{"TEXT": {"REGEX": "скажи[:\\s]+(.*)"}}], "label": "TIMER_MESSAGE_SAY"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "сообщение",
+                      "напомни",
+                      "скажи"
+                    ]
+                  }
+                },
+                {
+                  "IS_SENT_START": false
+                }
+              ],
+              "label": "TIMER_MESSAGE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "сообщение[:\\s]+(.*)"
+                  }
+                }
+              ],
+              "label": "TIMER_MESSAGE_COLON"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "напомни[:\\s]+(.*)"
+                  }
+                }
+              ],
+              "label": "TIMER_MESSAGE_REMIND"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "скажи[:\\s]+(.*)"
+                  }
+                }
+              ],
+              "label": "TIMER_MESSAGE_SAY"
+            }
           ],
-          "aliases": ["текст", "напоминание"]
+          "aliases": [
+            "текст",
+            "напоминание"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"POS": "VERB", "LEMMA": {"IN": ["поставить", "установить", "завести"]}}, 
-         {"LEMMA": {"IN": ["таймер", "будильник", "напоминание"]}}],
-        [{"LEMMA": "таймер"}, {"LOWER": "на"}, {"LIKE_NUM": true}],
-        [{"TEXT": {"REGEX": "set|start"}}, {"TEXT": {"REGEX": "timer|alarm"}}]
+        [
+          {
+            "POS": "VERB",
+            "LEMMA": {
+              "IN": [
+                "поставить",
+                "установить",
+                "завести"
+              ]
+            }
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "таймер",
+                "будильник",
+                "напоминание"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "таймер"
+          },
+          {
+            "LOWER": "на"
+          },
+          {
+            "LIKE_NUM": true
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "set|start"
+            }
+          },
+          {
+            "TEXT": {
+              "REGEX": "timer|alarm"
+            }
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "DURATION_VALUE": [
-          [{"LIKE_NUM": true}, {"LEMMA": {"IN": ["минута", "секунда", "час"]}}],
-          [{"TEXT": {"REGEX": "^\\d+$"}}, {"LOWER": {"IN": ["мин", "сек", "ч", "minutes", "seconds", "hours"]}}]
+          [
+            {
+              "LIKE_NUM": true
+            },
+            {
+              "LEMMA": {
+                "IN": [
+                  "минута",
+                  "секунда",
+                  "час"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "REGEX": "^\\d+$"
+              }
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "мин",
+                  "сек",
+                  "ч",
+                  "minutes",
+                  "seconds",
+                  "hours"
+                ]
+              }
+            }
+          ]
         ],
         "TIME_UNIT": [
-          [{"LEMMA": {"IN": ["секунда", "минута", "час"]}}],
-          [{"LOWER": {"IN": ["сек", "мин", "ч", "seconds", "minutes", "hours"]}}]
+          [
+            {
+              "LEMMA": {
+                "IN": [
+                  "секунда",
+                  "минута",
+                  "час"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "сек",
+                  "мин",
+                  "ч",
+                  "seconds",
+                  "minutes",
+                  "hours"
+                ]
+              }
+            }
+          ]
         ],
         "TIMER_MESSAGE": [
-          [{"LOWER": "сообщение"}, {"IS_ALPHA": true, "OP": "+"}],
-          [{"LOWER": "напомни"}, {"IS_ALPHA": true, "OP": "+"}]
+          [
+            {
+              "LOWER": "сообщение"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "напомни"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "поставь таймер на 5 минут",
-          "parameters": {"duration": 5, "unit": "minutes"}
+          "parameters": {
+            "duration": 5,
+            "unit": "minutes"
+          }
         },
         {
           "text": "заведи будильник на 2 часа с сообщением проснись",
-          "parameters": {"duration": 2, "unit": "hours", "message": "проснись"}
+          "parameters": {
+            "duration": 2,
+            "unit": "hours",
+            "message": "проснись"
+          }
         },
         {
           "text": "засеки 30 сек",
-          "parameters": {"duration": 30, "unit": "seconds"}
+          "parameters": {
+            "duration": 30,
+            "unit": "seconds"
+          }
         },
         {
           "text": "set timer for 10 minutes",
-          "parameters": {"duration": 10, "unit": "minutes"}
+          "parameters": {
+            "duration": 10,
+            "unit": "minutes"
+          }
         }
       ],
-      
       "boost": 1.2
     },
     {
       "method_name": "_handle_cancel_timer",
       "intent_suffix": "cancel",
       "description": "Cancel existing timer",
-      
       "phrases": [
-        "отмени таймер", "убери таймер", "стоп таймер",
-        "останови таймер", "удали таймер", "cancel timer",
-        "stop timer", "remove timer", "delete timer"
+        "отмени таймер",
+        "убери таймер",
+        "стоп таймер",
+        "останови таймер",
+        "удали таймер",
+        "cancel timer",
+        "stop timer",
+        "remove timer",
+        "delete timer"
       ],
-      
-      "lemmas": ["отменить", "убрать", "остановить", "удалить", "стоп", "таймер", "будильник"],
-      
+      "lemmas": [
+        "отменить",
+        "убрать",
+        "остановить",
+        "удалить",
+        "стоп",
+        "таймер",
+        "будильник"
+      ],
       "parameters": [
         {
           "name": "timer_id",
@@ -179,17 +466,49 @@
           "required": false,
           "description": "Specific timer ID to cancel",
           "extraction_patterns": [
-            {"pattern": [{"TEXT": {"REGEX": "\\d+"}}], "label": "TIMER_ID"}
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "\\d+"
+                  }
+                }
+              ],
+              "label": "TIMER_ID"
+            }
           ],
-          "aliases": ["номер", "id"]
+          "aliases": [
+            "номер",
+            "id"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["отменить", "убрать", "остановить"]}}, {"LEMMA": "таймер"}],
-        [{"TEXT": {"REGEX": "cancel|stop|remove"}}, {"TEXT": "timer"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "отменить",
+                "убрать",
+                "остановить"
+              ]
+            }
+          },
+          {
+            "LEMMA": "таймер"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "cancel|stop|remove"
+            }
+          },
+          {
+            "TEXT": "timer"
+          }
+        ]
       ],
-      
       "examples": [
         {
           "text": "отмени таймер",
@@ -204,30 +523,62 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.1
     },
     {
       "method_name": "_handle_list_timers",
       "intent_suffix": "list",
       "description": "List all active timers",
-      
       "phrases": [
-        "покажи таймеры", "список таймеров", "мои таймеры",
-        "активные таймеры", "show timers", "list timers",
-        "my timers", "active timers"
+        "покажи таймеры",
+        "список таймеров",
+        "мои таймеры",
+        "активные таймеры",
+        "show timers",
+        "list timers",
+        "my timers",
+        "active timers"
       ],
-      
-      "lemmas": ["показать", "список", "таймер", "активный"],
-      
+      "lemmas": [
+        "показать",
+        "список",
+        "таймер",
+        "активный"
+      ],
       "parameters": [],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["показать", "список"]}}, {"LEMMA": "таймер"}],
-        [{"TEXT": {"REGEX": "show|list"}}, {"TEXT": "timer"}],
-        [{"LEMMA": "мой"}, {"LEMMA": "таймер"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "показать",
+                "список"
+              ]
+            }
+          },
+          {
+            "LEMMA": "таймер"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "show|list"
+            }
+          },
+          {
+            "TEXT": "timer"
+          }
+        ],
+        [
+          {
+            "LEMMA": "мой"
+          },
+          {
+            "LEMMA": "таймер"
+          }
+        ]
       ],
-      
       "examples": [
         {
           "text": "покажи таймеры",
@@ -242,28 +593,51 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.0
     },
     {
       "method_name": "_handle_timer_status",
       "intent_suffix": "status",
       "description": "Check status of timers",
-      
       "phrases": [
-        "статус таймеров", "состояние таймеров", "как дела с таймерами",
-        "timer status", "timer state", "how are timers"
+        "статус таймеров",
+        "состояние таймеров",
+        "как дела с таймерами",
+        "timer status",
+        "timer state",
+        "how are timers"
       ],
-      
-      "lemmas": ["статус", "состояние", "таймер"],
-      
+      "lemmas": [
+        "статус",
+        "состояние",
+        "таймер"
+      ],
       "parameters": [],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["статус", "состояние"]}}, {"LEMMA": "таймер"}],
-        [{"TEXT": "timer"}, {"TEXT": {"REGEX": "status|state"}}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "статус",
+                "состояние"
+              ]
+            }
+          },
+          {
+            "LEMMA": "таймер"
+          }
+        ],
+        [
+          {
+            "TEXT": "timer"
+          },
+          {
+            "TEXT": {
+              "REGEX": "status|state"
+            }
+          }
+        ]
       ],
-      
       "examples": [
         {
           "text": "статус таймеров",
@@ -274,16 +648,35 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.0
     }
   ],
-  
   "negative_patterns": [
-    [{"LEMMA": {"IN": ["нет", "не", "без"]}}, {"LEMMA": "таймер"}],
-    [{"TEXT": {"REGEX": "no|not|without"}}, {"TEXT": "timer"}]
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не",
+            "без"
+          ]
+        }
+      },
+      {
+        "LEMMA": "таймер"
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not|without"
+        }
+      },
+      {
+        "TEXT": "timer"
+      }
+    ]
   ],
-
   "additional_recognition_patterns": [
     "поставь таймер|установи таймер|таймер на",
     "напомни через|разбуди через|сигнал через",
@@ -294,4 +687,4 @@
     "\\d+\\s*(секунд|сек|минут|мин|час|часа|часов)",
     "на\\s+\\d+|через\\s+\\d+"
   ]
-} 
+}

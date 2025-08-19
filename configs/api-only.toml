@@ -89,7 +89,7 @@ disabled = ["openwakeword", "microwakeword"]
 # API-optimized NLU with comprehensive keyword and semantic matching
 enabled = true
 confidence_threshold = 0.8
-provider_cascade_order = ["keyword_matcher", "spacy_semantic_md", "rule_based"]
+provider_cascade_order = ["hybrid_keyword_matcher", "spacy_nlu"]
 fallback_intent = "conversation.general"
 
 # JSON donation system for API
@@ -178,22 +178,6 @@ fuzzy_enabled = true
 fuzzy_threshold = 0.8
 confidence_threshold = 0.8
 
-# spaCy Semantic Provider (Medium Model) - API
-[components.nlu.providers.spacy_semantic_md]
-enabled = true
-provider_class = "SpaCyNLUProvider"
-model_name = "ru_core_news_md"
-model_approach = "semantic_similarity"
-confidence_threshold = 0.55
-auto_download = true
-
-# Rule-based NLU Provider (API fallback)
-[components.nlu.providers.rule_based]
-enabled = true
-provider_class = "RuleBasedNLUProvider"
-confidence_threshold = 0.8
-case_sensitive = false
-
 # Disable spaCy rules for API (using semantic instead)
-[components.nlu.providers.spacy_rules_sm]
+[components.nlu.providers.spacy_nlu]
 enabled = false 

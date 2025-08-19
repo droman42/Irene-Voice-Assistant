@@ -96,6 +96,7 @@ class MethodDonation(BaseModel):
 class HandlerDonation(BaseModel):
     """Complete donation from a handler with metadata and validation"""
     schema_version: str = Field(..., description="JSON schema version")
+    donation_version: str = Field("1.0", description="Donation content version for caching and telemetry")
     handler_domain: str = Field(..., description="Handler domain name")
     description: Optional[str] = Field("", description="Handler description")
     
@@ -122,6 +123,14 @@ class HandlerDonation(BaseModel):
         supported_versions = ['1.0']
         if v not in supported_versions:
             raise ValueError(f'Unsupported schema version: {v}. Supported: {supported_versions}')
+        return v
+    
+    @validator('donation_version')
+    def supported_donation_version(cls, v):
+        # Validate semantic version format (major.minor or major.minor.patch)
+        import re
+        if not re.match(r'^\d+\.\d+(\.\d+)?$', v):
+            raise ValueError(f'donation_version must be in semantic version format (e.g., "1.0", "1.0.1"), got: {v}')
         return v
     
     @validator('handler_domain')
@@ -155,6 +164,10 @@ class KeywordDonation(BaseModel):
     slot_patterns: Dict[str, List[List[Dict[str, Any]]]] = Field(default_factory=dict, description="spaCy slot patterns")
     examples: List[Dict[str, Any]] = Field(default_factory=list, description="Training examples")
     boost: float = Field(1.0, ge=0.0, le=10.0, description="Pattern strength multiplier")
+    
+    # Metadata for caching and telemetry
+    donation_version: str = Field("1.0", description="Donation content version")
+    handler_domain: str = Field(..., description="Handler domain for telemetry")
 
 
 class DonationValidationConfig(BaseModel):

@@ -1471,7 +1471,7 @@ This section provides a comprehensive, MECE-structured implementation guide for 
 **Completed Tasks:**
 1. **JSON Donation File Review and Validation** (Priority: Critical - FIRST STEP) ✅ **COMPLETED**
    - ✅ Reviewed all 6 existing JSON donation files for completeness against ALL hardcoded patterns
-   - ✅ **NLU Provider Patterns**: Analyzed patterns from `rule_based.py` and `spacy_provider.py` (lines 184-248)
+   - ✅ **NLU Provider Patterns**: Analyzed patterns from `spacy_provider.py` (lines 184-248)
    - ✅ **Intent Handler Patterns**: Analyzed patterns from handler `get_*_patterns()` methods:
      - ✅ `GreetingsIntentHandler.get_greeting_patterns()` (lines 270-292) - 90% coverage
      - ✅ `SystemIntentHandler.get_system_patterns()` (lines 287-305) - 95% coverage
@@ -1580,7 +1580,7 @@ This section provides a comprehensive, MECE-structured implementation guide for 
 
 2. **Provider-Donation Architecture** (Priority: Critical) ✅ **COMPLETED**
    - ✅ All NLU providers have `_initialize_from_donations()` method **IMPLEMENTED**
-   - ✅ RuleBasedNLUProvider: Converts donations to regex patterns with fallback support
+
    - ✅ SpaCyNLUProvider: Converts donations to semantic examples with training data support
    - ✅ Donation-driven pattern loading mechanism **FULLY FUNCTIONAL**
    - ✅ Graceful fallback to hardcoded patterns when donations unavailable
@@ -1773,7 +1773,7 @@ This section provides a comprehensive, MECE-structured implementation guide for 
 
 **✅ Completed Tasks:**
 1. **NLU Provider Refactoring** (Priority: Critical) **✅ COMPLETED**
-   - **RuleBasedNLUProvider**: ✅ Removed `_initialize_patterns()` method and all hardcoded pattern dictionaries
+
    - **SpaCyNLUProvider**: ✅ Removed `_initialize_intent_patterns()` method and all hardcoded semantic examples
    - **Fatal Error Handling**: ✅ Both providers now fail fast with RuntimeError if JSON donations fail
    - **Availability Checks**: ✅ Updated `is_available()` methods to require loaded donation patterns
@@ -1863,7 +1863,7 @@ This section provides a comprehensive, MECE-structured implementation guide for 
 #### C1. Architecture Decisions
 - **Asset Management**: No SHA256 checksums required (follows existing provider patterns)
 - **Fuzzy Matching**: Single algorithm using rapidfuzz (exact matches: confidence=1.0, fuzzy: confidence=score*0.8)
-- **Entry Points**: Standard pyproject.toml registration (keyword_matcher, rule_based, spacy)
+- **Entry Points**: Standard pyproject.toml registration (keyword_matcher, spacy)
 - **Constructor Pattern**: `__init__(config)` only, donations via `_initialize_from_donations()` method
 
 #### C2. Compatibility and Migration
@@ -1902,7 +1902,7 @@ This section provides a comprehensive, MECE-structured implementation guide for 
 # Cascading provider coordination
 enabled = true
 confidence_threshold = 0.7
-provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"]
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md"]
 fallback_intent = "conversation.general"
 
 # JSON donation system integration
@@ -1984,14 +1984,11 @@ enable_pipeline_caching = true
 **Ultra-Constrained Deployment (20MB):**
 ```toml
 [components.nlu]
-provider_cascade_order = ["keyword_matcher", "rule_based"]
+provider_cascade_order = ["keyword_matcher"]
 
 [components.nlu.providers.keyword_matcher]
 enabled = true
 fuzzy_enabled = false  # Disable fuzzy matching for memory savings
-
-[components.nlu.providers.rule_based]
-enabled = true
 
 # Disable all spaCy providers
 [components.nlu.providers.spacy_rules_sm]
@@ -2003,7 +2000,7 @@ enabled = false
 **Edge Device Deployment (80MB):**
 ```toml
 [components.nlu]
-provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "rule_based"]
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm"]
 
 [components.nlu.providers.keyword_matcher]
 enabled = true
@@ -2019,7 +2016,7 @@ enabled = false  # Disable semantic processing
 **Full Pipeline Deployment (180MB):**
 ```toml
 [components.nlu]
-provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"]
+provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md"]
 
 # All providers enabled with full configuration as specified above
 ```

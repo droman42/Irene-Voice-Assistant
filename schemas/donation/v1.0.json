@@ -262,6 +262,12 @@
       "title": "Schema Version",
       "type": "string"
     },
+    "donation_version": {
+      "description": "Donation content version for caching and telemetry",
+      "title": "Donation Version",
+      "type": "string",
+      "default": "1.0"
+    },
     "handler_domain": {
       "description": "Handler domain name",
       "title": "Handler Domain",

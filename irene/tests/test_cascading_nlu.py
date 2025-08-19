@@ -77,7 +77,7 @@ class TestCascadingNLU:
         mock_config.components.nlu = {
             "enabled": True,
             "confidence_threshold": 0.7,
-            "provider_cascade_order": ["fast_provider", "medium_provider", "slow_provider", "rule_based"],
+            "provider_cascade_order": ["fast_provider", "medium_provider", "slow_provider"],
             "fallback_intent": "conversation.general",
             "max_cascade_attempts": 4,
             "cascade_timeout_ms": 200,
@@ -96,10 +96,7 @@ class TestCascadingNLU:
                     "enabled": True,
                     "confidence_threshold": 0.6
                 },
-                "rule_based": {
-                    "enabled": True,
-                    "confidence_threshold": 0.5
-                }
+
             }
         }
         return mock_config
@@ -126,7 +123,7 @@ class TestCascadingNLU:
             "fast_provider": MockNLUProvider("fast", confidence=0.9),
             "medium_provider": MockNLUProvider("medium", confidence=0.8),
             "slow_provider": MockNLUProvider("slow", confidence=0.7),
-            "rule_based": MockNLUProvider("rule_based", confidence=0.6)
+
         }
         
         return component
@@ -184,16 +181,15 @@ class TestCascadingNLU:
         
         result = await nlu_component.recognize("test input", sample_context)
         
-        # Should cascade to rule_based provider
-        assert result.entities["provider"] == "rule_based"
-        assert result.entities["_recognition_provider"] == "rule_based"
-        assert result.entities["_cascade_attempts"] == 4
+        # Should cascade to slow_provider (now the last provider)
+        assert result.entities["provider"] == "slow"
+        assert result.entities["_recognition_provider"] == "slow_provider"
+        assert result.entities["_cascade_attempts"] == 3
         
         # All providers should be called
         assert nlu_component.providers["fast_provider"].call_count == 1
         assert nlu_component.providers["medium_provider"].call_count == 1
         assert nlu_component.providers["slow_provider"].call_count == 1
-        assert nlu_component.providers["rule_based"].call_count == 1
 
     @pytest.mark.asyncio
     async def test_fallback_when_all_providers_fail(self, nlu_component, sample_context):

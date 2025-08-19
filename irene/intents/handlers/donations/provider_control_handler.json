@@ -1,15 +1,14 @@
 {
   "$schema": "../../schemas/donation/v1.0.json",
   "schema_version": "1.0",
+  "donation_version": "1.0",
   "handler_domain": "provider_control",
   "description": "Provider switching and management across all components",
-  
   "intent_name_patterns": [
     "provider.switch",
     "provider.list",
     "provider.control"
   ],
-  
   "action_patterns": [
     "switch",
     "change",
@@ -17,53 +16,136 @@
     "show",
     "control"
   ],
-  
   "domain_patterns": [
     "provider",
     "control",
     "management"
   ],
-
   "global_parameters": [
     {
       "name": "language",
       "type": "choice",
       "required": false,
       "default_value": "ru",
-      "choices": ["ru", "en"],
+      "choices": [
+        "ru",
+        "en"
+      ],
       "description": "Response language preference"
     }
   ],
-  
   "method_donations": [
     {
       "method_name": "_handle_switch_provider",
       "intent_suffix": "switch",
       "description": "Switch provider for any component",
-      
       "phrases": [
-        "переключись на", "смени провайдер", "используй провайдер", "switch provider",
-        "переключись на аудио", "смени llm", "используй asr", "switch to audio",
-        "change provider", "use provider", "переключи на", "switch component",
-        "смени компонент", "переключись на провайдер", "change component provider"
+        "переключись на",
+        "смени провайдер",
+        "используй провайдер",
+        "switch provider",
+        "переключись на аудио",
+        "смени llm",
+        "используй asr",
+        "switch to audio",
+        "change provider",
+        "use provider",
+        "переключи на",
+        "switch component",
+        "смени компонент",
+        "переключись на провайдер",
+        "change component provider"
       ],
-      
-      "lemmas": ["переключаться", "менять", "использовать", "провайдер", "компонент", "аудио", "llm", "asr", "tts"],
-      
+      "lemmas": [
+        "переключаться",
+        "менять",
+        "использовать",
+        "провайдер",
+        "компонент",
+        "аудио",
+        "llm",
+        "asr",
+        "tts"
+      ],
       "parameters": [
         {
           "name": "component",
           "type": "choice",
           "required": false,
-          "choices": ["audio", "llm", "asr", "tts", "аудио", "распознавание", "голос", "модель"],
+          "choices": [
+            "audio",
+            "llm",
+            "asr",
+            "tts",
+            "аудио",
+            "распознавание",
+            "голос",
+            "модель"
+          ],
           "description": "Component type to switch provider for",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["аудио", "audio", "звук"]}}], "label": "COMPONENT"},
-            {"pattern": [{"LOWER": {"IN": ["llm", "модель", "лл"]}}], "label": "COMPONENT"},
-            {"pattern": [{"LOWER": {"IN": ["asr", "распознавание", "речь"]}}], "label": "COMPONENT"},
-            {"pattern": [{"LOWER": {"IN": ["tts", "голос", "синтез"]}}], "label": "COMPONENT"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "аудио",
+                      "audio",
+                      "звук"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "llm",
+                      "модель",
+                      "лл"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "asr",
+                      "распознавание",
+                      "речь"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "tts",
+                      "голос",
+                      "синтез"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            }
           ],
-          "aliases": ["тип", "система", "модуль"]
+          "aliases": [
+            "тип",
+            "система",
+            "модуль"
+          ]
         },
         {
           "name": "provider",
@@ -71,113 +153,533 @@
           "required": false,
           "description": "Provider name to switch to",
           "extraction_patterns": [
-            {"pattern": [{"LEMMA": "переключаться"}, {"TEXT": "на"}, {"IS_ALPHA": true}], "label": "PROVIDER"},
-            {"pattern": [{"TEXT": {"IN": ["switch", "change"]}}, {"TEXT": "to"}, {"IS_ALPHA": true}], "label": "PROVIDER"}
+            {
+              "pattern": [
+                {
+                  "LEMMA": "переключаться"
+                },
+                {
+                  "TEXT": "на"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "PROVIDER"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": [
+                      "switch",
+                      "change"
+                    ]
+                  }
+                },
+                {
+                  "TEXT": "to"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "PROVIDER"
+            }
           ],
-          "aliases": ["название", "имя", "драйвер"]
+          "aliases": [
+            "название",
+            "имя",
+            "драйвер"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": "переключаться"}, {"TEXT": "на"}],
-        [{"TEXT": {"IN": ["switch", "change"]}}, {"TEXT": "to"}],
-        [{"LEMMA": "переключаться"}, {"TEXT": "на"}, {"LOWER": {"IN": ["аудио", "llm", "asr", "tts"]}}],
-        [{"TEXT": "switch"}, {"LOWER": {"IN": ["audio", "llm", "asr", "tts"]}}, {"TEXT": "provider"}],
-        [{"LEMMA": "менять"}, {"LEMMA": "провайдер"}],
-        [{"TEXT": "change"}, {"TEXT": "provider"}],
-        [{"LEMMA": "использовать"}, {"LEMMA": "провайдер"}],
-        [{"TEXT": "use"}, {"TEXT": "provider"}]
+        [
+          {
+            "LEMMA": "переключаться"
+          },
+          {
+            "TEXT": "на"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "switch",
+                "change"
+              ]
+            }
+          },
+          {
+            "TEXT": "to"
+          }
+        ],
+        [
+          {
+            "LEMMA": "переключаться"
+          },
+          {
+            "TEXT": "на"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "аудио",
+                "llm",
+                "asr",
+                "tts"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "switch"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "audio",
+                "llm",
+                "asr",
+                "tts"
+              ]
+            }
+          },
+          {
+            "TEXT": "provider"
+          }
+        ],
+        [
+          {
+            "LEMMA": "менять"
+          },
+          {
+            "LEMMA": "провайдер"
+          }
+        ],
+        [
+          {
+            "TEXT": "change"
+          },
+          {
+            "TEXT": "provider"
+          }
+        ],
+        [
+          {
+            "LEMMA": "использовать"
+          },
+          {
+            "LEMMA": "провайдер"
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          },
+          {
+            "TEXT": "provider"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "COMPONENT": [
-          [{"LOWER": {"IN": ["аудио", "audio", "звук"]}}],
-          [{"LOWER": {"IN": ["llm", "модель", "лл"]}}],
-          [{"LOWER": {"IN": ["asr", "распознавание", "речь"]}}],
-          [{"LOWER": {"IN": ["tts", "голос", "синтез"]}}]
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "аудио",
+                  "audio",
+                  "звук"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "llm",
+                  "модель",
+                  "лл"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "asr",
+                  "распознавание",
+                  "речь"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "tts",
+                  "голос",
+                  "синтез"
+                ]
+              }
+            }
+          ]
         ],
         "PROVIDER": [
-          [{"LEMMA": "переключаться"}, {"TEXT": "на"}, {"IS_ALPHA": true}],
-          [{"TEXT": {"IN": ["switch", "change"]}}, {"TEXT": "to"}, {"IS_ALPHA": true}]
+          [
+            {
+              "LEMMA": "переключаться"
+            },
+            {
+              "TEXT": "на"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": [
+                  "switch",
+                  "change"
+                ]
+              }
+            },
+            {
+              "TEXT": "to"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "переключись на openai для llm",
-          "parameters": {"component": "llm", "provider": "openai"}
+          "parameters": {
+            "component": "llm",
+            "provider": "openai"
+          }
         },
         {
           "text": "switch audio provider to sounddevice",
-          "parameters": {"component": "audio", "provider": "sounddevice"}
+          "parameters": {
+            "component": "audio",
+            "provider": "sounddevice"
+          }
         },
         {
           "text": "смени asr на whisper",
-          "parameters": {"component": "asr", "provider": "whisper"}
+          "parameters": {
+            "component": "asr",
+            "provider": "whisper"
+          }
         },
         {
           "text": "use silero for tts",
-          "parameters": {"component": "tts", "provider": "silero"}
+          "parameters": {
+            "component": "tts",
+            "provider": "silero"
+          }
         }
       ],
-      
       "boost": 1.3
     },
     {
       "method_name": "_handle_list_providers",
       "intent_suffix": "list",
       "description": "List providers for specific component or all components",
-      
       "phrases": [
-        "покажи провайдеры", "список провайдеров", "какие провайдеры", "show providers",
-        "покажи аудио провайдеры", "список llm", "asr провайдеры", "tts providers",
-        "доступные провайдеры", "available providers", "провайдеры компонентов",
-        "component providers", "все провайдеры", "all providers"
+        "покажи провайдеры",
+        "список провайдеров",
+        "какие провайдеры",
+        "show providers",
+        "покажи аудио провайдеры",
+        "список llm",
+        "asr провайдеры",
+        "tts providers",
+        "доступные провайдеры",
+        "available providers",
+        "провайдеры компонентов",
+        "component providers",
+        "все провайдеры",
+        "all providers"
       ],
-      
-      "lemmas": ["показывать", "список", "провайдер", "доступный", "компонент", "все"],
-      
+      "lemmas": [
+        "показывать",
+        "список",
+        "провайдер",
+        "доступный",
+        "компонент",
+        "все"
+      ],
       "parameters": [
         {
           "name": "component",
           "type": "choice",
           "required": false,
-          "choices": ["audio", "llm", "asr", "tts", "аудио", "распознавание", "голос", "модель", "all", "все"],
+          "choices": [
+            "audio",
+            "llm",
+            "asr",
+            "tts",
+            "аудио",
+            "распознавание",
+            "голос",
+            "модель",
+            "all",
+            "все"
+          ],
           "description": "Component to list providers for (optional - lists all if not specified)",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["аудио", "audio", "звук"]}}], "label": "COMPONENT"},
-            {"pattern": [{"LOWER": {"IN": ["llm", "модель", "лл"]}}], "label": "COMPONENT"},
-            {"pattern": [{"LOWER": {"IN": ["asr", "распознавание", "речь"]}}], "label": "COMPONENT"},
-            {"pattern": [{"LOWER": {"IN": ["tts", "голос", "синтез"]}}], "label": "COMPONENT"},
-            {"pattern": [{"LOWER": {"IN": ["все", "all", "всех"]}}], "label": "COMPONENT"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "аудио",
+                      "audio",
+                      "звук"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "llm",
+                      "модель",
+                      "лл"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "asr",
+                      "распознавание",
+                      "речь"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "tts",
+                      "голос",
+                      "синтез"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "все",
+                      "all",
+                      "всех"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            }
           ],
-          "aliases": ["тип", "система", "модуль"]
+          "aliases": [
+            "тип",
+            "система",
+            "модуль"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": "показывать"}, {"LEMMA": "провайдер"}],
-        [{"LEMMA": "список"}, {"LEMMA": "провайдер"}],
-        [{"TEXT": "show"}, {"TEXT": "providers"}],
-        [{"TEXT": "list"}, {"TEXT": "providers"}],
-        [{"LEMMA": "показывать"}, {"LOWER": {"IN": ["аудио", "llm", "asr", "tts"]}}, {"LEMMA": "провайдер"}],
-        [{"TEXT": "show"}, {"LOWER": {"IN": ["audio", "llm", "asr", "tts"]}}, {"TEXT": "providers"}],
-        [{"LEMMA": "доступный"}, {"LEMMA": "провайдер"}],
-        [{"TEXT": "available"}, {"TEXT": "providers"}],
-        [{"LEMMA": "все"}, {"LEMMA": "провайдер"}],
-        [{"TEXT": "all"}, {"TEXT": "providers"}]
+        [
+          {
+            "LEMMA": "показывать"
+          },
+          {
+            "LEMMA": "провайдер"
+          }
+        ],
+        [
+          {
+            "LEMMA": "список"
+          },
+          {
+            "LEMMA": "провайдер"
+          }
+        ],
+        [
+          {
+            "TEXT": "show"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "TEXT": "list"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "LEMMA": "показывать"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "аудио",
+                "llm",
+                "asr",
+                "tts"
+              ]
+            }
+          },
+          {
+            "LEMMA": "провайдер"
+          }
+        ],
+        [
+          {
+            "TEXT": "show"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "audio",
+                "llm",
+                "asr",
+                "tts"
+              ]
+            }
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "LEMMA": "доступный"
+          },
+          {
+            "LEMMA": "провайдер"
+          }
+        ],
+        [
+          {
+            "TEXT": "available"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "LEMMA": "все"
+          },
+          {
+            "LEMMA": "провайдер"
+          }
+        ],
+        [
+          {
+            "TEXT": "all"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "COMPONENT": [
-          [{"LOWER": {"IN": ["аудио", "audio", "звук"]}}],
-          [{"LOWER": {"IN": ["llm", "модель", "лл"]}}],
-          [{"LOWER": {"IN": ["asr", "распознавание", "речь"]}}],
-          [{"LOWER": {"IN": ["tts", "голос", "синтез"]}}],
-          [{"LOWER": {"IN": ["все", "all", "всех"]}}]
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "аудио",
+                  "audio",
+                  "звук"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "llm",
+                  "модель",
+                  "лл"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "asr",
+                  "распознавание",
+                  "речь"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "tts",
+                  "голос",
+                  "синтез"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "все",
+                  "all",
+                  "всех"
+                ]
+              }
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "покажи провайдеры",
@@ -185,28 +687,63 @@
         },
         {
           "text": "список аудио провайдеров",
-          "parameters": {"component": "аудио"}
+          "parameters": {
+            "component": "аудио"
+          }
         },
         {
           "text": "show llm providers",
-          "parameters": {"component": "llm"}
+          "parameters": {
+            "component": "llm"
+          }
         },
         {
           "text": "доступные tts провайдеры",
-          "parameters": {"component": "tts"}
+          "parameters": {
+            "component": "tts"
+          }
         },
         {
           "text": "all providers",
-          "parameters": {"component": "all"}
+          "parameters": {
+            "component": "all"
+          }
         }
       ],
-      
       "boost": 1.2
     }
   ],
-  
   "negative_patterns": [
-    [{"LEMMA": {"IN": ["нет", "не"]}}, {"LEMMA": {"IN": ["переключаться", "менять", "провайдер"]}}],
-    [{"TEXT": {"REGEX": "no|not"}}, {"TEXT": {"REGEX": "switch|change|provider"}}]
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "переключаться",
+            "менять",
+            "провайдер"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "switch|change|provider"
+        }
+      }
+    ]
   ]
 }

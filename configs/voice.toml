@@ -100,7 +100,7 @@ fallback_providers = []
 # Voice-optimized NLU with fast keyword matching
 enabled = true
 confidence_threshold = 0.6  # Lower for voice recognition accuracy
-provider_cascade_order = ["keyword_matcher", "rule_based"]
+provider_cascade_order = ["keyword_matcher"]
 fallback_intent = "conversation.general"
 
 # JSON donation system for voice
@@ -216,18 +216,10 @@ fuzzy_threshold = 0.8
 fuzzy_confidence_base = 0.7
 confidence_threshold = 0.6  # Lower for voice accuracy
 
-# Rule-based NLU Provider (voice fallback)
-[components.nlu.providers.rule_based]
-enabled = true
-provider_class = "RuleBasedNLUProvider"
-confidence_threshold = 0.6
-case_sensitive = false
-fallback_intent = "conversation.general"
-
 # Disable spaCy providers for voice deployment
-[components.nlu.providers.spacy_rules_sm]
+[components.nlu.providers.spacy_nlu]
 enabled = false
-[components.nlu.providers.spacy_semantic_md]
+
 enabled = false
 
 # Voice-specific settings

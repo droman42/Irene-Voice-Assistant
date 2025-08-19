@@ -57,6 +57,8 @@ class HybridKeywordMatcherProvider(NLUProvider):
         # Fuzzy matching configuration
         self.fuzzy_enabled = config.get('fuzzy_enabled', True)
         self.fuzzy_keywords: Dict[str, List[str]] = {}
+        self.fuzzy_keywords_lc: Dict[str, List[str]] = {}  # Precomputed lowercase keywords
+        self.global_keyword_map: Dict[str, str] = {}  # keyword -> intent mapping for global shortlisting
         self.fuzzy_threshold = config.get('fuzzy_threshold', 0.8)
         self.fuzzy_confidence_base = config.get('fuzzy_confidence_base', 0.7)
         self.max_fuzzy_keywords_per_intent = config.get('max_fuzzy_keywords_per_intent', 50)
@@ -81,7 +83,10 @@ class HybridKeywordMatcherProvider(NLUProvider):
             'cache_hits': 0,
             'total_recognitions': 0,
             'avg_pattern_time_ms': 0.0,
-            'avg_fuzzy_time_ms': 0.0
+            'avg_fuzzy_time_ms': 0.0,
+            'global_shortlist_hits': 0,
+            'enhanced_confidence_calculations': 0,
+            'total_global_keywords': 0
         }
         
         # Import rapidfuzz for fuzzy matching (lazy import to handle optional dependency)
@@ -133,6 +138,15 @@ class HybridKeywordMatcherProvider(NLUProvider):
             self.flexible_patterns = {}
             self.partial_patterns = {}
             self.fuzzy_keywords = {}
+            self.fuzzy_keywords_lc = {}
+            self.global_keyword_map = {}
+            
+            # Collect telemetry data
+            donation_versions = set()
+            handler_domains = set()
+            for d in keyword_donations:
+                donation_versions.add(getattr(d, 'donation_version', '1.0'))
+                handler_domains.add(getattr(d, 'handler_domain', 'unknown'))
             
             total_patterns = 0
             total_keywords = 0
@@ -170,13 +184,28 @@ class HybridKeywordMatcherProvider(NLUProvider):
                 if self.fuzzy_enabled:
                     keywords = self._build_fuzzy_keywords(donation)
                     self.fuzzy_keywords[intent_name] = keywords
+                    
+                    # Precompute lowercase keywords for performance
+                    keywords_lc = [k.lower() for k in keywords]
+                    self.fuzzy_keywords_lc[intent_name] = keywords_lc
+                    
+                    # Build global keyword mapping for shortlisting
+                    for keyword in keywords_lc:
+                        self.global_keyword_map[keyword] = intent_name
+                    
                     total_keywords += len(keywords)
                 
                 logger.debug(f"Added patterns for intent '{intent_name}': "
                            f"{len(exact_patterns)} patterns, {len(keywords) if self.fuzzy_enabled else 0} fuzzy keywords")
             
+            # Update global keyword stats
+            self.stats['total_global_keywords'] = len(self.global_keyword_map)
+            
             logger.info(f"HybridKeywordMatcher initialized: {total_patterns} patterns, "
-                       f"{total_keywords} fuzzy keywords for {len(self.exact_patterns)} intents")
+                       f"{total_keywords} fuzzy keywords ({len(self.global_keyword_map)} global) for {len(self.exact_patterns)} intents")
+            
+            # Telemetry logging
+            logger.info(f"HybridKeywordMatcher telemetry - Donations: {sorted(donation_versions)} from domains: {sorted(handler_domains)}")
             
             # Initialize rapidfuzz if needed
             if self.fuzzy_enabled:
@@ -189,7 +218,7 @@ class HybridKeywordMatcherProvider(NLUProvider):
                              "Provider cannot operate without valid donations.")
     
     def _build_fuzzy_keywords(self, donation) -> List[str]:
-        """Build fuzzy keyword list from donation"""
+        """Build fuzzy keyword list from donation with smart pruning"""
         keywords = []
         
         # Add phrases as keywords
@@ -218,15 +247,57 @@ class HybridKeywordMatcherProvider(NLUProvider):
                 if hasattr(example, 'text'):
                     keywords.append(example.text)
         
-        # Remove duplicates and sort by length (longer phrases first for better matching)
+        # Remove duplicates
         keywords = list(set(keywords))
-        keywords = sorted(keywords, key=len, reverse=True)
         
-        # Limit keywords for performance
+        # Smart pruning: prioritize by entropy and signal strength instead of just length
         if len(keywords) > self.max_fuzzy_keywords_per_intent:
-            keywords = keywords[:self.max_fuzzy_keywords_per_intent]
+            keywords = self._smart_prune_keywords(keywords)
         
         return keywords
+    
+    def _smart_prune_keywords(self, keywords: List[str]) -> List[str]:
+        """Prune keywords using entropy and signal strength instead of just length"""
+        import math
+        from collections import Counter
+        
+        # Calculate keyword scores based on multiple factors
+        keyword_scores = []
+        
+        for keyword in keywords:
+            # Factor 1: Character n-gram entropy (higher is better for fuzzy matching)
+            chars = keyword.lower()
+            char_counts = Counter(chars)
+            total_chars = len(chars)
+            entropy = -sum((count/total_chars) * math.log2(count/total_chars) 
+                          for count in char_counts.values() if count > 0)
+            
+            # Factor 2: Word count (2-3 words often optimal for matching)
+            word_count = len(keyword.split())
+            word_score = 1.0 if word_count in [2, 3] else 0.8 if word_count == 1 else 0.6
+            
+            # Factor 3: Length penalty for very short/long keywords
+            length_score = 1.0
+            if len(keyword) < 3:  # Keep short high-signal keywords like "rm", "ok"
+                length_score = 0.9
+            elif len(keyword) > 50:  # Penalize very long keywords
+                length_score = 0.7
+            
+            # Factor 4: Avoid common stop words but keep technical terms
+            common_words = {'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'with', 'by'}
+            word_tokens = set(keyword.lower().split())
+            if word_tokens.issubset(common_words):
+                stop_word_penalty = 0.3
+            else:
+                stop_word_penalty = 1.0
+            
+            # Combined score
+            total_score = entropy * word_score * length_score * stop_word_penalty
+            keyword_scores.append((keyword, total_score))
+        
+        # Sort by score and take top keywords
+        keyword_scores.sort(key=lambda x: x[1], reverse=True)
+        return [kw for kw, _ in keyword_scores[:self.max_fuzzy_keywords_per_intent]]
     
     async def recognize(self, text: str, context: ConversationContext) -> Intent:
         """
@@ -269,167 +340,246 @@ class HybridKeywordMatcherProvider(NLUProvider):
         return None
     
     async def _pattern_matching(self, text: str, context: ConversationContext) -> Optional[KeywordMatchResult]:
-        """Fast regex pattern matching with multiple variants"""
+        """Fast regex pattern matching with enhanced confidence calculation"""
         normalized_text = self._normalize_text(text)
         
-        best_result = None
-        best_confidence = 0.0
+        # Collect all pattern matches with their raw scores
+        pattern_matches = []
         
         # Try exact patterns first (highest confidence)
         for intent_name, patterns in self.exact_patterns.items():
             for pattern in patterns:
                 if pattern.search(normalized_text):
-                    confidence = self.pattern_confidence * self.exact_match_boost
-                    if confidence > best_confidence:
-                        best_confidence = confidence
-                        best_result = KeywordMatchResult(
-                            intent_name=intent_name,
-                            confidence=confidence,
-                            method="exact_pattern",
-                            matched_pattern=pattern.pattern
-                        )
+                    raw_score = self.pattern_confidence * self.exact_match_boost
+                    pattern_matches.append((intent_name, raw_score, "exact_pattern", pattern.pattern))
         
-        # Try flexible patterns if no exact match OR we can get a better confidence
+        # Try flexible patterns
         for intent_name, patterns in self.flexible_patterns.items():
             for pattern in patterns:
                 if pattern.search(normalized_text):
-                    confidence = self.pattern_confidence * self.flexible_match_boost
-                    if confidence > best_confidence:
-                        best_confidence = confidence
-                        best_result = KeywordMatchResult(
-                            intent_name=intent_name,
-                            confidence=confidence,
-                            method="flexible_pattern",
-                            matched_pattern=pattern.pattern
-                        )
+                    raw_score = self.pattern_confidence * self.flexible_match_boost
+                    pattern_matches.append((intent_name, raw_score, "flexible_pattern", pattern.pattern))
         
-        # Try partial patterns if still no good match
-        if not best_result or best_confidence < self.confidence_threshold:
-            for intent_name, patterns in self.partial_patterns.items():
-                for pattern in patterns:
-                    if pattern.search(normalized_text):
-                        confidence = self.pattern_confidence * self.partial_match_boost
-                        if confidence > best_confidence:
-                            best_confidence = confidence
-                            best_result = KeywordMatchResult(
-                                intent_name=intent_name,
-                                confidence=confidence,
-                                method="partial_pattern",
-                                matched_pattern=pattern.pattern
-                            )
+        # Try partial patterns
+        for intent_name, patterns in self.partial_patterns.items():
+            for pattern in patterns:
+                if pattern.search(normalized_text):
+                    raw_score = self.pattern_confidence * self.partial_match_boost
+                    pattern_matches.append((intent_name, raw_score, "partial_pattern", pattern.pattern))
         
-        return best_result if best_result and best_confidence >= self.confidence_threshold else None
+        if not pattern_matches:
+            return None
+        
+        # Find best and second-best for enhanced confidence calculation
+        pattern_matches.sort(key=lambda x: x[1], reverse=True)
+        best_intent, best_raw_score, best_method, best_pattern = pattern_matches[0]
+        second_best_score = pattern_matches[1][1] if len(pattern_matches) > 1 else 0.0
+        
+        # Calculate enhanced confidence
+        if best_intent in self.fuzzy_keywords:
+            enhanced_confidence = self._calculate_enhanced_confidence(
+                best_raw_score, second_best_score, normalized_text,
+                self.fuzzy_keywords[best_intent], best_method
+            )
+            self.stats['enhanced_confidence_calculations'] += 1
+        else:
+            # Fallback to raw score if no fuzzy keywords available
+            enhanced_confidence = best_raw_score
+        
+        if enhanced_confidence >= self.confidence_threshold:
+            return KeywordMatchResult(
+                intent_name=best_intent,
+                confidence=enhanced_confidence,
+                method=best_method,
+                matched_pattern=best_pattern
+            )
+        
+        return None
     
     async def _fuzzy_matching(self, text: str, context: ConversationContext) -> Optional[KeywordMatchResult]:
-        """Fuzzy Levenshtein-based matching with caching"""
+        """Optimized fuzzy matching with global shortlisting and batch operations"""
         if not self._rapidfuzz_available:
             return None
         
         normalized_text = self._normalize_text(text)
-        text_words = normalized_text.split()
         
         # Check cache first
         cache_key = normalized_text
         if self.cache_fuzzy_results and cache_key in self.fuzzy_cache:
             self.stats['cache_hits'] += 1
             cached_results = self.fuzzy_cache[cache_key]
-            best_intent = max(cached_results.items(), key=lambda x: x[1])
-            if best_intent[1] >= self.fuzzy_threshold:
+            best_intent, best_score, second_best_score = self._find_best_and_runner_up(cached_results)
+            
+            if best_score >= self.fuzzy_threshold:
+                confidence = self._calculate_enhanced_confidence(
+                    best_score, second_best_score, normalized_text, 
+                    self.fuzzy_keywords[best_intent], "fuzzy_match"
+                )
                 return KeywordMatchResult(
-                    intent_name=best_intent[0],
-                    confidence=self.fuzzy_confidence_base * best_intent[1],
+                    intent_name=best_intent,
+                    confidence=confidence,
                     method="fuzzy_match",
-                    fuzzy_score=best_intent[1],
-                    matched_keywords=self._get_matched_keywords(text_words, self.fuzzy_keywords[best_intent[0]]),
+                    fuzzy_score=best_score,
+                    matched_keywords=self._get_matched_keywords_optimized(normalized_text, self.fuzzy_keywords_lc[best_intent]),
                     cached=True
                 )
         
-        best_result = None
-        best_score = 0.0
-        intent_scores = {}
+        # Global shortlisting: find best candidates across ALL keywords first
+        intent_scores = self._calculate_intent_scores_optimized(normalized_text)
         
-        for intent_name, keywords in self.fuzzy_keywords.items():
-            intent_score = self._calculate_intent_fuzzy_score(text_words, keywords, normalized_text)
-            intent_scores[intent_name] = intent_score
+        if not intent_scores:
+            return None
+        
+        # Find best and second-best intents for confidence calculation
+        best_intent, best_score, second_best_score = self._find_best_and_runner_up(intent_scores)
+        
+        if best_score >= self.fuzzy_threshold:
+            confidence = self._calculate_enhanced_confidence(
+                best_score, second_best_score, normalized_text,
+                self.fuzzy_keywords[best_intent], "fuzzy_match"
+            )
+            self.stats['enhanced_confidence_calculations'] += 1
             
-            if intent_score > best_score and intent_score >= self.fuzzy_threshold:
-                best_score = intent_score
-                best_result = KeywordMatchResult(
-                    intent_name=intent_name,
-                    confidence=self.fuzzy_confidence_base * intent_score,
-                    method="fuzzy_match",
-                    fuzzy_score=intent_score,
-                    matched_keywords=self._get_matched_keywords(text_words, keywords),
-                    cached=False
-                )
+            result = KeywordMatchResult(
+                intent_name=best_intent,
+                confidence=confidence,
+                method="fuzzy_match",
+                fuzzy_score=best_score,
+                matched_keywords=self._get_matched_keywords_optimized(normalized_text, self.fuzzy_keywords_lc[best_intent]),
+                cached=False
+            )
+            
+            # Cache results
+            if self.cache_fuzzy_results:
+                self._update_fuzzy_cache(cache_key, intent_scores)
+            
+            return result
         
-        # Cache results
-        if self.cache_fuzzy_results and intent_scores:
-            self._update_fuzzy_cache(cache_key, intent_scores)
-        
-        return best_result
+        return None
     
-    def _calculate_intent_fuzzy_score(self, text_words: List[str], keywords: List[str], full_text: str) -> float:
-        """Calculate fuzzy matching score for an intent using multiple strategies"""
-        if not self._rapidfuzz_available:
-            return 0.0
+    def _calculate_intent_scores_optimized(self, normalized_text: str) -> Dict[str, float]:
+        """Calculate intent scores using global shortlisting for optimal performance"""
+        if not self.global_keyword_map:
+            return {}
         
-        # Strategy 1: Full text similarity to each keyword
-        keyword_scores = []
-        for keyword in keywords:
-            # Use rapidfuzz for fast Levenshtein calculation
-            similarity = self._fuzz.ratio(full_text.lower(), keyword.lower()) / 100.0
-            keyword_scores.append(similarity)
+        # Step 1: Global shortlisting - get top candidates across ALL keywords
+        all_keywords = list(self.global_keyword_map.keys())
         
-        # Strategy 2: Word-level matching with partial ratio
-        word_match_scores = []
-        for word in text_words:
-            if len(word) > 2:  # Skip very short words
-                # Find best matching keyword for this word
-                best_match = self._process.extractOne(
-                    word.lower(), 
-                    [k.lower() for k in keywords],
-                    scorer=self._fuzz.partial_ratio
-                )
-                if best_match and best_match[1] > 70:  # 70% similarity threshold
-                    word_match_scores.append(best_match[1] / 100.0)
+        # Use batch extract for efficiency with score cutoff
+        top_matches = self._process.extract(
+            normalized_text,
+            all_keywords,
+            scorer=self._fuzz.WRatio,
+            processor=None,  # Keywords already lowercase
+            score_cutoff=60,  # Early pruning
+            limit=30  # Limit global candidates
+        )
         
-        # Strategy 3: Token set ratio for better word order handling
-        token_set_scores = []
-        for keyword in keywords:
-            token_similarity = self._fuzz.token_set_ratio(full_text.lower(), keyword.lower()) / 100.0
-            token_set_scores.append(token_similarity)
+        if top_matches:
+            self.stats['global_shortlist_hits'] += 1
         
-        # Combine scores with weights
-        max_keyword_score = max(keyword_scores) if keyword_scores else 0.0
-        avg_word_score = sum(word_match_scores) / len(word_match_scores) if word_match_scores else 0.0
-        max_token_score = max(token_set_scores) if token_set_scores else 0.0
+        # Step 2: Aggregate scores by intent
+        intent_candidate_scores = {}
+        for keyword, score in top_matches:
+            intent_name = self.global_keyword_map[keyword]
+            if intent_name not in intent_candidate_scores:
+                intent_candidate_scores[intent_name] = []
+            intent_candidate_scores[intent_name].append((keyword, score / 100.0))
         
-        # Weighted combination: emphasize keyword matches, boost with word and token matches
-        final_score = (max_keyword_score * 0.5) + (avg_word_score * 0.3) + (max_token_score * 0.2)
+        # Step 3: Calculate final intent scores using multiple strategies
+        final_intent_scores = {}
+        for intent_name, candidates in intent_candidate_scores.items():
+            if not candidates:
+                continue
+                
+            # Get all keywords for this intent
+            intent_keywords_lc = self.fuzzy_keywords_lc[intent_name]
+            
+            # Strategy 1: Best single keyword match
+            best_keyword_score = max(score for _, score in candidates)
+            
+            # Strategy 2: Token set ratio for best keyword
+            best_keyword = max(candidates, key=lambda x: x[1])[0]
+            token_set_score = self._fuzz.token_set_ratio(normalized_text, best_keyword) / 100.0
+            
+            # Strategy 3: Coverage - how many keywords contributed
+            coverage_bonus = min(len(candidates) / len(intent_keywords_lc), 0.3)
+            
+            # Weighted combination
+            final_score = (best_keyword_score * 0.6) + (token_set_score * 0.3) + coverage_bonus
+            final_intent_scores[intent_name] = final_score
         
-        return final_score
+        return final_intent_scores
     
-    def _get_matched_keywords(self, text_words: List[str], keywords: List[str]) -> List[str]:
-        """Get keywords that contributed to the match for debugging"""
-        if not self._rapidfuzz_available:
+    def _find_best_and_runner_up(self, intent_scores: Dict[str, float]) -> Tuple[str, float, float]:
+        """Find best and second-best intent scores for confidence calculation"""
+        if not intent_scores:
+            return "", 0.0, 0.0
+        
+        sorted_scores = sorted(intent_scores.items(), key=lambda x: x[1], reverse=True)
+        best_intent, best_score = sorted_scores[0]
+        second_best_score = sorted_scores[1][1] if len(sorted_scores) > 1 else 0.0
+        
+        return best_intent, best_score, second_best_score
+    
+    def _calculate_enhanced_confidence(self, best_score: float, second_best_score: float, 
+                                     text: str, keywords: List[str], method: str) -> float:
+        """Calculate enhanced confidence using separation, coverage, and method prior"""
+        # Factor 1: Absolute score strength (0-1)
+        score_factor = best_score
+        
+        # Factor 2: Separation from runner-up (0-1)
+        separation = max(0, best_score - second_best_score)
+        
+        # Factor 3: Coverage - estimate how much of input was matched
+        text_words = set(text.lower().split())
+        keyword_words = set()
+        for keyword in keywords:
+            keyword_words.update(keyword.lower().split())
+        
+        if text_words:
+            coverage = len(text_words.intersection(keyword_words)) / len(text_words)
+        else:
+            coverage = 0.0
+        
+        # Factor 4: Method prior (confidence based on matching type)
+        method_priors = {
+            "exact_pattern": 1.0,
+            "flexible_pattern": 0.9,
+            "partial_pattern": 0.8,
+            "fuzzy_match": 0.7
+        }
+        method_prior = method_priors.get(method, 0.7)
+        
+        # Weighted combination as suggested by GPT-5
+        confidence = (0.55 * score_factor + 
+                     0.25 * separation + 
+                     0.15 * coverage + 
+                     0.05 * method_prior)
+        
+        # Clamp to [0, 1] range
+        return max(0.0, min(1.0, confidence))
+    
+    def _get_matched_keywords_optimized(self, text: str, keywords_lc: List[str]) -> List[str]:
+        """Optimized version of keyword matching for debugging"""
+        if not self._rapidfuzz_available or not keywords_lc:
             return []
         
-        matched = []
-        full_text = " ".join(text_words)
+        # Use batch extract for efficiency
+        matches = self._process.extract(
+            text,
+            keywords_lc,
+            scorer=self._fuzz.WRatio,
+            processor=None,
+            score_cutoff=70,
+            limit=3
+        )
         
-        for keyword in keywords:
-            # Check different similarity measures
-            ratio_similarity = self._fuzz.ratio(full_text.lower(), keyword.lower())
-            partial_similarity = self._fuzz.partial_ratio(full_text.lower(), keyword.lower())
-            token_similarity = self._fuzz.token_set_ratio(full_text.lower(), keyword.lower())
-            
-            best_similarity = max(ratio_similarity, partial_similarity, token_similarity)
-            
-            if best_similarity > 70:  # 70% threshold for "contributing to match"
-                matched.append(f"{keyword} ({best_similarity}%)")
-        
-        return matched[:3]  # Return top 3 matches
+        return [f"{keyword} ({score}%)" for keyword, score in matches]
+    
+
+    
+
     
     def _update_fuzzy_cache(self, cache_key: str, intent_scores: Dict[str, float]):
         """Update fuzzy matching cache with size limits"""
@@ -503,18 +653,43 @@ class HybridKeywordMatcherProvider(NLUProvider):
         return re.compile(pattern, flags)
     
     def _build_partial_pattern(self, phrase: str) -> Pattern:
-        """Build partial pattern matching subset of words"""
+        """Build partial pattern matching subset of distinct words"""
         words = phrase.split()
         if len(words) <= 2:
             return self._build_flexible_pattern(phrase)
         
-        # Require at least 70% of words to match
+        # Require at least 70% of words to match, but ensure they are distinct
         min_words = max(1, int(len(words) * 0.7))
         escaped_words = [re.escape(word) for word in words]
         
-        # Create pattern with word alternation
-        word_patterns = [f"\\b{word}\\b" for word in escaped_words]
-        pattern = f"(?:{'|'.join(word_patterns)})" + f"{{{min_words},}}"
+        # Create pattern with lookaheads to ensure distinct word matches
+        # This prevents repeated single words from satisfying the pattern
+        lookaheads = []
+        for word in escaped_words:
+            # Each lookahead ensures the word appears at least once
+            lookaheads.append(f"(?=.*\\b{word}\\b)")
+        
+        # Combine lookaheads to require at least min_words distinct matches
+        # Use a more sophisticated approach than simple alternation
+        if min_words == len(words):
+            # All words required - use flexible pattern approach
+            pattern = "^" + "".join(lookaheads) + ".*$"
+        else:
+            # Partial match - require at least min_words different words
+            # Create pattern that counts distinct word boundaries
+            word_patterns = [f"\\b{word}\\b" for word in escaped_words]
+            
+            # Use positive lookahead to ensure we have enough different words
+            distinct_count_patterns = []
+            from itertools import combinations
+            
+            # Generate combinations of min_words from the available words
+            for combo in combinations(escaped_words, min_words):
+                combo_lookaheads = [f"(?=.*\\b{word}\\b)" for word in combo]
+                distinct_count_patterns.append("^" + "".join(combo_lookaheads) + ".*$")
+            
+            # Match any of the valid combinations
+            pattern = f"(?:{'|'.join(distinct_count_patterns)})"
         
         flags = 0 if self.case_sensitive else re.IGNORECASE
         return re.compile(pattern, flags)
@@ -579,8 +754,15 @@ class HybridKeywordMatcherProvider(NLUProvider):
         stats['pattern_success_rate'] = (self.stats['pattern_matches'] / total) * 100
         stats['fuzzy_success_rate'] = (self.stats['fuzzy_matches'] / total) * 100
         stats['cache_hit_rate'] = (self.stats['cache_hits'] / total) * 100 if self.cache_fuzzy_results else 0
+        stats['global_shortlist_success_rate'] = (self.stats['global_shortlist_hits'] / max(1, self.stats['fuzzy_matches'])) * 100
+        stats['enhanced_confidence_rate'] = (self.stats['enhanced_confidence_calculations'] / total) * 100
         stats['total_patterns'] = sum(len(patterns) for patterns in self.exact_patterns.values())
         stats['total_fuzzy_keywords'] = sum(len(keywords) for keywords in self.fuzzy_keywords.values())
+        stats['optimization_metrics'] = {
+            'global_keywords_count': self.stats['total_global_keywords'],
+            'avg_keywords_per_intent': stats['total_fuzzy_keywords'] / max(1, len(self.fuzzy_keywords)),
+            'shortlist_efficiency': stats['global_shortlist_success_rate']
+        }
         
         return stats
     
@@ -699,5 +881,7 @@ class HybridKeywordMatcherProvider(NLUProvider):
         self.flexible_patterns.clear()
         self.partial_patterns.clear()
         self.fuzzy_keywords.clear()
+        self.fuzzy_keywords_lc.clear()
+        self.global_keyword_map.clear()
         self.fuzzy_cache.clear()
         logger.info("Hybrid keyword matcher cleaned up")

@@ -868,7 +868,7 @@ custom = []                     # List of custom handler modules
 # NLU Configuration
 [components.nlu]
 provider = "spacy"              # spacy | rasa | openai | local
-fallback_provider = "rule_based"
+fallback_provider = "keyword_matcher"
 confidence_threshold = 0.7
 
 [components.nlu.provider_configs.spacy]
@@ -1030,7 +1030,7 @@ async def process_text_input(text: str, session_id: str = "default"):
 
 ### Phase 5: NLU Providers
 1. 🔄 Реализовать SpaCyNLUProvider (базовый)
-2. 🔄 Реализовать RuleBasedNLUProvider (fallback)
+2. ✅ Removed RuleBasedNLUProvider (no longer needed)
 3. 🔄 Реализовать OpenAINLUProvider (продвинутый)
 4. 🔄 Создать систему обучения и настройки NLU моделей
 

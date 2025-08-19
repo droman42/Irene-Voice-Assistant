@@ -119,7 +119,7 @@ fallback_providers = []
 # Cascading provider coordination (JSON donation system)
 enabled = true
 confidence_threshold = 0.5  # Low threshold for testing edge cases
-provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"]
+provider_cascade_order = ["hybrid_keyword_matcher", "spacy_nlu"]
 fallback_intent = "conversation.general"
 
 # JSON donation system integration
@@ -299,33 +299,14 @@ confidence_threshold = 0.8
 min_pattern_length = 2
 max_pattern_combinations = 100
 
-# Rule-based NLU Provider (development)
-[components.nlu.providers.rule_based]
-enabled = true
-provider_class = "RuleBasedNLUProvider"
-
-# Pattern compilation
-case_sensitive = false
-unicode_normalization = true
-regex_timeout_ms = 10
-
-# Recognition configuration
-confidence_threshold = 0.5  # Low for development testing
-default_confidence = 0.8
-fallback_intent = "conversation.general"
-
-# Performance limits
-max_patterns_per_intent = 20
-pattern_compilation_timeout = 5000
-
-# spaCy Rules Provider (Small Model) - development
-[components.nlu.providers.spacy_rules_sm]
+# spaCy NLU Provider - development
+[components.nlu.providers.spacy_nlu]
 enabled = true
 provider_class = "SpaCyNLUProvider"
 
 # Model configuration
 model_name = "ru_core_news_sm"
-model_approach = "morphological_rules"
+
 auto_download = true
 model_cache_expiry = 86400
 
@@ -344,40 +325,6 @@ fallback_to_cpu = true
 batch_processing = false
 max_doc_length = 1000
 enable_pipeline_caching = true
-
-# spaCy Semantic Provider (Medium Model) - development
-[components.nlu.providers.spacy_semantic_md]
-enabled = true
-provider_class = "SpaCyNLUProvider"
-
-# Model configuration
-model_name = "ru_core_news_md"
-model_approach = "semantic_similarity"
-auto_download = true
-model_cache_expiry = 86400
-
-# Semantic processing
-confidence_threshold = 0.4  # Lower for development testing
-similarity_threshold = 0.75
-vector_similarity_weight = 0.8
-token_similarity_weight = 0.2
-
-# Advanced features
-enable_word_vectors = true
-enable_sentence_vectors = true
-context_window_size = 5
-semantic_boost_keywords = true
-
-# Asset management integration
-download_timeout = 600
-verify_model_integrity = true
-gpu_acceleration = false
-memory_limit_mb = 200
-
-# Performance optimization
-vector_cache_size = 10000
-similarity_cache_ttl = 3600
-enable_batch_similarity = false
 
 # ============================================================
 # DEVELOPMENT FEATURES

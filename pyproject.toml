@@ -90,6 +90,12 @@ llm = [
     "anthropic>=0.25.0",
 ]
 
+# NLU (Natural Language Understanding) components
+nlu = [
+    "spacy>=3.7.0",
+    "numpy>=1.21.0",  # Required for intent centroids and vector operations
+]
+
 # Configuration management
 config-writing = [
     # tomli-w moved to core dependencies
@@ -144,7 +150,7 @@ dev = [
 # Convenience groups - Fixed: Re-enabled with proper dependencies
 # Full voice assistant
 voice = [
-    "irene-voice-assistant[audio-input,tts,audio-output,voice-trigger,web-api,text-multilingual,config-writing]"
+    "irene-voice-assistant[audio-input,tts,audio-output,voice-trigger,nlu,web-api,text-multilingual,config-writing]"
 ]
 
 # API server only
@@ -214,9 +220,7 @@ microwakeword = "irene.providers.voice_trigger.microwakeword:MicroWakeWordProvid
 
 [project.entry-points."irene.providers.nlu"]
 keyword_matcher = "irene.providers.nlu.hybrid_keyword_matcher:HybridKeywordMatcherProvider"
-rule_based = "irene.providers.nlu.rule_based:RuleBasedNLUProvider"
-spacy_rules_sm = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
-spacy_semantic_md = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
+spacy_nlu = "irene.providers.nlu.spacy_provider:SpaCyNLUProvider"
 
 [project.entry-points."irene.providers.text_processing"]
 # Stage-specific providers (TODO #2 implementation)

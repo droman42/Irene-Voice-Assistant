@@ -185,13 +185,13 @@ class UniversalLLMConfig(BaseModel):
 class UniversalNLUConfig(BaseModel):
     """Universal NLU component configuration"""
     enabled: bool = Field(default=True, description="Enable Universal NLU component")
-    default_provider: str = Field(default="rule_based", description="Default NLU provider")
+    default_provider: str = Field(default="hybrid_keyword_matcher", description="Default NLU provider")
     confidence_threshold: float = Field(default=0.7, description="Global confidence threshold")
     fallback_intent: str = Field(default="conversation.general", description="Fallback intent name")
     
     # Cascading configuration
     provider_cascade_order: List[str] = Field(
-        default_factory=lambda: ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"],
+        default_factory=lambda: ["hybrid_keyword_matcher", "spacy_nlu"],
         description="Provider cascade order (fast to slow)"
     )
     max_cascade_attempts: int = Field(default=4, description="Maximum cascade attempts")
@@ -204,26 +204,18 @@ class UniversalNLUConfig(BaseModel):
     # Provider instances configuration
     providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {
-            "rule_based": {
+            "hybrid_keyword_matcher": {
                 "enabled": True,
-                "provider_class": "RuleBasedNLUProvider",
-                "confidence_threshold": 0.7,
-                "case_sensitive": False
+                "provider_class": "HybridKeywordMatcherProvider",
+                "confidence_threshold": 0.8,
+                "exact_match_bonus": 0.2,
+                "fuzzy_threshold": 0.7
             },
-            "spacy_rules_sm": {
+            "spacy_nlu": {
                 "enabled": True,
                 "provider_class": "SpaCyNLUProvider", 
                 "model_name": "ru_core_news_sm",
-                "model_approach": "morphological_rules",
                 "confidence_threshold": 0.7,
-                "auto_download": True
-            },
-            "spacy_semantic_md": {
-                "enabled": False,  # Disabled by default (resource intensive)
-                "provider_class": "SpaCyNLUProvider",
-                "model_name": "ru_core_news_md", 
-                "model_approach": "semantic_similarity",
-                "confidence_threshold": 0.55,
                 "auto_download": True
             }
         },

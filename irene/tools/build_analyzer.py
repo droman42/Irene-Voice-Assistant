@@ -526,7 +526,7 @@ class IreneBuildAnalyzer:
         enabled = true
         
         [components.nlu]
-        provider_cascade_order = ["keyword_matcher", "rule_based"]
+        provider_cascade_order = ["keyword_matcher"]
         """
         components_config = config.get("components", {})
         

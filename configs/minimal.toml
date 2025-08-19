@@ -75,7 +75,7 @@ disabled = ["openwakeword", "microwakeword"]
 # Ultra-constrained deployment (20MB) - keyword matching only
 enabled = true
 confidence_threshold = 0.8
-provider_cascade_order = ["keyword_matcher", "rule_based"]
+provider_cascade_order = ["keyword_matcher"]
 fallback_intent = "conversation.general"
 
 # Minimal JSON donation system
@@ -97,17 +97,10 @@ pattern_confidence = 0.9
 fuzzy_enabled = false  # Disabled for memory savings
 confidence_threshold = 0.8
 
-# Rule-based NLU Provider (fallback)
-[components.nlu.providers.rule_based]
-enabled = true
-provider_class = "RuleBasedNLUProvider"
-confidence_threshold = 0.7
-case_sensitive = false
-
 # Disable all spaCy providers for minimal deployment
-[components.nlu.providers.spacy_rules_sm]
+[components.nlu.providers.spacy_nlu]
 enabled = false
-[components.nlu.providers.spacy_semantic_md]
+
 enabled = false
 
 [providers.text_processing]

@@ -11,6 +11,7 @@ import os
 import asyncio
 import hashlib
 import logging
+import pickle
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import json
@@ -148,6 +149,213 @@ class AssetManager:
         """Get cache directory path"""
         cache_attr = f"{cache_type}_cache_dir"
         return getattr(self.config, cache_attr, self.config.cache_root / cache_type)
+    
+    def get_provider_cache_path(self, provider_name: str) -> Path:
+        """Get provider-specific cache directory path"""
+        return self.config.cache_root / provider_name
+    
+    async def get_cached_data(self, cache_key: str, provider_name: str = None) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve cached data by key with comprehensive error handling.
+        
+        Args:
+            cache_key: Unique cache identifier
+            provider_name: Optional provider name for provider-specific cache directory
+            
+        Returns:
+            Cached data dictionary or None if not found/invalid
+        """
+        if not cache_key or not isinstance(cache_key, str):
+            logger.error(f"Invalid cache key: {cache_key}")
+            return None
+        
+        try:
+            if provider_name:
+                cache_dir = self.get_provider_cache_path(provider_name)
+            else:
+                cache_dir = self.get_cache_path("runtime")
+            cache_file = cache_dir / f"{cache_key}.cache"
+            
+            if not cache_file.exists():
+                logger.debug(f"Cache miss: {cache_key}")
+                return None
+            
+            # Check file size and age
+            file_stat = cache_file.stat()
+            if file_stat.st_size == 0:
+                logger.warning(f"Empty cache file: {cache_key}")
+                cache_file.unlink()  # Remove corrupted file
+                return None
+            
+            # Load cached data with additional error handling
+            try:
+                with open(cache_file, 'rb') as f:
+                    cached_data = pickle.load(f)
+            except (pickle.PickleError, EOFError) as e:
+                logger.warning(f"Corrupted cache file {cache_key}: {e}")
+                cache_file.unlink()  # Remove corrupted file
+                return None
+            except PermissionError as e:
+                logger.error(f"Permission denied reading cache file {cache_key}: {e}")
+                return None
+            
+            # Basic validation
+            if not isinstance(cached_data, dict):
+                logger.warning(f"Invalid cache data format for {cache_key}")
+                cache_file.unlink()  # Remove invalid file
+                return None
+            
+            logger.debug(f"Cache hit: {cache_key} ({file_stat.st_size} bytes)")
+            return cached_data
+            
+        except Exception as e:
+            logger.warning(f"Failed to load cached data for {cache_key}: {e}")
+            return None
+    
+    async def set_cached_data(self, cache_key: str, data: Dict[str, Any], provider_name: str = None) -> bool:
+        """
+        Store data in cache with given key and comprehensive error handling.
+        
+        Args:
+            cache_key: Unique cache identifier
+            data: Data to cache
+            provider_name: Optional provider name for provider-specific cache directory
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not cache_key or not isinstance(cache_key, str):
+            logger.error(f"Invalid cache key: {cache_key}")
+            return False
+        
+        if not isinstance(data, dict):
+            logger.error(f"Invalid data type for caching: {type(data)}")
+            return False
+        
+        try:
+            if provider_name:
+                cache_dir = self.get_provider_cache_path(provider_name)
+            else:
+                cache_dir = self.get_cache_path("runtime")
+            
+            # Ensure cache directory exists with proper permissions
+            try:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+            except PermissionError as e:
+                logger.error(f"Permission denied creating cache directory {cache_dir}: {e}")
+                return False
+            
+            cache_file = cache_dir / f"{cache_key}.cache"
+            temp_file = cache_dir / f"{cache_key}.cache.tmp"
+            
+            # Store to temporary file first (atomic operation)
+            try:
+                with open(temp_file, 'wb') as f:
+                    pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+                
+                # Atomic move to final location
+                temp_file.rename(cache_file)
+                
+            except (pickle.PickleError, PermissionError, OSError) as e:
+                logger.error(f"Failed to serialize/write cache data for {cache_key}: {e}")
+                # Clean up temporary file
+                if temp_file.exists():
+                    temp_file.unlink()
+                return False
+            
+            # Verify the file was written correctly
+            file_stat = cache_file.stat()
+            if file_stat.st_size == 0:
+                logger.error(f"Cache file written with zero size: {cache_key}")
+                cache_file.unlink()
+                return False
+            
+            logger.debug(f"Cached data: {cache_key} ({file_stat.st_size} bytes)")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to cache data for {cache_key}: {e}")
+            return False
+    
+    async def invalidate_cache(self, cache_pattern: str = None, provider_name: str = None) -> int:
+        """
+        Invalidate cached data based on pattern or clear all cache.
+        
+        Args:
+            cache_pattern: Pattern to match cache keys (None = clear all)
+            
+        Returns:
+            Number of cache files removed
+        """
+        try:
+            if provider_name:
+                cache_dir = self.get_provider_cache_path(provider_name)
+            else:
+                cache_dir = self.get_cache_path("runtime")
+            if not cache_dir.exists():
+                return 0
+            
+            removed_count = 0
+            
+            for cache_file in cache_dir.glob("*.cache"):
+                if cache_pattern is None or cache_pattern in cache_file.stem:
+                    try:
+                        cache_file.unlink()
+                        removed_count += 1
+                        logger.debug(f"Removed cache file: {cache_file.name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove cache file {cache_file}: {e}")
+            
+            logger.info(f"Cache invalidation: removed {removed_count} files")
+            return removed_count
+            
+        except Exception as e:
+            logger.error(f"Failed to invalidate cache: {e}")
+            return 0
+    
+    async def get_cache_stats(self, provider_name: str = None) -> Dict[str, Any]:
+        """
+        Get cache statistics and health information.
+        
+        Returns:
+            Dictionary with cache statistics
+        """
+        try:
+            if provider_name:
+                cache_dir = self.get_provider_cache_path(provider_name)
+            else:
+                cache_dir = self.get_cache_path("runtime")
+            if not cache_dir.exists():
+                return {"cache_files": 0, "total_size": 0, "cache_dir": str(cache_dir)}
+            
+            cache_files = list(cache_dir.glob("*.cache"))
+            total_size = sum(f.stat().st_size for f in cache_files)
+            
+            stats = {
+                "cache_files": len(cache_files),
+                "total_size": total_size,
+                "total_size_mb": round(total_size / (1024 * 1024), 2),
+                "cache_dir": str(cache_dir),
+                "files": []
+            }
+            
+            # Add details for each cache file
+            for cache_file in cache_files:
+                try:
+                    file_stat = cache_file.stat()
+                    stats["files"].append({
+                        "name": cache_file.name,
+                        "size": file_stat.st_size,
+                        "modified": file_stat.st_mtime
+                    })
+                except Exception as e:
+                    logger.debug(f"Failed to stat cache file {cache_file}: {e}")
+            
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Failed to get cache stats: {e}")
+            return {"error": str(e)}
     
     def get_credentials_path(self, provider: str, filename: Optional[str] = None) -> Path:
         """Get credentials file path"""

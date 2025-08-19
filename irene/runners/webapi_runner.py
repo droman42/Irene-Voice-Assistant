@@ -655,7 +655,7 @@ class WebAPIRunner:
                         "version": "13.0.0",
                         "components": {},
                         "intent_handlers": ["conversation", "greetings", "timer"],
-                        "nlu_providers": ["rule_based", "spacy"],
+                        "nlu_providers": ["hybrid_keyword_matcher", "spacy_nlu"],
                         "voice_trigger_providers": ["openwakeword"],
                         "text_processing_providers": ["unified", "number"],
                         "workflows": ["voice_assistant", "continuous_listening"]

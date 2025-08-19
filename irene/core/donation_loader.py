@@ -242,7 +242,9 @@ class DonationLoader:
                     token_patterns=method_donation.token_patterns,
                     slot_patterns=method_donation.slot_patterns,
                     examples=[{"text": ex.text, "parameters": ex.parameters} for ex in method_donation.examples],
-                    boost=method_donation.boost
+                    boost=method_donation.boost,
+                    donation_version=donation.donation_version,
+                    handler_domain=donation.handler_domain
                 )
                 keyword_donations.append(keyword_donation)
         

@@ -1,16 +1,15 @@
 {
   "$schema": "../../schemas/donation/v1.0.json",
   "schema_version": "1.0",
+  "donation_version": "1.0",
   "handler_domain": "system",
   "description": "System information, help, and status operations",
-  
   "intent_name_patterns": [
     "system.status",
     "system.help",
-    "system.version", 
+    "system.version",
     "system.info"
   ],
-  
   "action_patterns": [
     "status",
     "help",
@@ -18,36 +17,46 @@
     "info",
     "statistics"
   ],
-  
   "domain_patterns": [
     "system"
   ],
-
   "global_parameters": [
     {
       "name": "language",
       "type": "choice",
       "required": false,
       "default_value": "ru",
-      "choices": ["ru", "en"],
+      "choices": [
+        "ru",
+        "en"
+      ],
       "description": "Response language preference"
     }
   ],
-  
   "method_donations": [
     {
       "method_name": "_handle_help_request",
       "intent_suffix": "help",
       "description": "Provide help information and command list",
-      
       "phrases": [
-        "помощь", "справка", "что умеешь", "команды",
-        "help", "commands", "what can you do", "how to use",
-        "usage", "instructions"
+        "помощь",
+        "справка",
+        "что умеешь",
+        "команды",
+        "help",
+        "commands",
+        "what can you do",
+        "how to use",
+        "usage",
+        "instructions"
       ],
-      
-      "lemmas": ["помощь", "справка", "уметь", "команда", "инструкция"],
-      
+      "lemmas": [
+        "помощь",
+        "справка",
+        "уметь",
+        "команда",
+        "инструкция"
+      ],
       "parameters": [
         {
           "name": "topic",
@@ -55,26 +64,93 @@
           "required": false,
           "description": "Specific help topic",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["по", "about", "with"]}}, {"IS_ALPHA": true}], "label": "HELP_TOPIC"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "по",
+                      "about",
+                      "with"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "HELP_TOPIC"
+            }
           ],
-          "aliases": ["тема", "subject"]
+          "aliases": [
+            "тема",
+            "subject"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["помощь", "справка"]}}],
-        [{"TEXT": {"REGEX": "help|commands"}}],
-        [{"LEMMA": "что"}, {"LEMMA": "уметь"}],
-        [{"TEXT": "what"}, {"TEXT": "can"}, {"TEXT": "you"}, {"TEXT": "do"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "помощь",
+                "справка"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "help|commands"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "что"
+          },
+          {
+            "LEMMA": "уметь"
+          }
+        ],
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": "can"
+          },
+          {
+            "TEXT": "you"
+          },
+          {
+            "TEXT": "do"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "HELP_TOPIC": [
-          [{"LOWER": "по"}, {"IS_ALPHA": true, "OP": "+"}],
-          [{"LOWER": "about"}, {"IS_ALPHA": true, "OP": "+"}]
+          [
+            {
+              "LOWER": "по"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "about"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "помощь",
@@ -90,25 +166,36 @@
         },
         {
           "text": "help with timers",
-          "parameters": {"topic": "timers"}
+          "parameters": {
+            "topic": "timers"
+          }
         }
       ],
-      
       "boost": 1.3
     },
     {
       "method_name": "_handle_status_request",
       "intent_suffix": "status",
       "description": "Show system status and health information",
-      
       "phrases": [
-        "статус", "состояние", "как дела", "здоровье системы",
-        "status", "state", "how are you", "system health",
-        "are you working", "everything ok"
+        "статус",
+        "состояние",
+        "как дела",
+        "здоровье системы",
+        "status",
+        "state",
+        "how are you",
+        "system health",
+        "are you working",
+        "everything ok"
       ],
-      
-      "lemmas": ["статус", "состояние", "дела", "здоровье", "система"],
-      
+      "lemmas": [
+        "статус",
+        "состояние",
+        "дела",
+        "здоровье",
+        "система"
+      ],
       "parameters": [
         {
           "name": "component",
@@ -116,19 +203,67 @@
           "required": false,
           "description": "Specific component to check",
           "extraction_patterns": [
-            {"pattern": [{"LEMMA": {"IN": ["статус", "состояние"]}}, {"IS_ALPHA": true}], "label": "COMPONENT"}
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "статус",
+                      "состояние"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "COMPONENT"
+            }
           ],
-          "aliases": ["модуль", "компонент"]
+          "aliases": [
+            "модуль",
+            "компонент"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["статус", "состояние"]}}],
-        [{"TEXT": {"REGEX": "status|state"}}],
-        [{"LEMMA": "как"}, {"LEMMA": "дела"}],
-        [{"TEXT": "how"}, {"TEXT": "are"}, {"TEXT": "you"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "статус",
+                "состояние"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "status|state"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "как"
+          },
+          {
+            "LEMMA": "дела"
+          }
+        ],
+        [
+          {
+            "TEXT": "how"
+          },
+          {
+            "TEXT": "are"
+          },
+          {
+            "TEXT": "you"
+          }
+        ]
       ],
-      
       "examples": [
         {
           "text": "статус",
@@ -143,30 +278,53 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.2
     },
     {
       "method_name": "_handle_version_request",
       "intent_suffix": "version",
       "description": "Show version information",
-      
       "phrases": [
-        "версия", "какая версия", "version", "what version",
-        "build info", "release info"
+        "версия",
+        "какая версия",
+        "version",
+        "what version",
+        "build info",
+        "release info"
       ],
-      
-      "lemmas": ["версия", "какой"],
-      
+      "lemmas": [
+        "версия",
+        "какой"
+      ],
       "parameters": [],
-      
       "token_patterns": [
-        [{"LEMMA": "версия"}],
-        [{"TEXT": "version"}],
-        [{"LEMMA": "какой"}, {"LEMMA": "версия"}],
-        [{"TEXT": "what"}, {"TEXT": "version"}]
+        [
+          {
+            "LEMMA": "версия"
+          }
+        ],
+        [
+          {
+            "TEXT": "version"
+          }
+        ],
+        [
+          {
+            "LEMMA": "какой"
+          },
+          {
+            "LEMMA": "версия"
+          }
+        ],
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": "version"
+          }
+        ]
       ],
-      
       "examples": [
         {
           "text": "версия",
@@ -177,40 +335,79 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.1
     },
     {
       "method_name": "_handle_info_request",
       "intent_suffix": "info",
       "description": "Show detailed system information",
-      
       "phrases": [
-        "информация", "сведения", "подробности", "info",
-        "information", "details", "about system"
+        "информация",
+        "сведения",
+        "подробности",
+        "info",
+        "information",
+        "details",
+        "about system"
       ],
-      
-      "lemmas": ["информация", "сведения", "подробности"],
-      
+      "lemmas": [
+        "информация",
+        "сведения",
+        "подробности"
+      ],
       "parameters": [
         {
           "name": "info_type",
           "type": "choice",
           "required": false,
-          "choices": ["system", "performance", "configuration", "logs"],
+          "choices": [
+            "system",
+            "performance",
+            "configuration",
+            "logs"
+          ],
           "description": "Type of information to show",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["система", "производительность", "конфигурация", "логи"]}}], "label": "INFO_TYPE"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "система",
+                      "производительность",
+                      "конфигурация",
+                      "логи"
+                    ]
+                  }
+                }
+              ],
+              "label": "INFO_TYPE"
+            }
           ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": "информация"}],
-        [{"TEXT": {"REGEX": "info|information|details"}}],
-        [{"LEMMA": "о"}, {"LEMMA": "система"}]
+        [
+          {
+            "LEMMA": "информация"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "info|information|details"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "о"
+          },
+          {
+            "LEMMA": "система"
+          }
+        ]
       ],
-      
       "examples": [
         {
           "text": "информация",
@@ -221,32 +418,80 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.0
     },
     {
       "method_name": "_handle_general_info",
       "intent_suffix": "about",
       "description": "General information about the assistant",
-      
       "phrases": [
-        "кто ты", "что ты", "расскажи о себе", "представься",
-        "who are you", "what are you", "tell me about yourself",
+        "кто ты",
+        "что ты",
+        "расскажи о себе",
+        "представься",
+        "who are you",
+        "what are you",
+        "tell me about yourself",
         "introduce yourself"
       ],
-      
-      "lemmas": ["кто", "что", "рассказать", "представиться"],
-      
-      "parameters": [],
-      
-      "token_patterns": [
-        [{"LEMMA": "кто"}, {"LEMMA": "ты"}],
-        [{"LEMMA": "что"}, {"LEMMA": "ты"}],
-        [{"TEXT": "who"}, {"TEXT": "are"}, {"TEXT": "you"}],
-        [{"TEXT": "what"}, {"TEXT": "are"}, {"TEXT": "you"}],
-        [{"LEMMA": "рассказать"}, {"LEMMA": "о"}, {"LEMMA": "себя"}]
+      "lemmas": [
+        "кто",
+        "что",
+        "рассказать",
+        "представиться"
       ],
-      
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "кто"
+          },
+          {
+            "LEMMA": "ты"
+          }
+        ],
+        [
+          {
+            "LEMMA": "что"
+          },
+          {
+            "LEMMA": "ты"
+          }
+        ],
+        [
+          {
+            "TEXT": "who"
+          },
+          {
+            "TEXT": "are"
+          },
+          {
+            "TEXT": "you"
+          }
+        ],
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": "are"
+          },
+          {
+            "TEXT": "you"
+          }
+        ],
+        [
+          {
+            "LEMMA": "рассказать"
+          },
+          {
+            "LEMMA": "о"
+          },
+          {
+            "LEMMA": "себя"
+          }
+        ]
+      ],
       "examples": [
         {
           "text": "кто ты",
@@ -261,13 +506,39 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.1
     }
   ],
-  
   "negative_patterns": [
-    [{"LEMMA": {"IN": ["нет", "не"]}}, {"LEMMA": {"IN": ["помощь", "статус"]}}],
-    [{"TEXT": {"REGEX": "no|not"}}, {"TEXT": {"REGEX": "help|status"}}]
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "помощь",
+            "статус"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "help|status"
+        }
+      }
+    ]
   ]
-} 
+}

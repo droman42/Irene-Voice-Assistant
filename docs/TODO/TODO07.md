@@ -12,7 +12,7 @@ The intent recognition system has two separate, non-communicating parts that sho
 
 1. **NLU Providers Define Patterns**: NLU providers have hardcoded recognition patterns:
    ```python
-   # In RuleBasedNLUProvider._initialize_patterns()
+   # In SpaCyNLUProvider._initialize_patterns()
    self.patterns = {
        "timer.set": [
            re.compile(r"\b(поставь|установи|засеки)\s+(таймер|время)\b"),
@@ -72,7 +72,7 @@ class TimerIntentHandler(IntentHandler):
         }
 
 # NLU providers use handler-contributed patterns
-class RuleBasedNLUProvider:
+class SpaCyNLUProvider:
     async def _initialize_patterns(self):
         # Get patterns from registered intent handlers
         handler_patterns = await self._get_patterns_from_handlers()
@@ -125,7 +125,7 @@ Audio → ASR → Text Processing → NLU Recognition → Intent Orchestration �
 - ✅ `irene/intents/registry.py` (handler registration with donations)
 - ✅ `irene/intents/orchestrator.py` (donation-driven execution)
 - ✅ `irene/intents/manager.py` (donation loading and parameter extraction)
-- ✅ `irene/providers/nlu/rule_based.py` (pattern-based recognition)
+
 - ✅ `irene/providers/nlu/spacy_provider.py` (semantic recognition)
 - ✅ `irene/providers/nlu/hybrid_keyword_matcher.py` (keyword-first NLU)
 - ✅ `irene/workflows/voice_assistant.py` (main processing pipeline)

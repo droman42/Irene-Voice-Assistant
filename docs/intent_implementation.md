@@ -847,8 +847,8 @@ class NumberTextProcessor(Provider):
 
 **`irene/providers/nlu/rule_based.py`** ✅ - Fallback NLU
 ```python
-class RuleBasedNLUProvider(NLUProvider):
-    """Simple rule-based NLU for fallback"""
+class SpaCyNLUProvider(NLUProvider):
+    """SpaCy-based NLU for semantic processing"""
     
     def __init__(self):
         self.patterns = {

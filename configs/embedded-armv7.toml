@@ -94,7 +94,7 @@ fallback_providers = []
 # Edge device deployment (80MB) - rules + keywords
 enabled = true
 confidence_threshold = 0.8
-provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "rule_based"]
+provider_cascade_order = ["hybrid_keyword_matcher", "spacy_nlu"]
 fallback_intent = "conversation.general"
 
 # JSON donation system for edge devices
@@ -118,23 +118,16 @@ fuzzy_threshold = 0.8
 confidence_threshold = 0.8
 
 # spaCy Rules Provider (Small Model) - edge
-[components.nlu.providers.spacy_rules_sm]
+[components.nlu.providers.spacy_nlu]
 enabled = true
 provider_class = "SpaCyNLUProvider"
 model_name = "ru_core_news_sm"
-model_approach = "morphological_rules"
 confidence_threshold = 0.7
 auto_download = true
 memory_limit_mb = 60  # ARMv7 constraint
 
-# Rule-based NLU Provider (fallback)
-[components.nlu.providers.rule_based]
-enabled = true
-provider_class = "RuleBasedNLUProvider"
-confidence_threshold = 0.7
-
 # Disable semantic processing for edge deployment
-[components.nlu.providers.spacy_semantic_md]
+
 enabled = false
 
 [providers.text_processing]

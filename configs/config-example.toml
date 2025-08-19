@@ -304,7 +304,7 @@ threshold = 0.85
 # Cascading provider coordination (JSON donation system)
 enabled = true
 confidence_threshold = 0.7
-provider_cascade_order = ["keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"]
+provider_cascade_order = ["hybrid_keyword_matcher", "spacy_nlu"]
 fallback_intent = "conversation.general"
 
 # JSON donation system integration
@@ -327,29 +327,12 @@ fuzzy_enabled = true
 fuzzy_threshold = 0.8
 confidence_threshold = 0.8
 
-# Rule-based NLU Provider
-[components.nlu.providers.rule_based]
-enabled = true
-provider_class = "RuleBasedNLUProvider"
-confidence_threshold = 0.7
-case_sensitive = false
-
-# spaCy Rules Provider (Small Model)
-[components.nlu.providers.spacy_rules_sm]
+# spaCy NLU Provider
+[components.nlu.providers.spacy_nlu]
 enabled = true
 provider_class = "SpaCyNLUProvider"
 model_name = "ru_core_news_sm"
-model_approach = "morphological_rules"
 confidence_threshold = 0.7
-auto_download = true
-
-# spaCy Semantic Provider (Medium Model)
-[components.nlu.providers.spacy_semantic_md]
-enabled = false  # Disabled by default (large memory usage)
-provider_class = "SpaCyNLUProvider"
-model_name = "ru_core_news_md"
-model_approach = "semantic_similarity"
-confidence_threshold = 0.55
 auto_download = true
 
 # ============================================================

@@ -1,51 +1,58 @@
 {
   "$schema": "../../schemas/donation/v1.0.json",
   "schema_version": "1.0",
+  "donation_version": "1.0",
   "handler_domain": "service",
   "description": "System service status, statistics, and health monitoring",
-  
   "intent_name_patterns": [
     "service.status",
     "service.stats",
     "service.health"
   ],
-  
   "action_patterns": [
     "status",
     "stats",
     "health",
     "check"
   ],
-  
   "domain_patterns": [
     "service"
   ],
-
   "global_parameters": [
     {
       "name": "language",
       "type": "choice",
       "required": false,
       "default_value": "ru",
-      "choices": ["ru", "en"],
+      "choices": [
+        "ru",
+        "en"
+      ],
       "description": "Response language preference"
     }
   ],
-  
   "method_donations": [
     {
       "method_name": "_handle_service_status",
       "intent_suffix": "status",
       "description": "Show current service status and basic information",
-      
       "phrases": [
-        "service status", "статус сервиса", "состояние сервиса", 
-        "как работает сервис", "сервис работает", "system status",
-        "проверь статус", "check status"
+        "service status",
+        "статус сервиса",
+        "состояние сервиса",
+        "как работает сервис",
+        "сервис работает",
+        "system status",
+        "проверь статус",
+        "check status"
       ],
-      
-      "lemmas": ["статус", "состояние", "сервис", "работать", "проверить"],
-      
+      "lemmas": [
+        "статус",
+        "состояние",
+        "сервис",
+        "работать",
+        "проверить"
+      ],
       "parameters": [
         {
           "name": "component",
@@ -53,29 +60,108 @@
           "required": false,
           "description": "Specific service component to check",
           "extraction_patterns": [
-            {"pattern": [{"LEMMA": "статус"}, {"IS_ALPHA": true}], "label": "COMPONENT"},
-            {"pattern": [{"TEXT": "status"}, {"IS_ALPHA": true}], "label": "COMPONENT"}
+            {
+              "pattern": [
+                {
+                  "LEMMA": "статус"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "status"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "COMPONENT"
+            }
           ],
-          "aliases": ["модуль", "компонент"]
+          "aliases": [
+            "модуль",
+            "компонент"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"TEXT": "service"}, {"TEXT": "status"}],
-        [{"LEMMA": "статус"}, {"LEMMA": "сервис"}],
-        [{"LEMMA": "состояние"}, {"LEMMA": "сервис"}],
-        [{"LEMMA": "как"}, {"LEMMA": "работать"}, {"LEMMA": "сервис"}],
-        [{"TEXT": "system"}, {"TEXT": "status"}],
-        [{"LEMMA": "проверить"}, {"LEMMA": "статус"}]
+        [
+          {
+            "TEXT": "service"
+          },
+          {
+            "TEXT": "status"
+          }
+        ],
+        [
+          {
+            "LEMMA": "статус"
+          },
+          {
+            "LEMMA": "сервис"
+          }
+        ],
+        [
+          {
+            "LEMMA": "состояние"
+          },
+          {
+            "LEMMA": "сервис"
+          }
+        ],
+        [
+          {
+            "LEMMA": "как"
+          },
+          {
+            "LEMMA": "работать"
+          },
+          {
+            "LEMMA": "сервис"
+          }
+        ],
+        [
+          {
+            "TEXT": "system"
+          },
+          {
+            "TEXT": "status"
+          }
+        ],
+        [
+          {
+            "LEMMA": "проверить"
+          },
+          {
+            "LEMMA": "статус"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "COMPONENT": [
-          [{"LEMMA": "статус"}, {"IS_ALPHA": true}],
-          [{"TEXT": "status"}, {"IS_ALPHA": true}]
+          [
+            {
+              "LEMMA": "статус"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ],
+          [
+            {
+              "TEXT": "status"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "service status",
@@ -91,56 +177,177 @@
         },
         {
           "text": "проверь статус системы",
-          "parameters": {"component": "системы"}
+          "parameters": {
+            "component": "системы"
+          }
         }
       ],
-      
       "boost": 1.4
     },
     {
       "method_name": "_handle_service_stats",
       "intent_suffix": "stats",
       "description": "Show detailed service statistics and metrics",
-      
       "phrases": [
-        "service stats", "статистика сервиса", "статистика системы",
-        "service statistics", "метрики сервиса", "показатели сервиса",
-        "данные о работе", "information about service"
+        "service stats",
+        "статистика сервиса",
+        "статистика системы",
+        "service statistics",
+        "метрики сервиса",
+        "показатели сервиса",
+        "данные о работе",
+        "information about service"
       ],
-      
-      "lemmas": ["статистика", "метрика", "показатель", "данные", "сервис", "система"],
-      
+      "lemmas": [
+        "статистика",
+        "метрика",
+        "показатель",
+        "данные",
+        "сервис",
+        "система"
+      ],
       "parameters": [
         {
           "name": "metric_type",
           "type": "choice",
           "required": false,
-          "choices": ["performance", "memory", "cpu", "network", "all"],
+          "choices": [
+            "performance",
+            "memory",
+            "cpu",
+            "network",
+            "all"
+          ],
           "description": "Type of statistics to show",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["производительность", "память", "процессор", "сеть"]}}], "label": "METRIC_TYPE"},
-            {"pattern": [{"LOWER": {"IN": ["performance", "memory", "cpu", "network"]}}], "label": "METRIC_TYPE"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "производительность",
+                      "память",
+                      "процессор",
+                      "сеть"
+                    ]
+                  }
+                }
+              ],
+              "label": "METRIC_TYPE"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "performance",
+                      "memory",
+                      "cpu",
+                      "network"
+                    ]
+                  }
+                }
+              ],
+              "label": "METRIC_TYPE"
+            }
           ],
-          "aliases": ["тип", "вид"]
+          "aliases": [
+            "тип",
+            "вид"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"TEXT": "service"}, {"TEXT": {"REGEX": "stats|statistics"}}],
-        [{"LEMMA": "статистика"}, {"LEMMA": {"IN": ["сервис", "система"]}}],
-        [{"LEMMA": "метрика"}, {"LEMMA": "сервис"}],
-        [{"LEMMA": "показатель"}, {"LEMMA": "сервис"}],
-        [{"LEMMA": "данные"}, {"LEMMA": "о"}, {"LEMMA": "работа"}],
-        [{"TEXT": "information"}, {"TEXT": "about"}, {"TEXT": "service"}]
+        [
+          {
+            "TEXT": "service"
+          },
+          {
+            "TEXT": {
+              "REGEX": "stats|statistics"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "статистика"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "сервис",
+                "система"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "метрика"
+          },
+          {
+            "LEMMA": "сервис"
+          }
+        ],
+        [
+          {
+            "LEMMA": "показатель"
+          },
+          {
+            "LEMMA": "сервис"
+          }
+        ],
+        [
+          {
+            "LEMMA": "данные"
+          },
+          {
+            "LEMMA": "о"
+          },
+          {
+            "LEMMA": "работа"
+          }
+        ],
+        [
+          {
+            "TEXT": "information"
+          },
+          {
+            "TEXT": "about"
+          },
+          {
+            "TEXT": "service"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "METRIC_TYPE": [
-          [{"LOWER": {"IN": ["производительность", "память", "процессор", "сеть"]}}],
-          [{"LOWER": {"IN": ["performance", "memory", "cpu", "network"]}}]
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "производительность",
+                  "память",
+                  "процессор",
+                  "сеть"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "performance",
+                  "memory",
+                  "cpu",
+                  "network"
+                ]
+              }
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "service stats",
@@ -152,29 +359,41 @@
         },
         {
           "text": "метрики производительности",
-          "parameters": {"metric_type": "performance"}
+          "parameters": {
+            "metric_type": "performance"
+          }
         },
         {
           "text": "service statistics",
           "parameters": {}
         }
       ],
-      
       "boost": 1.3
     },
     {
       "method_name": "_handle_service_health",
       "intent_suffix": "health",
       "description": "Check service health and diagnostic information",
-      
       "phrases": [
-        "service health", "здоровье сервиса", "здоровье системы",
-        "system health", "диагностика сервиса", "проверка работы",
-        "всё ли в порядке", "everything ok", "is everything working"
+        "service health",
+        "здоровье сервиса",
+        "здоровье системы",
+        "system health",
+        "диагностика сервиса",
+        "проверка работы",
+        "всё ли в порядке",
+        "everything ok",
+        "is everything working"
       ],
-      
-      "lemmas": ["здоровье", "диагностика", "проверка", "порядок", "работать", "сервис", "система"],
-      
+      "lemmas": [
+        "здоровье",
+        "диагностика",
+        "проверка",
+        "порядок",
+        "работать",
+        "сервис",
+        "система"
+      ],
       "parameters": [
         {
           "name": "detailed",
@@ -183,31 +402,147 @@
           "default_value": false,
           "description": "Show detailed health information",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["подробно", "детально", "полный"]}}], "label": "DETAILED"},
-            {"pattern": [{"LOWER": {"IN": ["detailed", "full", "complete"]}}], "label": "DETAILED"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "подробно",
+                      "детально",
+                      "полный"
+                    ]
+                  }
+                }
+              ],
+              "label": "DETAILED"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "detailed",
+                      "full",
+                      "complete"
+                    ]
+                  }
+                }
+              ],
+              "label": "DETAILED"
+            }
           ],
-          "aliases": ["подробный", "полный"]
+          "aliases": [
+            "подробный",
+            "полный"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"TEXT": "service"}, {"TEXT": "health"}],
-        [{"LEMMA": "здоровье"}, {"LEMMA": {"IN": ["сервис", "система"]}}],
-        [{"TEXT": "system"}, {"TEXT": "health"}],
-        [{"LEMMA": "диагностика"}, {"LEMMA": "сервис"}],
-        [{"LEMMA": "проверка"}, {"LEMMA": "работа"}],
-        [{"LEMMA": "всё"}, {"LEMMA": "ли"}, {"LEMMA": "в"}, {"LEMMA": "порядок"}],
-        [{"TEXT": "everything"}, {"TEXT": "ok"}],
-        [{"TEXT": "is"}, {"TEXT": "everything"}, {"TEXT": "working"}]
+        [
+          {
+            "TEXT": "service"
+          },
+          {
+            "TEXT": "health"
+          }
+        ],
+        [
+          {
+            "LEMMA": "здоровье"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "сервис",
+                "система"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "system"
+          },
+          {
+            "TEXT": "health"
+          }
+        ],
+        [
+          {
+            "LEMMA": "диагностика"
+          },
+          {
+            "LEMMA": "сервис"
+          }
+        ],
+        [
+          {
+            "LEMMA": "проверка"
+          },
+          {
+            "LEMMA": "работа"
+          }
+        ],
+        [
+          {
+            "LEMMA": "всё"
+          },
+          {
+            "LEMMA": "ли"
+          },
+          {
+            "LEMMA": "в"
+          },
+          {
+            "LEMMA": "порядок"
+          }
+        ],
+        [
+          {
+            "TEXT": "everything"
+          },
+          {
+            "TEXT": "ok"
+          }
+        ],
+        [
+          {
+            "TEXT": "is"
+          },
+          {
+            "TEXT": "everything"
+          },
+          {
+            "TEXT": "working"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "DETAILED": [
-          [{"LOWER": {"IN": ["подробно", "детально", "полный"]}}],
-          [{"LOWER": {"IN": ["detailed", "full", "complete"]}}]
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "подробно",
+                  "детально",
+                  "полный"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "detailed",
+                  "full",
+                  "complete"
+                ]
+              }
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "service health",
@@ -223,20 +558,49 @@
         },
         {
           "text": "detailed system health",
-          "parameters": {"detailed": true}
+          "parameters": {
+            "detailed": true
+          }
         },
         {
           "text": "everything ok",
           "parameters": {}
         }
       ],
-      
       "boost": 1.2
     }
   ],
-  
   "negative_patterns": [
-    [{"LEMMA": {"IN": ["нет", "не"]}}, {"LEMMA": {"IN": ["статус", "сервис", "здоровье"]}}],
-    [{"TEXT": {"REGEX": "no|not"}}, {"TEXT": {"REGEX": "service|status|health"}}]
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "статус",
+            "сервис",
+            "здоровье"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "service|status|health"
+        }
+      }
+    ]
   ]
 }

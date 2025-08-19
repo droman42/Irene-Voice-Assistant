@@ -72,7 +72,7 @@ The inconsistency stems from mixing **logical platform support** (OS capability)
 - **6 TTS Providers** (console, pyttsx, silero_v3, silero_v4, elevenlabs, vosk)
 - **3 ASR Providers** (vosk, google_cloud, whisper)  
 - **4 Audio Providers** (aplay, audioplayer, simpleaudio, sounddevice, console)
-- **3 NLU Providers** (spacy, hybrid_keyword_matcher, rule_based)
+- **2 NLU Providers** (spacy, hybrid_keyword_matcher)
 - **4 Text Processing Providers** (number, general, tts, asr)
 - **2 Voice Trigger Providers** (microwakeword, openwakeword)
 - **3 LLM Providers** (vsegpt, anthropic, openai)
@@ -249,7 +249,7 @@ def get_platform_dependencies(cls) -> Dict[str, List[str]]:
 **NLU Providers (3 files):**
 - `irene/providers/nlu/spacy_provider.py` - Pattern B (build-essential dependencies)
 - `irene/providers/nlu/hybrid_keyword_matcher.py` - Pattern B (build-essential dependencies)
-- `irene/providers/nlu/rule_based.py` - Pattern A
+
 
 **Text Processing Providers (4 files):**
 - All use Pattern A (no system dependencies)
@@ -479,7 +479,7 @@ def get_platform_support(cls) -> List[str]:
 - 6 TTS providers: console, elevenlabs, pyttsx, silero_v3, silero_v4, vosk
 - 3 ASR providers: google_cloud, whisper, vosk  
 - 5 Audio providers: aplay, audioplayer, simpleaudio, sounddevice, console
-- 3 NLU providers: spacy_provider, hybrid_keyword_matcher, rule_based
+- 2 NLU providers: spacy_provider, hybrid_keyword_matcher
 - 4 Text processing providers: number, general, tts, asr
 - 2 Voice trigger providers: microwakeword, openwakeword
 - 3 LLM providers: vsegpt, anthropic, openai

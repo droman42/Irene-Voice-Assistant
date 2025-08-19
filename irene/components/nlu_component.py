@@ -222,9 +222,7 @@ class NLUComponent(Component, WebAPIPlugin):
                 "confidence_threshold": 0.7,
                 "fallback_intent": "conversation.general",
                 "providers": {
-                    "rule_based": {
-                        "enabled": True
-                    },
+
                     "spacy": {
                         "enabled": False,
                         "model_name": "en_core_web_sm"
@@ -238,7 +236,7 @@ class NLUComponent(Component, WebAPIPlugin):
         
         # Cascading provider coordination configuration
         self.provider_cascade_order = config.get("provider_cascade_order", [
-            "keyword_matcher", "spacy_rules_sm", "spacy_semantic_md", "rule_based"
+            "keyword_matcher", "spacy_rules_sm", "spacy_semantic_md"
         ])
         self.max_cascade_attempts = config.get("max_cascade_attempts", 4)
         self.cascade_timeout_ms = config.get("cascade_timeout_ms", 200)
@@ -252,9 +250,9 @@ class NLUComponent(Component, WebAPIPlugin):
         enabled_providers = [name for name, provider_config in providers_config.items() 
                             if provider_config.get("enabled", False)]
         
-        # Always include rule_based as fallback if not already included
-        if "rule_based" not in enabled_providers and providers_config.get("rule_based", {}).get("enabled", True):
-            enabled_providers.append("rule_based")
+        # Always include keyword_matcher as fallback if not already included
+        if "keyword_matcher" not in enabled_providers and providers_config.get("keyword_matcher", {}).get("enabled", True):
+            enabled_providers.append("keyword_matcher")
             
         self._provider_classes = dynamic_loader.discover_providers("irene.providers.nlu", enabled_providers)
         logger.info(f"Discovered {len(self._provider_classes)} enabled NLU providers: {list(self._provider_classes.keys())}")

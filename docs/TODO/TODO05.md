@@ -280,7 +280,7 @@ class IreneBuildAnalyzer:
 - ✅ **ASR Providers (3/3)**: GoogleCloudASRProvider, WhisperASRProvider, VoskASRProvider
 - ✅ **LLM Providers (3/3)**: AnthropicLLMProvider, OpenAILLMProvider, VseGPTLLMProvider
 - ✅ **Voice Trigger Providers (2/2)**: OpenWakeWordProvider, MicroWakeWordProvider
-- ✅ **NLU Providers (2/2)**: RuleBasedNLUProvider, SpaCyNLUProvider
+- ✅ **NLU Providers (1/1)**: SpaCyNLUProvider
 - ✅ **Text Processing Providers (4/4)**: GeneralTextProcessor, ASRTextProcessor, TTSTextProcessor, NumberTextProcessor
 
 ### **Technical Implementation Complete**

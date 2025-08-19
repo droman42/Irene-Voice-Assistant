@@ -364,7 +364,7 @@ class NLUOrchestrator:
     def __init__(self):
         self.plugins = [
                         KeywordMatcherNLUProvider(),    # Обязательный: быстрое сопоставление
-            RuleBasedNLUProvider(),        # Опциональный: regex паттерны
+
             SpaCySemanticNLUProvider(),    # Опциональный: семантическое понимание
         ]
 ```
@@ -1510,7 +1510,7 @@ class NLUProviderStrategy:
     def __init__(self):
         self.providers = [
             KeywordMatcherNLUProvider(),    # Обязательный: быстрое сопоставление
-            RuleBasedNLUProvider(),        # Опциональный: regex паттерны  
+  
             SpaCySemanticNLUProvider(),    # Опциональный: семантическое понимание
         ]
     
@@ -1522,16 +1522,16 @@ class NLUProviderStrategy:
         if keyword_result.confidence >= 0.8:
             return "keyword_matcher"
             
-        # Для коротких команд - rule-based
+        # Для коротких команд - keyword matcher
         if len(text.split()) <= 3:
-            return "rule_based"
+            return "keyword_matcher"
             
         # Для сложных запросов - семантическое понимание
         if context.requires_semantic_understanding():
             return "spacy_semantic"
             
-        # Fallback to rule-based
-        return "rule_based"
+        # Fallback to keyword matcher
+        return "keyword_matcher"
 ```
 
 ---

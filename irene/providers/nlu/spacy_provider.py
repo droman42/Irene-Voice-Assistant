@@ -6,7 +6,11 @@ Provides more sophisticated natural language understanding than rule-based appro
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+import hashlib
+import numpy as np
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple
 
 from .base import NLUProvider
 from ...intents.models import Intent, ConversationContext
@@ -32,8 +36,24 @@ class SpaCyNLUProvider(NLUProvider):
         self.fallback_model = config.get('fallback_model', 'en_core_web_sm')
         self.confidence_threshold = config.get('confidence_threshold', 0.7)
         self.entity_types = config.get('entity_types', ['PERSON', 'ORG', 'GPE', 'DATE', 'TIME', 'MONEY', 'QUANTITY'])
-        self.intent_patterns = {}
+        
+        # Pattern storage for semantic matching
+        self.intent_patterns: Dict[str, List[str]] = {}  # intent -> example strings
+        self.pattern_docs: Dict[str, List[Any]] = {}     # intent -> spaCy Doc objects
+        self.intent_centroids: Dict[str, np.ndarray] = {} # intent -> vector centroids
+        
+        # Fast matching components
+        self.phrase_matcher = None
+        self.entity_ruler = None
+        
+        # Asset management for caching
         self.asset_manager = None
+        self._donations_hash = None
+        
+        # Telemetry and versioning
+        self._donation_versions = []
+        self._handler_domains = []
+        self._spacy_model_version = None
         
     def get_provider_name(self) -> str:
         return "spacy_nlu"
@@ -52,8 +72,10 @@ class SpaCyNLUProvider(NLUProvider):
                 else:
                     await self._initialize_spacy()
             
-            # Phase 4: Also check that intent patterns are loaded from JSON donations
-            return self.nlp is not None and len(self.intent_patterns) > 0
+            # Check that intent patterns and compiled artifacts are loaded
+            return (self.nlp is not None and 
+                   len(self.intent_patterns) > 0 and 
+                   len(self.pattern_docs) > 0)
             
         except Exception as e:
             self._set_status(self.status.__class__.ERROR, f"spaCy NLU initialization failed: {e}")
@@ -78,18 +100,34 @@ class SpaCyNLUProvider(NLUProvider):
             # Try to load the specified model
             try:
                 self.nlp = spacy.load(self.model_name)
-                logger.info(f"Loaded spaCy model: {self.model_name}")
+                
+                # Capture model version for cache validation
+                if hasattr(self.nlp, 'meta') and 'version' in self.nlp.meta:
+                    self._spacy_model_version = self.nlp.meta['version']
+                else:
+                    # Fallback to spaCy library version
+                    self._spacy_model_version = spacy.__version__
+                
+                logger.info(f"Loaded spaCy model: {self.model_name} (version: {self._spacy_model_version})")
             except OSError:
                 logger.warning(f"Model {self.model_name} not found, trying fallback {self.fallback_model}")
                 try:
                     self.nlp = spacy.load(self.fallback_model)
-                    logger.info(f"Loaded fallback spaCy model: {self.fallback_model}")
+                    
+                    # Capture fallback model version
+                    if hasattr(self.nlp, 'meta') and 'version' in self.nlp.meta:
+                        self._spacy_model_version = self.nlp.meta['version']
+                    else:
+                        self._spacy_model_version = spacy.__version__
+                    
+                    logger.info(f"Loaded fallback spaCy model: {self.fallback_model} (version: {self._spacy_model_version})")
                 except OSError:
                     logger.error("No spaCy models available")
                     raise RuntimeError("No spaCy models found. Install with: python -m spacy download ru_core_news_sm")
             
-            # Initialize intent patterns for semantic matching
-            await self._initialize_intent_patterns()
+            # Initialize intent patterns if donations are available
+            if len(self.intent_patterns) > 0:
+                await self._initialize_intent_patterns()
             
             logger.info("spaCy NLU initialized successfully")
             
@@ -128,7 +166,15 @@ class SpaCyNLUProvider(NLUProvider):
             # Try to load the specified model
             try:
                 self.nlp = spacy.load(self.model_name)
-                logger.info(f"Loaded spaCy model: {self.model_name}")
+                
+                # Capture model version for cache validation
+                if hasattr(self.nlp, 'meta') and 'version' in self.nlp.meta:
+                    self._spacy_model_version = self.nlp.meta['version']
+                else:
+                    # Fallback to spaCy library version
+                    self._spacy_model_version = spacy.__version__
+                
+                logger.info(f"Loaded spaCy model: {self.model_name} (version: {self._spacy_model_version})")
             except OSError:
                 logger.warning(f"Model {self.model_name} not found, trying fallback {self.fallback_model}")
                 try:
@@ -149,13 +195,21 @@ class SpaCyNLUProvider(NLUProvider):
                             logger.warning(f"Asset manager failed to provide fallback model {self.fallback_model}: {e}")
                     
                     self.nlp = spacy.load(self.fallback_model)
-                    logger.info(f"Loaded fallback spaCy model: {self.fallback_model}")
+                    
+                    # Capture fallback model version
+                    if hasattr(self.nlp, 'meta') and 'version' in self.nlp.meta:
+                        self._spacy_model_version = self.nlp.meta['version']
+                    else:
+                        self._spacy_model_version = spacy.__version__
+                    
+                    logger.info(f"Loaded fallback spaCy model: {self.fallback_model} (version: {self._spacy_model_version})")
                 except OSError:
                     logger.error("No spaCy models available")
                     raise RuntimeError("No spaCy models found. Install with: python -m spacy download ru_core_news_sm")
             
-            # Initialize intent patterns for semantic matching
-            await self._initialize_intent_patterns()
+            # Initialize intent patterns if donations are available
+            if len(self.intent_patterns) > 0:
+                await self._initialize_intent_patterns()
             
             logger.info("spaCy NLU initialized successfully with asset management")
             
@@ -195,6 +249,26 @@ class SpaCyNLUProvider(NLUProvider):
             # Clear existing hardcoded patterns
             self.intent_patterns = {}
             
+            # Calculate donations hash for caching (including version information)
+            donations_data = []
+            donation_versions = set()
+            handler_domains = set()
+            
+            for d in keyword_donations:
+                donation_versions.add(getattr(d, 'donation_version', '1.0'))
+                handler_domains.add(getattr(d, 'handler_domain', 'unknown'))
+                donations_data.append((d.intent_name, sorted(d.phrases), getattr(d, 'donation_version', '1.0')))
+            
+            # Create comprehensive hash including versions
+            donations_str = str(sorted(donations_data))
+            self._donations_hash = hashlib.md5(donations_str.encode()).hexdigest()[:8]
+            
+            # Store telemetry data
+            self._donation_versions = sorted(donation_versions)
+            self._handler_domains = sorted(handler_domains)
+            
+            logger.info(f"Donation telemetry - Versions: {self._donation_versions}, Domains: {self._handler_domains}")
+            
             # Convert keyword donations to semantic examples for spaCy
             for donation in keyword_donations:
                 intent_name = donation.intent_name
@@ -216,6 +290,10 @@ class SpaCyNLUProvider(NLUProvider):
                 
                 logger.debug(f"Added {len(semantic_examples)} semantic examples for intent '{intent_name}'")
             
+            # Initialize pattern docs and other compiled artifacts if spaCy is loaded
+            if self.nlp is not None:
+                await self._initialize_intent_patterns()
+            
             logger.info(f"SpaCyNLU initialized with donation patterns for {len(self.intent_patterns)} intents")
             
         except Exception as e:
@@ -224,7 +302,246 @@ class SpaCyNLUProvider(NLUProvider):
             raise RuntimeError(f"SpaCyNLUProvider: JSON donation initialization failed: {e}. "
                              "Provider cannot operate without valid donations.")
     
+    async def _initialize_intent_patterns(self) -> None:
+        """
+        Initialize spaCy-specific artifacts from intent patterns.
+        
+        Builds:
+        - pattern_docs: Doc objects for similarity matching
+        - intent_centroids: Vector centroids for fast similarity
+        - phrase_matcher: Fast phrase matching
+        - entity_ruler: Enhanced entity extraction
+        """
+        if not self.nlp or not self.intent_patterns:
+            logger.warning("Cannot initialize patterns: spaCy not loaded or no patterns available")
+            return
+        
+        try:
+            # Check if we can load from cache
+            if self.asset_manager and await self._try_load_cached_artifacts():
+                logger.info("Loaded spaCy artifacts from cache")
+                return
+            
+            logger.info("Building spaCy artifacts from donations...")
+            
+            # Import spaCy components
+            spacy = safe_import('spacy')
+            if spacy is None:
+                raise ImportError("spaCy not available")
+            
+            # Clear existing artifacts
+            self.pattern_docs = {}
+            self.intent_centroids = {}
+            
+            # Build pattern docs and centroids for each intent
+            all_phrases_for_matcher = []
+            phrase_to_intent = {}
+            
+            for intent_name, examples in self.intent_patterns.items():
+                if not examples:
+                    continue
+                
+                # Create Doc objects using nlp.pipe for efficiency
+                docs = list(self.nlp.pipe(examples))
+                self.pattern_docs[intent_name] = docs
+                
+                # Compute centroid if model has vectors
+                if self.nlp.vocab.vectors.size > 0:
+                    vectors = []
+                    for doc in docs:
+                        if doc.has_vector:
+                            vectors.append(doc.vector)
+                    
+                    if vectors:
+                        centroid = np.mean(vectors, axis=0)
+                        self.intent_centroids[intent_name] = centroid
+                
+                # Collect phrases for PhraseMatcher
+                for phrase in examples:
+                    normalized = phrase.lower().strip()
+                    if normalized:
+                        all_phrases_for_matcher.append(normalized)
+                        phrase_to_intent[normalized] = intent_name
+            
+            # Build PhraseMatcher for fast phrase matching
+            if all_phrases_for_matcher:
+                try:
+                    phrase_patterns = list(self.nlp.pipe(all_phrases_for_matcher))
+                    self.phrase_matcher = spacy.matcher.PhraseMatcher(self.nlp.vocab, attr="LOWER")
+                    
+                    # Add patterns grouped by intent
+                    for intent_name in self.intent_patterns.keys():
+                        intent_patterns = [doc for phrase, doc in zip(all_phrases_for_matcher, phrase_patterns) 
+                                         if phrase_to_intent.get(phrase) == intent_name]
+                        if intent_patterns:
+                            self.phrase_matcher.add(intent_name, intent_patterns)
+                    
+                    logger.info(f"Built PhraseMatcher with {len(all_phrases_for_matcher)} phrases")
+                except Exception as e:
+                    logger.warning(f"Failed to build PhraseMatcher: {e}")
+                    self.phrase_matcher = None
+            
+            # Build EntityRuler for enhanced entity extraction
+            try:
+                self.entity_ruler = self.nlp.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
+                # Add any domain-specific entity patterns here if needed
+                logger.info("Added EntityRuler to pipeline")
+            except Exception as e:
+                logger.warning(f"Failed to add EntityRuler: {e}")
+                self.entity_ruler = None
+            
+            # Cache artifacts if asset manager available
+            if self.asset_manager:
+                await self._cache_artifacts()
+            
+            logger.info(f"Successfully initialized spaCy artifacts for {len(self.pattern_docs)} intents")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize intent patterns: {e}")
+            # Clear partial state
+            self.pattern_docs = {}
+            self.intent_centroids = {}
+            self.phrase_matcher = None
+            self.entity_ruler = None
+            raise
 
+    async def _try_load_cached_artifacts(self) -> bool:
+        """Try to load cached spaCy artifacts from asset manager"""
+        if not self.asset_manager or not self._donations_hash:
+            return False
+        
+        try:
+            # Create cache key based on model, model version, and donations
+            model_version = self._spacy_model_version or "unknown"
+            cache_key = f"spacy_artifacts_{self.model_name}_{model_version}_{self._donations_hash}"
+            
+            # Try to load cached artifacts from spaCy cache directory
+            cached_data = await self.asset_manager.get_cached_data(cache_key, provider_name="spacy")
+            if not cached_data:
+                return False
+            
+            # Validate cache against current model version
+            if cached_data.get('model_version') != self._spacy_model_version:
+                logger.info(f"Cache invalidated: model version mismatch ({cached_data.get('model_version')} != {self._spacy_model_version})")
+                return False
+            
+            # Restore artifacts from cache using DocBin for efficient deserialization
+            await self._restore_artifacts_from_cache(cached_data)
+            
+            # Note: PhraseMatcher and EntityRuler need to be rebuilt as they can't be easily serialized
+            return len(self.pattern_docs) > 0
+            
+        except Exception as e:
+            logger.warning(f"Failed to load cached artifacts: {e}")
+            return False
+    
+    async def _restore_artifacts_from_cache(self, cached_data: Dict[str, Any]) -> None:
+        """Restore spaCy artifacts from cached data using DocBin"""
+        spacy = safe_import('spacy')
+        if spacy is None:
+            raise ImportError("spaCy not available for cache restoration")
+        
+        # Restore intent centroids (simple numpy arrays)
+        self.intent_centroids = cached_data.get('intent_centroids', {})
+        
+        # Restore pattern docs using DocBin for efficient deserialization
+        docbin_data = cached_data.get('pattern_docs_docbin')
+        if docbin_data and self.nlp:
+            try:
+                # Import DocBin
+                from spacy.tokens import DocBin
+                
+                # Deserialize DocBin
+                docbin = DocBin().from_bytes(docbin_data)
+                docs = list(docbin.get_docs(self.nlp.vocab))
+                
+                # Reconstruct pattern_docs mapping
+                intent_doc_counts = cached_data.get('intent_doc_counts', {})
+                self.pattern_docs = {}
+                
+                doc_idx = 0
+                for intent_name, doc_count in intent_doc_counts.items():
+                    self.pattern_docs[intent_name] = docs[doc_idx:doc_idx + doc_count]
+                    doc_idx += doc_count
+                
+                logger.debug(f"Restored {len(docs)} pattern docs for {len(self.pattern_docs)} intents from DocBin")
+                
+            except Exception as e:
+                logger.warning(f"Failed to restore pattern docs from DocBin: {e}")
+                self.pattern_docs = {}
+        else:
+            # Fallback to direct deserialization (less efficient)
+            self.pattern_docs = cached_data.get('pattern_docs', {})
+    
+    async def _serialize_pattern_docs(self) -> Tuple[Optional[bytes], Dict[str, int]]:
+        """Serialize pattern docs using DocBin for efficient storage"""
+        if not self.pattern_docs or not self.nlp:
+            return None, {}
+        
+        try:
+            spacy = safe_import('spacy')
+            if spacy is None:
+                raise ImportError("spaCy not available")
+            
+            # Import DocBin
+            from spacy.tokens import DocBin
+            
+            # Create DocBin and collect all docs
+            docbin = DocBin(attrs=["LEMMA", "POS", "TAG", "DEP", "ENT_IOB", "ENT_TYPE"])
+            intent_doc_counts = {}
+            
+            for intent_name, docs in self.pattern_docs.items():
+                intent_doc_counts[intent_name] = len(docs)
+                for doc in docs:
+                    docbin.add(doc)
+            
+            # Serialize to bytes
+            docbin_data = docbin.to_bytes()
+            
+            logger.debug(f"Serialized {sum(intent_doc_counts.values())} docs to DocBin ({len(docbin_data)} bytes)")
+            return docbin_data, intent_doc_counts
+            
+        except Exception as e:
+            logger.warning(f"Failed to serialize pattern docs with DocBin: {e}")
+            return None, {}
+    
+    async def _cache_artifacts(self) -> None:
+        """Cache compiled spaCy artifacts to asset manager"""
+        if not self.asset_manager or not self._donations_hash:
+            return
+        
+        try:
+            # Create cache key based on model, model version, and donations
+            model_version = self._spacy_model_version or "unknown"
+            cache_key = f"spacy_artifacts_{self.model_name}_{model_version}_{self._donations_hash}"
+            
+            # Serialize pattern docs using DocBin for efficiency
+            pattern_docs_docbin, intent_doc_counts = await self._serialize_pattern_docs()
+            
+            # Prepare data for caching with telemetry
+            cache_data = {
+                'pattern_docs_docbin': pattern_docs_docbin,
+                'intent_doc_counts': intent_doc_counts,
+                'intent_centroids': self.intent_centroids,
+                'model_name': self.model_name,
+                'model_version': self._spacy_model_version,
+                'donations_hash': self._donations_hash,
+                'donation_versions': self._donation_versions,
+                'handler_domains': self._handler_domains,
+                'cached_at': datetime.now().isoformat()
+            }
+            
+            # Store in spaCy cache directory
+            await self.asset_manager.set_cached_data(cache_key, cache_data, provider_name="spacy")
+            logger.info(f"Cached spaCy artifacts with key: {cache_key}")
+            
+            # Telemetry logging
+            logger.info(f"spaCy asset cache telemetry - Model: {self.model_name} v{model_version}, "
+                       f"Donations: {len(self._donation_versions)} versions from {len(self._handler_domains)} domains, "
+                       f"Artifacts: {len(self.pattern_docs)} intents, {len(self.intent_centroids)} centroids")
+            
+        except Exception as e:
+            logger.warning(f"Failed to cache artifacts: {e}")
     
     async def recognize(self, text: str, context: ConversationContext) -> Intent:
         """
@@ -334,24 +651,62 @@ class SpaCyNLUProvider(NLUProvider):
         
         return entities
     
-    async def _classify_intent_similarity(self, doc) -> tuple[str, float]:
-        """Classify intent using semantic similarity"""
-        best_intent = "conversation.general"
-        best_similarity = 0.0
+    async def _classify_intent_similarity(self, doc) -> Tuple[str, float]:
+        """Classify intent using enhanced semantic similarity with centroids and separation"""
+        if not self.pattern_docs:
+            return "conversation.general", 0.6
         
-        for intent, pattern_docs in self.pattern_docs.items():
-            max_similarity = 0.0
-            
-            for pattern_doc in pattern_docs:
-                similarity = doc.similarity(pattern_doc)
-                max_similarity = max(max_similarity, similarity)
-            
-            if max_similarity > best_similarity:
-                best_similarity = max_similarity
-                best_intent = intent
+        # Check for phrase matcher hits first (fast path)
+        phrase_boost = 0.0
+        phrase_intent = None
+        if self.phrase_matcher:
+            matches = self.phrase_matcher(doc)
+            if matches:
+                # Get the first match intent
+                match_id, start, end = matches[0]
+                phrase_intent = self.nlp.vocab.strings[match_id]
+                phrase_boost = 1.0
         
-        # Convert similarity to confidence (spaCy similarity ranges 0-1)
-        confidence = min(best_similarity * 1.2, 1.0)  # Slight boost for good matches
+        # Calculate similarities for all intents
+        intent_scores = {}
+        
+        for intent_name, pattern_docs in self.pattern_docs.items():
+            # Doc-level similarity (best match against examples)
+            doc_similarities = [doc.similarity(pattern_doc) for pattern_doc in pattern_docs]
+            s_doc = max(doc_similarities) if doc_similarities else 0.0
+            
+            # Centroid similarity (if available)
+            s_centroid = 0.0
+            if intent_name in self.intent_centroids and doc.has_vector:
+                centroid = self.intent_centroids[intent_name]
+                s_centroid = np.dot(doc.vector, centroid) / (np.linalg.norm(doc.vector) * np.linalg.norm(centroid))
+                s_centroid = max(0.0, s_centroid)  # Ensure non-negative
+            
+            # Phrase matcher boost
+            m_phrase = phrase_boost if phrase_intent == intent_name else 0.0
+            
+            # Combined score
+            score = 0.55 * s_doc + 0.25 * s_centroid + 0.05 * m_phrase
+            intent_scores[intent_name] = score
+        
+        # Find best and second-best scores
+        sorted_scores = sorted(intent_scores.items(), key=lambda x: x[1], reverse=True)
+        
+        if not sorted_scores:
+            return "conversation.general", 0.6
+        
+        best_intent, best_score = sorted_scores[0]
+        second_best_score = sorted_scores[1][1] if len(sorted_scores) > 1 else 0.0
+        
+        # Add separation bonus (reduces overconfidence when intents are close)
+        separation = max(0, best_score - second_best_score)
+        
+        # Entity alignment (basic implementation - can be enhanced)
+        e_align = 0.5  # Default neutral value
+        
+        # Final confidence calculation
+        confidence = 0.7 * (best_score + 0.15 * separation) + 0.3 * e_align
+        confidence = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
         
         # Use fallback if confidence too low
         if confidence < self.confidence_threshold:
@@ -407,12 +762,23 @@ class SpaCyNLUProvider(NLUProvider):
     
     def get_supported_languages(self) -> List[str]:
         """Get supported languages based on loaded model"""
-        if self.model_name.startswith('ru_'):
-            return ['ru', 'en']
-        elif self.model_name.startswith('en_'):
-            return ['en', 'ru']
+        if self.nlp is not None:
+            # Use actual model language if available
+            primary_lang = getattr(self.nlp, 'lang', 'en')
+            if primary_lang == 'ru':
+                return ['ru', 'en']
+            elif primary_lang == 'en':
+                return ['en', 'ru']
+            else:
+                return [primary_lang, 'en']
         else:
-            return ['en']
+            # Fallback to model name parsing
+            if self.model_name.startswith('ru_'):
+                return ['ru', 'en']
+            elif self.model_name.startswith('en_'):
+                return ['en', 'ru']
+            else:
+                return ['en']
     
     def get_supported_domains(self) -> List[str]:
         """Get supported intent domains"""
@@ -487,6 +853,9 @@ class SpaCyNLUProvider(NLUProvider):
             self.nlp = None
         self.intent_patterns.clear()
         self.pattern_docs.clear()
+        self.intent_centroids.clear()
+        self.phrase_matcher = None
+        self.entity_ruler = None
         logger.info("spaCy NLU cleaned up") 
     
     @classmethod
@@ -524,17 +893,21 @@ class SpaCyNLUProvider(NLUProvider):
     # Build dependency methods (TODO #5 Phase 1)
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
-        """spaCy NLU requires spacy library and models"""
-        return ["spacy>=3.4.0"]
+        """spaCy NLU requires spacy library and specific model"""
+        return [
+            "spacy>=3.7.0",
+            "numpy>=1.20.0",  # For centroids and vector operations
+            "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl"
+        ]
         
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
-        """spaCy NLU system dependencies for Cython/C++ compilation"""
+        """spaCy NLU system dependencies - minimal for wheel installations"""
         return {
-            "linux.ubuntu": ["build-essential", "python3-dev"],
-            "linux.alpine": ["build-base", "python3-dev"],
-            "macos": [],  # Xcode Command Line Tools provide build tools
-            "windows": []  # Windows build tools handled differently
+            "linux.ubuntu": [],  # No build tools needed with prebuilt wheels
+            "linux.alpine": ["build-base", "python3-dev"],  # Alpine needs build tools
+            "macos": [],  # Prebuilt wheels available
+            "windows": []  # Prebuilt wheels available
         }
         
     @classmethod
@@ -553,4 +926,14 @@ class SpaCyNLUProvider(NLUProvider):
         Returns:
             Intent analysis results
         """
-        return await self.extract_intent(text) 
+        from ...intents.models import ConversationContext
+        context = kwargs.get('context', ConversationContext())
+        intent = await self.recognize(text, context)
+        
+        return {
+            'intent_name': intent.name,
+            'entities': intent.entities,
+            'confidence': intent.confidence,
+            'domain': intent.domain,
+            'action': intent.action
+        } 

@@ -1,16 +1,15 @@
 {
   "$schema": "../../schemas/donation/v1.0.json",
   "schema_version": "1.0",
+  "donation_version": "1.0",
   "handler_domain": "text_enhancement",
   "description": "Text improvement and enhancement commands via LLM",
-  
   "intent_name_patterns": [
     "text.enhance",
-    "text.improve", 
+    "text.improve",
     "text.correct",
     "llm.enhance"
   ],
-  
   "action_patterns": [
     "enhance",
     "improve",
@@ -18,40 +17,56 @@
     "fix",
     "better"
   ],
-  
   "domain_patterns": [
     "text",
-    "enhancement", 
+    "enhancement",
     "improvement",
     "llm"
   ],
-
   "global_parameters": [
     {
       "name": "language",
       "type": "choice",
       "required": false,
       "default_value": "ru",
-      "choices": ["ru", "en"],
+      "choices": [
+        "ru",
+        "en"
+      ],
       "description": "Response language preference"
     }
   ],
-  
   "method_donations": [
     {
       "method_name": "_handle_enhance_text",
       "intent_suffix": "enhance",
       "description": "Enhance text using command parsing",
-      
       "phrases": [
-        "улучши", "улучшить", "улучши текст", "enhance", "enhance text",
-        "сделай лучше", "make better", "оптимизируй", "optimize",
-        "модернизируй", "modernize", "доработай", "refine",
-        "усовершенствуй", "improve quality", "поправь стиль"
+        "улучши",
+        "улучшить",
+        "улучши текст",
+        "enhance",
+        "enhance text",
+        "сделай лучше",
+        "make better",
+        "оптимизируй",
+        "optimize",
+        "модернизируй",
+        "modernize",
+        "доработай",
+        "refine",
+        "усовершенствуй",
+        "improve quality",
+        "поправь стиль"
       ],
-      
-      "lemmas": ["улучшать", "улучшить", "оптимизировать", "модернизировать", "дорабатывать", "усовершенствовать"],
-      
+      "lemmas": [
+        "улучшать",
+        "улучшить",
+        "оптимизировать",
+        "модернизировать",
+        "дорабатывать",
+        "усовершенствовать"
+      ],
       "parameters": [
         {
           "name": "text",
@@ -59,39 +74,154 @@
           "required": false,
           "description": "Text to enhance (extracted from command)",
           "extraction_patterns": [
-            {"pattern": [{"LEMMA": {"IN": ["улучшать", "улучшить"]}}, {"IS_ALPHA": true, "OP": "+"}], "label": "TEXT"},
-            {"pattern": [{"TEXT": "enhance"}, {"IS_ALPHA": true, "OP": "+"}], "label": "TEXT"}
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "улучшать",
+                      "улучшить"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "enhance"
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            }
           ],
-          "aliases": ["текст", "фраза", "содержание"]
+          "aliases": [
+            "текст",
+            "фраза",
+            "содержание"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["улучшать", "улучшить"]}}],
-        [{"TEXT": "enhance"}],
-        [{"LEMMA": "улучшать"}, {"LEMMA": "текст"}],
-        [{"TEXT": "enhance"}, {"TEXT": "text"}],
-        [{"LEMMA": {"IN": ["улучшать", "улучшить"]}}, {"IS_ALPHA": true, "OP": "+"}],
-        [{"TEXT": "enhance"}, {"IS_ALPHA": true, "OP": "+"}],
-        [{"LEMMA": "делать"}, {"LEMMA": "лучше"}],
-        [{"TEXT": "make"}, {"TEXT": "better"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "улучшать",
+                "улучшить"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "enhance"
+          }
+        ],
+        [
+          {
+            "LEMMA": "улучшать"
+          },
+          {
+            "LEMMA": "текст"
+          }
+        ],
+        [
+          {
+            "TEXT": "enhance"
+          },
+          {
+            "TEXT": "text"
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "улучшать",
+                "улучшить"
+              ]
+            }
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "TEXT": "enhance"
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "LEMMA": "делать"
+          },
+          {
+            "LEMMA": "лучше"
+          }
+        ],
+        [
+          {
+            "TEXT": "make"
+          },
+          {
+            "TEXT": "better"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "TEXT": [
-          [{"LEMMA": {"IN": ["улучшать", "улучшить"]}}, {"IS_ALPHA": true, "OP": "+"}],
-          [{"TEXT": "enhance"}, {"IS_ALPHA": true, "OP": "+"}]
+          [
+            {
+              "LEMMA": {
+                "IN": [
+                  "улучшать",
+                  "улучшить"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "TEXT": "enhance"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "улучши этот текст",
-          "parameters": {"text": "этот текст"}
+          "parameters": {
+            "text": "этот текст"
+          }
         },
         {
           "text": "enhance this sentence",
-          "parameters": {"text": "this sentence"}
+          "parameters": {
+            "text": "this sentence"
+          }
         },
         {
           "text": "улучши",
@@ -102,23 +232,39 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.3
     },
     {
       "method_name": "_handle_improve_text",
       "intent_suffix": "improve",
       "description": "Improve specific text with extracted entities",
-      
       "phrases": [
-        "исправь", "исправить", "поправь", "fix", "correct",
-        "исправь текст", "fix text", "поправь ошибки", "fix errors",
-        "исправь грамматику", "fix grammar", "подкорректируй", "adjust",
-        "отредактируй", "edit", "почисти", "clean up"
+        "исправь",
+        "исправить",
+        "поправь",
+        "fix",
+        "correct",
+        "исправь текст",
+        "fix text",
+        "поправь ошибки",
+        "fix errors",
+        "исправь грамматику",
+        "fix grammar",
+        "подкорректируй",
+        "adjust",
+        "отредактируй",
+        "edit",
+        "почисти",
+        "clean up"
       ],
-      
-      "lemmas": ["исправлять", "исправить", "поправлять", "корректировать", "редактировать", "чистить"],
-      
+      "lemmas": [
+        "исправлять",
+        "исправить",
+        "поправлять",
+        "корректировать",
+        "редактировать",
+        "чистить"
+      ],
       "parameters": [
         {
           "name": "text",
@@ -126,83 +272,300 @@
           "required": false,
           "description": "Text to improve",
           "extraction_patterns": [
-            {"pattern": [{"LEMMA": {"IN": ["исправлять", "исправить", "поправлять"]}}, {"IS_ALPHA": true, "OP": "+"}], "label": "TEXT"},
-            {"pattern": [{"TEXT": {"IN": ["fix", "correct"]}}, {"IS_ALPHA": true, "OP": "+"}], "label": "TEXT"}
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "исправлять",
+                      "исправить",
+                      "поправлять"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": [
+                      "fix",
+                      "correct"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            }
           ],
-          "aliases": ["текст", "предложение", "фраза"]
+          "aliases": [
+            "текст",
+            "предложение",
+            "фраза"
+          ]
         },
         {
           "name": "improvement_type",
           "type": "choice",
           "required": false,
           "default_value": "general",
-          "choices": ["grammar", "style", "clarity", "general"],
+          "choices": [
+            "grammar",
+            "style",
+            "clarity",
+            "general"
+          ],
           "description": "Type of improvement to make",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["грамматика", "стиль", "ясность", "общий"]}}], "label": "IMPROVEMENT_TYPE"},
-            {"pattern": [{"LOWER": {"IN": ["grammar", "style", "clarity", "general"]}}], "label": "IMPROVEMENT_TYPE"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "грамматика",
+                      "стиль",
+                      "ясность",
+                      "общий"
+                    ]
+                  }
+                }
+              ],
+              "label": "IMPROVEMENT_TYPE"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "grammar",
+                      "style",
+                      "clarity",
+                      "general"
+                    ]
+                  }
+                }
+              ],
+              "label": "IMPROVEMENT_TYPE"
+            }
           ],
-          "aliases": ["тип", "вид", "способ"]
+          "aliases": [
+            "тип",
+            "вид",
+            "способ"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["исправлять", "исправить"]}}],
-        [{"TEXT": {"IN": ["fix", "correct"]}}],
-        [{"LEMMA": "исправлять"}, {"LEMMA": "текст"}],
-        [{"TEXT": "fix"}, {"TEXT": "text"}],
-        [{"LEMMA": {"IN": ["исправлять", "исправить"]}}, {"IS_ALPHA": true, "OP": "+"}],
-        [{"TEXT": {"IN": ["fix", "correct"]}}, {"IS_ALPHA": true, "OP": "+"}],
-        [{"LEMMA": "поправлять"}, {"LEMMA": "ошибка"}],
-        [{"TEXT": "fix"}, {"TEXT": "errors"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "исправлять",
+                "исправить"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "fix",
+                "correct"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "исправлять"
+          },
+          {
+            "LEMMA": "текст"
+          }
+        ],
+        [
+          {
+            "TEXT": "fix"
+          },
+          {
+            "TEXT": "text"
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "исправлять",
+                "исправить"
+              ]
+            }
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "fix",
+                "correct"
+              ]
+            }
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "LEMMA": "поправлять"
+          },
+          {
+            "LEMMA": "ошибка"
+          }
+        ],
+        [
+          {
+            "TEXT": "fix"
+          },
+          {
+            "TEXT": "errors"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "TEXT": [
-          [{"LEMMA": {"IN": ["исправлять", "исправить", "поправлять"]}}, {"IS_ALPHA": true, "OP": "+"}],
-          [{"TEXT": {"IN": ["fix", "correct"]}}, {"IS_ALPHA": true, "OP": "+"}]
+          [
+            {
+              "LEMMA": {
+                "IN": [
+                  "исправлять",
+                  "исправить",
+                  "поправлять"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": [
+                  "fix",
+                  "correct"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
         ],
         "IMPROVEMENT_TYPE": [
-          [{"LOWER": {"IN": ["грамматика", "стиль", "ясность", "общий"]}}],
-          [{"LOWER": {"IN": ["grammar", "style", "clarity", "general"]}}]
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "грамматика",
+                  "стиль",
+                  "ясность",
+                  "общий"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "grammar",
+                  "style",
+                  "clarity",
+                  "general"
+                ]
+              }
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "исправь этот текст",
-          "parameters": {"text": "этот текст"}
+          "parameters": {
+            "text": "этот текст"
+          }
         },
         {
           "text": "fix grammar in this sentence",
-          "parameters": {"text": "this sentence", "improvement_type": "grammar"}
+          "parameters": {
+            "text": "this sentence",
+            "improvement_type": "grammar"
+          }
         },
         {
           "text": "поправь ошибки",
-          "parameters": {"improvement_type": "general"}
+          "parameters": {
+            "improvement_type": "general"
+          }
         },
         {
           "text": "correct style",
-          "parameters": {"improvement_type": "style"}
+          "parameters": {
+            "improvement_type": "style"
+          }
         }
       ],
-      
       "boost": 1.4
     },
     {
       "method_name": "_handle_correct_text",
       "intent_suffix": "correct",
       "description": "Correct text errors and issues",
-      
       "phrases": [
-        "поправь", "поправить", "подправь", "correct", "adjust",
-        "поправь грамматику", "correct grammar", "подправь стиль", "adjust style",
-        "исправь ошибки", "fix mistakes", "корректировка", "correction",
-        "правка", "editing", "редактура", "proofreading"
+        "поправь",
+        "поправить",
+        "подправь",
+        "correct",
+        "adjust",
+        "поправь грамматику",
+        "correct grammar",
+        "подправь стиль",
+        "adjust style",
+        "исправь ошибки",
+        "fix mistakes",
+        "корректировка",
+        "correction",
+        "правка",
+        "editing",
+        "редактура",
+        "proofreading"
       ],
-      
-      "lemmas": ["поправлять", "поправить", "подправлять", "корректировать", "правка", "редактура"],
-      
+      "lemmas": [
+        "поправлять",
+        "поправить",
+        "подправлять",
+        "корректировать",
+        "правка",
+        "редактура"
+      ],
       "parameters": [
         {
           "name": "text",
@@ -210,73 +573,306 @@
           "required": false,
           "description": "Text to correct",
           "extraction_patterns": [
-            {"pattern": [{"LEMMA": {"IN": ["поправлять", "поправить", "подправлять"]}}, {"IS_ALPHA": true, "OP": "+"}], "label": "TEXT"},
-            {"pattern": [{"TEXT": {"IN": ["correct", "adjust"]}}, {"IS_ALPHA": true, "OP": "+"}], "label": "TEXT"}
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "поправлять",
+                      "поправить",
+                      "подправлять"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": [
+                      "correct",
+                      "adjust"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            }
           ],
-          "aliases": ["текст", "предложение", "фрагмент"]
+          "aliases": [
+            "текст",
+            "предложение",
+            "фрагмент"
+          ]
         },
         {
           "name": "correction_type",
           "type": "choice",
           "required": false,
           "default_value": "all",
-          "choices": ["grammar", "spelling", "punctuation", "style", "all"],
+          "choices": [
+            "grammar",
+            "spelling",
+            "punctuation",
+            "style",
+            "all"
+          ],
           "description": "Type of correction to apply",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["грамматика", "орфография", "пунктуация", "стиль", "всё"]}}], "label": "CORRECTION_TYPE"},
-            {"pattern": [{"LOWER": {"IN": ["grammar", "spelling", "punctuation", "style", "all"]}}], "label": "CORRECTION_TYPE"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "грамматика",
+                      "орфография",
+                      "пунктуация",
+                      "стиль",
+                      "всё"
+                    ]
+                  }
+                }
+              ],
+              "label": "CORRECTION_TYPE"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "grammar",
+                      "spelling",
+                      "punctuation",
+                      "style",
+                      "all"
+                    ]
+                  }
+                }
+              ],
+              "label": "CORRECTION_TYPE"
+            }
           ],
-          "aliases": ["тип", "вид", "категория"]
+          "aliases": [
+            "тип",
+            "вид",
+            "категория"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["поправлять", "поправить"]}}],
-        [{"TEXT": {"IN": ["correct", "adjust"]}}],
-        [{"LEMMA": "поправлять"}, {"LEMMA": "грамматика"}],
-        [{"TEXT": "correct"}, {"TEXT": "grammar"}],
-        [{"LEMMA": {"IN": ["поправлять", "поправить"]}}, {"IS_ALPHA": true, "OP": "+"}],
-        [{"TEXT": {"IN": ["correct", "adjust"]}}, {"IS_ALPHA": true, "OP": "+"}],
-        [{"LEMMA": "исправлять"}, {"LEMMA": "ошибка"}],
-        [{"TEXT": "fix"}, {"TEXT": "mistakes"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "поправлять",
+                "поправить"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "correct",
+                "adjust"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "поправлять"
+          },
+          {
+            "LEMMA": "грамматика"
+          }
+        ],
+        [
+          {
+            "TEXT": "correct"
+          },
+          {
+            "TEXT": "grammar"
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "поправлять",
+                "поправить"
+              ]
+            }
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "correct",
+                "adjust"
+              ]
+            }
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "LEMMA": "исправлять"
+          },
+          {
+            "LEMMA": "ошибка"
+          }
+        ],
+        [
+          {
+            "TEXT": "fix"
+          },
+          {
+            "TEXT": "mistakes"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "TEXT": [
-          [{"LEMMA": {"IN": ["поправлять", "поправить", "подправлять"]}}, {"IS_ALPHA": true, "OP": "+"}],
-          [{"TEXT": {"IN": ["correct", "adjust"]}}, {"IS_ALPHA": true, "OP": "+"}]
+          [
+            {
+              "LEMMA": {
+                "IN": [
+                  "поправлять",
+                  "поправить",
+                  "подправлять"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": [
+                  "correct",
+                  "adjust"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
         ],
         "CORRECTION_TYPE": [
-          [{"LOWER": {"IN": ["грамматика", "орфография", "пунктуация", "стиль", "всё"]}}],
-          [{"LOWER": {"IN": ["grammar", "spelling", "punctuation", "style", "all"]}}]
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "грамматика",
+                  "орфография",
+                  "пунктуация",
+                  "стиль",
+                  "всё"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "grammar",
+                  "spelling",
+                  "punctuation",
+                  "style",
+                  "all"
+                ]
+              }
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "поправь грамматику в тексте",
-          "parameters": {"text": "в тексте", "correction_type": "грамматика"}
+          "parameters": {
+            "text": "в тексте",
+            "correction_type": "грамматика"
+          }
         },
         {
           "text": "correct spelling errors",
-          "parameters": {"correction_type": "spelling"}
+          "parameters": {
+            "correction_type": "spelling"
+          }
         },
         {
           "text": "подправь этот текст",
-          "parameters": {"text": "этот текст"}
+          "parameters": {
+            "text": "этот текст"
+          }
         },
         {
           "text": "adjust style",
-          "parameters": {"correction_type": "style"}
+          "parameters": {
+            "correction_type": "style"
+          }
         }
       ],
-      
       "boost": 1.2
     }
   ],
-  
   "negative_patterns": [
-    [{"LEMMA": {"IN": ["нет", "не"]}}, {"LEMMA": {"IN": ["улучшать", "исправлять", "поправлять"]}}],
-    [{"TEXT": {"REGEX": "no|not"}}, {"TEXT": {"REGEX": "enhance|improve|correct|fix"}}]
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "улучшать",
+            "исправлять",
+            "поправлять"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "enhance|improve|correct|fix"
+        }
+      }
+    ]
   ]
 }

@@ -1,55 +1,75 @@
 {
   "$schema": "../../schemas/donation/v1.0.json",
   "schema_version": "1.0",
+  "donation_version": "1.0",
   "handler_domain": "train_schedule",
   "description": "Train schedule information and route planning",
-  
   "global_parameters": [
     {
       "name": "language",
       "type": "choice",
       "required": false,
       "default_value": "ru",
-      "choices": ["ru", "en"],
+      "choices": [
+        "ru",
+        "en"
+      ],
       "description": "Response language preference"
     }
   ],
-
   "intent_name_patterns": [
     "transport.train_schedule",
     "transport.get_trains"
   ],
-
   "action_patterns": [
     "train_schedule",
     "get_trains"
   ],
-
   "domain_action_patterns": [
-    {"domain": "transport", "action": "train_schedule"},
-    {"domain": "transport", "action": "get_trains"}
+    {
+      "domain": "transport",
+      "action": "train_schedule"
+    },
+    {
+      "domain": "transport",
+      "action": "get_trains"
+    }
   ],
-
   "train_keywords": [
-    "электричка", "электрички", "поезд", "ближайший поезд",
-    "расписание поездов", "расписание электричек"
+    "электричка",
+    "электрички",
+    "поезд",
+    "ближайший поезд",
+    "расписание поездов",
+    "расписание электричек"
   ],
-  
   "method_donations": [
     {
       "method_name": "handle_train_query",
       "intent_suffix": "query",
       "description": "Handle train schedule and route queries",
-      
       "phrases": [
-        "расписание поездов", "когда поезд", "поезда до", "электричка до",
-        "электричка", "электрички", "поезд", "ближайший поезд",
-        "расписание электричек", "train schedule", "when is train", 
-        "trains to", "railway timetable"
+        "расписание поездов",
+        "когда поезд",
+        "поезда до",
+        "электричка до",
+        "электричка",
+        "электрички",
+        "поезд",
+        "ближайший поезд",
+        "расписание электричек",
+        "train schedule",
+        "when is train",
+        "trains to",
+        "railway timetable"
       ],
-      
-      "lemmas": ["расписание", "поезд", "электричка", "когда", "до"],
-      
+      "lemmas": [
+        "расписание",
+        "поезд",
+        "электричка",
+        "когда",
+        "до"
+      ],
       "parameters": [
         {
           "name": "from_station",
@@ -57,9 +77,28 @@
           "required": false,
           "description": "Departure station",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["от", "из", "from"]}}, {"IS_ALPHA": true}], "label": "FROM_STATION"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "от",
+                      "из",
+                      "from"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "FROM_STATION"
+            }
           ],
-          "aliases": ["откуда", "departure"]
+          "aliases": [
+            "откуда",
+            "departure"
+          ]
         },
         {
           "name": "to_station",
@@ -67,9 +106,28 @@
           "required": false,
           "description": "Destination station",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": {"IN": ["до", "в", "to"]}}, {"IS_ALPHA": true}], "label": "TO_STATION"}
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "до",
+                      "в",
+                      "to"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "TO_STATION"
+            }
           ],
-          "aliases": ["куда", "destination"]
+          "aliases": [
+            "куда",
+            "destination"
+          ]
         },
         {
           "name": "time",
@@ -77,36 +135,160 @@
           "required": false,
           "description": "Departure time or date",
           "extraction_patterns": [
-            {"pattern": [{"TEXT": {"REGEX": "\\d{1,2}:\\d{2}"}}], "label": "TIME"},
-            {"pattern": [{"LOWER": {"IN": ["утром", "днем", "вечером", "morning", "afternoon", "evening"]}}], "label": "TIME_PERIOD"}
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "\\d{1,2}:\\d{2}"
+                  }
+                }
+              ],
+              "label": "TIME"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "утром",
+                      "днем",
+                      "вечером",
+                      "morning",
+                      "afternoon",
+                      "evening"
+                    ]
+                  }
+                }
+              ],
+              "label": "TIME_PERIOD"
+            }
           ],
-          "aliases": ["время", "когда"]
+          "aliases": [
+            "время",
+            "когда"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": "расписание"}, {"LEMMA": "поезд"}],
-        [{"LEMMA": "когда"}, {"LEMMA": "поезд"}],
-        [{"LEMMA": "поезд"}, {"LEMMA": "до"}],
-        [{"TEXT": "train"}, {"TEXT": "schedule"}],
-        [{"TEXT": "when"}, {"TEXT": "is"}, {"TEXT": "train"}]
+        [
+          {
+            "LEMMA": "расписание"
+          },
+          {
+            "LEMMA": "поезд"
+          }
+        ],
+        [
+          {
+            "LEMMA": "когда"
+          },
+          {
+            "LEMMA": "поезд"
+          }
+        ],
+        [
+          {
+            "LEMMA": "поезд"
+          },
+          {
+            "LEMMA": "до"
+          }
+        ],
+        [
+          {
+            "TEXT": "train"
+          },
+          {
+            "TEXT": "schedule"
+          }
+        ],
+        [
+          {
+            "TEXT": "when"
+          },
+          {
+            "TEXT": "is"
+          },
+          {
+            "TEXT": "train"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "FROM_STATION": [
-          [{"LOWER": {"IN": ["от", "из"]}}, {"IS_ALPHA": true, "OP": "+"}],
-          [{"LOWER": "from"}, {"IS_ALPHA": true, "OP": "+"}]
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "от",
+                  "из"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "from"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
         ],
         "TO_STATION": [
-          [{"LOWER": {"IN": ["до", "в"]}}, {"IS_ALPHA": true, "OP": "+"}],
-          [{"LOWER": "to"}, {"IS_ALPHA": true, "OP": "+"}]
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "до",
+                  "в"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "to"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
         ],
         "TIME": [
-          [{"TEXT": {"REGEX": "\\d{1,2}:\\d{2}"}}],
-          [{"LOWER": {"IN": ["утром", "днем", "вечером", "morning", "afternoon", "evening"]}}]
+          [
+            {
+              "TEXT": {
+                "REGEX": "\\d{1,2}:\\d{2}"
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "утром",
+                  "днем",
+                  "вечером",
+                  "morning",
+                  "afternoon",
+                  "evening"
+                ]
+              }
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "расписание поездов",
@@ -114,24 +296,50 @@
         },
         {
           "text": "поезда до Москвы",
-          "parameters": {"to_station": "Москвы"}
+          "parameters": {
+            "to_station": "Москвы"
+          }
         },
         {
           "text": "когда поезд от Санкт-Петербурга до Москвы",
-          "parameters": {"from_station": "Санкт-Петербурга", "to_station": "Москвы"}
+          "parameters": {
+            "from_station": "Санкт-Петербурга",
+            "to_station": "Москвы"
+          }
         },
         {
           "text": "train schedule to London",
-          "parameters": {"to_station": "London"}
+          "parameters": {
+            "to_station": "London"
+          }
         }
       ],
-      
       "boost": 1.2
     }
   ],
-  
   "negative_patterns": [
-    [{"LEMMA": {"IN": ["нет", "не"]}}, {"LEMMA": "поезд"}],
-    [{"TEXT": {"REGEX": "no|not"}}, {"TEXT": "train"}]
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": "поезд"
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": "train"
+      }
+    ]
   ]
-} 
+}

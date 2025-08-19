@@ -1,63 +1,128 @@
 {
   "$schema": "../../schemas/donation/v1.0.json",
   "schema_version": "1.0",
+  "donation_version": "1.0",
   "handler_domain": "random",
   "description": "Random number generation, coin flips, dice rolls, and random choices",
-  
   "intent_name_patterns": [
     "random.coin_flip",
     "random.dice_roll",
     "random.number",
     "random.choice"
   ],
-  
   "action_patterns": [
     "flip",
     "roll",
     "generate",
     "choose"
   ],
-  
   "domain_patterns": [
     "random"
   ],
-
   "global_parameters": [
     {
       "name": "language",
       "type": "choice",
       "required": false,
       "default_value": "ru",
-      "choices": ["ru", "en"],
+      "choices": [
+        "ru",
+        "en"
+      ],
       "description": "Response language preference"
     }
   ],
-  
   "method_donations": [
     {
       "method_name": "_handle_coin_flip",
       "intent_suffix": "coin_flip",
       "description": "Flip a coin and get heads or tails result",
-      
       "phrases": [
-        "подбрось монету", "подбрось монетку", "брось монету", "брось монетку",
-        "монетка", "орёл или решка", "flip coin", "coin flip", "toss coin",
+        "подбрось монету",
+        "подбрось монетку",
+        "брось монету",
+        "брось монетку",
+        "монетка",
+        "орёл или решка",
+        "flip coin",
+        "coin flip",
+        "toss coin",
         "heads or tails"
       ],
-      
-      "lemmas": ["подбросить", "бросить", "монета", "монетка", "орёл", "решка"],
-      
-      "parameters": [],
-      
-      "token_patterns": [
-        [{"LEMMA": {"IN": ["подбросить", "бросить"]}}, {"LEMMA": {"IN": ["монета", "монетка"]}}],
-        [{"TEXT": {"REGEX": "flip|toss"}}, {"TEXT": "coin"}],
-        [{"LEMMA": "монетка"}],
-        [{"TEXT": "coin"}, {"TEXT": "flip"}],
-        [{"LEMMA": "орёл"}, {"LEMMA": "или"}, {"LEMMA": "решка"}],
-        [{"TEXT": "heads"}, {"TEXT": "or"}, {"TEXT": "tails"}]
+      "lemmas": [
+        "подбросить",
+        "бросить",
+        "монета",
+        "монетка",
+        "орёл",
+        "решка"
       ],
-      
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "подбросить",
+                "бросить"
+              ]
+            }
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "монета",
+                "монетка"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "flip|toss"
+            }
+          },
+          {
+            "TEXT": "coin"
+          }
+        ],
+        [
+          {
+            "LEMMA": "монетка"
+          }
+        ],
+        [
+          {
+            "TEXT": "coin"
+          },
+          {
+            "TEXT": "flip"
+          }
+        ],
+        [
+          {
+            "LEMMA": "орёл"
+          },
+          {
+            "LEMMA": "или"
+          },
+          {
+            "LEMMA": "решка"
+          }
+        ],
+        [
+          {
+            "TEXT": "heads"
+          },
+          {
+            "TEXT": "or"
+          },
+          {
+            "TEXT": "tails"
+          }
+        ]
+      ],
       "examples": [
         {
           "text": "подбрось монету",
@@ -76,21 +141,28 @@
           "parameters": {}
         }
       ],
-      
       "boost": 1.4
     },
     {
       "method_name": "_handle_dice_roll",
       "intent_suffix": "dice_roll",
       "description": "Roll dice with specified sides and count",
-      
       "phrases": [
-        "подбрось кубик", "брось кубик", "подбрось кость", "брось кость",
-        "кубик", "roll dice", "dice roll", "throw dice"
+        "подбрось кубик",
+        "брось кубик",
+        "подбрось кость",
+        "брось кость",
+        "кубик",
+        "roll dice",
+        "dice roll",
+        "throw dice"
       ],
-      
-      "lemmas": ["подбросить", "бросить", "кубик", "кость"],
-      
+      "lemmas": [
+        "подбросить",
+        "бросить",
+        "кубик",
+        "кость"
+      ],
       "parameters": [
         {
           "name": "sides",
@@ -99,9 +171,29 @@
           "default_value": 6,
           "description": "Number of sides on the dice",
           "extraction_patterns": [
-            {"pattern": [{"LIKE_NUM": true}, {"LOWER": {"IN": ["сторон", "граней", "sided", "sides"]}}], "label": "DICE_SIDES"}
+            {
+              "pattern": [
+                {
+                  "LIKE_NUM": true
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "сторон",
+                      "граней",
+                      "sided",
+                      "sides"
+                    ]
+                  }
+                }
+              ],
+              "label": "DICE_SIDES"
+            }
           ],
-          "aliases": ["граней", "сторон"]
+          "aliases": [
+            "граней",
+            "сторон"
+          ]
         },
         {
           "name": "count",
@@ -110,28 +202,113 @@
           "default_value": 1,
           "description": "Number of dice to roll",
           "extraction_patterns": [
-            {"pattern": [{"LIKE_NUM": true}, {"LEMMA": {"IN": ["кубик", "кость", "dice"]}}], "label": "DICE_COUNT"}
+            {
+              "pattern": [
+                {
+                  "LIKE_NUM": true
+                },
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "кубик",
+                      "кость",
+                      "dice"
+                    ]
+                  }
+                }
+              ],
+              "label": "DICE_COUNT"
+            }
           ],
-          "aliases": ["количество", "штук"]
+          "aliases": [
+            "количество",
+            "штук"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["подбросить", "бросить"]}}, {"LEMMA": {"IN": ["кубик", "кость"]}}],
-        [{"TEXT": {"REGEX": "roll|throw"}}, {"TEXT": "dice"}],
-        [{"LEMMA": {"IN": ["кубик", "кость"]}}],
-        [{"TEXT": "dice"}, {"TEXT": "roll"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "подбросить",
+                "бросить"
+              ]
+            }
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "кубик",
+                "кость"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "roll|throw"
+            }
+          },
+          {
+            "TEXT": "dice"
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "кубик",
+                "кость"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "dice"
+          },
+          {
+            "TEXT": "roll"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "DICE_SIDES": [
-          [{"LIKE_NUM": true}, {"LOWER": {"IN": ["сторон", "граней", "sided", "sides"]}}]
+          [
+            {
+              "LIKE_NUM": true
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "сторон",
+                  "граней",
+                  "sided",
+                  "sides"
+                ]
+              }
+            }
+          ]
         ],
         "DICE_COUNT": [
-          [{"LIKE_NUM": true}, {"LEMMA": {"IN": ["кубик", "кость", "dice"]}}]
+          [
+            {
+              "LIKE_NUM": true
+            },
+            {
+              "LEMMA": {
+                "IN": [
+                  "кубик",
+                  "кость",
+                  "dice"
+                ]
+              }
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "подбрось кубик",
@@ -139,7 +316,9 @@
         },
         {
           "text": "брось 2 кубика",
-          "parameters": {"count": 2}
+          "parameters": {
+            "count": 2
+          }
         },
         {
           "text": "roll dice",
@@ -147,24 +326,32 @@
         },
         {
           "text": "roll 2 6-sided dice",
-          "parameters": {"count": 2, "sides": 6}
+          "parameters": {
+            "count": 2,
+            "sides": 6
+          }
         }
       ],
-      
       "boost": 1.3
     },
     {
       "method_name": "_handle_random_number",
       "intent_suffix": "number",
       "description": "Generate a random number within specified range",
-      
       "phrases": [
-        "случайное число", "рандомное число", "random number", "generate number",
-        "pick number", "число от", "number from"
+        "случайное число",
+        "рандомное число",
+        "random number",
+        "generate number",
+        "pick number",
+        "число от",
+        "number from"
       ],
-      
-      "lemmas": ["случайный", "рандомный", "число"],
-      
+      "lemmas": [
+        "случайный",
+        "рандомный",
+        "число"
+      ],
       "parameters": [
         {
           "name": "min",
@@ -173,10 +360,34 @@
           "default_value": 1,
           "description": "Minimum value for random number",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": "от"}, {"LIKE_NUM": true}], "label": "MIN_VALUE"},
-            {"pattern": [{"LOWER": "from"}, {"LIKE_NUM": true}], "label": "MIN_VALUE"}
+            {
+              "pattern": [
+                {
+                  "LOWER": "от"
+                },
+                {
+                  "LIKE_NUM": true
+                }
+              ],
+              "label": "MIN_VALUE"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": "from"
+                },
+                {
+                  "LIKE_NUM": true
+                }
+              ],
+              "label": "MIN_VALUE"
+            }
           ],
-          "aliases": ["минимум", "от", "from"]
+          "aliases": [
+            "минимум",
+            "от",
+            "from"
+          ]
         },
         {
           "name": "max",
@@ -185,31 +396,113 @@
           "default_value": 100,
           "description": "Maximum value for random number",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": "до"}, {"LIKE_NUM": true}], "label": "MAX_VALUE"},
-            {"pattern": [{"LOWER": "to"}, {"LIKE_NUM": true}], "label": "MAX_VALUE"}
+            {
+              "pattern": [
+                {
+                  "LOWER": "до"
+                },
+                {
+                  "LIKE_NUM": true
+                }
+              ],
+              "label": "MAX_VALUE"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": "to"
+                },
+                {
+                  "LIKE_NUM": true
+                }
+              ],
+              "label": "MAX_VALUE"
+            }
           ],
-          "aliases": ["максимум", "до", "to"]
+          "aliases": [
+            "максимум",
+            "до",
+            "to"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": {"IN": ["случайный", "рандомный"]}}, {"LEMMA": "число"}],
-        [{"TEXT": "random"}, {"TEXT": "number"}],
-        [{"TEXT": "generate"}, {"TEXT": "number"}],
-        [{"LEMMA": "число"}, {"LOWER": "от"}]
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "случайный",
+                "рандомный"
+              ]
+            }
+          },
+          {
+            "LEMMA": "число"
+          }
+        ],
+        [
+          {
+            "TEXT": "random"
+          },
+          {
+            "TEXT": "number"
+          }
+        ],
+        [
+          {
+            "TEXT": "generate"
+          },
+          {
+            "TEXT": "number"
+          }
+        ],
+        [
+          {
+            "LEMMA": "число"
+          },
+          {
+            "LOWER": "от"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "MIN_VALUE": [
-          [{"LOWER": "от"}, {"LIKE_NUM": true}],
-          [{"LOWER": "from"}, {"LIKE_NUM": true}]
+          [
+            {
+              "LOWER": "от"
+            },
+            {
+              "LIKE_NUM": true
+            }
+          ],
+          [
+            {
+              "LOWER": "from"
+            },
+            {
+              "LIKE_NUM": true
+            }
+          ]
         ],
         "MAX_VALUE": [
-          [{"LOWER": "до"}, {"LIKE_NUM": true}],
-          [{"LOWER": "to"}, {"LIKE_NUM": true}]
+          [
+            {
+              "LOWER": "до"
+            },
+            {
+              "LIKE_NUM": true
+            }
+          ],
+          [
+            {
+              "LOWER": "to"
+            },
+            {
+              "LIKE_NUM": true
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "случайное число",
@@ -217,7 +510,10 @@
         },
         {
           "text": "число от 1 до 10",
-          "parameters": {"min": 1, "max": 10}
+          "parameters": {
+            "min": 1,
+            "max": 10
+          }
         },
         {
           "text": "random number",
@@ -225,24 +521,32 @@
         },
         {
           "text": "number from 5 to 50",
-          "parameters": {"min": 5, "max": 50}
+          "parameters": {
+            "min": 5,
+            "max": 50
+          }
         }
       ],
-      
       "boost": 1.2
     },
     {
       "method_name": "_handle_random_choice",
       "intent_suffix": "choice",
       "description": "Choose randomly from a list of options",
-      
       "phrases": [
-        "выбери из", "случайный выбор", "что выбрать", "random choice",
-        "choose from", "pick from", "select from"
+        "выбери из",
+        "случайный выбор",
+        "что выбрать",
+        "random choice",
+        "choose from",
+        "pick from",
+        "select from"
       ],
-      
-      "lemmas": ["выбрать", "выбор", "случайный"],
-      
+      "lemmas": [
+        "выбрать",
+        "выбор",
+        "случайный"
+      ],
       "parameters": [
         {
           "name": "options",
@@ -250,48 +554,149 @@
           "required": true,
           "description": "List of options to choose from",
           "extraction_patterns": [
-            {"pattern": [{"LOWER": "из"}, {"IS_ALPHA": true, "OP": "+"}], "label": "OPTIONS"},
-            {"pattern": [{"LOWER": "from"}, {"IS_ALPHA": true, "OP": "+"}], "label": "OPTIONS"}
+            {
+              "pattern": [
+                {
+                  "LOWER": "из"
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "OPTIONS"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": "from"
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "OPTIONS"
+            }
           ],
-          "aliases": ["варианты", "список"]
+          "aliases": [
+            "варианты",
+            "список"
+          ]
         }
       ],
-      
       "token_patterns": [
-        [{"LEMMA": "выбрать"}, {"LOWER": "из"}],
-        [{"LEMMA": "случайный"}, {"LEMMA": "выбор"}],
-        [{"TEXT": "random"}, {"TEXT": "choice"}],
-        [{"TEXT": {"REGEX": "choose|pick|select"}}, {"TEXT": "from"}]
+        [
+          {
+            "LEMMA": "выбрать"
+          },
+          {
+            "LOWER": "из"
+          }
+        ],
+        [
+          {
+            "LEMMA": "случайный"
+          },
+          {
+            "LEMMA": "выбор"
+          }
+        ],
+        [
+          {
+            "TEXT": "random"
+          },
+          {
+            "TEXT": "choice"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "choose|pick|select"
+            }
+          },
+          {
+            "TEXT": "from"
+          }
+        ]
       ],
-      
       "slot_patterns": {
         "OPTIONS": [
-          [{"LOWER": "из"}, {"IS_ALPHA": true, "OP": "+"}],
-          [{"LOWER": "from"}, {"IS_ALPHA": true, "OP": "+"}]
+          [
+            {
+              "LOWER": "из"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "from"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
         ]
       },
-      
       "examples": [
         {
           "text": "выбери из яблоко или апельсин",
-          "parameters": {"options": "яблоко или апельсин"}
+          "parameters": {
+            "options": "яблоко или апельсин"
+          }
         },
         {
           "text": "случайный выбор из красный синий зелёный",
-          "parameters": {"options": "красный синий зелёный"}
+          "parameters": {
+            "options": "красный синий зелёный"
+          }
         },
         {
           "text": "choose from apple or orange",
-          "parameters": {"options": "apple or orange"}
+          "parameters": {
+            "options": "apple or orange"
+          }
         }
       ],
-      
       "boost": 1.1
     }
   ],
-  
   "negative_patterns": [
-    [{"LEMMA": {"IN": ["нет", "не"]}}, {"LEMMA": {"IN": ["случайный", "монета", "кубик"]}}],
-    [{"TEXT": {"REGEX": "no|not"}}, {"TEXT": {"REGEX": "random|coin|dice"}}]
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "случайный",
+            "монета",
+            "кубик"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "random|coin|dice"
+        }
+      }
+    ]
   ]
 }

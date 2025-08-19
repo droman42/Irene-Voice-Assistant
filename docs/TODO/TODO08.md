@@ -59,7 +59,7 @@ class NLUComponent:
     def __init__(self):
         self.providers = {
             "keyword_matcher": KeywordMatcherNLUProvider(),      # Mandatory: fast keyword matching
-            "rule_based": RuleBasedNLUProvider(),               # Optional: regex patterns  
+  
             "unified_processor": UnifiedProcessorNLUProvider(), # Optional: existing text processing
             "spacy_semantic": SpaCySemanticNLUProvider(),       # Optional: semantic understanding
             # ... additional providers can be added
@@ -155,7 +155,7 @@ async def process_text_for_nlu(self, text: str) -> str:
 # Extensible provider configuration
 enabled_providers = [
     "keyword_matcher",    # Mandatory - always enabled
-    "rule_based",         # Optional - regex patterns
+
     "unified_processor",  # Optional - existing text processing
     "spacy_semantic"      # Optional - semantic understanding
 ]
@@ -202,7 +202,7 @@ fallback_only = true
 ### Related Files (✅ All Implemented)
 - ✅ `irene/intents/handlers/base.py` (intent handler base class with donation support)
 - ✅ `irene/providers/nlu/hybrid_keyword_matcher.py` (keyword-first implementation)
-- ✅ `irene/providers/nlu/rule_based.py` (updated keyword matching)
+
 - ✅ `irene/providers/nlu/spacy_provider.py` (semantic fallback with morphology)
 - ✅ `irene/providers/text_processing/` (fully integrated with NLU pipeline)
 - ✅ `irene/intents/orchestrator.py` (NLU coordination and provider chain)
