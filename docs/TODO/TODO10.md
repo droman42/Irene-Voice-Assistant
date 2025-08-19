@@ -78,9 +78,10 @@ temp_file = temp_dir / f"audio_stream_{uuid.uuid4().hex}.wav"
 
 ### **Docker Deployment Benefits Achieved**
 
-- ✅ **Centralized Storage**: All models in `IRENE_MODELS_ROOT=/data/models`
-- ✅ **Centralized Cache**: All temp files in `IRENE_CACHE_ROOT=/data/cache`  
-- ✅ **Centralized Credentials**: All API keys via `IRENE_CREDENTIALS_ROOT=/data/credentials`
+- ✅ **Centralized Storage**: All assets under `IRENE_ASSETS_ROOT=/data`
+  - Models in `/data/models`
+  - Cache in `/data/cache`  
+  - Credentials in `/data/credentials`
 - ✅ **Predictable Volume Mounts**: Single `/data` directory contains all persistent assets
 - ✅ **Resource Monitoring**: Easy tracking of model storage and temp file usage
 

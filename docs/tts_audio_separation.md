@@ -97,7 +97,7 @@ Workflow Level (Universal Pattern):
 **New configuration parameter for temporary file storage:**
 ```toml
 [storage]
-temp_audio_dir = "/path/to/temp/audio"  # Similar to IRENE_MODELS_ROOT
+temp_audio_dir = "/path/to/temp/audio"  # Similar to IRENE_ASSETS_ROOT/cache
 # Defaults to system temp with irene subdirectory
 ```
 

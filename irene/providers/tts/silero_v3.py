@@ -57,7 +57,7 @@ class SileroV3TTSProvider(TTSProvider):
         legacy_model_path = config.get("model_path")
         if legacy_model_path:
             self.model_path = Path(legacy_model_path).expanduser()
-            logger.warning("Using legacy model_path config. Consider using IRENE_MODELS_ROOT environment variable.")
+            logger.warning("Using legacy model_path config. Consider using IRENE_ASSETS_ROOT environment variable.")
         else:
             self.model_path = self.asset_manager.config.silero_models_dir
             

@@ -40,7 +40,7 @@ class VoskTTSProvider(TTSProvider):
         legacy_model_path = config.get("model_path")
         if legacy_model_path:
             self.model_path = Path(legacy_model_path)
-            logger.warning("Using legacy model_path config. Consider using IRENE_MODELS_ROOT environment variable.")
+            logger.warning("Using legacy model_path config. Consider using IRENE_ASSETS_ROOT environment variable.")
         else:
             # Use asset manager for model path
             self.model_path = self.asset_manager.get_model_path("vosk", "tts", "vosk-tts")

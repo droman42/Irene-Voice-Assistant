@@ -103,9 +103,7 @@ Configure the system using these environment variables:
 
 ```bash
 # Root directories for all assets
-IRENE_MODELS_ROOT=/data/models      # All AI models (Whisper, Silero, VOSK, etc.)
-IRENE_CACHE_ROOT=/data/cache        # Runtime cache, downloads, temporary files
-IRENE_CREDENTIALS_ROOT=/data/credentials  # API keys, service account files
+IRENE_ASSETS_ROOT=/data             # Root directory for all assets
 ```
 
 ### API Credentials
@@ -127,32 +125,31 @@ GOOGLE_CLOUD_PROJECT_ID=your_google_project_id
 The asset management system creates provider-driven directory structures:
 
 ```
-/data/models/                    # IRENE_MODELS_ROOT
-├── whisper/                     # WhisperASRProvider.directory_name
-│   ├── tiny.pt                  # WhisperASRProvider.file_extension
-│   ├── base.pt
-│   └── small.pt
-├── silero/                      # SileroV3TTSProvider.directory_name  
-│   ├── v3_ru.pt                 # SileroV3TTSProvider.file_extension
-│   └── v4_ru.pt
-├── vosk/                        # VoskASRProvider.directory_name
-│   ├── ru_small/                # VoskASRProvider.file_extension (empty = directories)
-│   └── en_us/
-├── openwakeword/               # OpenWakeWordProvider.directory_name
-│   ├── alexa_v0.1.onnx         # OpenWakeWordProvider.file_extension
-│   ├── hey_jarvis_v0.1.onnx
-│   └── hey_mycroft_v0.1.onnx
-└── custom_provider/            # ExternalProvider.directory_name (configurable)
-    └── model.custom            # ExternalProvider.file_extension (configurable)
-
-/data/cache/                     # IRENE_CACHE_ROOT
-├── downloads/                   # Download cache
-├── runtime/                     # Runtime model cache
-├── tts/                         # TTS audio cache  
-└── temp/                        # Temporary files
-
-/data/credentials/               # IRENE_CREDENTIALS_ROOT
-├── google-cloud.json
+/data/                           # IRENE_ASSETS_ROOT
+├── models/                      # All AI models  
+│   ├── whisper/                 # WhisperASRProvider.directory_name
+│   │   ├── tiny.pt              # WhisperASRProvider.file_extension
+│   │   ├── base.pt
+│   │   └── small.pt
+│   ├── silero/                  # SileroV3TTSProvider.directory_name  
+│   │   ├── v3_ru.pt             # SileroV3TTSProvider.file_extension
+│   │   └── v4_ru.pt
+│   ├── vosk/                    # VoskASRProvider.directory_name
+│   │   ├── ru_small/            # VoskASRProvider.file_extension (empty = directories)
+│   │   └── en_us/
+│   ├── openwakeword/           # OpenWakeWordProvider.directory_name
+│   │   ├── alexa_v0.1.onnx     # OpenWakeWordProvider.file_extension
+│   │   ├── hey_jarvis_v0.1.onnx
+│   │   └── hey_mycroft_v0.1.onnx
+│   └── custom_provider/        # ExternalProvider.directory_name (configurable)
+│       └── model.custom        # ExternalProvider.file_extension (configurable)
+├── cache/                       # Runtime cache and downloads
+│   ├── downloads/               # Download cache
+│   ├── runtime/                 # Runtime model cache
+│   ├── tts/                     # TTS audio cache  
+│   └── temp/                    # Temporary files
+└── credentials/                 # API keys and service credentials
+    ├── google-cloud.json       # Google Cloud service account
 └── azure-speech.json
 ```
 
@@ -174,9 +171,7 @@ services:
       - ./data/cache:/data/cache        # Persistent cache
       - ./data/credentials:/data/credentials  # Credentials
     environment:
-      - IRENE_MODELS_ROOT=/data/models
-      - IRENE_CACHE_ROOT=/data/cache
-      - IRENE_CREDENTIALS_ROOT=/data/credentials
+      - IRENE_ASSETS_ROOT=/data
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     env_file:
@@ -192,9 +187,7 @@ FROM python:3.10-slim
 RUN mkdir -p /data/models /data/cache /data/credentials
 
 # Environment variables with defaults
-ENV IRENE_MODELS_ROOT=/data/models
-ENV IRENE_CACHE_ROOT=/data/cache
-ENV IRENE_CREDENTIALS_ROOT=/data/credentials
+ENV IRENE_ASSETS_ROOT=/data
 
 # Volume mounts for persistence
 VOLUME ["/data/models", "/data/cache", "/data/credentials"]
@@ -268,9 +261,7 @@ credential_patterns = ["OPENAI_API_KEY", "OPENAI_ORG_ID"]  # Add extra credentia
 
 1. **Set environment variables:**
    ```bash
-   export IRENE_MODELS_ROOT=/path/to/your/models
-   export IRENE_CACHE_ROOT=/path/to/your/cache
-   export IRENE_CREDENTIALS_ROOT=/path/to/your/credentials
+   export IRENE_ASSETS_ROOT=/path/to/your/assets
    ```
 
 2. **Move existing models:**
@@ -424,7 +415,7 @@ The system includes a built-in model registry with information about available m
 ### Common Issues
 
 1. **Permission errors**: Ensure the user has write access to the configured directories
-2. **Missing models**: Check that `IRENE_MODELS_ROOT` is correctly set and accessible
+2. **Missing models**: Check that `IRENE_ASSETS_ROOT` is correctly set and accessible
 3. **API key errors**: Verify environment variables are set and accessible to the application
 4. **Docker volume issues**: Ensure volumes are correctly mounted and persistent
 
@@ -435,9 +426,9 @@ The system includes a built-in model registry with information about available m
 env | grep IRENE
 
 # Verify directory structure
-ls -la $IRENE_MODELS_ROOT
-ls -la $IRENE_CACHE_ROOT
-ls -la $IRENE_CREDENTIALS_ROOT
+ls -la $IRENE_ASSETS_ROOT/models
+ls -la $IRENE_ASSETS_ROOT/cache
+ls -la $IRENE_ASSETS_ROOT/credentials
 
 # Test model availability
 python -c "from irene.core.assets import get_asset_manager; am = get_asset_manager(); print(am.config.models_root)"
@@ -478,4 +469,4 @@ voice_trigger:
     custom_phrase: "/path/to/custom/model.onnx"
 ```
 
-However, using the centralized asset management system (`IRENE_MODELS_ROOT`) is recommended for Docker deployments. 
+However, using the centralized asset management system (`IRENE_ASSETS_ROOT`) is recommended for Docker deployments. 

@@ -37,7 +37,7 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
         legacy_model_paths = config.get('model_paths', {})
         if legacy_model_paths:
             self.model_paths = legacy_model_paths
-            logger.warning("Using legacy model_paths config. Consider using IRENE_MODELS_ROOT environment variable.")
+            logger.warning("Using legacy model_paths config. Consider using IRENE_ASSETS_ROOT environment variable.")
         else:
             self.model_paths = {}
         

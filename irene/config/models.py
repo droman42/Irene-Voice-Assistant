@@ -124,7 +124,7 @@ class UniversalASRConfig(BaseModel):
         default_factory=lambda: {
             "vosk": {
                 "enabled": True,
-                "model_paths": {},  # Deprecated - uses IRENE_MODELS_ROOT
+                "model_paths": {},  # Deprecated - uses IRENE_ASSETS_ROOT/models
                 "sample_rate": 16000,
                 "confidence_threshold": 0.7,
                 "preload_models": False  # Set to True to download and cache models on startup
@@ -133,7 +133,7 @@ class UniversalASRConfig(BaseModel):
                 "enabled": False,
                 "model_size": "base",
                 "device": "cpu",
-                "download_root": "",  # Deprecated - uses IRENE_MODELS_ROOT
+                "download_root": "",  # Deprecated - uses IRENE_ASSETS_ROOT/models
                 "preload_models": False  # Set to True to download and cache models on startup
             },
             "google_cloud": {
@@ -449,16 +449,23 @@ class StorageConfig(BaseModel):
 class AssetConfig(BaseModel):
     """Centralized asset management configuration with environment variable support"""
     
-    # Root directories from environment variables
-    models_root: Path = Field(
-        default_factory=lambda: Path(os.getenv("IRENE_MODELS_ROOT", "~/.cache/irene/models")).expanduser()
+    # Single root directory from environment variable
+    assets_root: Path = Field(
+        default_factory=lambda: Path(os.getenv("IRENE_ASSETS_ROOT", "~/.cache/irene")).expanduser()
     )
-    cache_root: Path = Field(
-        default_factory=lambda: Path(os.getenv("IRENE_CACHE_ROOT", "~/.cache/irene/cache")).expanduser()
-    )
-    credentials_root: Path = Field(
-        default_factory=lambda: Path(os.getenv("IRENE_CREDENTIALS_ROOT", "~/.config/irene/credentials")).expanduser()
-    )
+    
+    # Subdirectories under assets root
+    @property
+    def models_root(self) -> Path:
+        return self.assets_root / "models"
+    
+    @property
+    def cache_root(self) -> Path:
+        return self.assets_root / "cache"
+    
+    @property 
+    def credentials_root(self) -> Path:
+        return self.assets_root / "credentials"
     
     # Auto-create directories on initialization
     auto_create_dirs: bool = Field(default=True)
@@ -627,6 +634,7 @@ class AssetConfig(BaseModel):
     def _create_directories(self) -> None:
         """Create all necessary directories"""
         directories = [
+            self.assets_root,
             self.models_root,
             self.cache_root,
             self.credentials_root,
@@ -677,7 +685,7 @@ class CoreConfig(BaseSettings):
     # System paths (deprecated - use assets configuration instead)
     data_directory: Path = Field(default=Path("./data"), description="Data storage directory")
     log_directory: Path = Field(default=Path("./logs"), description="Log storage directory")
-    cache_directory: Path = Field(default=Path("./cache"), description="Cache directory (deprecated - use assets.cache_root)")
+    cache_directory: Path = Field(default=Path("./cache"), description="Cache directory (deprecated - use assets.cache_root under IRENE_ASSETS_ROOT)")
     
     # Runtime settings
     max_concurrent_commands: int = Field(default=10, ge=1, description="Maximum concurrent commands")
@@ -795,7 +803,7 @@ class VoiceTriggerConfig(BaseModel):
         default_factory=lambda: {
             "openwakeword": {
                 "enabled": True,
-                "model_paths": {},  # Uses IRENE_MODELS_ROOT
+                "model_paths": {},  # Uses IRENE_ASSETS_ROOT/models
                 "inference_framework": "onnx",
                 "vad_threshold": 0.5
             },

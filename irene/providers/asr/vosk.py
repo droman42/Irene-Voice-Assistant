@@ -39,7 +39,7 @@ class VoskASRProvider(ASRProvider):
         legacy_model_paths = config.get("model_paths", {})
         if legacy_model_paths:
             self.model_paths = {lang: Path(path) for lang, path in legacy_model_paths.items()}
-            logger.warning("Using legacy model_paths config. Consider using IRENE_MODELS_ROOT environment variable.")
+            logger.warning("Using legacy model_paths config. Consider using IRENE_ASSETS_ROOT environment variable.")
         else:
             # Use asset manager for standard model paths
             self.model_paths = {

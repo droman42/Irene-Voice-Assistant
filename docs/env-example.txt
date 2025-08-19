@@ -9,9 +9,7 @@
 
 # Root directories for all models, cache, and credentials
 # These will be used by all providers unless overridden
-IRENE_MODELS_ROOT=/data/models
-IRENE_CACHE_ROOT=/data/cache
-IRENE_CREDENTIALS_ROOT=/data/credentials
+IRENE_ASSETS_ROOT=/data
 
 # ============================================================
 # API CREDENTIALS - Cloud Service Authentication
@@ -130,9 +128,9 @@ IRENE_ENABLE_PROFILING=false
 # ============================================================
 
 # If you need different paths for specific providers, uncomment:
-# IRENE_WHISPER_MODELS_DIR=${IRENE_MODELS_ROOT}/whisper
-# IRENE_SILERO_MODELS_DIR=${IRENE_MODELS_ROOT}/silero  
-# IRENE_VOSK_MODELS_DIR=${IRENE_MODELS_ROOT}/vosk
+# IRENE_WHISPER_MODELS_DIR=${IRENE_ASSETS_ROOT}/models/whisper
+# IRENE_SILERO_MODELS_DIR=${IRENE_ASSETS_ROOT}/models/silero  
+# IRENE_VOSK_MODELS_DIR=${IRENE_ASSETS_ROOT}/models/vosk
 
 # Legacy provider configurations (deprecated - use asset management above)
 # These are maintained for backwards compatibility but will show warnings

@@ -46,7 +46,7 @@ class WhisperASRProvider(ASRProvider):
         legacy_download_root = config.get("download_root")
         if legacy_download_root:
             self.download_root = Path(legacy_download_root).expanduser()
-            logger.warning("Using legacy download_root config. Consider using IRENE_MODELS_ROOT environment variable.")
+            logger.warning("Using legacy download_root config. Consider using IRENE_ASSETS_ROOT environment variable.")
         else:
             self.download_root = self.asset_manager.config.whisper_models_dir
             
