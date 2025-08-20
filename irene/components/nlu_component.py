@@ -316,9 +316,7 @@ class NLUComponent(Component, WebAPIPlugin):
     def description(self) -> str:
         return "Natural Language Understanding component for intent recognition and entity extraction"
         
-    @property
-    def dependencies(self) -> List[str]:
-        return []  # No hard dependencies
+
         
     @property
     def optional_dependencies(self) -> List[str]:
@@ -336,10 +334,7 @@ class NLUComponent(Component, WebAPIPlugin):
     def platforms(self) -> List[str]:
         return []  # All platforms
     
-    def get_dependencies(self) -> List[str]:
-        """Get list of Python package dependencies for this component."""
-        return self.dependencies  # Use @property for consistency
-    
+
     def get_component_dependencies(self) -> List[str]:
         """Get list of required component dependencies."""
         return ["text_processor"]  # NLU needs processed text

@@ -23,16 +23,7 @@ class Component(EntryPointMetadata, ABC):
         self.default_provider: Optional[str] = None
         self.initialized = False
     
-    @abstractmethod
-    def get_dependencies(self) -> List[str]:
-        """
-        Get list of dependencies for this component.
-        
-        Returns:
-            List of required package names
-        """
-        pass
-    
+
     @abstractmethod
     def get_providers_info(self) -> str:
         """
@@ -249,7 +240,7 @@ class Component(EntryPointMetadata, ABC):
             "initialized": self.initialized,
             "providers": list(self.providers.keys()),
             "default_provider": self.default_provider,
-            "dependencies": self.get_dependencies()
+            "dependencies": self.get_component_dependencies()
         }
         
         # Add provider capabilities

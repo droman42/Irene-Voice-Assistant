@@ -905,7 +905,7 @@ class Component(ABC):
         
     def is_available(self) -> bool:
         """Check if component dependencies are available"""
-        return ComponentLoader.is_available(self.name, self.get_dependencies())
+        return ComponentLoader.is_available(self.name, self.get_python_dependencies())
         
     async def start(self) -> bool:
         """Start the component with error handling"""

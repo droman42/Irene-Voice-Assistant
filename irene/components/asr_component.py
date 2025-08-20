@@ -49,9 +49,7 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     def description(self) -> str:
         return "ASR component coordinating multiple speech recognition providers"
         
-    @property
-    def dependencies(self) -> List[str]:
-        return []  # No hard dependencies
+
         
     @property
     def optional_dependencies(self) -> List[str]:
@@ -69,10 +67,7 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     def platforms(self) -> List[str]:
         return []  # All platforms
     
-    def get_dependencies(self) -> List[str]:
-        """Get list of Python package dependencies for this component."""
-        return []  # No hard dependencies - matches existing @property
-    
+
     def get_component_dependencies(self) -> List[str]:
         """Get list of required component dependencies."""
         return []  # ASR is foundational, no component dependencies

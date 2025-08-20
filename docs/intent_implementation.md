@@ -629,7 +629,7 @@ class ComponentManager:
         # Use loader.py to validate each component's dependencies
         available = {}
         for name, cls in components.items():
-            if self.dependency_checker.check(name, cls.get_dependencies()):
+            if self.dependency_checker.check(name, cls.get_python_dependencies()):
                 available[name] = cls
             else:
                 logger.warning(f"Component {name} not available - missing dependencies")

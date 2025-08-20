@@ -124,9 +124,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     def description(self) -> str:
         return "Text processing component with normalization and enhancement capabilities"
         
-    @property
-    def dependencies(self) -> List[str]:
-        return []  # No hard dependencies
+
         
     @property
     def optional_dependencies(self) -> List[str]:
@@ -144,10 +142,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     def platforms(self) -> List[str]:
         return []  # All platforms
     
-    def get_dependencies(self) -> List[str]:
-        """Get list of Python package dependencies for this component."""
-        return self.dependencies  # Use @property for consistency
-    
+
     def get_component_dependencies(self) -> List[str]:
         """Get list of required component dependencies."""
         return []  # Text processor is foundational
@@ -364,7 +359,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
                     "normalizer_count": len(self.processor.normalizers),
                     "supported_stages": ["asr_output", "general", "tts_input"],
                     "supported_languages": ["ru", "en"],
-                    "dependencies": self.get_dependencies()
+                    "dependencies": self.get_component_dependencies()
                 }
             
             return router

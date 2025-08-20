@@ -50,9 +50,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
     def description(self) -> str:
         return "TTS component coordinating multiple TTS providers with unified API"
         
-    @property
-    def dependencies(self) -> list[str]:
-        return []  # No hard dependencies
+
         
     @property
     def optional_dependencies(self) -> list[str]:
@@ -70,10 +68,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
     def platforms(self) -> list[str]:
         return []  # All platforms
     
-    def get_dependencies(self) -> list[str]:
-        """Get list of Python package dependencies for this component."""
-        return self.dependencies  # Use @property for consistency
-    
+
     def get_component_dependencies(self) -> list[str]:
         """Get list of required component dependencies."""
         return ["audio"]  # TTS needs audio component to play generated speech

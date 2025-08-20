@@ -45,10 +45,7 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     - Runtime provider switching
     """
     
-    def get_dependencies(self) -> List[str]:
-        """Get list of Python package dependencies for this component."""
-        return self.dependencies  # Use @property for consistency
-    
+
     def get_component_dependencies(self) -> List[str]:
         """Get list of required component dependencies."""
         return []  # Audio is foundational, no component dependencies
@@ -69,10 +66,7 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     def description(self) -> str:
         return "Audio component managing multiple audio backends"
         
-    @property
-    def dependencies(self) -> list[str]:
-        """No required dependencies (providers handle their own)"""
-        return []
+
         
     @property
     def optional_dependencies(self) -> list[str]:
