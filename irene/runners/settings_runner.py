@@ -125,6 +125,10 @@ class SettingsManagerRunner:
         
     async def run(self, args: Optional[list[str]] = None) -> int:
         """Run Settings Manager"""
+        # Load environment variables from .env file first
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         # Parse arguments
         parser = setup_settings_argument_parser()
         parsed_args = parser.parse_args(args)

@@ -71,8 +71,16 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
         return []  # All platforms
     
     def get_dependencies(self) -> list[str]:
-        """Get list of dependencies for this component."""
+        """Get list of Python package dependencies for this component."""
         return self.dependencies  # Use @property for consistency
+    
+    def get_component_dependencies(self) -> list[str]:
+        """Get list of required component dependencies."""
+        return ["audio"]  # TTS needs audio component to play generated speech
+    
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Get list of required service dependencies."""
+        return {}  # No service dependencies
         
     def __init__(self):
         super().__init__()

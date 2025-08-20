@@ -155,6 +155,10 @@ class WebAPIRunner:
         
     async def run(self, args: Optional[list[str]] = None) -> int:
         """Run Web API server mode"""
+        # Load environment variables from .env file first
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         # Parse arguments
         parser = setup_webapi_argument_parser()
         parsed_args = parser.parse_args(args)

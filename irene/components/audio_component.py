@@ -46,8 +46,16 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     """
     
     def get_dependencies(self) -> List[str]:
-        """Get list of dependencies for this component."""
+        """Get list of Python package dependencies for this component."""
         return self.dependencies  # Use @property for consistency
+    
+    def get_component_dependencies(self) -> List[str]:
+        """Get list of required component dependencies."""
+        return []  # Audio is foundational, no component dependencies
+    
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Get list of required service dependencies."""
+        return {}  # No service dependencies
     
     @property
     def name(self) -> str:

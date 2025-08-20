@@ -474,45 +474,142 @@ class WorkflowConfig(BaseModel):
 # ============================================================
 
 class EnvironmentVariableResolver:
-    """Utility class for resolving ${VAR} patterns in configuration"""
+    """Enablement-aware utility class for resolving ${VAR} patterns in configuration"""
     
     @staticmethod
-    def substitute_env_vars(value: Any) -> Any:
-        """Replace ${VAR} patterns with environment variable values"""
+    def substitute_env_vars(config_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Replace ${VAR} patterns with environment variable values, respecting enablement hierarchy"""
+        return EnvironmentVariableResolver._substitute_recursive(config_dict, [], config_dict)
+    
+    @staticmethod
+    def _substitute_recursive(value: Any, path: List[str], root_config: Dict[str, Any]) -> Any:
+        """Recursively substitute environment variables with enablement awareness"""
         if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
             var_name = value[2:-1]
+            
+            # Skip validation for disabled sections
+            if not EnvironmentVariableResolver._is_section_enabled(path, root_config):
+                return value  # Return unresolved for disabled sections
+            
+            # Validate and resolve for enabled sections
             env_value = os.getenv(var_name)
             if env_value is None:
-                raise ValueError(f"Required environment variable {var_name} is not set")
+                config_path = ".".join(path) if path else "root"
+                raise ValueError(f"Required environment variable {var_name} is not set (used in enabled section: {config_path})")
             return env_value
+            
         elif isinstance(value, dict):
-            return {k: EnvironmentVariableResolver.substitute_env_vars(v) for k, v in value.items()}
+            result = {}
+            for k, v in value.items():
+                new_path = path + [k]
+                # Always process dict entries, but enablement checking happens at the env var level
+                result[k] = EnvironmentVariableResolver._substitute_recursive(v, new_path, root_config)
+            return result
+            
         elif isinstance(value, list):
-            return [EnvironmentVariableResolver.substitute_env_vars(v) for v in value]
+            return [EnvironmentVariableResolver._substitute_recursive(item, path, root_config) for item in value]
+        
         return value
     
     @staticmethod
+    def _is_section_enabled(path: List[str], config_dict: Dict[str, Any]) -> bool:
+        """Check if a configuration section should be processed based on enablement hierarchy"""
+        if len(path) == 0:
+            return True
+            
+        # Handle provider-level enablement: component.providers.provider_name
+        if len(path) >= 3 and path[1] == "providers":
+            component_name = path[0]  # e.g., "tts"
+            provider_name = path[2]   # e.g., "elevenlabs"
+            
+            # Check component is enabled
+            component_enabled = config_dict.get("components", {}).get(component_name, False)
+            if not component_enabled:
+                return False
+                
+            # Check provider is enabled
+            provider_config = config_dict.get(component_name, {}).get("providers", {}).get(provider_name, {})
+            return provider_config.get("enabled", False)
+        
+        # Handle intent handler enablement: intent_system.handlers.handler_name
+        if len(path) >= 3 and path[0] == "intent_system" and path[1] == "handlers":
+            handler_name = path[2]
+            
+            # Check if intent system is enabled
+            intent_system_enabled = config_dict.get("components", {}).get("intent_system", False)
+            if not intent_system_enabled:
+                return False
+                
+            # Check if handler is in enabled list
+            enabled_handlers = config_dict.get("intent_system", {}).get("handlers", {}).get("enabled", [])
+            disabled_handlers = config_dict.get("intent_system", {}).get("handlers", {}).get("disabled", [])
+            
+            # Disabled list takes precedence
+            if handler_name in disabled_handlers:
+                return False
+                
+            return handler_name in enabled_handlers
+        
+        # Handle input source enablement: inputs.source_name
+        if len(path) >= 2 and path[0] == "inputs":
+            input_name = path[1]
+            
+            # Skip config subsections like microphone_config, web_config, cli_config
+            if input_name.endswith("_config"):
+                base_input = input_name.replace("_config", "")
+                return config_dict.get("inputs", {}).get(base_input, False)
+            
+            # Direct input enablement check
+            return config_dict.get("inputs", {}).get(input_name, False)
+        
+        # Handle component-level enablement: component_name.* 
+        if len(path) >= 1:
+            component_name = path[0]
+            
+            # Check against known components
+            known_components = ["tts", "asr", "audio", "llm", "voice_trigger", "nlu", "text_processor", "intent_system"]
+            if component_name in known_components:
+                return config_dict.get("components", {}).get(component_name, False)
+        
+        # Handle workflow enablement
+        if len(path) >= 2 and path[0] == "workflows":
+            workflow_name = path[1]
+            enabled_workflows = config_dict.get("workflows", {}).get("enabled", [])
+            return workflow_name in enabled_workflows
+        
+        # Handle system-level sections (always enabled)
+        if path[0] in ["system", "components", "assets"]:
+            return True
+            
+        # Default to enabled for unknown sections (conservative approach)
+        return True
+    
+    @staticmethod
     def find_env_var_patterns(config: Dict[str, Any]) -> List[str]:
-        """Find all ${VAR} patterns in configuration"""
+        """Find all ${VAR} patterns in enabled configuration sections only"""
         patterns = []
         
-        def _scan_value(value: Any):
+        def _scan_value(value: Any, path: List[str]):
+            # Only scan if section is enabled
+            if not EnvironmentVariableResolver._is_section_enabled(path, config):
+                return
+                
             if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                 var_name = value[2:-1]
                 patterns.append(var_name)
             elif isinstance(value, dict):
-                for v in value.values():
-                    _scan_value(v)
+                for k, v in value.items():
+                    _scan_value(v, path + [k])
             elif isinstance(value, list):
-                for v in value:
-                    _scan_value(v)
+                for i, v in enumerate(value):
+                    _scan_value(v, path + [str(i)])
         
-        _scan_value(config)
+        _scan_value(config, [])
         return patterns
     
     @staticmethod
     def validate_environment_variables(config: Dict[str, Any]) -> None:
-        """Validate all ${VAR} patterns have corresponding environment variables"""
+        """Validate ${VAR} patterns have corresponding environment variables for enabled sections only"""
         patterns = EnvironmentVariableResolver.find_env_var_patterns(config)
         missing_vars = []
         
@@ -521,7 +618,7 @@ class EnvironmentVariableResolver:
                 missing_vars.append(var_name)
         
         if missing_vars:
-            raise ValueError(f"Missing required environment variables: {missing_vars}")
+            raise ValueError(f"Missing required environment variables for enabled components: {missing_vars}")
 
 
 # ============================================================
@@ -692,13 +789,13 @@ class CoreConfig(BaseSettings):
         return self
 
     def resolve_environment_variables(self) -> 'CoreConfig':
-        """Resolve all ${VAR} patterns in configuration"""
+        """Resolve all ${VAR} patterns in configuration (enablement-aware)"""
         config_dict = self.model_dump()
         
-        # Validate environment variables exist
+        # Validate environment variables exist (only for enabled sections)
         EnvironmentVariableResolver.validate_environment_variables(config_dict)
         
-        # Substitute environment variables
+        # Substitute environment variables (enablement-aware)
         resolved_dict = EnvironmentVariableResolver.substitute_env_vars(config_dict)
         
         # Return new instance with resolved values

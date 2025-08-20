@@ -154,6 +154,10 @@ class VoskRunner:
         
     async def run(self, args: Optional[list[str]] = None) -> int:
         """Run VOSK speech recognition mode"""
+        # Load environment variables from .env file first
+        from dotenv import load_dotenv
+        load_dotenv()
+        
         # Parse arguments
         parser = setup_vosk_argument_parser()
         parsed_args = parser.parse_args(args)

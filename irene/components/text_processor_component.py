@@ -145,8 +145,16 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         return []  # All platforms
     
     def get_dependencies(self) -> List[str]:
-        """Get list of dependencies for this component."""
+        """Get list of Python package dependencies for this component."""
         return self.dependencies  # Use @property for consistency
+    
+    def get_component_dependencies(self) -> List[str]:
+        """Get list of required component dependencies."""
+        return []  # Text processor is foundational
+    
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Get list of required service dependencies."""
+        return {}  # No service dependencies
         
     async def improve(self, text: str, context: ConversationContext, stage: str = "general") -> str:
         """

@@ -542,7 +542,7 @@ stages = {str(tp_config.stages)}
                 logger.info("Configuration migration completed successfully")
                 return config
             
-            # Resolve environment variables if needed
+            # Resolve environment variables if needed (enablement-aware)
             resolved_data = EnvironmentVariableResolver.substitute_env_vars(data)
             
             # Use getattr to work around type checker limitations with Pydantic v2

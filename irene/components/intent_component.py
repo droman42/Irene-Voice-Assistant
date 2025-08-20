@@ -92,8 +92,16 @@ class IntentComponent(Component, WebAPIPlugin):
         logger.info("Intent component shutdown completed")
         
     def get_dependencies(self) -> List[str]:
-        """Intent system has no external dependencies"""
+        """Intent system has no external Python package dependencies"""
         return []  # No external dependencies required
+    
+    def get_component_dependencies(self) -> List[str]:
+        """Get list of required component dependencies."""
+        return ["nlu", "llm"]  # Intent system needs NLU for recognition and LLM for processing
+    
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Get list of required service dependencies."""
+        return {}  # No service dependencies
     
     def get_providers_info(self) -> str:
         """Implementation of abstract method - Intent system doesn't use traditional providers"""

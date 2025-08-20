@@ -279,6 +279,10 @@ async def create_config_from_args(args: argparse.Namespace) -> CoreConfig:
 
 async def main():
     """Main CLI entry point"""
+    # Load environment variables from .env file first
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     # Setup argument parser and parse args
     parser = setup_argument_parser()
     args = parser.parse_args()
