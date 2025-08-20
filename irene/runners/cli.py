@@ -214,19 +214,52 @@ async def create_config_from_args(args: argparse.Namespace) -> CoreConfig:
     else:
         config = config_manager.get_default_config()
     
-    # Apply deployment profile overrides
+    # Apply deployment profile overrides (V14 Architecture)
     if args.headless:
+        # Headless: minimal components, no audio/voice
         config.components = ComponentConfig(
-            microphone=False, tts=False, audio_output=False, web_api=False
+            tts=False, audio=False, asr=False, voice_trigger=False,
+            llm=False, nlu=False, text_processor=False, intent_system=True
         )
+        # Also update system capabilities
+        config.system.microphone_enabled = False
+        config.system.audio_playback_enabled = False
+        config.system.web_api_enabled = False
+        # Update input sources
+        config.inputs.microphone = False
+        config.inputs.web = False
+        config.inputs.cli = True
+        config.inputs.default_input = "cli"
     elif args.api_only:
+        # API-only: text processing only, no voice components
         config.components = ComponentConfig(
-            microphone=False, tts=False, audio_output=False, web_api=True
+            tts=False, audio=False, asr=False, voice_trigger=False,
+            llm=True, nlu=True, text_processor=True, intent_system=True
         )
+        # Update system capabilities  
+        config.system.microphone_enabled = False
+        config.system.audio_playback_enabled = False
+        config.system.web_api_enabled = True
+        # Update input sources
+        config.inputs.microphone = False
+        config.inputs.web = True
+        config.inputs.cli = True
+        config.inputs.default_input = "web"
     elif args.voice:
+        # Voice: full voice assistant with all components
         config.components = ComponentConfig(
-            microphone=True, tts=True, audio_output=True, web_api=True
+            tts=True, audio=True, asr=True, voice_trigger=True,
+            llm=True, nlu=True, text_processor=True, intent_system=True
         )
+        # Update system capabilities
+        config.system.microphone_enabled = True
+        config.system.audio_playback_enabled = True
+        config.system.web_api_enabled = True
+        # Update input sources
+        config.inputs.microphone = True
+        config.inputs.web = True
+        config.inputs.cli = True
+        config.inputs.default_input = "microphone"
     
     # Apply command line overrides
     if args.debug:
@@ -238,7 +271,8 @@ async def create_config_from_args(args: argparse.Namespace) -> CoreConfig:
         config.log_level = LogLevel(args.log_level)
     
     if args.data_dir:
-        config.data_directory = args.data_dir
+        # V14: Update assets root instead of data_directory
+        config.assets.assets_root = Path(args.data_dir)
     
     return config
 

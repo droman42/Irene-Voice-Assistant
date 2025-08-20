@@ -92,25 +92,32 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
         await super().initialize(core)
         self.core = core
         
-        # Get configuration first to determine enabled providers
-        config = getattr(core.config.plugins, 'universal_tts', {})
-        
-        # Default configuration if not provided
+        # Get configuration first to determine enabled providers (V14 Architecture)
+        config = getattr(core.config, 'tts', None)
         if not config:
-            config = {
-                "enabled": True,
-                "default_provider": "console",
-                "fallback_providers": ["console"],
-                "lazy_loading": True,
-                "concurrent_initialization": True,
-                "providers": {
-                    "console": {
-                        "enabled": True,
-                        "color_output": True,
-                        "timing_simulation": False
-                    }
-                }
-            }
+            # Create default config if missing
+            from ..config.models import TTSConfig
+            config = TTSConfig()
+        
+        # Convert Pydantic model to dict for backward compatibility with existing logic
+        if hasattr(config, 'model_dump'):
+            config_dict = config.model_dump()
+        elif hasattr(config, 'dict'):
+            config_dict = config.dict()
+        else:
+            # FATAL: Invalid configuration - cannot proceed with hardcoded defaults
+            raise ValueError(
+                "TTSComponent: Invalid configuration object received. "
+                "Expected a valid TTSConfig instance, but got an invalid config. "
+                "Please check your configuration file for proper v14 tts section formatting."
+            )
+        
+        # Add TTS-specific settings not in v14 config but needed for backward compatibility
+        config_dict["lazy_loading"] = True
+        config_dict["concurrent_initialization"] = True
+        
+        # Use the converted config dict
+        config = config_dict
             
         self.default_provider = config.get("default_provider", "console")
         self.fallback_providers = config.get("fallback_providers", ["console"])
@@ -581,10 +588,10 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
     @classmethod
     def get_config_class(cls) -> Type[BaseModel]:
         """Return the Pydantic config model for this component"""
-        from ..config.models import UniversalTTSConfig
-        return UniversalTTSConfig
+        from ..config.models import TTSConfig
+        return TTSConfig
     
     @classmethod
     def get_config_path(cls) -> str:
-        """Return the TOML path to this component's config"""
-        return "plugins.universal_tts" 
+        """Return the TOML path to this component's config (V14 Architecture)"""
+        return "tts" 

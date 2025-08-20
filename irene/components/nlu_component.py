@@ -212,23 +212,32 @@ class NLUComponent(Component, WebAPIPlugin):
         """Initialize NLU providers with configuration-driven filtering"""
         await super().initialize(core)
         
-        # Get configuration first to determine enabled providers
-        config = getattr(core.config.components, 'nlu', {})
-        
-        # Default configuration if not provided
+        # Get configuration first to determine enabled providers (V14 Architecture)
+        config = getattr(core.config, 'nlu', None)
         if not config:
-            config = {
-                "enabled": True,
-                "confidence_threshold": 0.7,
-                "fallback_intent": "conversation.general",
-                "providers": {
-
-                    "spacy": {
-                        "enabled": False,
-                        "model_name": "en_core_web_sm"
-                    }
-                }
-            }
+            # Create default config if missing
+            from ..config.models import NLUConfig
+            config = NLUConfig()
+        
+        # Convert Pydantic model to dict for backward compatibility with existing logic
+        if hasattr(config, 'model_dump'):
+            config = config.model_dump()
+        elif hasattr(config, 'dict'):
+            config = config.dict()
+        else:
+            # FATAL: Invalid configuration - cannot proceed with hardcoded defaults
+            raise ValueError(
+                "NLUComponent: Invalid configuration object received. "
+                "Expected a valid NLUConfig instance, but got an invalid config. "
+                "Please check your configuration file for proper v14 nlu section formatting."
+            )
+        
+        # Configuration validation - should not be empty
+        if not config:
+            raise ValueError(
+                "NLUComponent: Empty configuration received. "
+                "A valid NLUConfig with providers must be provided in the v14 nlu section."
+            )
         
         # Update component settings from config
         self.confidence_threshold = config.get("confidence_threshold", 0.7)
@@ -788,10 +797,10 @@ class NLUComponent(Component, WebAPIPlugin):
     @classmethod
     def get_config_class(cls) -> Type[BaseModel]:
         """Return the Pydantic config model for this component"""
-        from ..config.models import UniversalNLUConfig
-        return UniversalNLUConfig
+        from ..config.models import NLUConfig
+        return NLUConfig
     
     @classmethod
     def get_config_path(cls) -> str:
-        """Return the TOML path to this component's config"""
-        return "components.nlu"  # Different section! 
+        """Return the TOML path to this component's config (V14 Architecture)"""
+        return "nlu" 

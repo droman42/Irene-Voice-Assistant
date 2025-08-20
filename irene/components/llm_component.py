@@ -82,7 +82,25 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
         """Initialize LLM providers from configuration"""
         await super().initialize(core)
         try:
-            config = getattr(core.config.plugins, "universal_llm", {})
+            # Get configuration (V14 Architecture)
+            config = getattr(core.config, 'llm', None)
+            if not config:
+                # Create default config if missing
+                from ..config.models import LLMConfig
+                config = LLMConfig()
+            
+            # Convert Pydantic model to dict for backward compatibility with existing logic
+            if hasattr(config, 'model_dump'):
+                config = config.model_dump()
+            elif hasattr(config, 'dict'):
+                config = config.dict()
+            else:
+                # FATAL: Invalid configuration - cannot proceed with hardcoded defaults
+                raise ValueError(
+                    "LLMComponent: Invalid configuration object received. "
+                    "Expected a valid LLMConfig instance, but got an invalid config. "
+                    "Please check your configuration file for proper v14 llm section formatting."
+                )
             
             # Initialize enabled providers with ABC error handling
             # Handle both dict and Pydantic config objects
@@ -353,10 +371,10 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
     @classmethod
     def get_config_class(cls) -> Type[BaseModel]:
         """Return the Pydantic config model for this component"""
-        from ..config.models import UniversalLLMConfig
-        return UniversalLLMConfig
+        from ..config.models import LLMConfig
+        return LLMConfig
     
     @classmethod
     def get_config_path(cls) -> str:
-        """Return the TOML path to this component's config"""
-        return "plugins.universal_llm" 
+        """Return the TOML path to this component's config (V14 Architecture)"""
+        return "llm" 

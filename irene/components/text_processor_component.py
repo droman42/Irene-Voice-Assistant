@@ -34,33 +34,25 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         """Initialize text processing providers with configuration-driven filtering"""
         await super().initialize(core)
         
-        # Get configuration first to determine enabled providers
-        config = getattr(core.config.plugins, 'universal_text_processor', {})
-        
-        # Default configuration if not provided (updated for new providers)
+        # Get configuration first to determine enabled providers (V14 Architecture)
+        config = getattr(core.config, 'text_processor', None)
         if not config:
-            config = {
-                "enabled": True,
-                "providers": {
-                    # New stage-specific providers (preferred)
-                    "asr_text_processor": {
-                        "enabled": True,
-                        "language": "ru"
-                    },
-                    "general_text_processor": {
-                        "enabled": True,
-                        "language": "ru"
-                    },
-                    "number_text_processor": {
-                        "enabled": True,
-                        "language": "ru"
-                    },
-                    "tts_text_processor": {
-                        "enabled": False,  # Resource-intensive, enabled on demand
-                        "language": "ru"
-                    }
-                }
-            }
+            # Create default config if missing
+            from ..config.models import TextProcessorConfig
+            config = TextProcessorConfig()
+        
+        # Convert Pydantic model to dict for backward compatibility with existing logic
+        if hasattr(config, 'model_dump'):
+            config = config.model_dump()
+        elif hasattr(config, 'dict'):
+            config = config.dict()
+        else:
+            # FATAL: Invalid configuration - cannot proceed with hardcoded defaults
+            raise ValueError(
+                "TextProcessorComponent: Invalid configuration object received. "
+                "Expected a valid TextProcessorConfig instance, but got an invalid config. "
+                "Please check your configuration file for proper v14 text_processor section formatting."
+            )
         
         # Get provider configurations
         providers_config = config.get("providers", {})
@@ -415,10 +407,10 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     @classmethod
     def get_config_class(cls) -> Type[BaseModel]:
         """Return the Pydantic config model for this component"""
-        from ..config.models import TextProcessingConfig  # Note: "Processing" not "Processor"
-        return TextProcessingConfig
+        from ..config.models import TextProcessorConfig
+        return TextProcessorConfig
     
     @classmethod
     def get_config_path(cls) -> str:
-        """Return the TOML path to this component's config"""
-        return "plugins.universal_text_processor" 
+        """Return the TOML path to this component's config (V14 Architecture)"""
+        return "text_processor" 

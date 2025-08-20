@@ -45,20 +45,36 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
         from ...core.assets import get_asset_manager
         self.asset_manager = get_asset_manager()
         
+        # Legacy model_paths support for backwards compatibility (following openwakeword pattern)
+        legacy_model_paths = config.get('model_paths', {})
+        if legacy_model_paths:
+            self.model_paths = legacy_model_paths
+            logger.warning("Using legacy model_paths config. Consider using IRENE_ASSETS_ROOT environment variable.")
+        else:
+            self.model_paths = {}
+        
+        # Legacy model_path support (deprecated - for backward compatibility only)
+        legacy_model_path = config.get('model_path')
+        if legacy_model_path:
+            logger.warning("model_path config is deprecated. Use IRENE_ASSETS_ROOT environment variable or model_paths instead.")
+            # Convert single model_path to model_paths format for the first wake word
+            if self.wake_words and legacy_model_path:
+                self.model_paths[self.wake_words[0]] = legacy_model_path
+        
         # microWakeWord specific configuration
-        self.model_path = config.get('model_path')  # Legacy path support
         self.feature_buffer_size = config.get('feature_buffer_size', 49)  # 49 * 10ms = 490ms
         self.stride_duration_ms = config.get('stride_duration_ms', 10)
         self.window_duration_ms = config.get('window_duration_ms', 30)
         self.num_mfcc_features = config.get('num_mfcc_features', 40)
         self.detection_window_size = config.get('detection_window_size', 3)  # Consecutive detections needed
         
-        # Model configuration - supports both legacy and asset-managed models
-        self.available_models = config.get('available_models', {
-            'irene': 'irene_model.tflite',
-            'jarvis': 'jarvis_model.tflite', 
-            'hey_irene': 'hey_irene_model.tflite'
-        })
+        # Available wake words and their default models (mapped to asset registry)
+        self.available_models = {
+            'irene': 'irene_v1.0',
+            'jarvis': 'jarvis_v1.0', 
+            'hey_irene': 'hey_irene_v1.0',
+            'hey_jarvis': 'hey_jarvis_v1.0'
+        }
         
         # Audio preprocessing
         self.feature_buffer = np.zeros((self.feature_buffer_size, self.num_mfcc_features), dtype=np.float32)
@@ -162,18 +178,19 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
             raise
     
     async def _get_model_path(self) -> Optional[str]:
-        """Get the model path using asset management or legacy configuration."""
-        # Support legacy model_path configuration first
-        if self.model_path:
-            legacy_path = Path(self.model_path)
-            if legacy_path.exists():
-                logger.info(f"Using legacy model path: {self.model_path}")
-                return str(legacy_path)
-            else:
-                logger.warning(f"Legacy model path not found: {self.model_path}")
-        
-        # Try to find a model for the first wake word via asset management
+        """Get the model path using asset management or legacy configuration (following openwakeword pattern)."""
+        # Try to find models for supported wake words
         for wake_word in self.wake_words:
+            # Check legacy model_paths configuration first (for backward compatibility)
+            if wake_word in self.model_paths:
+                legacy_path = Path(self.model_paths[wake_word])
+                if legacy_path.exists():
+                    logger.info(f"Using legacy model path for '{wake_word}': {self.model_paths[wake_word]}")
+                    return str(legacy_path)
+                else:
+                    logger.warning(f"Legacy model path not found for '{wake_word}': {self.model_paths[wake_word]}")
+            
+            # Try asset management for supported wake words
             if wake_word in self.available_models:
                 model_id = self.available_models[wake_word]
                 

@@ -1,0 +1,464 @@
+# ============================================================
+# IRENE VOICE ASSISTANT v14.0.0 - MASTER CONFIGURATION
+# ============================================================
+# 
+# This is the MASTER configuration file containing ALL possible
+# configuration options for Irene Voice Assistant v14.
+#
+# Use this file as a comprehensive reference for all available
+# settings. For production use, copy sections you need to your
+# own configuration file.
+#
+# Environment variables are supported using ${VAR_NAME} syntax
+# Set IRENE_ASSETS_ROOT to control where models/cache are stored
+# ============================================================
+
+# ============================================================
+# CORE SETTINGS
+# ============================================================
+name = "Irene"                      # Assistant name
+version = "14.0.0"                  # Configuration version
+debug = false                       # Enable debug mode for detailed logging
+log_level = "INFO"                  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# Language and locale settings
+language = "en-US"                  # Primary language (en-US, ru-RU, etc.)
+timezone = "UTC"                    # Timezone (UTC, America/New_York, Europe/Moscow, etc.)
+
+# Runtime performance settings
+max_concurrent_commands = 10        # Maximum concurrent command processing
+command_timeout_seconds = 30.0     # Command execution timeout
+context_timeout_minutes = 30       # Conversation context timeout
+
+# ============================================================
+# SYSTEM CAPABILITIES - Hardware & Services
+# ============================================================
+[system]
+# Hardware capabilities - what your system supports
+microphone_enabled = true           # Enable microphone hardware capability
+audio_playback_enabled = true      # Enable audio playback hardware capability
+
+# Service capabilities - what services to run
+web_api_enabled = true             # Enable REST API and WebSocket server
+web_port = 8000                    # Web API server port (1-65535)
+metrics_enabled = false            # Enable Prometheus metrics collection
+metrics_port = 9090                # Metrics server port (1-65535)
+
+# ============================================================
+# INPUT SOURCES - Data Entry Points
+# ============================================================
+[inputs]
+# Input source enablement
+microphone = true                   # Enable microphone input source
+web = true                         # Enable web interface input (REST/WebSocket)
+cli = true                         # Enable command line input
+default_input = "microphone"       # Default input: "microphone", "web", "cli"
+
+# Microphone Input Configuration
+[inputs.microphone_config]
+enabled = true                      # Enable microphone input processing
+# device_id = 0                    # Audio device ID (uncomment and set integer for specific device)
+sample_rate = 16000                # Audio sample rate: 8000, 16000, 22050, 44100, 48000
+channels = 1                       # Audio channels: 1 (mono), 2 (stereo)
+chunk_size = 1024                  # Audio buffer chunk size for processing
+
+# Web Input Configuration
+[inputs.web_config]
+enabled = true                      # Enable web-based input processing
+websocket_enabled = true           # Enable WebSocket real-time communication
+rest_api_enabled = true            # Enable REST API endpoints
+
+# CLI Input Configuration
+[inputs.cli_config]
+enabled = true                      # Enable command line input processing
+prompt_prefix = "irene> "           # CLI prompt prefix
+history_enabled = true              # Enable command history
+
+# ============================================================
+# COMPONENTS - Processing Pipeline Components
+# ============================================================
+[components]
+# Component enablement - controls which processing stages are available
+tts = true                         # Text-to-speech component
+asr = true                         # Automatic speech recognition component
+audio = true                       # Audio playback component
+llm = true                         # Large language model component (optional)
+voice_trigger = true               # Wake word detection component
+nlu = true                         # Natural language understanding component
+text_processor = true              # Text processing pipeline component
+intent_system = true               # Intent handling component (essential)
+
+# ============================================================
+# TTS (TEXT-TO-SPEECH) COMPONENT CONFIGURATION
+# ============================================================
+[tts]
+enabled = true                      # Enable TTS component
+default_provider = "console"        # Default provider: "console", "elevenlabs", "silero", "pyttsx", "vosk"
+fallback_providers = ["console"]    # Fallback providers in order
+
+# Console TTS Provider (for testing/development)
+[tts.providers.console]
+enabled = true                      # Enable console text output
+color_output = true                # Use colored console output
+timing_simulation = true           # Simulate TTS timing delays
+prefix = "TTS: "                   # Prefix for console output
+
+# ElevenLabs TTS Provider (high-quality neural TTS)
+[tts.providers.elevenlabs]
+enabled = false                     # Enable ElevenLabs provider
+api_key = "${ELEVENLABS_API_KEY}"  # API key from environment variable
+voice_id = "21m00Tcm4TlvDq8ikWAM"  # Voice ID to use
+model = "eleven_monolingual_v1"    # Model: "eleven_monolingual_v1", "eleven_multilingual_v1"
+stability = 0.5                    # Voice stability (0.0-1.0)
+similarity_boost = 0.5             # Voice similarity boost (0.0-1.0)
+
+# Silero TTS Provider (neural TTS, local models)
+[tts.providers.silero_v4]
+enabled = false                     # Enable Silero v4 provider
+model_path = ""                    # Model path (empty = use IRENE_ASSETS_ROOT/models)
+speaker = "aidar"                  # Speaker voice: "aidar", "baya", "kseniya", "xenia", "eugene"
+sample_rate = 48000                # Audio sample rate: 24000, 48000, 96000
+torch_device = "cpu"               # PyTorch device: "cpu", "cuda"
+
+# Silero v3 TTS Provider (legacy support)
+[tts.providers.silero_v3]
+enabled = false                     # Enable Silero v3 provider
+model_path = ""                    # Model path (empty = use IRENE_ASSETS_ROOT/models)
+speaker = "aidar"                  # Speaker voice
+sample_rate = 48000                # Audio sample rate
+
+# Pyttsx TTS Provider (cross-platform system TTS)
+[tts.providers.pyttsx]
+enabled = false                     # Enable pyttsx provider
+voice_id = 0                       # Voice ID (system-dependent)
+voice_rate = 200                   # Speech rate (words per minute)
+voice_volume = 1.0                 # Volume level (0.0-1.0)
+
+# Vosk TTS Provider (experimental)
+[tts.providers.vosk]
+enabled = false                     # Enable Vosk TTS provider
+model_path = ""                    # Model path for Vosk TTS
+
+# ============================================================
+# AUDIO (PLAYBACK) COMPONENT CONFIGURATION
+# ============================================================
+[audio]
+enabled = true                      # Enable audio component
+default_provider = "console"        # Default provider: "console", "sounddevice", "audioplayer", "aplay"
+fallback_providers = ["console"]    # Fallback providers in order
+concurrent_playback = false         # Allow multiple audio streams simultaneously
+
+# Console Audio Provider (for testing/development)
+[audio.providers.console]
+enabled = true                      # Enable console audio simulation
+color_output = true                # Use colored console output
+timing_simulation = false          # Simulate audio playback timing
+
+# SoundDevice Audio Provider (cross-platform, recommended)
+[audio.providers.sounddevice]
+enabled = false                     # Enable sounddevice provider
+device_id = -1                     # Audio device ID (-1 = default device)
+sample_rate = 44100                # Audio sample rate
+channels = 2                       # Number of audio channels
+
+# AudioPlayer Provider (Python audioplayer library)
+[audio.providers.audioplayer]
+enabled = false                     # Enable audioplayer provider
+volume = 0.8                       # Volume level (0.0-1.0)
+fade_in = false                    # Enable fade-in effect
+fade_out = true                    # Enable fade-out effect
+
+# Aplay Provider (Linux ALSA)
+[audio.providers.aplay]
+enabled = false                     # Enable aplay provider (Linux only)
+device = "default"                 # ALSA device name
+
+# ============================================================
+# ASR (AUTOMATIC SPEECH RECOGNITION) COMPONENT CONFIGURATION
+# ============================================================
+[asr]
+enabled = true                      # Enable ASR component
+default_provider = "whisper"        # Default provider: "whisper", "vosk", "google_cloud"
+fallback_providers = ["whisper"]    # Fallback providers in order
+
+# Whisper ASR Provider (OpenAI Whisper, recommended)
+[asr.providers.whisper]
+enabled = true                      # Enable Whisper provider
+model_size = "base"                # Model size: "tiny", "base", "small", "medium", "large"
+device = "cpu"                     # Device: "cpu", "cuda"
+default_language = "ru"            # Language (null = auto-detect, "en", "ru", etc.)
+temperature = 0.0                  # Temperature for decoding (0.0-1.0)
+no_speech_threshold = 0.6          # No speech detection threshold
+
+# Vosk ASR Provider (offline, lighter models)
+[asr.providers.vosk]
+enabled = false                     # Enable Vosk provider
+model_paths = {}                   # Custom model paths (empty = use IRENE_ASSETS_ROOT/models)
+sample_rate = 16000                # Audio sample rate
+confidence_threshold = 0.7         # Minimum confidence for recognition
+
+# Google Cloud Speech ASR Provider (cloud-based, high accuracy)
+[asr.providers.google_cloud]
+enabled = false                     # Enable Google Cloud provider
+credentials_path = "${GOOGLE_APPLICATION_CREDENTIALS}"  # Path to service account JSON
+project_id = "your-project-id"     # Google Cloud project ID
+default_language = "en-US"         # Default language code
+sample_rate_hertz = 16000          # Audio sample rate
+encoding = "LINEAR16"              # Audio encoding format
+
+# ============================================================
+# LLM (LARGE LANGUAGE MODEL) COMPONENT CONFIGURATION
+# ============================================================
+[llm]
+enabled = true                      # Enable LLM component
+default_provider = "openai"         # Default provider: "openai", "anthropic", "vsegpt", "console"
+fallback_providers = ["console"]    # Fallback providers in order
+
+# OpenAI LLM Provider (GPT models)
+[llm.providers.openai]
+enabled = true                      # Enable OpenAI provider
+api_key = "${OPENAI_API_KEY}"      # API key from environment variable
+base_url = "https://api.openai.com/v1"  # API base URL
+default_model = "gpt-4"            # Model: "gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"
+max_tokens = 150                   # Maximum response tokens
+temperature = 0.3                  # Creativity level (0.0-2.0)
+top_p = 1.0                       # Nucleus sampling parameter
+frequency_penalty = 0.0            # Frequency penalty (-2.0-2.0)
+presence_penalty = 0.0             # Presence penalty (-2.0-2.0)
+
+# Anthropic LLM Provider (Claude models)
+[llm.providers.anthropic]
+enabled = false                     # Enable Anthropic provider
+api_key = "${ANTHROPIC_API_KEY}"   # API key from environment variable
+base_url = "https://api.anthropic.com"  # API base URL
+default_model = "claude-3-haiku-20240307"  # Model variant
+max_tokens = 150                   # Maximum response tokens
+temperature = 0.3                  # Creativity level (0.0-1.0)
+
+# VSE GPT Provider (custom endpoint)
+[llm.providers.vsegpt]
+enabled = false                     # Enable VSE GPT provider
+api_key = "${VSEGPT_API_KEY}"      # API key from environment variable
+base_url = "https://api.vsegpt.ru/v1"  # Custom API base URL
+default_model = "gpt-3.5-turbo"    # Model to use
+max_tokens = 150                   # Maximum response tokens
+temperature = 0.3                  # Creativity level
+
+# Console LLM Provider (for testing/development)
+[llm.providers.console]
+enabled = true                      # Enable console LLM simulation
+response = "LLM response would appear here"  # Default response text
+
+# ============================================================
+# VOICE TRIGGER (WAKE WORD) COMPONENT CONFIGURATION
+# ============================================================
+[voice_trigger]
+enabled = true                      # Enable voice trigger component
+default_provider = "openwakeword"   # Default provider: "openwakeword", "porcupine", "microwakeword"
+wake_words = ["irene", "jarvis"]    # Wake words to detect
+confidence_threshold = 0.8          # Detection confidence threshold (0.0-1.0)
+buffer_seconds = 1.0               # Audio buffer duration in seconds
+timeout_seconds = 5.0              # Detection timeout in seconds
+
+# OpenWakeWord Provider (recommended, open source)
+[voice_trigger.providers.openwakeword]
+enabled = true                      # Enable OpenWakeWord provider
+model_paths = {}                   # Custom model paths (empty = use IRENE_ASSETS_ROOT/models)
+inference_framework = "onnx"       # Framework: "onnx", "tflite"
+vad_threshold = 0.5                # Voice activity detection threshold
+chunk_size = 1280                  # Audio chunk size (80ms at 16kHz)
+
+# Porcupine Provider (Picovoice, commercial)
+[voice_trigger.providers.porcupine]
+enabled = false                     # Enable Porcupine provider
+access_key = "${PICOVOICE_ACCESS_KEY}"  # Picovoice access key
+keywords = ["jarvis"]              # Built-in keywords to use
+model_path = ""                    # Custom model path (optional)
+
+# MicroWakeWord Provider (ESP32/embedded)
+[voice_trigger.providers.microwakeword]
+enabled = false                     # Enable MicroWakeWord provider
+model_paths = {}                   # Custom model paths (empty = use IRENE_ASSETS_ROOT/models)
+feature_buffer_size = 49           # Feature buffer size (49 * 10ms = 490ms)
+detection_window_size = 3          # Detection window size (consecutive detections needed)
+stride_duration_ms = 10            # Audio processing stride in milliseconds  
+window_duration_ms = 30            # Audio analysis window duration
+num_mfcc_features = 40             # Number of MFCC features for analysis
+
+# ============================================================
+# NLU (NATURAL LANGUAGE UNDERSTANDING) COMPONENT CONFIGURATION
+# ============================================================
+[nlu]
+enabled = true                      # Enable NLU component
+default_provider = "hybrid_keyword_matcher"  # Default provider
+confidence_threshold = 0.7          # Global confidence threshold (0.0-1.0)
+fallback_intent = "conversation.general"    # Fallback intent name
+
+# Cascading configuration for multiple providers
+provider_cascade_order = ["hybrid_keyword_matcher", "spacy_nlu"]  # Fast to slow order
+max_cascade_attempts = 4           # Maximum cascade attempts
+cascade_timeout_ms = 200           # Timeout per cascade attempt
+cache_recognition_results = false   # Cache recognition results
+cache_ttl_seconds = 300            # Cache TTL in seconds
+
+# Hybrid Keyword Matcher Provider (fast, pattern-based)
+[nlu.providers.hybrid_keyword_matcher]
+enabled = true                      # Enable keyword matcher
+confidence_boost = 0.1             # Confidence boost for exact matches
+case_sensitive = false             # Case-sensitive matching
+word_boundaries = true             # Require word boundaries
+
+# SpaCy NLU Provider (advanced linguistic analysis)
+[nlu.providers.spacy_nlu]
+enabled = false                     # Enable spaCy provider
+model_name = "en_core_web_sm"      # SpaCy model: "en_core_web_sm", "ru_core_news_sm"
+fallback_model = "en_core_web_sm"  # Fallback model if primary fails
+confidence_threshold = 0.6         # Provider-specific confidence threshold
+enable_ner = true                  # Enable named entity recognition
+enable_pos_tagging = true          # Enable part-of-speech tagging
+
+# ============================================================
+# TEXT PROCESSOR COMPONENT CONFIGURATION
+# ============================================================
+[text_processor]
+enabled = true                      # Enable text processing pipeline
+stages = ["asr_output", "tts_input", "command_input", "general"]  # Processing stages
+
+# Text normalizer configurations
+[text_processor.normalizers.numbers]
+enabled = true                      # Enable number normalization
+stages = ["asr_output", "general", "tts_input"]  # Stages to apply to
+
+[text_processor.normalizers.prepare]
+enabled = true                      # Enable text preparation
+stages = ["tts_input", "general"]   # Stages to apply to  
+latin_to_cyrillic = true           # Convert Latin to Cyrillic
+symbol_replacement = true          # Replace symbols with words
+
+[text_processor.normalizers.runorm]
+enabled = true                      # Enable Russian normalization (RuNorm)
+stages = ["tts_input"]             # Stages to apply to
+model_size = "small"               # Model size: "small", "medium", "large"
+device = "cpu"                     # Device: "cpu", "cuda"
+
+# Provider configurations
+[text_processor.providers.asr_text_processor]
+enabled = true                      # Enable ASR text processor
+language = "ru"                    # Language for processing
+
+[text_processor.providers.general_text_processor]
+enabled = true                      # Enable general text processor
+language = "ru"                    # Language for processing
+
+[text_processor.providers.number_text_processor]
+enabled = true                      # Enable number text processor
+language = "ru"                    # Language for processing
+
+[text_processor.providers.tts_text_processor]
+enabled = false                     # Enable TTS text processor (resource-intensive)
+language = "ru"                    # Language for processing
+
+# ============================================================
+# INTENT SYSTEM COMPONENT CONFIGURATION
+# ============================================================
+[intent_system]
+enabled = true                      # Enable intent system component (essential)
+confidence_threshold = 0.7          # Minimum confidence for intent recognition (0.0-1.0)
+fallback_intent = "conversation.general"  # Fallback intent when recognition fails
+
+# Intent handler configuration
+[intent_system.handlers]
+enabled = ["conversation", "greetings", "timer", "datetime", "system"]  # Enabled handlers
+disabled = ["train_schedule"]       # Disabled handlers
+auto_discover = true               # Automatically discover handlers
+discovery_paths = ["irene.intents.handlers"]  # Entry-point discovery paths
+
+# Specific handler configurations
+[intent_system.handlers.conversation]
+chat_model = "openai/gpt-4o-mini"   # Model for chat conversations
+reference_model = "perplexity/latest-large-online"  # Model for factual queries
+session_timeout = 1800             # Session timeout in seconds (30 minutes)
+max_sessions = 50                  # Maximum concurrent sessions
+
+[intent_system.handlers.train_schedule]
+api_key = "${YANDEX_SCHEDULES_API_KEY}"  # Yandex Schedules API key
+from_station = "s9600681"          # Default departure station ID
+to_station = "s2000002"            # Default destination station ID
+max_results = 3                    # Maximum schedule results
+
+# ============================================================
+# WORKFLOWS - Processing Pipelines
+# ============================================================
+[workflows]
+enabled = ["unified_voice_assistant"]  # List of enabled workflows
+default = "unified_voice_assistant"    # Default workflow to execute
+
+# Unified Voice Assistant Workflow Configuration
+[workflows.unified_voice_assistant]
+# Pipeline stage enablement (conditional processing)
+voice_trigger_enabled = true       # Enable voice trigger stage
+asr_enabled = true                 # Enable ASR stage
+text_processing_enabled = true     # Enable text processing stage
+nlu_enabled = true                 # Enable NLU stage
+intent_execution_enabled = true    # Enable intent execution stage
+tts_enabled = true                 # Enable TTS output stage
+
+# Audio processing configuration
+buffer_size_ms = 100.0             # Audio buffer size in milliseconds
+sample_rate = 16000                # Audio sample rate for processing
+
+# Request context defaults
+default_source = "voice"           # Default request source
+default_language = "ru"            # Default processing language
+session_timeout_minutes = 30       # Session timeout for context
+
+# ============================================================
+# ASSET MANAGEMENT - Environment-Driven
+# ============================================================
+[assets]
+auto_create_dirs = true            # Automatically create asset directories
+
+# Asset paths are controlled by environment variables:
+# IRENE_ASSETS_ROOT (default: ~/.cache/irene)
+#   ├── models/          - AI models and weights
+#   ├── cache/           - Runtime cache and temporary files
+#   └── credentials/     - API keys and authentication files
+
+# Environment variable examples:
+# export IRENE_ASSETS_ROOT="/opt/irene/assets"
+# export ELEVENLABS_API_KEY="your_api_key_here"
+# export OPENAI_API_KEY="your_openai_key_here"
+# export ANTHROPIC_API_KEY="your_anthropic_key_here"
+# export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+# export PICOVOICE_ACCESS_KEY="your_picovoice_key_here"
+# export YANDEX_SCHEDULES_API_KEY="your_yandex_key_here"
+
+# ============================================================
+# EXAMPLE DEPLOYMENT PROFILES
+# ============================================================
+
+# To create specific deployment profiles, copy relevant sections:
+
+# VOICE ASSISTANT PROFILE (full functionality):
+# - Enable all components: tts=true, audio=true, asr=true, voice_trigger=true
+# - Enable microphone: system.microphone_enabled=true, inputs.microphone=true
+# - Configure providers with API keys
+
+# API-ONLY PROFILE (text processing only):
+# - Disable voice components: tts=false, audio=false, asr=false, voice_trigger=false
+# - Enable text processing: llm=true, nlu=true, text_processor=true
+# - Enable web API: system.web_api_enabled=true, inputs.web=true
+
+# HEADLESS PROFILE (minimal functionality):
+# - Disable all audio: system.microphone_enabled=false, system.audio_playback_enabled=false
+# - Disable web API: system.web_api_enabled=false
+# - Enable CLI only: inputs.cli=true, inputs.default_input="cli"
+
+# EMBEDDED PROFILE (resource-constrained):
+# - Use lightweight providers: asr.providers.vosk, tts.providers.console
+# - Disable resource-intensive features: llm=false, text_processor.providers.tts_text_processor=false
+# - Reduce concurrency: max_concurrent_commands=3
+
+# ============================================================
+# END OF MASTER CONFIGURATION
+# ============================================================

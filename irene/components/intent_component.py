@@ -332,5 +332,5 @@ class IntentComponent(Component, WebAPIPlugin):
     
     @classmethod
     def get_config_path(cls) -> str:
-        """Return the TOML path to this component's config"""
-        return "intents"  # System-level config! 
+        """Return the TOML path to this component's config (V14 Architecture)"""
+        return "intent_system" 

@@ -89,7 +89,25 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         try:
             self.core = core  # Store core reference
             
-            config = getattr(core.config.plugins, "universal_asr", {})
+            # Get configuration (V14 Architecture)
+            config = getattr(core.config, 'asr', None)
+            if not config:
+                # Create default config if missing
+                from ..config.models import ASRConfig
+                config = ASRConfig()
+            
+            # Convert Pydantic model to dict for backward compatibility with existing logic
+            if hasattr(config, 'model_dump'):
+                config = config.model_dump()
+            elif hasattr(config, 'dict'):
+                config = config.dict()
+            else:
+                # FATAL: Invalid configuration - cannot proceed with hardcoded defaults
+                raise ValueError(
+                    "ASRComponent: Invalid configuration object received. "
+                    "Expected a valid ASRConfig instance, but got an invalid config. "
+                    "Please check your configuration file for proper v14 asr section formatting."
+                )
             
             # Initialize enabled providers with ABC error handling
             # Handle both dict and Pydantic config objects
@@ -375,10 +393,10 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     @classmethod
     def get_config_class(cls) -> Type[BaseModel]:
         """Return the Pydantic config model for this component"""
-        from ..config.models import UniversalASRConfig
-        return UniversalASRConfig
+        from ..config.models import ASRConfig
+        return ASRConfig
     
     @classmethod
     def get_config_path(cls) -> str:
-        """Return the TOML path to this component's config"""
-        return "plugins.universal_asr" 
+        """Return the TOML path to this component's config (V14 Architecture)"""
+        return "asr" 

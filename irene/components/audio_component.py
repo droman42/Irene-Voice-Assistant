@@ -102,23 +102,28 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
         """Initialize the universal audio plugin"""
         await super().initialize(core)
         
-        # Get configuration first to determine enabled providers
-        config = getattr(core.config.plugins, 'universal_audio', None)
+        # Get configuration first to determine enabled providers (V14 Architecture)
+        config = getattr(core.config, 'audio', None)
         if not config:
             # Create default config if missing
-            config = {
-                "enabled": True,
-                "default_provider": "console",
-                "fallback_providers": ["console"],
-                "concurrent_playback": False,
-                "providers": {
-                    "console": {
-                        "enabled": True,
-                        "color_output": True,
-                        "timing_simulation": False
-                    }
-                }
-            }
+            from ..config.models import AudioConfig
+            config = AudioConfig()
+        
+        # Convert Pydantic model to dict for backward compatibility with existing logic
+        if hasattr(config, 'model_dump'):
+            config_dict = config.model_dump()
+        elif hasattr(config, 'dict'):
+            config_dict = config.dict()
+        else:
+            # FATAL: Invalid configuration - cannot proceed with hardcoded defaults
+            raise ValueError(
+                "AudioComponent: Invalid configuration object received. "
+                "Expected a valid AudioConfig instance, but got an invalid config. "
+                "Please check your configuration file for proper v14 audio section formatting."
+            )
+        
+        # Use the converted config dict
+        config = config_dict
         
         # Update settings from config
         if isinstance(config, dict):
@@ -496,10 +501,10 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     @classmethod
     def get_config_class(cls) -> Type[BaseModel]:
         """Return the Pydantic config model for this component"""
-        from ..config.models import UniversalAudioConfig
-        return UniversalAudioConfig
+        from ..config.models import AudioConfig
+        return AudioConfig
     
     @classmethod
     def get_config_path(cls) -> str:
-        """Return the TOML path to this component's config"""
-        return "plugins.universal_audio" 
+        """Return the TOML path to this component's config (V14 Architecture)"""
+        return "audio" 

@@ -1,325 +1,457 @@
-# Irene Voice Assistant - Configuration Example Guide
+# Irene Voice Assistant v14 - Configuration Guide
 
-This document explains how to use the `config-example.toml` file to configure Irene Voice Assistant v13 with entry-points based dynamic discovery and configuration-driven provider filtering.
+This document explains how to configure Irene Voice Assistant v14 with the new clean architecture that provides clear separation of concerns and intuitive configuration patterns.
 
 ## 🎯 Overview
 
-The `config-example.toml` demonstrates all configuration capabilities implemented in Irene Voice Assistant v13, including:
+The v14 configuration architecture provides:
 
-- **Entry-points based dynamic discovery**: Providers loaded via setuptools entry-points
-- **Configuration-driven filtering**: Only enabled providers are discovered and loaded
-- **Modular component system**: Enable/disable entire subsystems
-- **Comprehensive provider settings**: All 19 providers across 5 categories configured
-- **Deployment scenarios**: Examples for different use cases
+- **Clean separation of concerns**: System, Input, Component, and Workflow configurations
+- **Intuitive TOML structure**: Direct mapping to logical system architecture  
+- **Environment variable integration**: Secure handling of API keys and paths
+- **Asset management**: Unified model and cache storage via `IRENE_ASSETS_ROOT`
+- **Automatic v13 migration**: Seamless upgrade from legacy configurations
 
 ## 🚀 Quick Start
 
-1. **Copy the example configuration:**
+1. **Copy the master configuration:**
    ```bash
-   cp config-example.toml config.toml
+   cp configs/config-master.toml config.toml
    ```
 
-2. **Edit for your needs:**
-   - Set API keys in environment variables (see `.env` section)
-   - Enable/disable components and providers as needed
-   - Adjust provider-specific settings
-
-3. **Set environment variables:**
+2. **Set environment variables:**
    ```bash
-   cp docs/env-example.txt .env
-   # Edit .env with your API keys and paths
+   # Asset management (recommended)
+   export IRENE_ASSETS_ROOT="/data/irene"
+   
+   # API keys for cloud providers
+   export OPENAI_API_KEY="your_openai_key_here"
+   export ELEVENLABS_API_KEY="your_elevenlabs_key_here"
+   export ANTHROPIC_API_KEY="your_anthropic_key_here"
    ```
+
+3. **Customize for your needs:**
+   - Enable/disable components based on your use case
+   - Configure only the providers you plan to use
+   - Set deployment-specific system capabilities
 
 4. **Run Irene:**
    ```bash
    uv run python -m irene.runners.webapi --config config.toml
    ```
 
-## 📋 Configuration Structure
+## 📋 v14 Architecture Overview
 
-### Core System
+### **Core Configuration Structure**
 ```toml
-[core]
-name = "Irene"           # Assistant name
-debug = false            # Debug mode
-log_level = "INFO"       # Logging level
-language = "en-US"       # Primary language
-```
+# Core assistant settings
+name = "Irene"
+version = "14.0.0"
+language = "en-US"
 
-### Component System (Entry-Points Discovery)
-```toml
+# System capabilities (what your hardware/environment supports)
+[system]
+microphone_enabled = true
+web_api_enabled = true
+
+# Input sources (how users interact)
+[inputs]
+microphone = true
+web = true
+default_input = "microphone"
+
+# Components (processing capabilities)
 [components]
-enabled = ["audio", "tts", "asr", "llm", "voice_trigger"]
-disabled = ["nlu", "text_processor"]
-```
-**Result**: Only enabled components are discovered via entry-points and loaded.
+tts = true          # Text-to-Speech
+audio = true        # Audio output
+asr = false         # Speech recognition (optional)
 
-### Provider Configuration (Configuration-Driven Filtering)
-```toml
-[plugins.universal_tts.providers.elevenlabs]
-enabled = true           # This provider will be discovered
-voice = "Rachel"
-model = "eleven_multilingual_v2"
+# Workflows (processing pipelines)
+[workflows]
+enabled = ["voice_assistant"]
+default = "voice_assistant"
 
-[plugins.universal_tts.providers.pyttsx]
-enabled = false          # This provider will be skipped
+# Asset management (unified storage)
+[assets]
+assets_root = "${IRENE_ASSETS_ROOT}"
 ```
-**Result**: Only `elevenlabs` is discovered and loaded for TTS.
 
 ## 🔧 Configuration Sections
 
-### 1. Asset Management
+### **1. Core Settings**
 ```toml
-[assets]
-models_root = "./models"
-cache_root = "./cache"
-data_root = "./data"
-credentials_root = "./credentials"
+name = "Irene"                      # Assistant name
+version = "14.0.0"                  # Configuration version
+debug = false                       # Debug mode
+log_level = "INFO"                  # Logging level
+language = "en-US"                  # Primary language
+timezone = "UTC"                    # System timezone
 ```
-**Purpose**: Unified storage for all models, cache, and credentials across providers.
 
-### 2. Component System
+### **2. System Capabilities**
+```toml
+[system]
+# Hardware capabilities
+microphone_enabled = true           # System has microphone
+audio_playback_enabled = true      # System can play audio
+
+# Service capabilities  
+web_api_enabled = true             # Enable REST API server
+web_port = 8000                    # API server port
+metrics_enabled = false            # Prometheus metrics
+```
+
+### **3. Input Sources**
+```toml
+[inputs]
+microphone = true                  # Accept voice input
+web = true                         # Accept web/API input
+cli = false                        # Accept command-line input
+default_input = "microphone"       # Primary input method
+```
+
+### **4. Processing Components**
+
+#### **Enable Components Based on Use Case:**
 ```toml
 [components]
-enabled = ["audio", "tts", "asr", "llm", "voice_trigger"]
-disabled = ["nlu", "text_processor"]
-```
-**Purpose**: Enable/disable entire subsystems. Disabled components are not loaded.
+# Core components
+tts = true                         # Text-to-Speech output
+audio = true                       # Audio playback
 
-### 3. Provider Configurations
-
-#### Audio Output Providers
-- **console**: Text-based audio simulation
-- **sounddevice**: High-quality audio via sounddevice 
-- **audioplayer**: Cross-platform audio playback
-- **aplay**: Linux ALSA audio
-- **simpleaudio**: Simple audio playback
-
-#### Text-to-Speech Providers
-- **console**: Text output for testing
-- **elevenlabs**: High-quality neural TTS (API key required)
-- **pyttsx**: Cross-platform TTS
-- **silero_v3/v4**: Neural TTS models
-- **vosk_tts**: TTS from Vosk
-
-#### Speech Recognition Providers
-- **vosk**: Offline speech recognition
-- **whisper**: OpenAI Whisper (API key required)
-- **google_cloud**: Google Cloud Speech (credentials required)
-
-#### Language Model Providers
-- **openai**: GPT models (API key required)
-- **anthropic**: Claude models (API key required)
-- **vsegpt**: Alternative LLM provider (API key required)
-
-#### Voice Trigger Providers
-- **openwakeword**: Open-source wake word detection
-- **microwakeword**: Lightweight TensorFlow Lite models
-
-### 4. Security & Advanced Settings
-```toml
-[security]
-enable_auth = false
-cors_origins = ["*"]
-
-[development]
-auto_reload = false
-verbose_logging = false
-
-[logging]
-level = "INFO"
-file_logging = false
+# Optional components
+asr = false                        # Speech recognition
+llm = false                        # Language model
+voice_trigger = false              # Wake word detection
+nlu = false                        # Natural language understanding
+text_processor = false             # Text processing
+intent_system = false              # Intent handling
 ```
 
-## 🎛️ Configuration-Driven Filtering in Action
+### **5. Component-Specific Configuration**
 
-The example demonstrates how configuration drives provider discovery:
-
-### Example: TTS Configuration
+#### **Text-to-Speech (TTS)**
 ```toml
-[plugins.universal_tts]
+[tts]
 default_provider = "elevenlabs"
 fallback_providers = ["console"]
 
-[plugins.universal_tts.providers.console]
-enabled = true                    # ← Will be discovered
-
-[plugins.universal_tts.providers.elevenlabs]
-enabled = true                    # ← Will be discovered
+[tts.providers.elevenlabs]
+enabled = true
 voice = "Rachel"
+model = "eleven_multilingual_v2"
+api_key = "${ELEVENLABS_API_KEY}"
 
-[plugins.universal_tts.providers.pyttsx]
-enabled = false                   # ← Will be skipped
-
-[plugins.universal_tts.providers.silero_v3]
-enabled = false                   # ← Will be skipped
+[tts.providers.console]
+enabled = true                     # Fallback for testing
 ```
 
-**Result**: Only `console` and `elevenlabs` providers are discovered via entry-points, loaded, and available for use. The other providers are completely skipped.
-
-### Verification
-You can verify the filtering works:
-```bash
-uv run python -c "
-import tomllib
-from irene.utils.loader import dynamic_loader
-
-with open('config.toml', 'rb') as f:
-    config = tomllib.load(f)
-
-tts_config = config['plugins']['universal_tts']['providers']
-enabled = [name for name, cfg in tts_config.items() if cfg.get('enabled', False)]
-discovered = dynamic_loader.discover_providers('irene.providers.tts', enabled)
-
-print('Enabled in config:', enabled)
-print('Discovered by entry-points:', list(discovered.keys()))
-"
-```
-
-## 🚀 Deployment Scenarios
-
-### 1. Full Voice Assistant
+#### **Audio Output**
 ```toml
-[components]
-enabled = ["audio", "tts", "asr", "llm", "voice_trigger"]
+[audio]
+default_provider = "sounddevice"
+fallback_providers = ["console"]
 
-[plugins.universal_tts.providers.elevenlabs]
+[audio.providers.sounddevice]
 enabled = true
+sample_rate = 22050
+channels = 1
 
-[plugins.universal_asr.providers.whisper]
-enabled = true
-
-[plugins.voice_trigger.providers.openwakeword]
-enabled = true
+[audio.providers.console]
+enabled = true                     # Text output for testing
 ```
 
-### 2. API-Only Server
+#### **Speech Recognition (ASR)**
 ```toml
-[components]
-enabled = ["tts", "asr", "llm"]
-disabled = ["audio", "voice_trigger"]
+[asr]
+default_provider = "whisper"
+fallback_providers = []
 
-[components.web]
-host = "0.0.0.0"
-port = 8080
+[asr.providers.whisper]
+enabled = true
+model = "base"
+language = "en"
+api_key = "${OPENAI_API_KEY}"
+
+[asr.providers.vosk]
+enabled = false
+model_name = "vosk-model-en-us-0.22"
+```
+
+#### **Voice Trigger (Wake Words)**
+```toml
+[voice_trigger]
+default_provider = "openwakeword"
+wake_words = ["irene"]
+
+[voice_trigger.providers.openwakeword]
+enabled = true
+model_paths = {}                   # Uses IRENE_ASSETS_ROOT/models
+inference_framework = "onnx"
+
+[voice_trigger.providers.microwakeword]
+enabled = false
+model_paths = {}                   # Uses IRENE_ASSETS_ROOT/models
+feature_buffer_size = 49
+```
+
+### **6. Workflows**
+```toml
+[workflows]
+enabled = ["voice_assistant"]      # Active workflow pipelines
+default = "voice_assistant"        # Primary workflow
+
+[workflows.voice_assistant]
+# Workflow-specific settings
+auto_listen = true
+context_timeout = 300
+```
+
+### **7. Asset Management**
+```toml
+[assets]
+assets_root = "${IRENE_ASSETS_ROOT}"   # Base directory for all assets
+auto_download = true                   # Download models automatically
+cache_enabled = true                   # Enable model caching
+cleanup_on_startup = false           # Clean temp files on startup
+```
+
+## 🎛️ Common Deployment Scenarios
+
+### **1. Full Voice Assistant**
+```toml
+# Complete voice interaction system
+[system]
+microphone_enabled = true
+audio_playback_enabled = true
+web_api_enabled = true
 
 [inputs]
-enabled = ["web"]
-disabled = ["microphone"]
+microphone = true
+web = true
+default_input = "microphone"
+
+[components]
+tts = true
+audio = true
+asr = true
+llm = true
+voice_trigger = true
+intent_system = true
+
+[workflows]
+enabled = ["voice_assistant"]
+default = "voice_assistant"
 ```
 
-### 3. CLI-Only Testing
+### **2. API-Only Server**
 ```toml
-[components]
-enabled = []
+# Headless server for API clients
+[system]
+microphone_enabled = false
+audio_playback_enabled = false
+web_api_enabled = true
+web_port = 8080
 
 [inputs]
-enabled = ["cli"]
+microphone = false
+web = true
+cli = false
+default_input = "web"
 
-[plugins.universal_tts.providers.console]
+[components]
+tts = true
+audio = false
+asr = true
+llm = true
+voice_trigger = false
+```
+
+### **3. Development/Testing**
+```toml
+# Console-based testing setup
+[system]
+microphone_enabled = false
+audio_playback_enabled = false
+
+[inputs]
+cli = true
+default_input = "cli"
+
+[components]
+tts = true
+audio = true
+
+# Use console providers for testing
+[tts.providers.console]
+enabled = true
+
+[audio.providers.console]
 enabled = true
 ```
 
-### 4. Development Mode
+### **4. Minimal Voice Output**
 ```toml
-[development]
-auto_reload = true
-verbose_logging = true
-test_mode = true
+# Simple TTS-only system
+[system]
+audio_playback_enabled = true
 
-[logging]
-level = "DEBUG"
+[inputs]
+web = true
+default_input = "web"
 
-# Enable console providers for all components
-[plugins.universal_tts.providers.console]
-enabled = true
-[plugins.universal_audio.providers.console]
-enabled = true
+[components]
+tts = true
+audio = true
+# All other components disabled (false)
 ```
 
 ## 🔑 Environment Variables
 
-Create a `.env` file with your API keys:
-```bash
-# Required for cloud providers
-OPENAI_API_KEY=your_openai_key_here
-ELEVENLABS_API_KEY=your_elevenlabs_key_here
-ANTHROPIC_API_KEY=your_anthropic_key_here
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/google-credentials.json
+Set these environment variables for secure configuration:
 
-# Asset management (optional)
-IRENE_MODELS_ROOT=/data/models
-IRENE_CACHE_ROOT=/data/cache
-IRENE_CREDENTIALS_ROOT=/data/credentials
+```bash
+# Asset Management (highly recommended)
+export IRENE_ASSETS_ROOT="/data/irene"
+
+# Cloud Provider API Keys
+export OPENAI_API_KEY="sk-..."
+export ELEVENLABS_API_KEY="..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/credentials.json"
+
+# Optional: Override default asset locations
+export IRENE_MODELS_ROOT="/data/models"
+export IRENE_CACHE_ROOT="/data/cache"
+export IRENE_CREDENTIALS_ROOT="/data/credentials"
 ```
 
-## 🧪 Testing Your Configuration
+## 🔄 Migration from v13
 
-1. **Validate TOML syntax:**
-   ```bash
-   uv run python -c "import tomllib; tomllib.load(open('config.toml', 'rb'))"
-   ```
+v14 automatically migrates v13 configurations:
 
-2. **Test provider discovery:**
-   ```bash
-   uv run python -c "
-   from irene.utils.loader import dynamic_loader
-   tts = dynamic_loader.discover_providers('irene.providers.tts')
-   print('Available TTS providers:', list(tts.keys()))
-   "
-   ```
+### **Automatic Changes:**
+- `[plugins.universal_*]` → `[*]` (component sections)
+- `[components.enabled]` lists → boolean fields
+- Legacy boolean flags → proper component structure
 
-3. **Test configuration filtering:**
-   ```bash
-   uv run python -c "
-   import tomllib
-   from irene.utils.loader import dynamic_loader
-   
-   with open('config.toml', 'rb') as f:
-       config = tomllib.load(f)
-   
-   # Test TTS filtering
-   tts_providers = config['plugins']['universal_tts']['providers']
-   enabled = [name for name, cfg in tts_providers.items() if cfg.get('enabled', False)]
-   discovered = dynamic_loader.discover_providers('irene.providers.tts', enabled)
-   
-   print('Config enables:', enabled)
-   print('Discovery finds:', list(discovered.keys()))
-   print('Filtering works:', enabled == list(discovered.keys()))
-   "
-   ```
+### **Manual Updates Needed:**
+- Move API keys to environment variables
+- Update asset paths to use `IRENE_ASSETS_ROOT`
+- Review provider configurations for new options
 
-## 📚 Related Documentation
+### **Migration Example:**
+```toml
+# v13 (legacy)
+[components]
+enabled = ["tts", "audio"]
 
-- **Entry-Points Architecture**: See `docs/TODO.md` for implementation details
-- **Provider Documentation**: See `docs/plugins/` for provider-specific guides
-- **Environment Setup**: See `docs/env-example.txt` for all environment variables
-- **Asset Management**: See `docs/ASSET_MANAGEMENT.md` for unified storage
-- **Voice Trigger**: See `docs/voice_trigger.md` for wake word configuration
+[plugins.universal_tts]
+default_provider = "elevenlabs"
 
-## 🔄 Migration from Previous Versions
+# v14 (new)
+[components]
+tts = true
+audio = true
 
-If upgrading from older versions:
+[tts]
+default_provider = "elevenlabs"
+```
 
-1. **Replace hardcoded configurations** with entry-points discovery
-2. **Update provider sections** to use the new `enabled` pattern
-3. **Use unified asset management** instead of provider-specific paths
-4. **Set API keys in environment variables** instead of config files
+## 🧪 Configuration Validation
 
-The configuration system automatically handles backward compatibility for most settings while providing warnings for deprecated patterns.
+### **1. Syntax Validation:**
+```bash
+# Check TOML syntax
+uv run python -c "
+import tomllib
+with open('config.toml', 'rb') as f:
+    config = tomllib.load(f)
+print('✅ TOML syntax valid')
+"
+```
+
+### **2. Schema Validation:**
+```bash
+# Validate against v14 schema
+uv run python -c "
+from irene.config.manager import ConfigManager
+from pathlib import Path
+import asyncio
+
+async def validate():
+    manager = ConfigManager()
+    config = await manager.load_config(Path('config.toml'))
+    print('✅ Configuration schema valid')
+    print(f'Assistant: {config.name}')
+    print(f'Enabled components: {[k for k, v in config.components.model_dump().items() if v]}')
+
+asyncio.run(validate())
+"
+```
+
+### **3. Provider Discovery Test:**
+```bash
+# Test that enabled providers are discoverable
+uv run python -c "
+from irene.config.manager import ConfigManager
+from pathlib import Path
+import asyncio
+
+async def test_discovery():
+    manager = ConfigManager()
+    config = await manager.load_config(Path('config.toml'))
+    
+    # Test TTS providers
+    if config.components.tts:
+        enabled_tts = [name for name, cfg in config.tts.providers.items() if cfg.get('enabled', False)]
+        print(f'Enabled TTS providers: {enabled_tts}')
+    
+    print('✅ Provider discovery working')
+
+asyncio.run(test_discovery())
+"
+```
+
+## 📚 Key Differences from v13
+
+### **Architectural Improvements:**
+1. **Clean separation**: System ≠ Input ≠ Component ≠ Workflow
+2. **Intuitive naming**: `[tts]` instead of `[plugins.universal_tts]`
+3. **Boolean components**: `tts = true` instead of `enabled = ["tts"]`
+4. **Environment integration**: `${VAR}` support for sensitive data
+5. **Asset unification**: Single `IRENE_ASSETS_ROOT` for all models
+
+### **Configuration Benefits:**
+- **Easier to understand**: Logical structure matches system architecture
+- **Faster to configure**: Less nested sections and clearer names
+- **More secure**: API keys in environment variables
+- **Better organized**: Each concern has its own configuration section
+
+### **Compatibility:**
+- **Automatic migration**: v13 configs are converted to v14 automatically
+- **Deprecation warnings**: Legacy patterns show helpful migration hints
+- **Backward compatibility**: Existing deployments continue working during transition
 
 ## ⚠️ Important Notes
 
-- **Provider filtering happens at discovery time**: Disabled providers are never loaded
-- **External packages work automatically**: Third-party entry-points are discovered
-- **API keys should be in environment variables**: Never put secrets in config files  
-- **Asset paths are unified**: All providers use the same model/cache directories
-- **Components can be completely disabled**: Saves memory and startup time
+- **Always use environment variables for API keys** - never put secrets in config files
+- **Set `IRENE_ASSETS_ROOT`** to control where models and cache are stored
+- **Component dependencies**: Some components require others (e.g., voice_assistant workflow needs TTS and Audio)
+- **Provider fallbacks**: Always configure console providers as fallbacks for testing
+- **Asset management**: Models are automatically downloaded to `IRENE_ASSETS_ROOT/models`
 
-## 🎯 Performance Benefits
+## 🎯 Performance Tips
 
-With configuration-driven filtering:
-- **Faster startup**: Only enabled providers are loaded
-- **Lower memory usage**: Disabled providers never instantiated  
-- **Selective builds**: Ready for TODO #3 minimal container builds
-- **Development efficiency**: Easy to test with minimal configurations 
+1. **Disable unused components**: Saves memory and startup time
+2. **Use local providers**: Vosk/Silero are faster than API-based providers
+3. **Configure asset caching**: Improves model loading performance
+4. **Optimize workflow settings**: Adjust timeouts based on your use case
+
+## 📖 Further Reading
+
+- **Migration Guide**: `docs/config_cleanup.md` - Complete v13 to v14 migration details
+- **Asset Management**: `docs/ASSET_MANAGEMENT.md` - Unified storage system
+- **Component Architecture**: `docs/architecture.md` - System design overview
+- **Provider Documentation**: Individual provider configuration guides
+- **Workflow Configuration**: Custom pipeline creation and management

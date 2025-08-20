@@ -292,6 +292,12 @@ class VoiceTriggerConfig(BaseModel):
                 "enabled": False,
                 "access_key": "${PICOVOICE_ACCESS_KEY}",
                 "keywords": ["jarvis"]
+            },
+            "microwakeword": {
+                "enabled": False,
+                "model_paths": {},  # Uses IRENE_ASSETS_ROOT/models
+                "feature_buffer_size": 49,
+                "detection_window_size": 3
             }
         },
         description="Provider-specific configurations"

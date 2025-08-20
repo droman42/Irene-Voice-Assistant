@@ -81,30 +81,25 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         """Initialize the voice trigger component with provider loading."""
         await super().initialize(core)
         
-        # Get configuration first to determine enabled providers
-        config = getattr(core.config.plugins, 'voice_trigger', None) if core else None
+        # Get configuration first to determine enabled providers (V14 Architecture)
+        config = getattr(core.config, 'voice_trigger', None) if core else None
         if not config:
             # Create default config if missing
-            config = {
-                "enabled": True,
-                "default_provider": "openwakeword",
-                "fallback_providers": ["openwakeword"],
-                "wake_words": ["irene", "jarvis"],
-                "threshold": 0.8,
-                "providers": {
-                    "openwakeword": {
-                        "enabled": True,
-                        "inference_framework": "tflite",
-                        "chunk_size": 1280
-                    },
-                    "microwakeword": {
-                        "enabled": False,
-                        "model_path": None,
-                        "feature_buffer_size": 49,
-                        "detection_window_size": 3
-                    }
-                }
-            }
+            from ..config.models import VoiceTriggerConfig
+            config = VoiceTriggerConfig()
+        
+        # Convert Pydantic model to dict for backward compatibility with existing logic
+        if hasattr(config, 'model_dump'):
+            config = config.model_dump()
+        elif hasattr(config, 'dict'):
+            config = config.dict()
+        else:
+            # FATAL: Invalid configuration - cannot proceed with hardcoded defaults
+            raise ValueError(
+                "VoiceTriggerComponent: Invalid configuration object received. "
+                "Expected a valid VoiceTriggerConfig instance, but got an invalid config. "
+                "Please check your configuration file for proper v14 voice_trigger section formatting."
+            )
         
         # Update settings from config
         if isinstance(config, dict):
@@ -428,5 +423,5 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
     
     @classmethod
     def get_config_path(cls) -> str:
-        """Return the TOML path to this component's config"""
-        return "plugins.voice_trigger"  # Note: NO "universal_" prefix 
+        """Return the TOML path to this component's config (V14 Architecture)"""
+        return "voice_trigger" 
