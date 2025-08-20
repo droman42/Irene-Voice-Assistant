@@ -32,18 +32,12 @@ class VoskTTSProvider(TTSProvider):
         super().__init__(config)
         self._available = False
         
-        # Asset management integration
+        # Asset management integration - single source of truth
         from ...core.assets import get_asset_manager
         self.asset_manager = get_asset_manager()
         
-        # Configuration values with asset management
-        legacy_model_path = config.get("model_path")
-        if legacy_model_path:
-            self.model_path = Path(legacy_model_path)
-            logger.warning("Using legacy model_path config. Consider using IRENE_ASSETS_ROOT environment variable.")
-        else:
-            # Use asset manager for model path
-            self.model_path = self.asset_manager.get_model_path("vosk", "tts", "vosk-tts")
+        # Use asset manager for model path - unified pattern
+        self.model_path = self.asset_manager.get_model_path("vosk", "tts", "vosk-tts")
             
         self.default_language = config.get("default_language", "ru")
         self.sample_rate = config.get("sample_rate", 22050)

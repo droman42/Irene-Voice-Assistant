@@ -37,16 +37,13 @@ class ElevenLabsTTSProvider(TTSProvider):
         """
         super().__init__(config)  # Proper ABC inheritance
         
-        # Asset management integration for credentials
+        # Asset management integration - single source of truth
         from ...core.assets import get_asset_manager
         self.asset_manager = get_asset_manager()
         
-        # Get API key through asset manager or fallback to config
+        # Use asset manager for credentials - unified pattern
         credentials = self.asset_manager.get_credentials("elevenlabs")
-        self.api_key = credentials.get("elevenlabs_api_key") or os.getenv(config.get("api_key_env", "ELEVENLABS_API_KEY"))
-        
-        if not self.api_key and config.get("api_key_env"):
-            logger.warning("Using legacy api_key_env config. Consider using ELEVENLABS_API_KEY environment variable.")
+        self.api_key = credentials.get("elevenlabs_api_key") or os.getenv("ELEVENLABS_API_KEY")
             
         self.voice_id = config.get("voice_id", "default")
         self.model = config.get("model", "eleven_monolingual_v1")

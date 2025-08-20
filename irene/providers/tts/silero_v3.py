@@ -49,17 +49,12 @@ class SileroV3TTSProvider(TTSProvider):
         self._device = None
         self._torch = None
         
-        # Asset management integration
+        # Asset management integration - single source of truth
         from ...core.assets import get_asset_manager
         self.asset_manager = get_asset_manager()
         
-        # Configuration values with asset management
-        legacy_model_path = config.get("model_path")
-        if legacy_model_path:
-            self.model_path = Path(legacy_model_path).expanduser()
-            logger.warning("Using legacy model_path config. Consider using IRENE_ASSETS_ROOT environment variable.")
-        else:
-            self.model_path = self.asset_manager.config.silero_models_dir
+        # Use asset manager for model paths - unified pattern
+        self.model_path = self.asset_manager.get_model_path("silero_v3", "")
             
         self.model_url = config.get("model_url", "https://models.silero.ai/models/tts/ru/v3_1_ru.pt")
         self.model_file = self.model_path / config.get("model_file", "v3_ru.pt")

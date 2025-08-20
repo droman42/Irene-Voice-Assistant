@@ -135,12 +135,15 @@ class DonationLoader:
         """Validate that donated methods exist in Python handler"""
         # Load Python module and check methods exist
         try:
-            spec = importlib.util.spec_from_file_location("handler_module", handler_path)
-            if not spec or not spec.loader:
-                raise DonationDiscoveryError(f"Cannot load Python handler: {handler_path}")
+            # Convert file path to module name for proper import context
+            # handler_path is like: irene/intents/handlers/timer.py
+            # We need module name like: irene.intents.handlers.timer
+            parts = handler_path.with_suffix('').parts
+            module_name = '.'.join(parts)
             
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            # Use importlib.import_module for proper package context
+            import importlib
+            module = importlib.import_module(module_name)
             
             # Find handler class
             handler_class = None

@@ -38,17 +38,12 @@ class WhisperASRProvider(ASRProvider):
         self.model_size = config.get("model_size", "base")
         self.device = config.get("device", "cpu")
         
-        # Asset management integration
+        # Asset management integration - single source of truth
         from ...core.assets import get_asset_manager
         self.asset_manager = get_asset_manager()
         
-        # Use asset manager for download root, fallback to config for backwards compatibility
-        legacy_download_root = config.get("download_root")
-        if legacy_download_root:
-            self.download_root = Path(legacy_download_root).expanduser()
-            logger.warning("Using legacy download_root config. Consider using IRENE_ASSETS_ROOT environment variable.")
-        else:
-            self.download_root = self.asset_manager.config.whisper_models_dir
+        # Use asset manager for download root - unified pattern
+        self.download_root = self.asset_manager.get_model_path("whisper", "")
             
         self.default_language = config.get("default_language", None)  # None = auto-detect
         self._model: Any = None  # Lazy-loaded Whisper model

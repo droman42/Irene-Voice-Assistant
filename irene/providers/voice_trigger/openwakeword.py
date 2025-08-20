@@ -29,17 +29,9 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
         self.chunk_size = config.get('chunk_size', 1280)  # 80ms at 16kHz
         self.n_samples_per_prediction = self.chunk_size
         
-        # Asset management integration
+        # Asset management integration - single source of truth
         from ...core.assets import get_asset_manager
         self.asset_manager = get_asset_manager()
-        
-        # Legacy model_paths support for backwards compatibility
-        legacy_model_paths = config.get('model_paths', {})
-        if legacy_model_paths:
-            self.model_paths = legacy_model_paths
-            logger.warning("Using legacy model_paths config. Consider using IRENE_ASSETS_ROOT environment variable.")
-        else:
-            self.model_paths = {}
         
         # Available wake words and their default models (mapped to asset registry)
         self.available_models = {
@@ -91,40 +83,34 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             
             from openwakeword import Model
             
-            # Determine which models to load using asset management
+            # Determine which models to load using asset management - unified pattern
             models_to_load = []
             for wake_word in self.wake_words:
                 if wake_word in self.available_models:
-                    # Check if we have a legacy custom model path first
-                    if wake_word in self.model_paths:
-                        # Use legacy custom model path
-                        models_to_load.append(self.model_paths[wake_word])
-                        logger.info(f"Using legacy model path for '{wake_word}': {self.model_paths[wake_word]}")
-                    else:
-                        # Try to get model from asset management
-                        model_id = self.available_models[wake_word]
-                        try:
-                            # Get model info and attempt download
-                            model_info = self.asset_manager.get_model_info("openwakeword", model_id)
-                            if model_info:
-                                logger.info(f"Loading OpenWakeWord model {model_id} for '{wake_word}' (size: {model_info.get('size', 'unknown')})")
-                            
-                            # Try asset manager download first (will handle 'auto' URLs properly)
-                            model_path = await self._get_model_via_asset_manager(model_id)
-                            if model_path and model_path.exists():
-                                models_to_load.append(str(model_path))
-                                logger.info(f"Using asset-managed model for '{wake_word}': {model_path}")
-                            else:
-                                # Fallback to OpenWakeWord's built-in download
-                                fallback_model = f"{model_id}.onnx"
-                                models_to_load.append(fallback_model)
-                                logger.info(f"Falling back to OpenWakeWord auto-download for '{wake_word}': {fallback_model}")
-                                
-                        except Exception as e:
-                            logger.warning(f"Asset manager failed for '{wake_word}', using OpenWakeWord auto-download: {e}")
+                    # Use asset management for all models
+                    model_id = self.available_models[wake_word]
+                    try:
+                        # Get model info and attempt download
+                        model_info = self.asset_manager.get_model_info("openwakeword", model_id)
+                        if model_info:
+                            logger.info(f"Loading OpenWakeWord model {model_id} for '{wake_word}' (size: {model_info.get('size', 'unknown')})")
+                        
+                        # Try asset manager download first (will handle 'auto' URLs properly)
+                        model_path = await self._get_model_via_asset_manager(model_id)
+                        if model_path and model_path.exists():
+                            models_to_load.append(str(model_path))
+                            logger.info(f"Using asset-managed model for '{wake_word}': {model_path}")
+                        else:
                             # Fallback to OpenWakeWord's built-in download
                             fallback_model = f"{model_id}.onnx"
                             models_to_load.append(fallback_model)
+                            logger.info(f"Falling back to OpenWakeWord auto-download for '{wake_word}': {fallback_model}")
+                            
+                    except Exception as e:
+                        logger.warning(f"Asset manager failed for '{wake_word}', using OpenWakeWord auto-download: {e}")
+                        # Fallback to OpenWakeWord's built-in download
+                        fallback_model = f"{model_id}.onnx"
+                        models_to_load.append(fallback_model)
                 else:
                     logger.warning(f"Wake word '{wake_word}' not supported by OpenWakeWord")
             

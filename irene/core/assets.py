@@ -95,11 +95,21 @@ class AssetManager:
         
         if provider_class and hasattr(provider_class, 'get_asset_config'):
             try:
-                asset_config = provider_class.get_asset_config()
+                # For full asset configuration with TOML overrides, we need to create a temporary instance
+                # with minimal config to get both defaults and any TOML overrides
+                temp_config = {"assets": {}}  # Minimal config for asset configuration only
+                temp_instance = provider_class(temp_config)
+                asset_config = temp_instance.get_asset_config()
                 logger.debug(f"Loaded asset config for provider '{provider}': {asset_config}")
             except Exception as e:
                 logger.warning(f"Failed to get asset config for provider '{provider}': {e}")
-                asset_config = self._get_fallback_asset_config(provider)
+                # Fallback to class method for basic defaults if instance creation fails
+                try:
+                    asset_config = provider_class.get_asset_config()
+                    logger.debug(f"Using class-level defaults for provider '{provider}': {asset_config}")
+                except Exception as e2:
+                    logger.warning(f"Failed to get class-level asset config for provider '{provider}': {e2}")
+                    asset_config = self._get_fallback_asset_config(provider)
         else:
             logger.debug(f"Provider '{provider}' not found or no asset config method, using fallback")
             asset_config = self._get_fallback_asset_config(provider)

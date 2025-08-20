@@ -88,7 +88,17 @@ class TrainScheduleIntentHandler(IntentHandler):
         return True
     
     async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
-        """Execute train schedule intent"""
+        """Execute train schedule intent - delegates to specific handler methods"""
+        # Determine which specific method to call based on intent suffix
+        # For JSON donation pattern, route to handle_train_query
+        if intent.name.endswith('query') or 'train' in intent.name:
+            return await self.handle_train_query(intent, context)
+        else:
+            # Fallback to general train query
+            return await self.handle_train_query(intent, context)
+    
+    async def handle_train_query(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """Handle train schedule and route queries - method expected by JSON donation"""
         try:
             # Check availability
             if not await self.is_available():
@@ -107,6 +117,9 @@ class TrainScheduleIntentHandler(IntentHandler):
             from_station = self.extract_entity(intent, "from_station", self.default_from_station)
             to_station = self.extract_entity(intent, "to_station", self.default_to_station)
             
+            # Extract time parameter if provided
+            time_param = self.extract_entity(intent, "time", None)
+            
             # Get train schedule
             schedule_text = await self._get_train_schedule(from_station, to_station)
             
@@ -117,6 +130,7 @@ class TrainScheduleIntentHandler(IntentHandler):
                     metadata={
                         "from_station": from_station,
                         "to_station": to_station,
+                        "time": time_param,
                         "provider": "yandex_schedules"
                     }
                 )

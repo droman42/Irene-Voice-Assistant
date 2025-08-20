@@ -31,21 +31,15 @@ class VoskASRProvider(ASRProvider):
         """
         super().__init__(config)  # Proper ABC inheritance
         
-        # Asset management integration
+        # Asset management integration - single source of truth
         from ...core.assets import get_asset_manager
         self.asset_manager = get_asset_manager()
         
-        # Handle model paths with asset management
-        legacy_model_paths = config.get("model_paths", {})
-        if legacy_model_paths:
-            self.model_paths = {lang: Path(path) for lang, path in legacy_model_paths.items()}
-            logger.warning("Using legacy model_paths config. Consider using IRENE_ASSETS_ROOT environment variable.")
-        else:
-            # Use asset manager for standard model paths
-            self.model_paths = {
-                "ru": self.asset_manager.get_model_path("vosk", "ru_small"),
-                "en": self.asset_manager.get_model_path("vosk", "en_us")
-            }
+        # Use asset manager for model paths - unified pattern
+        self.model_paths = {
+            "ru": self.asset_manager.get_model_path("vosk", "ru_small"),
+            "en": self.asset_manager.get_model_path("vosk", "en_us")
+        }
             
         self.default_language = config.get("default_language", "ru")
         self.sample_rate = config.get("sample_rate", 16000)

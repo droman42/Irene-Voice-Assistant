@@ -98,8 +98,20 @@ class HybridKeywordMatcherProvider(NLUProvider):
         return "hybrid_keyword_matcher"
     
     async def is_available(self) -> bool:
-        """Hybrid keyword matcher is available when patterns are loaded from JSON donations"""
-        return len(self.exact_patterns) > 0 or len(self.fuzzy_keywords) > 0
+        """Hybrid keyword matcher is available when basic dependencies are met"""
+        # During initialization, check if we can function (rapidfuzz is optional)
+        # Patterns will be loaded later via _initialize_from_donations()
+        
+        # Check if we have donation patterns loaded
+        has_patterns = len(self.exact_patterns) > 0 or len(self.fuzzy_keywords) > 0
+        
+        # If patterns are loaded, we're definitely available
+        if has_patterns:
+            return True
+        
+        # During initialization phase, we're available if basic requirements are met
+        # The provider will be initialized with donations after this check
+        return True  # Hybrid keyword matcher has no hard dependencies
     
     async def _do_initialize(self) -> None:
         """Initialize hybrid keyword matcher - JSON donations required"""
@@ -153,7 +165,7 @@ class HybridKeywordMatcherProvider(NLUProvider):
             
             # Build patterns and fuzzy keywords from donations
             for donation in keyword_donations:
-                intent_name = donation.intent_name
+                intent_name = donation.intent
                 
                 if not donation.phrases:
                     logger.warning(f"No phrases found for intent '{intent_name}' - skipping")
