@@ -10,6 +10,8 @@ import sys
 from typing import AsyncIterator, Optional, List, Dict
 import logging
 
+from prompt_toolkit import prompt
+
 from .base import InputSource, InputData
 
 logger = logging.getLogger(__name__)
@@ -29,12 +31,13 @@ class CLIInput(InputSource):
         self._listening = False
         self._command_queue = asyncio.Queue()
         self._input_task: Optional[asyncio.Task] = None
+        self._history = []  # Command history for enhanced input
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
-        """CLI input needs no external dependencies - uses built-in input()"""
-        return []
+        """CLI input needs prompt_toolkit for enhanced terminal features"""
+        return ["prompt_toolkit>=3.0.0"]
         
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
@@ -107,12 +110,25 @@ class CLIInput(InputSource):
         return "cli"
         
     async def _input_loop(self) -> None:
-        """Background task to read CLI input"""
+        """Background task to read CLI input with enhanced features"""
         while self._listening:
             try:
-                # Use asyncio.to_thread to avoid blocking the event loop
-                command = await asyncio.to_thread(input, self.prompt)
-                if command.strip():
+                # Use prompt_toolkit for enhanced input with cursor movement and history
+                command = await asyncio.to_thread(
+                    prompt,
+                    self.prompt,
+                    mouse_support=True,
+                    enable_history_search=True
+                )
+                
+                if command and command.strip():
+                    # Add to history (avoid duplicates)
+                    if not self._history or self._history[-1] != command.strip():
+                        self._history.append(command.strip())
+                        # Keep history size manageable
+                        if len(self._history) > 100:
+                            self._history.pop(0)
+                    
                     # Handle quit command
                     if command.strip().lower() in ['quit', 'exit', 'q']:
                         await self._command_queue.put('quit')

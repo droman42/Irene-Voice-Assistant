@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from prompt_toolkit import prompt
+
 from ..config.models import CoreConfig, ComponentConfig, LogLevel
 from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
@@ -378,8 +380,15 @@ async def main():
         # Main interaction loop
         while core.is_running:
             try:
-                prompt = "irene> " if not args.quiet else "> "
-                command = input(prompt).strip()
+                prompt_text = "irene> " if not args.quiet else "> "
+                command = await asyncio.to_thread(
+                    prompt,
+                    prompt_text,
+                    mouse_support=True,
+                    enable_history_search=True
+                )
+                if command:
+                    command = command.strip()
                 
                 if command.lower() in ["quit", "exit", "q"]:
                     break
@@ -560,8 +569,16 @@ class CLIRunner:
         try:
             while self.core.is_running:
                 try:
-                    prompt = "irene> " if not args.quiet else "> "
-                    command = input(prompt).strip()
+                    prompt_text = "irene> " if not args.quiet else "> "
+                    command = await asyncio.to_thread(
+                        prompt,
+                        prompt_text,
+                        mouse_support=True,
+                        enable_history_search=True
+                    )
+                    
+                    if command:
+                        command = command.strip()
                     
                     if command.lower() in ["quit", "exit", "q"]:
                         break
