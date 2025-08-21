@@ -149,31 +149,10 @@ class ComponentConfig(BaseModel):
 class TTSConfig(BaseModel):
     """TTS component configuration"""
     enabled: bool = Field(default=False, description="Enable TTS component")
-    default_provider: str = Field(default="console", description="Default TTS provider")
-    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback providers in order")
+    default_provider: Optional[str] = Field(default=None, description="Default TTS provider")
+    fallback_providers: List[str] = Field(default_factory=list, description="Fallback providers in order")
     providers: Dict[str, Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "console": {
-                "enabled": True,
-                "color_output": True,
-                "timing_simulation": True,
-                "prefix": "TTS: "
-            },
-            "elevenlabs": {
-                "enabled": False,
-                "api_key": "${ELEVENLABS_API_KEY}",
-                "voice_id": "21m00Tcm4TlvDq8ikWAM",
-                "model": "eleven_monolingual_v1",
-                "stability": 0.5,
-                "similarity_boost": 0.5
-            },
-            "silero": {
-                "enabled": False,
-                "model_path": "",  # Uses IRENE_ASSETS_ROOT/models
-                "speaker": "aidar",
-                "sample_rate": 48000
-            }
-        },
+        default_factory=dict,
         description="Provider-specific configurations"
     )
 
@@ -181,28 +160,11 @@ class TTSConfig(BaseModel):
 class AudioConfig(BaseModel):
     """Audio component configuration"""
     enabled: bool = Field(default=False, description="Enable Audio component")
-    default_provider: str = Field(default="console", description="Default audio provider")
-    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback providers in order")
+    default_provider: Optional[str] = Field(default=None, description="Default audio provider")
+    fallback_providers: List[str] = Field(default_factory=list, description="Fallback providers in order")
     concurrent_playback: bool = Field(default=False, description="Allow concurrent audio playback")
     providers: Dict[str, Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "console": {
-                "enabled": True,
-                "color_output": True,
-                "timing_simulation": False
-            },
-            "sounddevice": {
-                "enabled": False,
-                "device_id": -1,  # -1 = default device
-                "sample_rate": 44100
-            },
-            "audioplayer": {
-                "enabled": False,
-                "volume": 0.8,
-                "fade_in": False,
-                "fade_out": True
-            }
-        },
+        default_factory=dict,
         description="Provider-specific configurations"
     )
 
@@ -210,31 +172,10 @@ class AudioConfig(BaseModel):
 class ASRConfig(BaseModel):
     """ASR component configuration"""
     enabled: bool = Field(default=False, description="Enable ASR component")
-    default_provider: str = Field(default="whisper", description="Default ASR provider")
-    fallback_providers: List[str] = Field(default_factory=lambda: ["whisper"], description="Fallback providers in order")
+    default_provider: Optional[str] = Field(default=None, description="Default ASR provider")
+    fallback_providers: List[str] = Field(default_factory=list, description="Fallback providers in order")
     providers: Dict[str, Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "whisper": {
-                "enabled": True,
-                "model_size": "base",
-                "device": "cpu",
-                "default_language": None  # None = auto-detect
-            },
-            "vosk": {
-                "enabled": False,
-                "model_paths": {},  # Uses IRENE_ASSETS_ROOT/models
-                "sample_rate": 16000,
-                "confidence_threshold": 0.7
-            },
-            "google_cloud": {
-                "enabled": False,
-                "credentials_path": "${GOOGLE_APPLICATION_CREDENTIALS}",
-                "project_id": "your-project-id",
-                "default_language": "en-US",
-                "sample_rate_hertz": 16000,
-                "encoding": "LINEAR16"
-            }
-        },
+        default_factory=dict,
         description="Provider-specific configurations"
     )
 
@@ -242,29 +183,10 @@ class ASRConfig(BaseModel):
 class LLMConfig(BaseModel):
     """LLM component configuration"""
     enabled: bool = Field(default=False, description="Enable LLM component")
-    default_provider: str = Field(default="openai", description="Default LLM provider")
-    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback providers in order")
+    default_provider: Optional[str] = Field(default=None, description="Default LLM provider")
+    fallback_providers: List[str] = Field(default_factory=list, description="Fallback providers in order")
     providers: Dict[str, Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "openai": {
-                "enabled": True,
-                "api_key": "${OPENAI_API_KEY}",
-                "default_model": "gpt-4",
-                "max_tokens": 150,
-                "temperature": 0.3
-            },
-            "anthropic": {
-                "enabled": False,
-                "api_key": "${ANTHROPIC_API_KEY}",
-                "default_model": "claude-3-haiku-20240307",
-                "max_tokens": 150,
-                "temperature": 0.3
-            },
-            "console": {
-                "enabled": True,
-                "response": "LLM response would appear here"
-            }
-        },
+        default_factory=dict,
         description="Provider-specific configurations"
     )
 
@@ -272,34 +194,16 @@ class LLMConfig(BaseModel):
 class VoiceTriggerConfig(BaseModel):
     """Voice trigger / wake word component configuration"""
     enabled: bool = Field(default=False, description="Enable voice trigger component")
-    default_provider: str = Field(default="openwakeword", description="Default voice trigger provider")
+    default_provider: Optional[str] = Field(default=None, description="Default voice trigger provider")
     wake_words: List[str] = Field(
-        default_factory=lambda: ["irene", "jarvis"],
+        default_factory=list,
         description="Wake words to detect"
     )
     confidence_threshold: float = Field(default=0.8, description="Detection confidence threshold")
     buffer_seconds: float = Field(default=1.0, description="Audio buffer duration in seconds")
     timeout_seconds: float = Field(default=5.0, description="Detection timeout in seconds")
     providers: Dict[str, Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "openwakeword": {
-                "enabled": True,
-                "model_paths": {},  # Uses IRENE_ASSETS_ROOT/models
-                "inference_framework": "onnx",
-                "vad_threshold": 0.5
-            },
-            "porcupine": {
-                "enabled": False,
-                "access_key": "${PICOVOICE_ACCESS_KEY}",
-                "keywords": ["jarvis"]
-            },
-            "microwakeword": {
-                "enabled": False,
-                "model_paths": {},  # Uses IRENE_ASSETS_ROOT/models
-                "feature_buffer_size": 49,
-                "detection_window_size": 3
-            }
-        },
+        default_factory=dict,
         description="Provider-specific configurations"
     )
 
@@ -307,13 +211,13 @@ class VoiceTriggerConfig(BaseModel):
 class NLUConfig(BaseModel):
     """NLU component configuration"""
     enabled: bool = Field(default=False, description="Enable NLU component")
-    default_provider: str = Field(default="hybrid_keyword_matcher", description="Default NLU provider")
+    default_provider: Optional[str] = Field(default=None, description="Default NLU provider")
     confidence_threshold: float = Field(default=0.7, description="Global confidence threshold")
     fallback_intent: str = Field(default="conversation.general", description="Fallback intent name")
     
     # Cascading configuration
     provider_cascade_order: List[str] = Field(
-        default_factory=lambda: ["hybrid_keyword_matcher", "spacy_nlu"],
+        default_factory=list,
         description="Provider cascade order (fast to slow)"
     )
     max_cascade_attempts: int = Field(default=4, description="Maximum cascade attempts")
@@ -324,22 +228,7 @@ class NLUConfig(BaseModel):
     cache_ttl_seconds: int = Field(default=300, description="Cache TTL in seconds")
     
     providers: Dict[str, Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "hybrid_keyword_matcher": {
-                "enabled": True,
-                "provider_class": "HybridKeywordMatcherProvider",
-                "confidence_threshold": 0.8,
-                "exact_match_bonus": 0.2,
-                "fuzzy_threshold": 0.7
-            },
-            "spacy_nlu": {
-                "enabled": True,
-                "provider_class": "SpaCyNLUProvider", 
-                "model_name": "ru_core_news_sm",
-                "confidence_threshold": 0.7,
-                "auto_download": True
-            }
-        },
+        default_factory=dict,
         description="NLU provider instance configurations"
     )
 
@@ -403,11 +292,31 @@ class IntentSystemConfig(BaseModel):
 # ============================================================
 
 class AssetConfig(BaseModel):
-    """Environment-driven asset configuration"""
+    """Comprehensive asset management configuration"""
     assets_root: Path = Field(
         default_factory=lambda: Path(os.getenv("IRENE_ASSETS_ROOT", "~/.cache/irene")).expanduser(),
         description="Root directory for all assets (models, cache, credentials)"
     )
+    
+    # Directory management
+    auto_create_dirs: bool = Field(default=True, description="Automatically create asset directories")
+    cleanup_on_startup: bool = Field(default=False, description="Clean temporary files on startup")
+    
+    # Download configuration
+    auto_download: bool = Field(default=True, description="Automatically download missing models")
+    download_timeout_seconds: int = Field(default=300, description="Download timeout in seconds")
+    max_download_retries: int = Field(default=3, description="Maximum download retry attempts")
+    verify_downloads: bool = Field(default=True, description="Verify downloaded file integrity")
+    
+    # Cache configuration
+    cache_enabled: bool = Field(default=True, description="Enable model and file caching")
+    max_cache_size_mb: int = Field(default=2048, description="Maximum cache size in megabytes")
+    cache_ttl_hours: int = Field(default=24, description="Cache time-to-live in hours")
+    
+    # Model management
+    preload_essential_models: bool = Field(default=False, description="Preload essential models on startup")
+    model_compression: bool = Field(default=True, description="Use compressed model formats when available")
+    concurrent_downloads: int = Field(default=2, description="Maximum concurrent model downloads")
     
     # Subdirectories under assets root
     @property
@@ -421,8 +330,6 @@ class AssetConfig(BaseModel):
     @property 
     def credentials_root(self) -> Path:
         return self.assets_root / "credentials"
-    
-    auto_create_dirs: bool = Field(default=True, description="Automatically create directories")
     
     def model_post_init(self, __context):
         """Create directories after initialization if auto_create_dirs is True"""
@@ -450,6 +357,22 @@ class AssetConfig(BaseModel):
 # WORKFLOW CONFIGURATION
 # ============================================================
 
+# ============================================================
+# WORKFLOW-SPECIFIC CONFIGURATIONS  
+# ============================================================
+
+class UnifiedVoiceAssistantWorkflowConfig(BaseModel):
+    """Configuration for unified voice assistant workflow pipeline stages"""
+    voice_trigger_enabled: bool = Field(default=True, description="Enable voice trigger stage")
+    asr_enabled: bool = Field(default=True, description="Enable ASR stage")
+    text_processing_enabled: bool = Field(default=True, description="Enable text processing stage")
+    nlu_enabled: bool = Field(default=True, description="Enable NLU stage")
+    intent_execution_enabled: bool = Field(default=True, description="Enable intent execution stage")
+    llm_enabled: bool = Field(default=True, description="Enable LLM processing stage")
+    tts_enabled: bool = Field(default=True, description="Enable TTS output stage")
+    audio_enabled: bool = Field(default=True, description="Enable audio playback stage")
+
+
 class WorkflowConfig(BaseModel):
     """Workflow processing pipeline configuration"""
     enabled: List[str] = Field(
@@ -459,6 +382,12 @@ class WorkflowConfig(BaseModel):
     default: str = Field(
         default="unified_voice_assistant",
         description="Default workflow to execute"
+    )
+    
+    # Workflow-specific configurations
+    unified_voice_assistant: UnifiedVoiceAssistantWorkflowConfig = Field(
+        default_factory=UnifiedVoiceAssistantWorkflowConfig,
+        description="Unified voice assistant workflow configuration"
     )
     
     @field_validator('default')

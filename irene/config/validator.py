@@ -319,7 +319,7 @@ class ConfigValidator:
             )
     
     def _validate_workflow_dependencies(self, config: CoreConfig) -> None:
-        """Validate workflow configuration and dependencies"""
+        """Validate workflow configuration and two-level hierarchy dependencies"""
         workflows = config.workflows
         
         # Check default workflow is in enabled list
@@ -331,31 +331,57 @@ class ConfigValidator:
                 suggestion=f"Add '{workflows.default}' to workflows.enabled or change default workflow"
             )
         
-        # Check for workflow-component dependencies
-        if "voice_assistant" in workflows.enabled or workflows.default == "voice_assistant":
-            voice_components_enabled = any([
-                config.components.tts,
-                config.components.asr, 
-                config.components.audio,
-                config.components.voice_trigger
-            ])
+        # Validate unified_voice_assistant workflow if enabled
+        if "unified_voice_assistant" in workflows.enabled:
+            self._validate_unified_voice_assistant_workflow(config)
+
+    def _validate_unified_voice_assistant_workflow(self, config: CoreConfig) -> None:
+        """Validate unified voice assistant workflow two-level configuration"""
+        workflow_config = config.workflows.unified_voice_assistant
+        components = config.components
+        
+        # Define stage-to-component mapping
+        stage_component_mapping = {
+            "voice_trigger_enabled": ("voice_trigger", "Voice Trigger"),
+            "asr_enabled": ("asr", "ASR"),
+            "text_processing_enabled": ("text_processor", "Text Processing"),
+            "nlu_enabled": ("nlu", "NLU"),
+            "intent_execution_enabled": ("intent_system", "Intent System"),
+            "llm_enabled": ("llm", "LLM"),
+            "tts_enabled": ("tts", "TTS"),
+            "audio_enabled": ("audio", "Audio")
+        }
+        
+        # Validate each stage against component availability
+        for stage_attr, (component_attr, component_display_name) in stage_component_mapping.items():
+            stage_enabled = getattr(workflow_config, stage_attr, False)
+            component_enabled = getattr(components, component_attr, False)
             
-            if not voice_components_enabled:
+            if stage_enabled and not component_enabled:
+                # FATAL ERROR: Workflow stage enabled but component disabled
+                self._add_result(
+                    ValidationLevel.ERROR,
+                    "workflow_component_conflict",
+                    f"Unified voice assistant workflow enables '{stage_attr}' but component '{component_attr}' is disabled",
+                    suggestion=f"Either enable components.{component_attr} = true or set workflows.unified_voice_assistant.{stage_attr} = false"
+                )
+            elif not stage_enabled and component_enabled:
+                # WARNING: Component loaded but workflow won't use it (wasteful but valid)
                 self._add_result(
                     ValidationLevel.WARNING,
-                    "workflow_dependencies",
-                    "Voice assistant workflow is enabled but no voice components are configured",
-                    suggestion="Enable TTS, ASR, Audio, or Voice Trigger components for voice workflows"
+                    "workflow_component_waste",
+                    f"Component '{component_attr}' is enabled but unified voice assistant workflow has '{stage_attr}' disabled",
+                    suggestion=f"Consider setting components.{component_attr} = false to save resources, or enable workflows.unified_voice_assistant.{stage_attr} = true"
                 )
         
-        if "unified_voice_assistant" in workflows.enabled or workflows.default == "unified_voice_assistant":
-            if not config.components.intent_system:
-                self._add_result(
-                    ValidationLevel.WARNING,
-                    "workflow_dependencies",
-                    "Unified voice assistant workflow requires intent system component",
-                    suggestion="Enable intent_system component for unified workflows"
-                )
+        # Validate essential components for workflow functionality
+        if not workflow_config.intent_execution_enabled:
+            self._add_result(
+                ValidationLevel.ERROR,
+                "workflow_essential_components",
+                "Unified voice assistant workflow has intent_execution_enabled = false, but this stage is essential for functionality",
+                suggestion="Set workflows.unified_voice_assistant.intent_execution_enabled = true"
+            )
     
     def _validate_asset_accessibility(self, config: CoreConfig) -> None:
         """Validate asset configuration and accessibility"""

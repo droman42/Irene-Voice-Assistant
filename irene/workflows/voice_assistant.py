@@ -58,20 +58,56 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         self.context_manager = None
         self.buffer_size = None
         
-        # Pipeline stage flags
-        self._voice_trigger_enabled = True
-        self._asr_enabled = True
-        self._text_processing_enabled = True
-        self._nlu_enabled = True
-        self._intent_execution_enabled = True
-        self._tts_enabled = True
+        # Pipeline stage flags - will be configured from config in initialize()
+        self._voice_trigger_enabled = False
+        self._asr_enabled = False
+        self._text_processing_enabled = False
+        self._nlu_enabled = False
+        self._intent_execution_enabled = False
+        self._llm_enabled = False
+        self._tts_enabled = False
+        self._audio_enabled = False
+
+    @classmethod
+    def get_dependencies(cls) -> Dict[str, Any]:
+        """
+        Define workflow dependencies - replaces hardcoded dependency mapping
+        
+        Returns:
+            Dict containing dependency information for this workflow
+        """
+        return {
+            "required_components": ["intent_system"],  # Essential for intent execution
+            "optional_components": ["tts", "asr", "audio", "voice_trigger", "nlu", "text_processor", "llm"],  # Pipeline stages
+            "required_providers": [],  # No specific provider requirements
+            "description": "Unified workflow supporting voice, text, and audio processing with conditional pipeline stages"
+        }
     
-    async def initialize(self):
-        """Initialize unified workflow with all required components"""
+    async def initialize(self, workflow_config=None):
+        """Initialize unified workflow with all required components and configuration"""
         if self.initialized:
             return
             
         self.logger.info("Initializing UnifiedVoiceAssistantWorkflow...")
+        
+        # Configure pipeline stages from configuration
+        if workflow_config:
+            self._voice_trigger_enabled = workflow_config.voice_trigger_enabled
+            self._asr_enabled = workflow_config.asr_enabled  
+            self._text_processing_enabled = workflow_config.text_processing_enabled
+            self._nlu_enabled = workflow_config.nlu_enabled
+            self._intent_execution_enabled = workflow_config.intent_execution_enabled
+            self._llm_enabled = workflow_config.llm_enabled
+            self._tts_enabled = workflow_config.tts_enabled
+            self._audio_enabled = workflow_config.audio_enabled
+            
+            self.logger.info(f"Pipeline stages configured: voice_trigger={self._voice_trigger_enabled}, "
+                           f"asr={self._asr_enabled}, text_processing={self._text_processing_enabled}, "
+                           f"nlu={self._nlu_enabled}, intent_execution={self._intent_execution_enabled}, "
+                           f"llm={self._llm_enabled}, tts={self._tts_enabled}, audio={self._audio_enabled}")
+        else:
+            self.logger.error("No workflow configuration provided - pipeline stages remain disabled")
+            raise ValueError("UnifiedVoiceAssistantWorkflow requires configuration for pipeline stages")
         
         # Validate audio capability
         try:

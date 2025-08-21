@@ -75,11 +75,27 @@ class ElevenLabsProviderSchema(TTSProviderSchema):
     similarity_boost: float = Field(default=0.5, ge=0.0, le=1.0, description="Similarity boost")
 
 
-class SileroProviderSchema(TTSProviderSchema):
-    """Silero provider configuration schema"""
-    model_path: str = Field(default="", description="Path to Silero model")
-    speaker: str = Field(default="aidar", description="Speaker name")
+class SileroV3ProviderSchema(TTSProviderSchema):
+    """Silero v3 TTS provider configuration schema"""
+    default_speaker: str = Field(default="xenia", description="Default speaker voice")
+    sample_rate: int = Field(default=24000, description="Audio sample rate")
+    torch_device: str = Field(default="cpu", description="PyTorch device: cpu, cuda")
+    put_accent: bool = Field(default=True, description="Enable accent marks in speech")
+    put_yo: bool = Field(default=True, description="Use ё character in speech")
+    threads: int = Field(default=4, description="Number of processing threads")
+    speaker_by_assname: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Speaker mapping by assistant name (e.g., {'ирина': 'xenia'})"
+    )
+    preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
+
+
+class SileroV4ProviderSchema(TTSProviderSchema):
+    """Silero v4 TTS provider configuration schema"""
+    default_speaker: str = Field(default="xenia", description="Default speaker voice: xenia, aidar, baya, kseniya, eugene, random")
     sample_rate: int = Field(default=48000, description="Audio sample rate")
+    torch_device: str = Field(default="cpu", description="PyTorch device: cpu, cuda")
+    preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
 
 
 # ============================================================
@@ -108,13 +124,23 @@ class WhisperProviderSchema(ASRProviderSchema):
     model_size: str = Field(default="base", description="Model size (tiny, base, small, medium, large)")
     device: str = Field(default="cpu", description="Device to run on (cpu, cuda)")
     default_language: Optional[str] = Field(default=None, description="Default language (None for auto-detect)")
+    preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
 
 
-class VoskProviderSchema(ASRProviderSchema):
-    """Vosk provider configuration schema"""
-    model_paths: Dict[str, str] = Field(default_factory=dict, description="Model paths by language")
+class VoskASRProviderSchema(ASRProviderSchema):
+    """Vosk ASR provider configuration schema"""
+    default_language: str = Field(default="ru", description="Default language: ru, en")
     sample_rate: int = Field(default=16000, description="Audio sample rate")
     confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold")
+    preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
+
+
+class VoskTTSProviderSchema(TTSProviderSchema):
+    """Vosk TTS provider configuration schema"""
+    default_language: str = Field(default="ru", description="Default language: ru, en, de, fr")
+    sample_rate: int = Field(default=22050, description="Audio sample rate")
+    voice_speed: float = Field(default=1.0, ge=0.1, le=3.0, description="Voice speed multiplier")
+    preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
 
 
 class GoogleCloudProviderSchema(ASRProviderSchema):
@@ -152,9 +178,9 @@ class AnthropicProviderSchema(LLMProviderSchema):
 
 class OpenWakeWordProviderSchema(VoiceTriggerProviderSchema):
     """OpenWakeWord provider configuration schema"""
-    model_paths: Dict[str, str] = Field(default_factory=dict, description="Model paths by wake word")
     inference_framework: str = Field(default="onnx", description="Inference framework")
     vad_threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="Voice activity detection threshold")
+    preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
 
 
 class PorcupineProviderSchema(VoiceTriggerProviderSchema):
@@ -180,7 +206,7 @@ class SpaCyNLUProviderSchema(NLUProviderSchema):
     provider_class: str = Field(default="SpaCyNLUProvider", description="Provider class name")
     model_name: str = Field(default="ru_core_news_sm", description="SpaCy model name")
     confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold")
-    auto_download: bool = Field(default=True, description="Auto-download model if missing")
+    auto_download: bool = Field(default=True, description="Auto-download model if missing via spacy CLI")
 
 
 # ============================================================
@@ -288,7 +314,9 @@ class SchemaValidator:
         "tts": {
             "console": ConsoleProviderSchema,
             "elevenlabs": ElevenLabsProviderSchema,
-            "silero": SileroProviderSchema,
+            "silero_v3": SileroV3ProviderSchema,
+            "silero_v4": SileroV4ProviderSchema,
+            "vosk": VoskTTSProviderSchema,
         },
         "audio": {
             "console": ConsoleProviderSchema,
@@ -297,7 +325,7 @@ class SchemaValidator:
         },
         "asr": {
             "whisper": WhisperProviderSchema,
-            "vosk": VoskProviderSchema,
+            "vosk": VoskASRProviderSchema,
             "google_cloud": GoogleCloudProviderSchema,
         },
         "llm": {

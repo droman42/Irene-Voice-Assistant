@@ -41,7 +41,7 @@ class AsyncVACore:
         self.context_manager = ContextManager()
         self.timer_manager = AsyncTimerManager()
 
-        self.workflow_manager = WorkflowManager(self.component_manager)  # NEW: Unified workflow manager
+        self.workflow_manager = WorkflowManager(self.component_manager, config)  # NEW: Unified workflow manager
         self._running = False
         
     async def start(self) -> None:

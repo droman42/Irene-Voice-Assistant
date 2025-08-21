@@ -79,6 +79,21 @@ class Workflow(EntryPointMetadata, ABC):
             "tts": True
         }
     
+    @classmethod 
+    def get_dependencies(cls) -> Dict[str, Any]:
+        """
+        Define workflow dependencies (optional - workflows can override this)
+        
+        Returns:
+            Dict containing dependency information for this workflow
+        """
+        return {
+            "required_components": [],
+            "optional_components": [],
+            "required_providers": [],
+            "description": "Base workflow with no dependencies"
+        }
+
     @abstractmethod
     async def initialize(self):
         """Initialize the workflow and its components."""
