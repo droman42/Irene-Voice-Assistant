@@ -97,6 +97,34 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         
         logger.info(f"Text processing component initialized with {enabled_count} providers")
     
+    async def process(self, text: str) -> str:
+        """
+        Process text using the general text processing provider.
+        
+        Args:
+            text: Input text to process
+            
+        Returns:
+            Processed text
+        """
+        # For simple text processing, just return the text as-is if no providers available
+        # This matches the workflow expectation for simple text preprocessing
+        if not self.providers:
+            logger.debug("No text processing providers available, returning original text")
+            return text
+        
+        # Use the improve method with a minimal context for general text processing
+        from ..intents.models import ConversationContext
+        
+        # Create a minimal context for processing
+        context = ConversationContext(
+            session_id="text_processing",
+            user_id=None,
+            conversation_history=[]
+        )
+        
+        return await self.improve(text, context, "general")
+    
     def get_providers_info(self) -> str:
         """Implementation of abstract method - Get text processing providers information"""
         if not self.providers:

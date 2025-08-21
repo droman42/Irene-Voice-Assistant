@@ -132,4 +132,11 @@ class CLIInput(InputSource):
             return True
         except Exception as e:
             logger.error(f"CLI input test failed: {e}")
-            return False 
+            return False
+
+
+if __name__ == "__main__":
+    print("⚠️  This module provides the CLIInput class for the Irene voice assistant.")
+    print("To run the Irene CLI application, use:")
+    print("  uv run python -m irene.runners.cli --help")
+    print("  or check the project documentation for proper usage.") 

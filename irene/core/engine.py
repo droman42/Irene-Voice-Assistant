@@ -52,6 +52,9 @@ class AsyncVACore:
             # Initialize components first - PASS CORE REFERENCE
             await self.component_manager.initialize_components(self)
             
+            # Make context_manager available to component_manager for workflow injection
+            self.component_manager.context_manager = self.context_manager
+            
             await self.context_manager.start()
             await self.timer_manager.start()
             await self.plugin_manager.initialize(self)

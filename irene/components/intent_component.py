@@ -72,6 +72,9 @@ class IntentComponent(Component, WebAPIPlugin):
         self.intent_registry = self.handler_manager.get_registry()
         self.intent_orchestrator = self.handler_manager.get_orchestrator()
         
+        # Inject component dependencies into handlers
+        await self._inject_handler_dependencies(core)
+        
         # Log initialization status  
         handlers = self.handler_manager.get_handlers()
         donations = self.handler_manager.get_donations()
@@ -91,6 +94,33 @@ class IntentComponent(Component, WebAPIPlugin):
         
         logger.info("Intent component shutdown completed")
         
+    async def _inject_handler_dependencies(self, core) -> None:
+        """Inject component dependencies into intent handlers"""
+        try:
+            # Get the component manager to access other components
+            component_manager = getattr(core, 'component_manager', None)
+            if not component_manager:
+                logger.warning("Component manager not available for handler dependency injection")
+                return
+                
+            # Get available components
+            components = component_manager.get_components()
+            
+            # Get all handler instances
+            handlers = self.handler_manager.get_handlers()
+            
+            for handler_name, handler in handlers.items():
+                # Inject LLM component if handler needs it (specifically ConversationIntentHandler)
+                if handler_name == 'conversation' and 'llm' in components:
+                    handler.llm_component = components['llm']
+                    logger.debug(f"Injected LLM component into {handler_name} handler")
+                
+                # Add other component injections as needed
+                # if handler_name == 'some_other_handler' and 'other_component' in components:
+                #     handler.other_component = components['other_component']
+                    
+        except Exception as e:
+            logger.error(f"Failed to inject handler dependencies: {e}")
 
     def get_component_dependencies(self) -> List[str]:
         """Get list of required component dependencies."""

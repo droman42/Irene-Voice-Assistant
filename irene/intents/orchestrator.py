@@ -43,6 +43,22 @@ class IntentOrchestrator:
         self._use_donation_routing = enabled
         logger.info(f"Donation-driven routing {'enabled' if enabled else 'disabled'}")
     
+    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Execute an intent - workflow compatibility method.
+        
+        This is a wrapper for execute_intent() to maintain compatibility with the workflow
+        interface that expects an 'execute' method.
+        
+        Args:
+            intent: The recognized intent to execute
+            context: Conversation context for execution
+            
+        Returns:
+            IntentResult containing the response and metadata
+        """
+        return await self.execute_intent(intent, context)
+    
     async def execute_intent(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """
         Execute an intent by routing it to the appropriate handler with donation-driven execution.

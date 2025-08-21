@@ -211,6 +211,7 @@ class NLUComponent(Component, WebAPIPlugin):
     async def initialize(self, core) -> None:
         """Initialize NLU providers with configuration-driven filtering"""
         await super().initialize(core)
+        self.core = core  # Store core reference for configuration access
         
         # Get configuration first to determine enabled providers (V14 Architecture)
         config = getattr(core.config, 'nlu', None)
@@ -481,12 +482,15 @@ class NLUComponent(Component, WebAPIPlugin):
         
         First checks provider-specific threshold, then falls back to global threshold.
         """
-        # Get provider-specific configuration
-        providers_config = getattr(self.core.config.components, 'nlu', {}).get("providers", {})
-        provider_config = providers_config.get(provider_name, {})
+        # Get NLU component configuration (not components.nlu which is just a boolean)
+        nlu_config = getattr(self.core.config, 'nlu', None)
+        if nlu_config and hasattr(nlu_config, 'providers'):
+            provider_config = nlu_config.providers.get(provider_name, {})
+            if hasattr(provider_config, 'get'):
+                return provider_config.get("confidence_threshold", self.confidence_threshold)
         
-        # Return provider-specific threshold or global threshold
-        return provider_config.get("confidence_threshold", self.confidence_threshold)
+        # Fallback to global threshold
+        return self.confidence_threshold
     
     async def _try_provider_recognition(self, provider_name: str, text: str, 
                                       context: ConversationContext) -> Optional[Intent]:
@@ -625,6 +629,25 @@ class NLUComponent(Component, WebAPIPlugin):
         info_lines.append(f"Резервный интент: {self.fallback_intent}")
         
         return "\n".join(info_lines)
+    
+    async def process(self, text: str, context: ConversationContext) -> Intent:
+        """
+        Process text using NLU recognition with parameter extraction - workflow compatibility method.
+        
+        This method provides the full NLU pipeline including:
+        - Intent recognition with cascading providers 
+        - Parameter extraction using recognize_with_parameters()
+        - Context-aware entity resolution and disambiguation
+        - Enhanced entity processing
+        
+        Args:
+            text: Input text to analyze
+            context: Conversation context for better understanding
+            
+        Returns:
+            Intent with extracted parameters, entities and confidence
+        """
+        return await self.recognize_with_context(text, context)
     
     async def recognize_with_context(self, text: str, context: ConversationContext) -> Intent:
         """

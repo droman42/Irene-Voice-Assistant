@@ -192,6 +192,34 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
             return text  # Return original text on error
     
     # Public methods for intent handler delegation
+    
+    async def generate_response(self, messages: List[Dict[str, str]], 
+                               model: Optional[str] = None, 
+                               provider: Optional[str] = None,
+                               **kwargs) -> str:
+        """
+        Generate a chat response from messages - conversation handler compatibility method.
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            model: Model name (optional, uses provider default)
+            provider: Provider name (optional, uses default provider)
+            **kwargs: Additional parameters
+            
+        Returns:
+            Generated response text
+        """
+        provider_name = provider or self.default_provider
+        
+        if provider_name not in self.providers:
+            raise ValueError(f"LLM provider '{provider_name}' not available")
+        
+        # Forward to provider's chat_completion method
+        response = await self.providers[provider_name].chat_completion(
+            messages, model=model, **kwargs
+        )
+        
+        return response
 
     
     def set_default_provider(self, provider_name: str) -> bool:

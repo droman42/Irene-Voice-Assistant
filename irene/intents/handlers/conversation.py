@@ -145,7 +145,7 @@ class ConversationIntentHandler(IntentHandler):
                 return await self._handle_reference_query(intent, session)
             else:
                 # Default: continue conversation
-                return await self._handle_continue_conversation(intent, session, context)
+                return await self._handle_continue_conversation(intent, context)
                 
         except Exception as e:
             logger.error(f"Conversation intent execution failed: {e}")
@@ -276,8 +276,8 @@ class ConversationIntentHandler(IntentHandler):
                 error=str(e)
             )
     
-    async def _handle_continue_conversation(self, intent: Intent, session: ConversationSession, context: ConversationContext) -> IntentResult:
-        """Handle ongoing conversation intent"""
+    async def _handle_continue_conversation(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """Handle ongoing conversation intent - donation-compatible method signature"""
         if not self.llm_component:
             return IntentResult(
                 text="Извините, диалоговый режим недоступен.",
@@ -286,10 +286,13 @@ class ConversationIntentHandler(IntentHandler):
             )
         
         try:
-            # Add user message to session
+            # Get or create conversation session using context session_id
+            session = self._get_or_create_session(context.session_id, intent)
+            
+            # Add user message to session (LLM-specific conversation management)
             session.add_message("user", intent.raw_text)
             
-            # Get conversation history
+            # Get conversation history from session (properly formatted for LLM)
             messages = session.get_messages()
             
             # Generate response using LLM
