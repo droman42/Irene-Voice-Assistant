@@ -94,6 +94,7 @@ llm = [
 nlu = [
     "spacy>=3.7.0",
     "numpy>=1.21.0",  # Required for intent centroids and vector operations
+    "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl"
 ]
 
 # Configuration management
