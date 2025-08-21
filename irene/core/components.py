@@ -92,7 +92,9 @@ class Component(ABC):
         dependencies = self.get_python_dependencies()
         try:
             for dependency in dependencies:
-                __import__(dependency)
+                # Extract module name from dependency specification (e.g., "fastapi>=0.100.0" -> "fastapi")
+                module_name = dependency.split('>=')[0].split('<=')[0].split('==')[0].split('>')[0].split('<')[0].split('~=')[0].split('[')[0].strip()
+                __import__(module_name)
             return True
         except ImportError:
             return False
@@ -133,8 +135,9 @@ class DependencyResolver:
         
     def resolve_initialization_order(self, enabled_components: List[str]) -> List[str]:
         """Resolve component initialization order based on dependencies"""
-        # Build dependency graph
-        dependency_graph = {}
+        # Build dependency graph (reversed for correct topological sort)
+        dependency_graph = {component: [] for component in enabled_components}
+        
         for component_name in enabled_components:
             if component_name in self.components_config:
                 try:
@@ -142,10 +145,14 @@ class DependencyResolver:
                     # Create temporary instance to get dependencies
                     temp_instance = component_class()
                     dependencies = temp_instance.get_component_dependencies()
-                    dependency_graph[component_name] = [dep for dep in dependencies if dep in enabled_components]
+                    
+                    # For each dependency, add an edge FROM dependency TO component
+                    for dep in dependencies:
+                        if dep in enabled_components:
+                            dependency_graph[dep].append(component_name)
                 except Exception:
                     # If we can't determine dependencies, assume no dependencies
-                    dependency_graph[component_name] = []
+                    pass
         
         # Topological sort
         return self._topological_sort(dependency_graph)

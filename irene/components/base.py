@@ -22,6 +22,7 @@ class Component(EntryPointMetadata, ABC):
         self.providers: Dict[str, Any] = {}
         self.default_provider: Optional[str] = None
         self.initialized = False
+        self.injected_dependencies: Dict[str, Any] = {}  # For dependency injection
     
 
     @abstractmethod
@@ -53,6 +54,14 @@ class Component(EntryPointMetadata, ABC):
         # TODO: This will be implemented in Phase 2 - Config Path Resolution System
         from ..config.resolver import extract_config_by_path
         return extract_config_by_path(core_config, config_path, config_class)
+    
+    def inject_dependency(self, name: str, dependency: Any) -> None:
+        """Inject a dependency into this component"""
+        self.injected_dependencies[name] = dependency
+        
+    def get_dependency(self, name: str) -> Optional[Any]:
+        """Get an injected dependency"""
+        return self.injected_dependencies.get(name)
     
     def is_enabled(self, core_config: CoreConfig) -> bool:
         """Check if this component is enabled via its config"""
