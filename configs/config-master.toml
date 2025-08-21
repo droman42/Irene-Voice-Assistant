@@ -78,7 +78,7 @@ history_enabled = true              # Enable command history
 # COMPONENTS - Processing Pipeline Components
 # ============================================================
 [components]
-# Component enablement - controls which processing stages are available
+# Component enablement - controls which processing components are loaded at startup
 tts = true                         # Text-to-speech component
 asr = true                         # Automatic speech recognition component
 audio = true                       # Audio playback component
