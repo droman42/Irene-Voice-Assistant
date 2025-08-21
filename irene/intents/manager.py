@@ -13,7 +13,7 @@ from .registry import IntentRegistry
 from .orchestrator import IntentOrchestrator
 from ..utils.loader import dynamic_loader
 from ..core.donation_loader import DonationLoader
-from ..core.parameter_extractor import JSONBasedParameterExtractor
+# PHASE 5: Remove parameter extractor import - now integrated into NLU providers
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class IntentHandlerManager:
         self._registry = IntentRegistry()
         self._orchestrator: Optional[IntentOrchestrator] = None
         self._donation_loader: Optional[DonationLoader] = None
-        self._parameter_extractor: Optional[JSONBasedParameterExtractor] = None
+        # PHASE 5: Remove parameter extractor field - now integrated into NLU providers
         self._donations: Dict[str, Any] = {}
         self._initialized = False
         
@@ -63,7 +63,8 @@ class IntentHandlerManager:
             "donation_validation": {
                 "strict_mode": True,
                 "validate_method_existence": True,
-                "validate_spacy_patterns": False  # Skip spaCy validation if not available
+                "validate_spacy_patterns": False,  # PHASE 0: spaCy validation moved to providers at runtime
+                "validate_json_schema": True
             }
         }
         
@@ -94,11 +95,10 @@ class IntentHandlerManager:
         await self._initialize_handlers_with_donations()
         await self._register_handlers()
         
-        # Phase 6: Initialize parameter extractor with loaded donations
-        await self._initialize_parameter_extractor()
+        # PHASE 5: Remove parameter extractor initialization - now integrated into NLU providers
         
-        # Create orchestrator with registry and parameter extractor
-        self._orchestrator = IntentOrchestrator(self._registry, self._parameter_extractor)
+        # Create orchestrator with registry only (no parameter extractor needed)
+        self._orchestrator = IntentOrchestrator(self._registry)
         
         self._initialized = True
         logger.info(f"IntentHandlerManager initialized with {len(self._handler_instances)} handlers and donation support")
@@ -161,21 +161,7 @@ class IntentHandlerManager:
                 logger.error(f"Failed to initialize handler {name} with donation: {e}")
                 raise
     
-    async def _initialize_parameter_extractor(self) -> None:
-        """Initialize parameter extractor with loaded donations."""
-        try:
-            self._parameter_extractor = JSONBasedParameterExtractor()
-            await self._parameter_extractor.initialize_from_json_donations(self._donations)
-            
-            total_params = sum(
-                len(donation.method_donations) + len(donation.global_parameters) 
-                for donation in self._donations.values()
-            )
-            logger.info(f"Parameter extractor initialized with {total_params} parameter specifications")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize parameter extractor: {e}")
-            raise
+    # PHASE 5: Remove _initialize_parameter_extractor method - parameter extraction now integrated into NLU providers
     
     async def _register_handlers(self) -> None:
         """Register handler instances with the IntentRegistry using donation-based patterns."""
@@ -295,9 +281,7 @@ class IntentHandlerManager:
         """Get all loaded JSON donations."""
         return self._donations.copy()
     
-    def get_parameter_extractor(self) -> Optional[JSONBasedParameterExtractor]:
-        """Get the parameter extractor instance."""
-        return self._parameter_extractor
+    # PHASE 5: Remove get_parameter_extractor method - parameter extraction now integrated into NLU providers
     
     async def add_handler(self, name: str, handler: Any, patterns: Optional[List[str]] = None) -> None:
         """

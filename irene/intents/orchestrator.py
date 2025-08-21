@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 from .models import Intent, IntentResult, ConversationContext
 from .registry import IntentRegistry
-from ..core.parameter_extractor import JSONBasedParameterExtractor
+# PHASE 5: Remove parameter extractor import - parameter extraction now integrated into NLU providers
 
 logger = logging.getLogger(__name__)
 
@@ -13,16 +13,15 @@ logger = logging.getLogger(__name__)
 class IntentOrchestrator:
     """Central intent coordinator that routes intents to appropriate handlers with donation-driven execution."""
     
-    def __init__(self, registry: IntentRegistry, parameter_extractor: Optional[JSONBasedParameterExtractor] = None):
+    def __init__(self, registry: IntentRegistry):
         """
         Initialize the intent orchestrator.
         
         Args:
             registry: Intent registry containing available handlers
-            parameter_extractor: Parameter extractor for donation-driven parameter extraction
         """
         self.registry = registry
-        self.parameter_extractor = parameter_extractor
+        # PHASE 5: Remove parameter extractor - parameter extraction now integrated into NLU providers
         self.middleware: list = []
         self.error_handlers: Dict[str, callable] = {}
         self._use_donation_routing = True  # Phase 6: Enable donation-driven routing
@@ -37,10 +36,7 @@ class IntentOrchestrator:
         self.error_handlers[error_type] = handler
         logger.info(f"Added error handler for: {error_type}")
     
-    def set_parameter_extractor(self, parameter_extractor: JSONBasedParameterExtractor):
-        """Set the parameter extractor for donation-driven parameter extraction."""
-        self.parameter_extractor = parameter_extractor
-        logger.info("Parameter extractor configured for donation-driven execution")
+    # PHASE 5: Remove set_parameter_extractor method - parameter extraction now integrated into NLU providers
     
     def enable_donation_routing(self, enabled: bool = True):
         """Enable or disable donation-driven routing."""
@@ -81,21 +77,8 @@ class IntentOrchestrator:
                     processed_intent
                 )
             
-            # Phase 6: Extract parameters using JSON donation specifications
-            if self.parameter_extractor and self._use_donation_routing:
-                try:
-                    extracted_params = await self.parameter_extractor.extract_parameters(
-                        processed_intent, processed_intent.name
-                    )
-                    
-                    # Merge extracted parameters into intent entities
-                    if extracted_params:
-                        processed_intent.entities.update(extracted_params)
-                        logger.debug(f"Extracted parameters for {processed_intent.name}: {list(extracted_params.keys())}")
-                    
-                except Exception as e:
-                    logger.warning(f"Parameter extraction failed for {processed_intent.name}: {e}")
-                    # Continue execution without extracted parameters
+            # PHASE 5: Remove parameter extraction logic - it's already done in NLU providers
+            # Intent already contains extracted parameters from recognize_with_parameters
             
             # Execute the intent using donation-driven routing if available
             logger.info(f"Executing intent '{processed_intent.name}' with handler {handler.__class__.__name__}")
@@ -181,7 +164,7 @@ class IntentOrchestrator:
             "supported_domains": set(),
             "supported_actions": set(),
             "donation_routing_enabled": self._use_donation_routing,
-            "parameter_extractor_available": self.parameter_extractor is not None
+            "parameter_extraction_integrated": True  # PHASE 5: Parameter extraction now integrated into NLU providers
         }
         
         for pattern, handler in handlers.items():

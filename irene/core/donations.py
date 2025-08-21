@@ -175,7 +175,7 @@ class DonationValidationConfig(BaseModel):
     strict_mode: bool = Field(True, description="Fail on any validation error")
     warn_unused_patterns: bool = Field(True, description="Warn about unused patterns")
     validate_method_existence: bool = Field(True, description="Validate method exists in Python handler")
-    validate_spacy_patterns: bool = Field(True, description="Validate spaCy pattern syntax")
+    validate_spacy_patterns: bool = Field(False, description="Validate spaCy pattern syntax - disabled at startup, validated at runtime by providers")
     validate_json_schema: bool = Field(True, description="Validate JSON files against JSON Schema")
     max_methods_per_handler: int = Field(1000, description="Maximum methods per handler")
     max_phrases_per_method: int = Field(100, description="Maximum phrases per method")

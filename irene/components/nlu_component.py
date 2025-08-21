@@ -508,8 +508,8 @@ class NLUComponent(Component, WebAPIPlugin):
         provider = self.providers[provider_name]
         
         try:
-            # TODO: Add timeout support for provider recognition
-            intent = await provider.recognize(text, context)
+            # PHASE 4: Use new integrated method for recognition with parameter extraction
+            intent = await provider.recognize_with_parameters(text, context)
             
             # Get provider-specific confidence threshold
             provider_threshold = self._get_provider_confidence_threshold(provider_name)
@@ -703,7 +703,8 @@ class NLUComponent(Component, WebAPIPlugin):
                 
                 # Use specific provider if requested
                 if request.provider and request.provider in self.providers:
-                    intent = await self.providers[request.provider].recognize(request.text, context)
+                    # PHASE 4: Use integrated parameter extraction for direct provider calls
+                    intent = await self.providers[request.provider].recognize_with_parameters(request.text, context)
                     provider_name = request.provider
                 else:
                     intent = await self.recognize(request.text, context)

@@ -13,6 +13,7 @@ from typing import Dict, Any, List
 from irene.intents.models import ConversationContext, Intent
 from irene.components.nlu_component import NLUComponent
 from irene.providers.nlu.base import NLUProvider
+from irene.core.donations import ParameterSpec
 
 
 class MockNLUProvider(NLUProvider):
@@ -57,6 +58,24 @@ class MockNLUProvider(NLUProvider):
     async def extract_entities(self, text: str, intent_name: str) -> Dict[str, Any]:
         """Mock entity extraction"""
         return {"mock_entity": "mock_value"}
+    
+    async def extract_parameters(self, text: str, intent_name: str, parameter_specs: List[ParameterSpec]) -> Dict[str, Any]:
+        """Mock parameter extraction for testing"""
+        # Return simple mock parameters based on specs
+        extracted = {}
+        for spec in parameter_specs:
+            if spec.required or spec.default_value is not None:
+                extracted[spec.name] = spec.default_value or f"mock_{spec.name}"
+        return extracted
+    
+    async def recognize_with_parameters(self, text: str, context: ConversationContext) -> Intent:
+        """Override to ensure mock entities are preserved in integrated recognition"""
+        # Call the regular recognize method to get base intent
+        intent = await self.recognize(text, context)
+        
+        # Since we don't have stored parameter specs in the mock, just return the original intent
+        # This ensures that mock entities like 'provider' and 'call_count' are preserved
+        return intent
     
     def get_supported_intents(self) -> List[str]:
         """Mock supported intents"""

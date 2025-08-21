@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from .base import NLUProvider
 from ...intents.models import Intent, ConversationContext
+from ...core.donations import ParameterSpec, KeywordDonation
 
 logger = logging.getLogger(__name__)
 
@@ -136,22 +137,24 @@ class HybridKeywordMatcherProvider(NLUProvider):
             self._rapidfuzz_available = False
             self.fuzzy_enabled = False
     
-    async def _initialize_from_donations(self, keyword_donations: List[Any]) -> None:
+    async def _initialize_from_donations(self, keyword_donations: List[KeywordDonation]) -> None:
         """
-        Initialize provider with JSON donation patterns.
+        Initialize hybrid provider - ignores spaCy patterns, no validation needed (Phase 3).
         
         Builds both regex patterns and fuzzy keyword lists from donations.
+        Also stores parameter specifications for each intent.
         """
         try:
             logger.info(f"Initializing HybridKeywordMatcher with {len(keyword_donations)} donations")
             
-            # Clear existing patterns
+            # Clear existing data (Phase 3)
             self.exact_patterns = {}
             self.flexible_patterns = {}
             self.partial_patterns = {}
             self.fuzzy_keywords = {}
             self.fuzzy_keywords_lc = {}
             self.global_keyword_map = {}
+            self.parameter_specs = {}  # Phase 3: Clear parameter specs
             
             # Collect telemetry data
             donation_versions = set()
@@ -187,9 +190,11 @@ class HybridKeywordMatcherProvider(NLUProvider):
                         flexible_patterns.append(flexible_pattern)
                         partial_patterns.append(partial_pattern)
                 
+                # Store basic patterns (what hybrid provider uses) - Phase 3
                 self.exact_patterns[intent_name] = exact_patterns
                 self.flexible_patterns[intent_name] = flexible_patterns  
                 self.partial_patterns[intent_name] = partial_patterns
+                self.parameter_specs[intent_name] = donation.parameters  # Phase 3: Store parameter specs
                 total_patterns += len(exact_patterns)
                 
                 # Build fuzzy keyword lists (for similarity matching)
@@ -207,8 +212,10 @@ class HybridKeywordMatcherProvider(NLUProvider):
                     
                     total_keywords += len(keywords)
                 
-                logger.debug(f"Added patterns for intent '{intent_name}': "
-                           f"{len(exact_patterns)} patterns, {len(keywords) if self.fuzzy_enabled else 0} fuzzy keywords")
+                # IGNORE advanced spaCy patterns - hybrid provider doesn't use them
+                # No validation needed, no errors possible
+                
+                logger.debug(f"Registered hybrid intent '{intent_name}' with {len(donation.phrases)} phrases and {len(donation.parameters)} parameters")
             
             # Update global keyword stats
             self.stats['total_global_keywords'] = len(self.global_keyword_map)
@@ -492,7 +499,16 @@ class HybridKeywordMatcherProvider(NLUProvider):
         
         # Step 2: Aggregate scores by intent
         intent_candidate_scores = {}
-        for keyword, score in top_matches:
+        for match_tuple in top_matches:
+            # Handle both (keyword, score) and (keyword, score, index) formats
+            if len(match_tuple) == 2:
+                keyword, score = match_tuple
+            elif len(match_tuple) == 3:
+                keyword, score, _ = match_tuple  # Ignore index
+            else:
+                logger.warning(f"Unexpected match tuple format: {match_tuple}")
+                continue
+                
             intent_name = self.global_keyword_map[keyword]
             if intent_name not in intent_candidate_scores:
                 intent_candidate_scores[intent_name] = []
@@ -587,7 +603,17 @@ class HybridKeywordMatcherProvider(NLUProvider):
             limit=3
         )
         
-        return [f"{keyword} ({score}%)" for keyword, score in matches]
+        # Handle both (keyword, score) and (keyword, score, index) formats
+        result = []
+        for match_tuple in matches:
+            if len(match_tuple) == 2:
+                keyword, score = match_tuple
+            elif len(match_tuple) == 3:
+                keyword, score, _ = match_tuple  # Ignore index
+            else:
+                continue
+            result.append(f"{keyword} ({score}%)")
+        return result
     
 
     
@@ -886,6 +912,141 @@ class HybridKeywordMatcherProvider(NLUProvider):
                 entities["time_reference"] = time_refs[0].lower()
         
         return entities
+    
+    async def extract_parameters(self, text: str, intent_name: str, parameter_specs: List[ParameterSpec]) -> Dict[str, Any]:
+        """Extract parameters using regex and fuzzy matching
+        
+        Args:
+            text: Input text to extract parameters from
+            intent_name: Name of the recognized intent
+            parameter_specs: List of parameter specifications to extract
+            
+        Returns:
+            Dictionary of extracted parameters
+        """
+        if not parameter_specs:
+            return {}
+        
+        extracted_params = {}
+        text_lower = text.lower()
+        
+        for param_spec in parameter_specs:
+            try:
+                # Use regex pattern matching if available
+                if param_spec.pattern:
+                    value = self._extract_with_regex(text, param_spec)
+                else:
+                    # Use type-specific extraction
+                    value = self._extract_by_type(text_lower, param_spec)
+                
+                if value is not None:
+                    converted_value = self._convert_and_validate_parameter(value, param_spec)
+                    extracted_params[param_spec.name] = converted_value
+                elif param_spec.default_value is not None:
+                    extracted_params[param_spec.name] = param_spec.default_value
+                    
+            except Exception as e:
+                logger.warning(f"Failed to extract parameter '{param_spec.name}': {e}")
+        
+        return extracted_params
+    
+    def _extract_with_regex(self, text: str, param_spec: ParameterSpec) -> Optional[Any]:
+        """Extract parameter value using regex pattern"""
+        import re
+        try:
+            match = re.search(param_spec.pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(1) if match.groups() else match.group(0)
+        except Exception as e:
+            logger.warning(f"Regex pattern failed for parameter '{param_spec.name}': {e}")
+        return None
+    
+    def _extract_by_type(self, text_lower: str, param_spec: ParameterSpec) -> Optional[Any]:
+        """Extract parameter value based on parameter type"""
+        import re
+        from ...core.donations import ParameterType
+        
+        if param_spec.type == ParameterType.INTEGER:
+            numbers = re.findall(r'\b\d+\b', text_lower)
+            return int(numbers[0]) if numbers else None
+            
+        elif param_spec.type == ParameterType.FLOAT:
+            floats = re.findall(r'\b\d+\.?\d*\b', text_lower)
+            return float(floats[0]) if floats else None
+            
+        elif param_spec.type == ParameterType.BOOLEAN:
+            if any(word in text_lower for word in ['да', 'yes', 'true', 'включи', 'enable']):
+                return True
+            elif any(word in text_lower for word in ['нет', 'no', 'false', 'выключи', 'disable']):
+                return False
+            return None
+            
+        elif param_spec.type == ParameterType.CHOICE and param_spec.choices:
+            # Find the closest matching choice using fuzzy matching
+            from rapidfuzz import fuzz
+            best_choice = None
+            best_score = 0
+            for choice in param_spec.choices:
+                score = fuzz.partial_ratio(choice.lower(), text_lower)
+                if score > best_score and score >= 70:  # 70% threshold
+                    best_score = score
+                    best_choice = choice
+            return best_choice
+            
+        elif param_spec.type == ParameterType.DURATION:
+            # Extract duration expressions
+            duration_patterns = [
+                r'(\d+)\s*(минут|мин|minutes?)',
+                r'(\d+)\s*(секунд|сек|seconds?)',
+                r'(\d+)\s*(часов|час|hours?)'
+            ]
+            for pattern in duration_patterns:
+                match = re.search(pattern, text_lower)
+                if match:
+                    value, unit = match.groups()
+                    return {'value': int(value), 'unit': unit}
+            return None
+            
+        elif param_spec.type == ParameterType.STRING:
+            # For string parameters, try to extract quoted strings or fallback to aliases
+            quoted = re.search(r'"([^"]*)"', text_lower)
+            if quoted:
+                return quoted.group(1)
+            # Check aliases
+            for alias in param_spec.aliases:
+                if alias.lower() in text_lower:
+                    return alias
+            return None
+            
+        return None
+    
+    def _convert_and_validate_parameter(self, value: Any, param_spec: ParameterSpec) -> Any:
+        """Convert and validate parameter value according to spec"""
+        from ...core.donations import ParameterType
+        
+        # Type conversion
+        if param_spec.type == ParameterType.INTEGER:
+            value = int(value)
+        elif param_spec.type == ParameterType.FLOAT:
+            value = float(value)
+        elif param_spec.type == ParameterType.STRING:
+            value = str(value)
+        elif param_spec.type == ParameterType.BOOLEAN:
+            value = bool(value)
+        
+        # Range validation for numeric types
+        if param_spec.type in [ParameterType.INTEGER, ParameterType.FLOAT]:
+            if param_spec.min_value is not None and value < param_spec.min_value:
+                raise ValueError(f"Value {value} below minimum {param_spec.min_value}")
+            if param_spec.max_value is not None and value > param_spec.max_value:
+                raise ValueError(f"Value {value} above maximum {param_spec.max_value}")
+        
+        # Choice validation
+        if param_spec.type == ParameterType.CHOICE and param_spec.choices:
+            if value not in param_spec.choices:
+                raise ValueError(f"Value {value} not in allowed choices {param_spec.choices}")
+        
+        return value
     
     async def cleanup(self) -> None:
         """Clean up hybrid keyword matcher resources"""

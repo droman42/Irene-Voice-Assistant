@@ -288,7 +288,7 @@ class IntentComponent(Component, WebAPIPlugin):
             "donations": list(donations.keys()),
             "registry_patterns": list(registry_handlers.keys()),
             "donation_routing_enabled": orchestrator_capabilities.get("donation_routing_enabled", False),
-            "parameter_extractor_available": orchestrator_capabilities.get("parameter_extractor_available", False),
+            "parameter_extraction_integrated": orchestrator_capabilities.get("parameter_extraction_integrated", True),  # PHASE 6: Updated to reflect new architecture
             "configuration": self._config
         }
     

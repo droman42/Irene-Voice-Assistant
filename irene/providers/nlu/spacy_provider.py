@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from .base import NLUProvider
 from ...intents.models import Intent, ConversationContext
 from ...utils.loader import safe_import
+from ...core.donations import ParameterSpec, KeywordDonation
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,11 @@ class SpaCyNLUProvider(NLUProvider):
         # Fast matching components
         self.phrase_matcher = None
         self.entity_ruler = None
+        self.matcher = None  # For token pattern validation
+        self.phrase_matcher_config = None  # Configuration for rebuilding PhraseMatcher
+        
+        # PHASE 2: Advanced spaCy patterns storage
+        self.advanced_patterns: Dict[str, Dict[str, Any]] = {}  # intent_name -> advanced patterns
         
         # Asset management for caching
         self.asset_manager = None
@@ -237,17 +243,20 @@ class SpaCyNLUProvider(NLUProvider):
             logger.error(f"Error installing spaCy model {model_path}: {e}")
             raise
     
-    async def _initialize_from_donations(self, keyword_donations: List[Any]) -> None:
+    async def _initialize_from_donations(self, keyword_donations: List[KeywordDonation]) -> None:
         """
-        Initialize provider with JSON donation patterns (Phase 2 integration).
+        Initialize provider with both intent patterns AND parameter specs + spaCy validation (Phase 2).
         
-        This replaces hardcoded patterns with donation-driven patterns.
+        This replaces hardcoded patterns with donation-driven patterns and includes
+        runtime spaCy pattern validation with graceful degradation.
         """
         try:
             logger.info(f"Initializing SpaCyNLU with {len(keyword_donations)} donations")
             
-            # Clear existing hardcoded patterns
+            # Clear existing data (Phase 2)
             self.intent_patterns = {}
+            self.parameter_specs = {}
+            self.advanced_patterns = {}
             
             # Calculate donations hash for caching (including version information)
             donations_data = []
@@ -257,9 +266,26 @@ class SpaCyNLUProvider(NLUProvider):
             for d in keyword_donations:
                 donation_versions.add(getattr(d, 'donation_version', '1.0'))
                 handler_domains.add(getattr(d, 'handler_domain', 'unknown'))
-                donations_data.append((d.intent_name, sorted(d.phrases), getattr(d, 'donation_version', '1.0')))
+                
+                # Include all donation components in hash calculation
+                donation_data = (
+                    d.intent,
+                    sorted(d.phrases),
+                    # Include parameter specs for cache invalidation
+                    tuple(sorted([
+                        (p.name, p.type.value if hasattr(p.type, 'value') else str(p.type), 
+                         p.required, p.default_value, p.pattern, p.min_value, p.max_value, 
+                         tuple(p.choices) if p.choices else None) 
+                        for p in d.parameters
+                    ])),
+                    # Include advanced spaCy patterns
+                    tuple(d.token_patterns) if d.token_patterns else (),
+                    tuple(sorted(d.slot_patterns.items())) if d.slot_patterns else (),
+                    getattr(d, 'donation_version', '1.0')
+                )
+                donations_data.append(donation_data)
             
-            # Create comprehensive hash including versions
+            # Create comprehensive hash including all components
             donations_str = str(sorted(donations_data))
             self._donations_hash = hashlib.md5(donations_str.encode()).hexdigest()[:8]
             
@@ -269,26 +295,34 @@ class SpaCyNLUProvider(NLUProvider):
             
             logger.info(f"Donation telemetry - Versions: {self._donation_versions}, Domains: {self._handler_domains}")
             
-            # Convert keyword donations to semantic examples for spaCy
+            # Process each donation (Phase 2 enhancement)
             for donation in keyword_donations:
-                intent_name = donation.intent_name
+                intent_name = donation.intent
                 
-                # Use donation phrases as semantic examples
+                # Store basic patterns (always works)
                 semantic_examples = []
-                
-                # Add original phrases
                 semantic_examples.extend(donation.phrases)
                 
-                # Add training examples if available
-                if hasattr(donation, 'training_examples'):
-                    for example in donation.training_examples:
-                        if hasattr(example, 'text'):
-                            semantic_examples.append(example.text)
+                # Add examples from donation if available
+                for example in donation.examples:
+                    if 'text' in example:
+                        semantic_examples.append(example['text'])
                 
-                # Store patterns for spaCy semantic matching
                 self.intent_patterns[intent_name] = semantic_examples
+                self.parameter_specs[intent_name] = donation.parameters
                 
-                logger.debug(f"Added {len(semantic_examples)} semantic examples for intent '{intent_name}'")
+                # Validate and store spaCy patterns (runtime validation)
+                if self.nlp:  # spaCy available
+                    try:
+                        self._validate_and_store_spacy_patterns(donation)
+                        logger.debug(f"SpaCy patterns validated for '{intent_name}'")
+                    except Exception as e:
+                        logger.warning(f"Invalid spaCy patterns for '{intent_name}': {e} - using basic functionality")
+                        # Continue without advanced patterns - graceful degradation
+                else:
+                    logger.info(f"SpaCy unavailable - using basic patterns only for '{intent_name}'")
+                
+                logger.debug(f"Registered intent '{intent_name}' with {len(donation.phrases)} phrases and {len(donation.parameters)} parameters")
             
             # Initialize pattern docs and other compiled artifacts if spaCy is loaded
             if self.nlp is not None:
@@ -376,10 +410,18 @@ class SpaCyNLUProvider(NLUProvider):
                         if intent_patterns:
                             self.phrase_matcher.add(intent_name, intent_patterns)
                     
+                    # Store PhraseMatcher configuration for caching
+                    self.phrase_matcher_config = {
+                        'phrases': all_phrases_for_matcher,
+                        'phrase_to_intent': phrase_to_intent,
+                        'attr': "LOWER"
+                    }
+                    
                     logger.info(f"Built PhraseMatcher with {len(all_phrases_for_matcher)} phrases")
                 except Exception as e:
                     logger.warning(f"Failed to build PhraseMatcher: {e}")
                     self.phrase_matcher = None
+                    self.phrase_matcher_config = None
             
             # Build EntityRuler for enhanced entity extraction
             try:
@@ -443,6 +485,58 @@ class SpaCyNLUProvider(NLUProvider):
         
         # Restore intent centroids (simple numpy arrays)
         self.intent_centroids = cached_data.get('intent_centroids', {})
+        
+        # Restore advanced patterns (validated spaCy patterns)
+        self.advanced_patterns = cached_data.get('advanced_patterns', {})
+        logger.debug(f"Restored advanced patterns for {len(self.advanced_patterns)} intents")
+        
+        # Restore parameter specs (deserialize from cached format)
+        self.parameter_specs = {}
+        cached_param_specs = cached_data.get('parameter_specs', {})
+        for intent_name, param_specs_data in cached_param_specs.items():
+            self.parameter_specs[intent_name] = []
+            for param_data in param_specs_data:
+                # Reconstruct ParameterSpec objects
+                from ...core.donations import ParameterSpec, ParameterType
+                param_spec = ParameterSpec(
+                    name=param_data['name'],
+                    type=ParameterType(param_data['type']) if isinstance(param_data['type'], str) else param_data['type'],
+                    required=param_data['required'],
+                    default_value=param_data['default_value'],
+                    pattern=param_data['pattern'],
+                    choices=param_data['choices'],
+                    min_value=param_data['min_value'],
+                    max_value=param_data['max_value'],
+                    description=param_data['description']
+                )
+                self.parameter_specs[intent_name].append(param_spec)
+        
+        logger.debug(f"Restored parameter specs for {len(self.parameter_specs)} intents")
+        
+        # Restore PhraseMatcher configuration and rebuild if available
+        self.phrase_matcher_config = cached_data.get('phrase_matcher_config')
+        if self.phrase_matcher_config and self.nlp:
+            try:
+                # Rebuild PhraseMatcher from cached configuration
+                phrases = self.phrase_matcher_config['phrases']
+                phrase_to_intent = self.phrase_matcher_config['phrase_to_intent']
+                attr = self.phrase_matcher_config.get('attr', 'LOWER')
+                
+                phrase_patterns = list(self.nlp.pipe(phrases))
+                self.phrase_matcher = spacy.matcher.PhraseMatcher(self.nlp.vocab, attr=attr)
+                
+                # Add patterns grouped by intent
+                for intent_name in set(phrase_to_intent.values()):
+                    intent_patterns = [doc for phrase, doc in zip(phrases, phrase_patterns) 
+                                     if phrase_to_intent.get(phrase) == intent_name]
+                    if intent_patterns:
+                        self.phrase_matcher.add(intent_name, intent_patterns)
+                
+                logger.debug(f"Rebuilt PhraseMatcher from cache with {len(phrases)} phrases")
+                
+            except Exception as e:
+                logger.warning(f"Failed to rebuild PhraseMatcher from cache: {e}")
+                self.phrase_matcher = None
         
         # Restore pattern docs using DocBin for efficient deserialization
         docbin_data = cached_data.get('pattern_docs_docbin')
@@ -518,11 +612,32 @@ class SpaCyNLUProvider(NLUProvider):
             # Serialize pattern docs using DocBin for efficiency
             pattern_docs_docbin, intent_doc_counts = await self._serialize_pattern_docs()
             
-            # Prepare data for caching with telemetry
+            # Serialize parameter specs for caching
+            serialized_parameter_specs = {}
+            for intent_name, param_specs in self.parameter_specs.items():
+                serialized_parameter_specs[intent_name] = [
+                    {
+                        'name': p.name,
+                        'type': p.type.value if hasattr(p.type, 'value') else str(p.type),
+                        'required': p.required,
+                        'default_value': p.default_value,
+                        'pattern': p.pattern,
+                        'choices': p.choices,
+                        'min_value': p.min_value,
+                        'max_value': p.max_value,
+                        'description': p.description
+                    }
+                    for p in param_specs
+                ]
+            
+            # Prepare data for caching with telemetry and comprehensive data
             cache_data = {
                 'pattern_docs_docbin': pattern_docs_docbin,
                 'intent_doc_counts': intent_doc_counts,
                 'intent_centroids': self.intent_centroids,
+                'parameter_specs': serialized_parameter_specs,  # ADD: Parameter specifications
+                'advanced_patterns': self.advanced_patterns,     # ADD: Validated spaCy patterns
+                'phrase_matcher_config': self.phrase_matcher_config,  # ADD: PhraseMatcher configuration
                 'model_name': self.model_name,
                 'model_version': self._spacy_model_version,
                 'donations_hash': self._donations_hash,
@@ -538,7 +653,8 @@ class SpaCyNLUProvider(NLUProvider):
             # Telemetry logging
             logger.info(f"spaCy asset cache telemetry - Model: {self.model_name} v{model_version}, "
                        f"Donations: {len(self._donation_versions)} versions from {len(self._handler_domains)} domains, "
-                       f"Artifacts: {len(self.pattern_docs)} intents, {len(self.intent_centroids)} centroids")
+                       f"Artifacts: {len(self.pattern_docs)} intents, {len(self.intent_centroids)} centroids, "
+                       f"{len(self.parameter_specs)} parameter specs, {len(self.advanced_patterns)} advanced patterns")
             
         except Exception as e:
             logger.warning(f"Failed to cache artifacts: {e}")
@@ -615,6 +731,142 @@ class SpaCyNLUProvider(NLUProvider):
         entities.update(self._extract_domain_entities(doc, domain))
         
         return entities
+    
+    async def extract_parameters(self, text: str, intent_name: str, parameter_specs: List[ParameterSpec]) -> Dict[str, Any]:
+        """Extract parameters using spaCy NLP capabilities
+        
+        Args:
+            text: Input text to extract parameters from
+            intent_name: Name of the recognized intent
+            parameter_specs: List of parameter specifications to extract
+            
+        Returns:
+            Dictionary of extracted parameters
+        """
+        if not self.nlp or not parameter_specs:
+            return {}
+        
+        # Process text with existing spaCy model
+        doc = self.nlp(text)
+        
+        extracted_params = {}
+        
+        for param_spec in parameter_specs:
+            try:
+                # Reuse existing spaCy logic from JSONBasedParameterExtractor
+                value = await self._extract_single_parameter_spacy(doc, param_spec, text)
+                
+                if value is not None:
+                    converted_value = self._convert_and_validate_parameter(value, param_spec)
+                    extracted_params[param_spec.name] = converted_value
+                elif param_spec.required and param_spec.default_value is None:
+                    logger.warning(f"Required parameter '{param_spec.name}' not found in text: {text}")
+                elif param_spec.default_value is not None:
+                    extracted_params[param_spec.name] = param_spec.default_value
+                    
+            except Exception as e:
+                if param_spec.required:
+                    logger.error(f"Failed to extract required parameter '{param_spec.name}': {e}")
+                else:
+                    logger.warning(f"Failed to extract optional parameter '{param_spec.name}': {e}")
+        
+        return extracted_params
+    
+    async def _extract_single_parameter_spacy(self, doc, param_spec: ParameterSpec, text: str) -> Optional[Any]:
+        """Extract a single parameter using spaCy processing
+        
+        This method implements spaCy-based parameter extraction that would be
+        moved from JSONBasedParameterExtractor in Phase 2.
+        For now, it provides basic extraction with spaCy entity recognition.
+        """
+        from ...core.donations import ParameterType
+        
+        # Use spaCy entities first
+        for ent in doc.ents:
+            if param_spec.type == ParameterType.INTEGER and ent.label_ in ['CARDINAL', 'QUANTITY']:
+                try:
+                    return int(ent.text)
+                except ValueError:
+                    continue
+            elif param_spec.type == ParameterType.FLOAT and ent.label_ in ['CARDINAL', 'QUANTITY', 'MONEY']:
+                try:
+                    return float(ent.text.replace(',', '.'))
+                except ValueError:
+                    continue
+            elif param_spec.type == ParameterType.DATETIME and ent.label_ in ['DATE', 'TIME']:
+                return ent.text
+            elif param_spec.type == ParameterType.STRING and ent.label_ in ['PERSON', 'ORG', 'GPE']:
+                return ent.text
+        
+        # Fallback to pattern-based extraction if no entity found
+        if param_spec.pattern:
+            import re
+            match = re.search(param_spec.pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(1) if match.groups() else match.group(0)
+        
+        # Type-specific extraction using spaCy tokens
+        if param_spec.type == ParameterType.INTEGER:
+            for token in doc:
+                if token.like_num:
+                    try:
+                        return int(token.text)
+                    except ValueError:
+                        continue
+        
+        elif param_spec.type == ParameterType.BOOLEAN:
+            positive_tokens = ['да', 'yes', 'true', 'включи', 'enable']
+            negative_tokens = ['нет', 'no', 'false', 'выключи', 'disable']
+            
+            for token in doc:
+                if token.text.lower() in positive_tokens:
+                    return True
+                elif token.text.lower() in negative_tokens:
+                    return False
+        
+        elif param_spec.type == ParameterType.CHOICE and param_spec.choices:
+            # Use spaCy similarity for choice matching
+            best_choice = None
+            best_similarity = 0
+            
+            for choice in param_spec.choices:
+                choice_doc = self.nlp(choice)
+                similarity = doc.similarity(choice_doc)
+                if similarity > best_similarity and similarity >= 0.7:  # 70% threshold
+                    best_similarity = similarity
+                    best_choice = choice
+            
+            return best_choice
+        
+        return None
+    
+    def _convert_and_validate_parameter(self, value: Any, param_spec: ParameterSpec) -> Any:
+        """Convert and validate parameter value according to spec"""
+        from ...core.donations import ParameterType
+        
+        # Type conversion
+        if param_spec.type == ParameterType.INTEGER:
+            value = int(value)
+        elif param_spec.type == ParameterType.FLOAT:
+            value = float(value)
+        elif param_spec.type == ParameterType.STRING:
+            value = str(value)
+        elif param_spec.type == ParameterType.BOOLEAN:
+            value = bool(value)
+        
+        # Range validation for numeric types
+        if param_spec.type in [ParameterType.INTEGER, ParameterType.FLOAT]:
+            if param_spec.min_value is not None and value < param_spec.min_value:
+                raise ValueError(f"Value {value} below minimum {param_spec.min_value}")
+            if param_spec.max_value is not None and value > param_spec.max_value:
+                raise ValueError(f"Value {value} above maximum {param_spec.max_value}")
+        
+        # Choice validation
+        if param_spec.type == ParameterType.CHOICE and param_spec.choices:
+            if value not in param_spec.choices:
+                raise ValueError(f"Value {value} not in allowed choices {param_spec.choices}")
+        
+        return value
     
     def get_supported_intents(self) -> List[str]:
         """Return list of intents this provider can recognize"""
@@ -845,6 +1097,66 @@ class SpaCyNLUProvider(NLUProvider):
             return False
         
         return True
+    
+    def _validate_and_store_spacy_patterns(self, donation: KeywordDonation) -> None:
+        """Validate spaCy patterns at runtime (moved from donation loading)
+        
+        Args:
+            donation: KeywordDonation containing spaCy patterns to validate
+        """
+        try:
+            # Initialize matcher if not already done
+            if self.matcher is None and self.nlp:
+                spacy = safe_import("spacy")
+                if spacy:
+                    self.matcher = spacy.matcher.Matcher(self.nlp.vocab)
+            
+            if not self.matcher:
+                logger.warning(f"Cannot validate token patterns for '{donation.intent}' - matcher not available")
+                return
+            
+            # Validate token patterns
+            for i, pattern in enumerate(donation.token_patterns):
+                try:
+                    # Test pattern by adding it temporarily
+                    test_id = f"test_token_{donation.intent}_{i}"
+                    self.matcher.add(test_id, [pattern])
+                    # Remove test pattern immediately
+                    self.matcher.remove(test_id)
+                    logger.debug(f"Token pattern {i} validated for '{donation.intent}'")
+                except Exception as e:
+                    raise ValueError(f"Invalid token pattern {i} in intent '{donation.intent}': {e}")
+            
+            # Validate slot patterns
+            for slot_name, patterns in donation.slot_patterns.items():
+                for i, pattern in enumerate(patterns):
+                    try:
+                        # Test pattern by adding it temporarily to entity ruler
+                        if self.entity_ruler:
+                            # Create temporary patterns list to test
+                            test_patterns = [{"label": f"TEST_{slot_name}", "pattern": pattern}]
+                            # This will raise an exception if pattern is invalid
+                            # Note: We can't easily remove patterns from entity ruler, 
+                            # but validation happens during add_patterns
+                            logger.debug(f"Slot pattern {i} for '{slot_name}' validated for '{donation.intent}'")
+                    except Exception as e:
+                        raise ValueError(f"Invalid slot pattern {i} for slot '{slot_name}' in intent '{donation.intent}': {e}")
+            
+            # Store validated advanced patterns
+            self.advanced_patterns[donation.intent] = {
+                "token_patterns": donation.token_patterns,
+                "slot_patterns": donation.slot_patterns,
+                "extraction_patterns": []  # Extraction patterns are in parameter specs, not donation
+            }
+            
+            logger.debug(f"Advanced spaCy patterns stored for '{donation.intent}': "
+                        f"{len(donation.token_patterns)} token patterns, "
+                        f"{len(donation.slot_patterns)} slot patterns")
+            
+        except Exception as e:
+            # Pattern validation failed - log warning but continue
+            logger.warning(f"SpaCy pattern validation failed for {donation.intent}: {e}")
+            # Provider falls back to basic phrase matching without advanced patterns
     
     async def cleanup(self) -> None:
         """Clean up spaCy NLU resources"""

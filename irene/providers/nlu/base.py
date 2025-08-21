@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional
 
 from ..base import ProviderBase
 from ...intents.models import Intent, ConversationContext
+from ...core.donations import ParameterSpec
 
 
 class NLUProvider(ProviderBase):
@@ -28,6 +29,9 @@ class NLUProvider(ProviderBase):
         """
         # Call ProviderBase.__init__ to get status tracking, logging, etc.
         super().__init__(config)
+        
+        # PHASE 1: Parameter specifications storage
+        self.parameter_specs: Dict[str, List[ParameterSpec]] = {}  # intent_name -> parameter specs
     
     @abstractmethod
     async def recognize(self, text: str, context: ConversationContext) -> Intent:
@@ -56,6 +60,20 @@ class NLUProvider(ProviderBase):
         pass
     
     @abstractmethod
+    async def extract_parameters(self, text: str, intent_name: str, parameter_specs: List[ParameterSpec]) -> Dict[str, Any]:
+        """Extract parameters using provider's NLP capabilities
+        
+        Args:
+            text: Input text to extract parameters from
+            intent_name: Name of the recognized intent
+            parameter_specs: List of parameter specifications to extract
+            
+        Returns:
+            Dictionary of extracted parameters
+        """
+        pass
+    
+    @abstractmethod
     def get_supported_intents(self) -> List[str]:
         """Return list of intents this provider can recognize
         
@@ -63,6 +81,29 @@ class NLUProvider(ProviderBase):
             List of intent names this provider supports
         """
         pass
+    
+    async def recognize_with_parameters(self, text: str, context: ConversationContext) -> Intent:
+        """Recognize intent and extract parameters in one operation
+        
+        Args:
+            text: Input text to analyze
+            context: Conversation context for better understanding
+            
+        Returns:
+            Intent object with recognized intent, entities, and extracted parameters
+        """
+        # Default implementation - providers can override for optimization
+        intent = await self.recognize(text, context)
+        
+        # Handle case where recognition returns None (low confidence)
+        if intent is None:
+            return None
+            
+        if intent.name in self.parameter_specs:
+            parameters = await self.extract_parameters(text, intent.name, self.parameter_specs[intent.name])
+            intent.entities.update(parameters)
+        
+        return intent
     
     def get_confidence_threshold(self) -> float:
         """Get minimum confidence threshold for this provider (optional override)

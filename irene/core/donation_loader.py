@@ -89,8 +89,7 @@ class DonationLoader:
         if self.config.validate_method_existence:
             await self._validate_method_existence(donation, handler_path)
         
-        if self.config.validate_spacy_patterns:
-            await self._validate_spacy_patterns(donation)
+        # PHASE 0/6: spaCy validation moved to providers at runtime
         
         return donation
     
@@ -170,46 +169,8 @@ class DonationLoader:
             else:
                 self._add_warning(f"Could not validate method existence for {handler_path}: {e}")
     
-    async def _validate_spacy_patterns(self, donation: HandlerDonation):
-        """Validate spaCy pattern syntax"""
-        try:
-            # Try to import spaCy for validation
-            try:
-                import spacy  # type: ignore
-                from spacy.matcher import Matcher  # type: ignore
-                from spacy.pipeline import EntityRuler  # type: ignore
-            except ImportError:
-                if self.config.strict_mode:
-                    raise DonationDiscoveryError("spaCy not available for pattern validation")
-                else:
-                    self.warnings.append("spaCy not available, skipping pattern validation")
-                    return
-            
-            nlp = spacy.blank("ru")  # Minimal model for validation
-            matcher = Matcher(nlp.vocab)
-            ruler = EntityRuler(nlp)
-            
-            for method_donation in donation.method_donations:
-                # Validate token patterns
-                for i, pattern in enumerate(method_donation.token_patterns):
-                    try:
-                        matcher.add(f"test_pattern_{i}", [pattern])
-                    except Exception as e:
-                        raise DonationDiscoveryError(f"Invalid token pattern in method '{method_donation.method_name}': {e}")
-                
-                # Validate slot patterns
-                for slot_name, patterns in method_donation.slot_patterns.items():
-                    for i, pattern in enumerate(patterns):
-                        try:
-                            ruler.add_patterns([{"label": slot_name, "pattern": pattern}])
-                        except Exception as e:
-                            raise DonationDiscoveryError(f"Invalid slot pattern '{slot_name}' in method '{method_donation.method_name}': {e}")
-        
-        except ImportError:
-            if self.config.strict_mode:
-                raise DonationDiscoveryError("spaCy not available for pattern validation")
-            else:
-                self.warnings.append("spaCy not available, skipping pattern validation")
+    # PHASE 6: _validate_spacy_patterns method removed - functionality moved to SpaCy provider
+    # This provides runtime validation with graceful degradation instead of startup validation
     
     def convert_to_keyword_donations(self, donations: Dict[str, HandlerDonation]) -> List[KeywordDonation]:
         """Convert JSON donations to KeywordDonation objects for NLU providers"""
