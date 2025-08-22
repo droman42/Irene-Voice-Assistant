@@ -50,6 +50,13 @@ class WhisperASRProvider(ASRProvider):
             
         self.default_language = config.get("default_language", None)  # None = auto-detect
         self._model: Any = None  # Lazy-loaded Whisper model
+        
+        # Check if models should be preloaded during initialization
+        preload_models = config.get("preload_models", False)
+        if preload_models:
+            # Schedule model loading for startup
+            import asyncio
+            asyncio.create_task(self.warm_up())
     
     @classmethod
     def _get_default_extension(cls) -> str:
