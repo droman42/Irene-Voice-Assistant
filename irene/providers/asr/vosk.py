@@ -201,8 +201,12 @@ class VoskASRProvider(ASRProvider):
                     model_path = downloaded_path
                     
             except Exception as e:
-                logger.error(f"Failed to download VOSK model for {language}: {e}")
-                raise FileNotFoundError(f"VOSK model not found and download failed: {model_path}")
+                logger.warning(f"Asset manager download failed for VOSK {language} model: {e}")
+                # Fallback: Check if provider has its own download method or use manual installation message
+                logger.error(f"VOSK model for {language} not found at {model_path}")
+                logger.error(f"Please download the VOSK {language} model manually and place it at: {model_path}")
+                logger.error(f"Download from: https://alphacephei.com/vosk/models")
+                raise FileNotFoundError(f"VOSK model not found: {model_path}. Please download manually from https://alphacephei.com/vosk/models")
         
         try:
             import vosk  # type: ignore

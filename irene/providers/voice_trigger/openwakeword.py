@@ -102,17 +102,20 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
                             logger.info(f"Using asset-managed model for '{wake_word}': {model_path}")
                         else:
                             # Fallback to OpenWakeWord's built-in download
-                            fallback_model = f"{model_id}.onnx"
-                            models_to_load.append(fallback_model)
-                            logger.info(f"Falling back to OpenWakeWord auto-download for '{wake_word}': {fallback_model}")
+                            # Try the model_id directly first (OpenWakeWord might handle extensions automatically)
+                            models_to_load.append(model_id)
+                            logger.info(f"Falling back to OpenWakeWord auto-download for '{wake_word}': {model_id}")
                             
                     except Exception as e:
                         logger.warning(f"Asset manager failed for '{wake_word}', using OpenWakeWord auto-download: {e}")
                         # Fallback to OpenWakeWord's built-in download
-                        fallback_model = f"{model_id}.onnx"
-                        models_to_load.append(fallback_model)
+                        # Try the model_id directly first (OpenWakeWord might handle extensions automatically)
+                        models_to_load.append(model_id)
                 else:
                     logger.warning(f"Wake word '{wake_word}' not supported by OpenWakeWord")
+                    # For unsupported wake words like 'irene', suggest alternatives or provide fallback
+                    if wake_word.lower() == 'irene':
+                        logger.info("Suggestion: Consider using 'hey_jarvis' or 'alexa' as wake words, or switch to microwakeword provider for custom models")
             
             if not models_to_load:
                 raise ValueError("No valid wake word models found")
@@ -132,28 +135,13 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             raise
     
     async def _get_model_via_asset_manager(self, model_id: str) -> Optional[Path]:
-        """Get model via asset manager with proper handling of OpenWakeWord's auto downloads."""
+        """Get model via asset manager with fallback to OpenWakeWord's auto downloads."""
         try:
-            # For OpenWakeWord models marked as 'auto', we let OpenWakeWord handle the download
-            # but we provide a standardized path for where the model should be stored
-            model_info = self.asset_manager.get_model_info("openwakeword", model_id)
-            if model_info and model_info.get("url") == "auto":
-                # OpenWakeWord will handle the download, but we return our preferred path
-                # This allows for future enhancement where we could intercept and manage downloads
-                model_path = self.asset_manager.get_model_path("openwakeword", model_id)
-                
-                # Ensure the directory exists
-                model_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                # For now, we don't actually download since OpenWakeWord handles it
-                # But we return the path where it should be stored for future consistency
-                return model_path
-            else:
-                # For models with actual URLs, use the standard asset manager download
-                return await self.asset_manager.download_model("openwakeword", model_id)
-                
+            # Try to download using asset manager (provider has real URLs configured)
+            return await self.asset_manager.download_model("openwakeword", model_id)
         except Exception as e:
-            logger.debug(f"Asset manager model retrieval failed for {model_id}: {e}")
+            logger.debug(f"Asset manager download failed for {model_id}: {e}")
+            # Return None to trigger OpenWakeWord's own fallback download mechanism
             return None
     
     async def detect_wake_word(self, audio_data: AudioData) -> WakeWordResult:

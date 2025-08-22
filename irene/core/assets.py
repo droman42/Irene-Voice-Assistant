@@ -433,45 +433,43 @@ class AssetManager:
             logger.info(f"Model already exists: {model_path}")
             return model_path
         
-        # Get model info from registry
-        if provider not in self.config.model_registry:
-            raise ValueError(f"Unknown provider: {provider}")
+        # Get model info from provider configuration (replaces model_registry)
+        model_info = self.get_model_info(provider, model_id)
+        if not model_info:
+            raise ValueError(f"No model configuration found for {provider}/{model_id}")
         
-        if model_id not in self.config.model_registry[provider]:
-            raise ValueError(f"Unknown model: {provider}/{model_id}")
+        # Extract URL from model info
+        model_url = model_info.get("url")
         
-        model_info = self.config.model_registry[provider][model_id]
+        # Generic URL validation - no provider-specific logic
+        if not model_url:
+            raise ValueError(f"No download URL configured for {provider}/{model_id}")
         
-        # Handle special cases
-        if provider == "whisper" and model_info["url"] == "auto":
-            # Let whisper library handle download
-            logger.info(f"Whisper model will be auto-downloaded by library: {model_id}")
+        # Handle special URL types generically
+        if model_url == "auto":
+            # Provider expects to handle download internally - return path for provider to manage
+            logger.info(f"Model {provider}/{model_id} configured for auto-download by provider")
             return model_path
-        
-        if provider == "openwakeword" and model_info["url"] == "auto":
-            # Let OpenWakeWord library handle download
-            logger.info(f"OpenWakeWord model will be auto-downloaded by library: {model_id}")
-            return model_path
-        
-        if provider == "microwakeword" and model_info["url"] == "local":
-            # Local model - should be provided manually to the models directory
-            logger.info(f"microWakeWord model should be provided locally: {model_path}")
+            
+        if model_url == "local":
+            # Provider expects local file - check if it exists
+            logger.info(f"Model {provider}/{model_id} configured as local file: {model_path}")
             if not model_path.exists():
-                raise FileNotFoundError(f"Local microWakeWord model not found: {model_path}")
+                raise FileNotFoundError(f"Local model not found: {model_path}")
             return model_path
-        
-        # Download the model
-        url = model_info["url"]
-        logger.info(f"Downloading {provider}/{model_id} from {url}")
+            
+        logger.info(f"Downloading {provider}/{model_id} from {model_url}")
         
         # Create parent directory
         model_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Download to temporary file first
-        temp_path = self.config.downloads_cache_dir / f"{provider}_{model_id}_downloading"
+        downloads_dir = self.config.cache_root / "downloads"
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        temp_path = downloads_dir / f"{provider}_{model_id}_downloading"
         
         try:
-            await self._download_file(url, temp_path)
+            await self._download_file(model_url, temp_path)
             
             # Handle extraction if needed
             if model_info.get("extract", False):
@@ -533,10 +531,24 @@ class AssetManager:
         return model_path.exists()
     
     def get_model_info(self, provider: str, model_id: str) -> Dict[str, Any]:
-        """Get model information from registry"""
-        if provider not in self.config.model_registry:
+        """Get model information from provider configuration (replaces model_registry)"""
+        try:
+            # Use provider asset configuration - purely configuration-driven
+            asset_config = self._get_provider_asset_config(provider)
+            model_urls = asset_config.get("model_urls", {})
+            
+            if model_id in model_urls:
+                return {
+                    "url": model_urls[model_id],
+                    "size": "unknown"  # Could be enhanced with actual file sizes later
+                }
+            
+            # No hardcoded provider checks - if no URL configured, return empty
+            # Providers will handle their own fallback logic
             return {}
-        return self.config.model_registry[provider].get(model_id, {})
+        except Exception as e:
+            logger.debug(f"Failed to get model info for {provider}/{model_id}: {e}")
+            return {}
     
     async def ensure_model_available(self, provider_name: str, model_name: str, asset_config: Dict[str, Any]) -> Optional[Path]:
         """

@@ -47,7 +47,7 @@ class OpenAILLMProvider(LLMProvider):
             logger.warning("Using legacy api_key_env config. Consider using OPENAI_API_KEY environment variable.")
             
         self.base_url = config.get("base_url", "https://api.openai.com/v1")
-        self.default_model = config.get("default_model", "gpt-4.1-mini")
+        self.default_model = config.get("default_model", "gpt-4o-mini")
         self.max_tokens = config.get("max_tokens", 150)
         self.temperature = config.get("temperature", 0.3)
     
@@ -151,9 +151,10 @@ class OpenAILLMProvider(LLMProvider):
     def get_available_models(self) -> List[str]:
         """Return list of available OpenAI models"""
         return [
-            "gpt-5", "gpt-5-mini", "gpt-5-nano",
-            "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
-            "gpt-4o", "gpt-4o-mini"
+            "gpt-5", "gpt-5-mini",
+            "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", 
+            "gpt-4o", "gpt-4o-mini",
+            "gpt-3.5-turbo"
         ]
     
     def get_supported_tasks(self) -> List[str]:

@@ -156,8 +156,12 @@ class VoskTTSProvider(TTSProvider):
                 self.model_path = downloaded_path
                 
         except Exception as e:
-            logger.error(f"Failed to download VOSK TTS model: {e}")
-            raise RuntimeError(f"VOSK TTS model not found and download failed: {self.model_path}")
+            logger.warning(f"Asset manager download failed for VOSK TTS model: {e}")
+            # Fallback: Provide helpful instructions for manual installation
+            logger.error(f"VOSK TTS model not found at {self.model_path}")
+            logger.error(f"Please download the VOSK TTS model manually and place it at: {self.model_path}")
+            logger.error(f"Download from: https://alphacephei.com/vosk/models")
+            raise RuntimeError(f"VOSK TTS model not found: {self.model_path}. Please download manually from https://alphacephei.com/vosk/models")
     
     async def warm_up(self) -> None:
         """Warm up by preloading the VOSK TTS model"""
