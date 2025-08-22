@@ -43,7 +43,10 @@ class WhisperASRProvider(ASRProvider):
         self.asset_manager = get_asset_manager()
         
         # Use asset manager for download root - unified pattern
-        self.download_root = self.asset_manager.get_model_path("whisper", "")
+        # Get the provider directory (not a specific model file)
+        asset_config = self.asset_manager._get_provider_asset_config("whisper")
+        directory_name = asset_config.get("directory_name", "whisper")
+        self.download_root = self.asset_manager.config.models_root / directory_name
             
         self.default_language = config.get("default_language", None)  # None = auto-detect
         self._model: Any = None  # Lazy-loaded Whisper model

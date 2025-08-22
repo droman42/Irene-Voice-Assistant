@@ -54,7 +54,10 @@ class SileroV3TTSProvider(TTSProvider):
         self.asset_manager = get_asset_manager()
         
         # Use asset manager for model paths - unified pattern
-        self.model_path = self.asset_manager.get_model_path("silero_v3", "")
+        # Get the provider directory (not a specific model file)
+        asset_config = self.asset_manager._get_provider_asset_config("silero_v3")
+        directory_name = asset_config.get("directory_name", "silero_v3")
+        self.model_path = self.asset_manager.config.models_root / directory_name
             
         self.model_url = config.get("model_url", "https://models.silero.ai/models/tts/ru/v3_1_ru.pt")
         self.model_file = self.model_path / config.get("model_file", "v3_ru.pt")
