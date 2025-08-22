@@ -79,7 +79,20 @@ class SystemServiceIntentHandler(IntentHandler):
     async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Execute system service intent"""
         # Use donation-driven routing exclusively
-        return await self.execute_with_donation_routing(intent, context)
+        try:
+            return await self.execute_with_donation_routing(intent, context)
+        except Exception as e:
+            logger.error(f"System service intent execution failed: {e}")
+            # Determine language for error response
+            language = self._get_language(intent, context)
+            error_text = self._get_template("general_error", language)
+            
+            return IntentResult(
+                text=error_text,
+                should_speak=True,
+                success=False,
+                error=str(e)
+            )
         
     async def _handle_service_status(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle service status request"""
@@ -90,22 +103,14 @@ class SystemServiceIntentHandler(IntentHandler):
         # Determine language
         language = self._get_language(intent, context)
         
-        if language == "ru":
-            status_text = f"""
-🔧 Статус системы:
-• Сервис: 🟢 Работает
-• Пульсы: {self._status_count}
-• Последний пульс: {self._last_heartbeat.strftime('%H:%M:%S')}
-• Время работы: {self._get_uptime()}
-            """.strip()
-        else:
-            status_text = f"""
-🔧 System Status:
-• Service: 🟢 Running
-• Heartbeats: {self._status_count}
-• Last heartbeat: {self._last_heartbeat.strftime('%H:%M:%S')}
-• Uptime: {self._get_uptime()}
-            """.strip()
+        # Format response using external template
+        status_text = self._get_template(
+            "service_status_info", 
+            language,
+            heartbeats=self._status_count,
+            last_heartbeat=self._last_heartbeat.strftime('%H:%M:%S'),
+            uptime=self._get_uptime(language)
+        )
         
         self.logger.info(f"Service status requested - heartbeat #{self._status_count}")
         
@@ -134,26 +139,12 @@ class SystemServiceIntentHandler(IntentHandler):
         # Determine language
         language = self._get_language(intent, context)
         
-        if language == "ru":
-            stats_text = f"""
-📊 Статистика сервиса:
-• Всего пульсов: {self._status_count}
-• Сервис работает: Да
-• Фоновые задачи: 1
-• Эффективность памяти: ✅ (async реализация)
-• Не блокирует: ✅ (не блокирует основной поток)
-• Использование ресурсов: Минимальное
-            """.strip()
-        else:
-            stats_text = f"""
-📊 Service Statistics:
-• Total heartbeats: {self._status_count}
-• Service running: Yes
-• Background tasks: 1
-• Memory efficient: ✅ (async implementation)
-• Non-blocking: ✅ (doesn't block main thread)
-• Resource usage: Minimal
-            """.strip()
+        # Format response using external template
+        stats_text = self._get_template(
+            "service_stats_info",
+            language,
+            total_heartbeats=self._status_count
+        )
         
         self.logger.info(f"Service statistics requested - heartbeat #{self._status_count}")
         
@@ -188,24 +179,14 @@ class SystemServiceIntentHandler(IntentHandler):
         uptime_seconds = (datetime.now() - self._start_time).total_seconds()
         health_score = min(100, int(95 + (self._status_count * 0.1)))  # Simulate improving health
         
-        if language == "ru":
-            health_text = f"""
-💚 Состояние системы:
-• Общее состояние: {health_score}% здоровый
-• Время работы: {self._get_uptime()}
-• Последняя активность: {self._last_heartbeat.strftime('%H:%M:%S')}
-• Проблемы: Не обнаружены
-• Производительность: Оптимальная
-            """.strip()
-        else:
-            health_text = f"""
-💚 System Health:
-• Overall health: {health_score}% healthy
-• Uptime: {self._get_uptime()}
-• Last activity: {self._last_heartbeat.strftime('%H:%M:%S')}
-• Issues: None detected
-• Performance: Optimal
-            """.strip()
+        # Format response using external template
+        health_text = self._get_template(
+            "service_health_info",
+            language,
+            health_score=health_score,
+            uptime=self._get_uptime(language),
+            last_activity=self._last_heartbeat.strftime('%H:%M:%S')
+        )
         
         self.logger.info(f"Service health check - score: {health_score}%")
         
@@ -225,32 +206,73 @@ class SystemServiceIntentHandler(IntentHandler):
     
 
     
-    def _get_uptime(self) -> str:
-        """Get service uptime"""
+    def _get_uptime(self, language: str = "ru") -> str:
+        """Get service uptime using external templates with language support"""
         if not self._last_heartbeat:
-            return "No heartbeats yet"
+            return self._get_template("uptime_no_heartbeats", language)
             
         # Calculate uptime based on start time
         uptime_seconds = (datetime.now() - self._start_time).total_seconds()
         
         if uptime_seconds < 60:
-            return f"{int(uptime_seconds)} seconds"
+            return self._get_template("uptime_seconds", language, seconds=int(uptime_seconds))
         elif uptime_seconds < 3600:
             minutes = int(uptime_seconds // 60)
-            return f"{minutes} minute{'s' if minutes != 1 else ''}"
+            # Handle pluralization based on language
+            if language == "ru":
+                plural_y = "ы" if minutes in [2, 3, 4] and minutes not in [12, 13, 14] else ""
+                return self._get_template("uptime_minutes", language, minutes=minutes, plural_y=plural_y)
+            else:
+                plural_s = "s" if minutes != 1 else ""
+                return self._get_template("uptime_minutes", language, minutes=minutes, plural_s=plural_s)
         else:
             hours = int(uptime_seconds // 3600)
-            return f"{hours} hour{'s' if hours != 1 else ''}"
+            # Handle pluralization based on language
+            if language == "ru":
+                plural_ov = "ов" if hours > 4 or hours == 0 or hours in [11, 12, 13, 14] else ""
+                return self._get_template("uptime_hours", language, hours=hours, plural_ov=plural_ov)
+            else:
+                plural_s = "s" if hours != 1 else ""
+                return self._get_template("uptime_hours", language, hours=hours, plural_s=plural_s)
             
     def _get_language(self, intent: Intent, context: ConversationContext) -> str:
         """Determine language from intent or context"""
         # Check intent entities first
-        if "language" in intent.entities:
+        if hasattr(intent, 'entities') and "language" in intent.entities:
             return intent.entities["language"]
         
         # Check if text contains Russian characters
-        if any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
+        if hasattr(intent, 'raw_text') and any(char in intent.raw_text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
+            return "ru"
+        elif hasattr(intent, 'text') and any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
             return "ru"
         
         # Default to Russian
         return "ru"
+    
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"SystemServiceIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - system service templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("system_service", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"SystemServiceIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/system_service/{language}/status_messages.yaml. "
+                f"This is a fatal error - all system service templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"SystemServiceIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/system_service/{language}/status_messages.yaml for correct placeholders."
+            )

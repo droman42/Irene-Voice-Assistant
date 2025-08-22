@@ -113,8 +113,12 @@ class TimerIntentHandler(IntentHandler):
                 
         except Exception as e:
             logger.error(f"Timer intent execution failed: {e}")
+            # Determine language for error response
+            language = self._get_language(intent, context)
+            error_text = self._get_template("general_error", language)
+            
             return IntentResult(
-                text="Извините, произошла ошибка при работе с таймером.",
+                text=error_text,
                 should_speak=True,
                 success=False,
                 error=str(e)
@@ -124,20 +128,64 @@ class TimerIntentHandler(IntentHandler):
         """Timer functionality is always available"""
         return True
     
+    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
+        """Determine language from intent or context"""
+        # Check intent entities first
+        if hasattr(intent, 'entities') and "language" in intent.entities:
+            return intent.entities["language"]
+        
+        # Check if text contains Russian characters
+        if hasattr(intent, 'raw_text') and any(char in intent.raw_text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
+            return "ru"
+        elif hasattr(intent, 'text') and any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
+            return "ru"
+        
+        # Default to Russian
+        return "ru"
+        
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"TimerIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - timer templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("timer", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"TimerIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/timer/{language}/status_messages.yaml. "
+                f"This is a fatal error - all timer templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"TimerIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/timer/{language}/status_messages.yaml for correct placeholders."
+            )
+    
     async def _handle_set_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle timer creation intent with fire-and-forget action execution"""
         # Extract timer parameters from intent entities or text
         duration = intent.entities.get('duration')
         unit = intent.entities.get('unit', 'seconds')
-        message = intent.entities.get('message', 'Таймер завершён!')
+        message = intent.entities.get('message', self._get_template("timer_completed_default", "ru"))
         
         # If no duration in entities, try to parse from text
         if not duration:
             duration, unit, message = self._parse_timer_from_text(intent.raw_text)
         
         if not duration:
+            language = self._get_language(intent, context)
+            error_text = self._get_template("timer_duration_parse_error", language)
             return IntentResult(
-                text="Не удалось определить время для таймера. Попробуйте сказать, например: 'поставь таймер на 5 минут'.",
+                text=error_text,
                 should_speak=True,
                 success=False
             )
@@ -161,9 +209,10 @@ class TimerIntentHandler(IntentHandler):
                 timer_id=timer_id
             )
             
-            # Format response
+            # Format response using template
+            language = self._get_language(intent, context)
             time_str = self._format_duration(duration_seconds)
-            response = f"Таймер установлен на {time_str}. Сообщение: {message}"
+            response = self._get_template("timer_set_success", language, time_str=time_str, message=message)
             
             return self.create_action_result(
                 response_text=response,
@@ -174,8 +223,10 @@ class TimerIntentHandler(IntentHandler):
             )
             
         except ValueError as e:
+            language = self._get_language(intent, context)
+            error_text = self._get_template("timer_set_error", language, error=str(e))
             return IntentResult(
-                text=f"Ошибка в настройке таймера: {e}",
+                text=error_text,
                 should_speak=True,
                 success=False
             )
@@ -195,8 +246,10 @@ class TimerIntentHandler(IntentHandler):
                             if timer['session_id'] == context.session_id]
             
             if not session_timers:
+                language = self._get_language(intent, context)
+                error_text = self._get_template("timer_no_active", language)
                 return IntentResult(
-                    text="У вас нет активных таймеров.",
+                    text=error_text,
                     should_speak=True
                 )
             
@@ -209,8 +262,10 @@ class TimerIntentHandler(IntentHandler):
                 session_id=context.session_id
             )
             
+            language = self._get_language(intent, context)
+            response_text = self._get_template("timer_cancel_all_success", language, count=len(session_timers))
             return self.create_action_result(
-                response_text=f"Отменяю {len(session_timers)} таймеров",
+                response_text=response_text,
                 action_name="cancel_all_timers",
                 domain="timers",
                 should_speak=True,
@@ -219,8 +274,10 @@ class TimerIntentHandler(IntentHandler):
         
         # Cancel specific timer with fire-and-forget action
         if timer_id not in self.active_timers:
+            language = self._get_language(intent, context)
+            error_text = self._get_template("timer_cancel_not_found", language, timer_id=timer_id)
             return IntentResult(
-                text=f"Таймер {timer_id} не найден.",
+                text=error_text,
                 should_speak=True,
                 success=False
             )
@@ -232,8 +289,10 @@ class TimerIntentHandler(IntentHandler):
             timer_id=timer_id
         )
         
+        language = self._get_language(intent, context)
+        response_text = self._get_template("timer_cancel_success", language, timer_id=timer_id)
         return self.create_action_result(
-            response_text=f"Отменяю таймер {timer_id}",
+            response_text=response_text,
             action_name=f"cancel_{timer_id}",
             domain="timers",
             should_speak=True,
@@ -250,9 +309,14 @@ class TimerIntentHandler(IntentHandler):
                             if timer['session_id'] == context.session_id]
             
             if not session_timers:
-                return self._create_success_result(
-                    text="Нет активных таймеров для остановки",
-                    should_speak=True
+                # Note: we don't have context.session_id here but we need language detection
+                # We'll use default language for stop commands
+                language = "ru"  # Default for stop commands
+                response_text = self._get_template("stop_no_timers", language)
+                return IntentResult(
+                    text=response_text,
+                    should_speak=True,
+                    success=True
                 )
             
             # Cancel all active timers for this session
@@ -264,8 +328,10 @@ class TimerIntentHandler(IntentHandler):
                 session_id=context.session_id
             )
             
+            language = "ru"  # Default for stop commands
+            response_text = self._get_template("stop_all_timers", language, count=len(session_timers))
             return self.create_action_result(
-                response_text=f"Останавливаю все таймеры ({len(session_timers)})",
+                response_text=response_text,
                 action_name="stop_all_timers",
                 domain="timers",
                 should_speak=True,
@@ -273,9 +339,12 @@ class TimerIntentHandler(IntentHandler):
             )
         
         # Not targeting timers domain
-        return self._create_success_result(
-            text="Команда остановки не относится к таймерам",
-            should_speak=False
+        language = "ru"  # Default for stop commands
+        response_text = self._get_template("stop_not_timer_domain", language)
+        return IntentResult(
+            text=response_text,
+            should_speak=False,
+            success=True
         )
     
     async def _handle_list_timers(self, intent: Intent, context: ConversationContext) -> IntentResult:
@@ -284,8 +353,10 @@ class TimerIntentHandler(IntentHandler):
                         if timer['session_id'] == context.session_id]
         
         if not session_timers:
+            language = self._get_language(intent, context)
+            response_text = self._get_template("timer_list_empty", language)
             return IntentResult(
-                text="У вас нет активных таймеров.",
+                text=response_text,
                 should_speak=True
             )
         
@@ -297,12 +368,16 @@ class TimerIntentHandler(IntentHandler):
                 timer_list.append(f"Таймер {timer_id}: {time_str} ({timer['message']})")
         
         if not timer_list:
+            language = self._get_language(intent, context)
+            response_text = self._get_template("timer_list_expired", language)
             return IntentResult(
-                text="Все ваши таймеры уже завершились.",
+                text=response_text,
                 should_speak=True
             )
         
-        response = f"Активные таймеры ({len(timer_list)}):\n" + "\n".join(timer_list)
+        language = self._get_language(intent, context)
+        timer_list_str = "\n".join(timer_list)
+        response = self._get_template("timer_list_active", language, count=len(timer_list), timer_list=timer_list_str)
         
         return IntentResult(
             text=response,
@@ -316,8 +391,10 @@ class TimerIntentHandler(IntentHandler):
                         if timer['session_id'] == context.session_id]
         
         if not session_timers:
+            language = self._get_language(intent, context)
+            response_text = self._get_template("timer_no_active", language)
             return IntentResult(
-                text="У вас нет активных таймеров.",
+                text=response_text,
                 should_speak=True
             )
         
@@ -325,12 +402,13 @@ class TimerIntentHandler(IntentHandler):
         latest_timer = max(session_timers, key=lambda x: x[1]['start_time'])
         timer_id, timer = latest_timer
         
+        language = self._get_language(intent, context)
         remaining = timer['end_time'] - datetime.now().timestamp()
         if remaining <= 0:
-            response = f"Таймер {timer_id} уже завершился."
+            response = self._get_template("timer_status_expired", language, timer_id=timer_id)
         else:
             time_str = self._format_duration(int(remaining))
-            response = f"Таймер {timer_id}: осталось {time_str}."
+            response = self._get_template("timer_status_remaining", language, timer_id=timer_id, time_str=time_str)
         
         return IntentResult(
             text=response,
@@ -376,7 +454,7 @@ class TimerIntentHandler(IntentHandler):
                 
                 return duration, unit, message
         
-        return None, 'seconds', 'Таймер завершён!'
+        return None, 'seconds', self._get_template("timer_completed_default", "ru")
     
     def _extract_timer_message(self, text: str) -> str:
         """Extract custom message from timer text"""
@@ -393,7 +471,8 @@ class TimerIntentHandler(IntentHandler):
             if match:
                 return match.group(1).strip()
         
-        return "Таймер завершён!"
+        # Use template default value
+        return self._get_template("timer_completed_default", "ru")
     
     def _convert_to_seconds(self, duration: int, unit: str) -> int:
         """Convert duration to seconds using injected configuration"""

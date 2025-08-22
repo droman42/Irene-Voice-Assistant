@@ -108,19 +108,64 @@ class TrainScheduleIntentHandler(IntentHandler):
             # Fallback to general train query
             return await self.handle_train_query(intent, context)
     
+    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
+        """Determine language from intent or context"""
+        # Check intent entities first
+        if hasattr(intent, 'entities') and "language" in intent.entities:
+            return intent.entities["language"]
+        
+        # Check if text contains Russian characters
+        if hasattr(intent, 'raw_text') and any(char in intent.raw_text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
+            return "ru"
+        elif hasattr(intent, 'text') and any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
+            return "ru"
+        
+        # Default to Russian
+        return "ru"
+        
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"TrainScheduleIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - train schedule templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("train_schedule", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"TrainScheduleIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/train_schedule/{language}/status_messages.yaml. "
+                f"This is a fatal error - all train schedule templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"TrainScheduleIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/train_schedule/{language}/status_messages.yaml for correct placeholders."
+            )
+    
     async def handle_train_query(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle train schedule and route queries - method expected by JSON donation"""
         try:
             # Check availability
             if not await self.is_available():
+                language = self._get_language(intent, context)
                 if not REQUESTS_AVAILABLE:
+                    error_text = self._get_template("missing_dependency", language)
                     return self._create_error_result(
-                        "Функция расписания поездов недоступна. Отсутствует библиотека requests.",
+                        error_text,
                         "missing_dependency"
                     )
                 else:
+                    error_text = self._get_template("missing_api_key", language)
                     return self._create_error_result(
-                        "Нужен ключ API для получения расписания",
+                        error_text,
                         "missing_api_key"
                     )
             
@@ -131,8 +176,11 @@ class TrainScheduleIntentHandler(IntentHandler):
             # Extract time parameter if provided
             time_param = self.extract_entity(intent, "time", None)
             
+            # Detect language for response formatting
+            language = self._get_language(intent, context)
+            
             # Get train schedule
-            schedule_text = await self._get_train_schedule(from_station, to_station)
+            schedule_text = await self._get_train_schedule(from_station, to_station, language)
             
             if schedule_text:
                 return self._create_success_result(
@@ -146,19 +194,23 @@ class TrainScheduleIntentHandler(IntentHandler):
                     }
                 )
             else:
+                language = self._get_language(intent, context)
+                error_text = self._get_template("schedule_unavailable", language)
                 return self._create_error_result(
-                    "Не удалось получить расписание поездов",
+                    error_text,
                     "schedule_unavailable"
                 )
         
         except Exception as e:
             logger.exception(f"Error in train schedule handler: {e}")
+            language = self._get_language(intent, context)
+            error_text = self._get_template("execution_error", language)
             return self._create_error_result(
-                "Проблемы с расписанием. Посмотрите логи",
+                error_text,
                 f"execution_error: {str(e)}"
             )
     
-    async def _get_train_schedule(self, from_station: str, to_station: str) -> Optional[str]:
+    async def _get_train_schedule(self, from_station: str, to_station: str, language: str = "ru") -> Optional[str]:
         """Get train schedule from Yandex API"""
         try:
             # Current date
@@ -176,8 +228,8 @@ class TrainScheduleIntentHandler(IntentHandler):
             if not response:
                 return None
             
-            # Parse response and format
-            return self._format_schedule_response(response, current_time)
+            # Parse response and format with language support
+            return self._format_schedule_response(response, current_time, language)
         
         except Exception as e:
             logger.exception(f"Error getting train schedule: {e}")
@@ -207,12 +259,12 @@ class TrainScheduleIntentHandler(IntentHandler):
             logger.error(f"API request failed: {e}")
             return None
     
-    def _format_schedule_response(self, data: Dict[str, Any], current_time: datetime) -> str:
-        """Format schedule data into natural language Russian text"""
+    def _format_schedule_response(self, data: Dict[str, Any], current_time: datetime, language: str = "ru") -> str:
+        """Format schedule data into natural language text"""
         try:
             segments = data.get("segments", [])
             if not segments:
-                return "Расписание не найдено"
+                return self._get_template("schedule_not_found", language)
             
             current_time_str = current_time.isoformat()
             results = []
@@ -232,22 +284,22 @@ class TrainScheduleIntentHandler(IntentHandler):
                     minutes = departure_time[14:16]
                     
                     if count == 0:
-                        results.append(f"Ближайшая электричка в {hours} {minutes}")
+                        results.append(self._get_template("next_train_first", language, hours=hours, minutes=minutes))
                     elif count == 1:
-                        results.append(f"Следующая в {hours} {minutes}")
+                        results.append(self._get_template("next_train_second", language, hours=hours, minutes=minutes))
                     elif count == 2:
-                        results.append(f"Дальше в {hours} {minutes}")
+                        results.append(self._get_template("next_train_third", language, hours=hours, minutes=minutes))
                     
                     count += 1
             
             if results:
                 return ". ".join(results) + "."
             else:
-                return "Не найдено поездов на сегодня"
+                return self._get_template("no_trains_today", language)
         
         except Exception as e:
             logger.error(f"Error formatting schedule: {e}")
-            return "Ошибка обработки расписания"
+            return self._get_template("schedule_parsing_error", language)
     
     def get_supported_domains(self) -> List[str]:
         """Get supported domains"""

@@ -1,0 +1,33 @@
+# English timer response templates for TimerIntentHandler
+# Extracted from hardcoded strings in timer.py
+
+# Timer creation responses
+timer_set_success: "Timer set for {time_str}. Message: {message}"
+timer_set_error: "Timer setup error: {error}"
+timer_duration_parse_error: "Could not determine timer duration. Try saying, for example: 'set timer for 5 minutes'."
+
+# Timer cancellation responses
+timer_cancel_success: "Cancelling timer {timer_id}"
+timer_cancel_all_success: "Cancelling {count} timers"
+timer_cancel_not_found: "Timer {timer_id} not found."
+timer_no_active: "You have no active timers."
+
+# Timer listing responses
+timer_list_active: "Active timers ({count}):\n{timer_list}"
+timer_list_empty: "You have no active timers."
+timer_list_expired: "All your timers have already expired."
+
+# Timer status responses
+timer_status_remaining: "Timer {timer_id}: {time_str} remaining."
+timer_status_expired: "Timer {timer_id} has already expired."
+
+# Stop command responses
+stop_all_timers: "Stopping all timers ({count})"
+stop_no_timers: "No active timers to stop"
+stop_not_timer_domain: "Stop command does not relate to timers"
+
+# General error responses
+general_error: "Sorry, an error occurred while working with the timer."
+
+# Timer completion notification
+timer_completed_default: "Timer completed!"
