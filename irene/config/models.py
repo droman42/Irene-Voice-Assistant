@@ -301,6 +301,110 @@ class RandomHandlerConfig(BaseModel):
     default_dice_sides: int = Field(default=6, ge=2, le=100, description="Default number of dice sides")
 
 
+class DateTimeHandlerConfig(BaseModel):
+    """Configuration for datetime intent handler"""
+    timezone: Optional[str] = Field(default=None, description="Default timezone (None = system timezone)")
+    date_format: str = Field(default="%Y-%m-%d", description="Default date format")
+    time_format: str = Field(default="%H:%M:%S", description="Default time format")
+
+
+class GreetingsHandlerConfig(BaseModel):
+    """Configuration for greetings intent handler"""
+    personalized: bool = Field(default=True, description="Use personalized greetings")
+    context_aware: bool = Field(default=True, description="Consider time of day for greetings")
+
+
+class SystemHandlerConfig(BaseModel):
+    """Configuration for system intent handler"""
+    allow_shutdown: bool = Field(default=False, description="Allow system shutdown commands")
+    allow_restart: bool = Field(default=False, description="Allow system restart commands")
+    info_detail_level: str = Field(default="basic", description="Level of system info to provide (basic/detailed)")
+
+
+class IntentHandlerListConfig(BaseModel):
+    """Intent handler enable/disable configuration"""
+    enabled: List[str] = Field(
+        default_factory=lambda: ["conversation", "greetings", "timer", "datetime", "system"],
+        description="List of enabled intent handlers"
+    )
+    disabled: List[str] = Field(
+        default_factory=list,
+        description="List of explicitly disabled intent handlers (takes precedence)"
+    )
+    auto_discover: bool = Field(default=True, description="Automatically discover available handlers")
+    discovery_paths: List[str] = Field(
+        default_factory=lambda: ["irene.intents.handlers"],
+        description="Entry-point paths for handler discovery"
+    )
+    
+    # Asset validation configuration (moved from manager)
+    asset_validation: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "strict_mode": True,
+            "validate_method_existence": True,
+            "validate_spacy_patterns": False,
+            "validate_json_schema": True
+        },
+        description="Asset validation configuration"
+    )
+    
+    @field_validator('enabled')
+    @classmethod
+    def validate_enabled_handlers(cls, v):
+        """Validate enabled handlers list"""
+        if not v:
+            raise ValueError("At least one intent handler must be enabled")
+        
+        # Check for invalid handler names (basic validation)
+        invalid_chars = set()
+        for handler in v:
+            if not isinstance(handler, str):
+                raise ValueError(f"Handler name must be string, got {type(handler)}: {handler}")
+            if not handler.strip():
+                raise ValueError("Handler name cannot be empty or whitespace")
+            # Check for potentially problematic characters
+            if any(char in handler for char in ['/', '\\', '..']):
+                invalid_chars.add(handler)
+        
+        if invalid_chars:
+            raise ValueError(f"Invalid characters in handler names: {invalid_chars}")
+        
+        return v
+    
+    @field_validator('disabled')
+    @classmethod
+    def validate_disabled_handlers(cls, v):
+        """Validate disabled handlers list"""
+        # Check for invalid handler names
+        for handler in v:
+            if not isinstance(handler, str):
+                raise ValueError(f"Disabled handler name must be string, got {type(handler)}: {handler}")
+            if not handler.strip():
+                raise ValueError("Disabled handler name cannot be empty or whitespace")
+        
+        return v
+    
+    @model_validator(mode='after')
+    def validate_enabled_disabled_consistency(self):
+        """Validate consistency between enabled and disabled lists"""
+        # Check for overlaps
+        enabled_set = set(self.enabled)
+        disabled_set = set(self.disabled)
+        
+        overlap = enabled_set & disabled_set
+        if overlap:
+            raise ValueError(f"Handlers cannot be both enabled and disabled: {overlap}")
+        
+        # Warn about redundant disabled entries
+        if disabled_set and not overlap:
+            redundant = disabled_set - enabled_set
+            if redundant:
+                # Note: This is a warning, not an error, so we'll log it during validation
+                pass
+        
+        return self
+
+
 class IntentSystemConfig(BaseModel):
     """Intent system component configuration"""
     enabled: bool = Field(default=True, description="Enable intent system component")
@@ -314,13 +418,8 @@ class IntentSystemConfig(BaseModel):
         default="conversation.general",
         description="Fallback intent when recognition fails"
     )
-    handlers: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "enabled": ["conversation", "greetings", "timer", "datetime", "system"],
-            "disabled": ["train_schedule"],
-            "auto_discover": True,
-            "discovery_paths": ["irene.intents.handlers"]
-        },
+    handlers: IntentHandlerListConfig = Field(
+        default_factory=IntentHandlerListConfig,
         description="Intent handler configuration"
     )
     
@@ -341,6 +440,18 @@ class IntentSystemConfig(BaseModel):
         default_factory=RandomHandlerConfig,
         description="Random handler configuration"
     )
+    datetime: DateTimeHandlerConfig = Field(
+        default_factory=DateTimeHandlerConfig,
+        description="DateTime handler configuration"
+    )
+    greetings: GreetingsHandlerConfig = Field(
+        default_factory=GreetingsHandlerConfig,
+        description="Greetings handler configuration"
+    )
+    system: SystemHandlerConfig = Field(
+        default_factory=SystemHandlerConfig,
+        description="System handler configuration"
+    )
     
     @model_validator(mode='after')
     def validate_handler_configurations(self):
@@ -348,16 +459,58 @@ class IntentSystemConfig(BaseModel):
         if not self.enabled:
             return self
         
-        # Get enabled handlers list
-        enabled_handlers = self.handlers.get("enabled", []) if isinstance(self.handlers, dict) else []
+        # Get enabled handlers list (considering disabled takes precedence)
+        enabled_handlers = [h for h in self.handlers.enabled if h not in self.handlers.disabled]
+        
+        # Validate we have at least one enabled handler
+        if not enabled_handlers:
+            raise ValueError("At least one intent handler must remain enabled after applying disabled list")
         
         # Validate that each enabled handler has proper configuration
         handler_config_mapping = {
             "conversation": self.conversation,
             "train_schedule": self.train_schedule,
             "timer": self.timer,
-            "random_handler": self.random_handler
+            "random_handler": self.random_handler,
+            "datetime": self.datetime,
+            "greetings": self.greetings,
+            "system": self.system
         }
+        
+        # Check for enabled handlers without configurations
+        missing_configs = []
+        for handler_name in enabled_handlers:
+            if handler_name not in handler_config_mapping:
+                missing_configs.append(handler_name)
+        
+        if missing_configs:
+            raise ValueError(f"Enabled handlers missing configuration classes: {missing_configs}. "
+                           f"Please add configuration classes for these handlers in IntentSystemConfig.")
+        
+        # Check for orphaned configurations (configurations for disabled handlers)
+        final_disabled = set(self.handlers.disabled)
+        final_enabled = set(enabled_handlers)
+        orphaned_configs = []
+        
+        for handler_name in handler_config_mapping.keys():
+            if handler_name in final_disabled and handler_name not in final_enabled:
+                orphaned_configs.append(handler_name)
+        
+        # Log warning about orphaned configs (not an error)
+        if orphaned_configs:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Configuration exists for disabled handlers: {orphaned_configs}. "
+                         f"These configurations will be ignored.")
+        
+        # Validate fallback intent format
+        if not self.fallback_intent or '.' not in self.fallback_intent:
+            raise ValueError("fallback_intent must be in format 'handler.action' (e.g., 'conversation.general')")
+        
+        fallback_handler = self.fallback_intent.split('.')[0]
+        if fallback_handler not in enabled_handlers:
+            raise ValueError(f"Fallback intent handler '{fallback_handler}' is not enabled. "
+                           f"Enabled handlers: {enabled_handlers}")
         
         for handler_name in enabled_handlers:
             if handler_name in handler_config_mapping:

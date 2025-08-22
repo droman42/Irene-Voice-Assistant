@@ -499,8 +499,8 @@ class V13ToV14Migrator:
     def _migrate_intent_handlers(self, v13_intents: Dict[str, Any]) -> Dict[str, Any]:
         """Migrate intent handler configuration"""
         handlers_config = {
-            "enabled": ["conversation", "greetings", "timer", "datetime", "system"],
-            "disabled": ["train_schedule"],
+            "enabled": [],  # Will be populated from existing config or defaults
+            "disabled": [],
             "auto_discover": True,
             "discovery_paths": ["irene.intents.handlers"]
         }

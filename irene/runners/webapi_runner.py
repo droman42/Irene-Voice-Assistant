@@ -636,11 +636,16 @@ class WebAPIRunner:
             async def get_intent_handlers():
                 """Get available intent handlers"""
                 try:
-                    # This would integrate with the intent registry
-                    # For now, return basic information
-                    handlers = [
-                        "conversation", "greetings", "timer", "datetime", "system"
-                    ]
+                    # Get actual enabled handlers from intent component
+                    handlers = []
+                    if self.core and hasattr(self.core, 'components') and 'intent_system' in self.core.components:
+                        intent_component = self.core.components['intent_system']
+                        if hasattr(intent_component, 'handler_manager') and intent_component.handler_manager:
+                            handlers = list(intent_component.handler_manager.get_handlers().keys())
+                    
+                    # Fallback if intent system not available
+                    if not handlers:
+                        handlers = ["intent_system_not_initialized"]
                     
                     return {
                         "handlers": handlers,
@@ -658,7 +663,7 @@ class WebAPIRunner:
                     capabilities = {
                         "version": "13.0.0",
                         "components": {},
-                        "intent_handlers": ["conversation", "greetings", "timer"],
+                        "intent_handlers": [],
                         "nlu_providers": ["hybrid_keyword_matcher", "spacy_nlu"],
                         "voice_trigger_providers": ["openwakeword"],
                         "text_processing_providers": ["unified", "number"],

@@ -45,26 +45,30 @@ class IntentComponent(Component, WebAPIPlugin):
         # Get intent system configuration (Phase 5: Use proper Pydantic IntentSystemConfig)
         intent_config = getattr(core.config, 'intent_system', None)
         
-        # Default configuration if not provided (fallback for non-Pydantic configs)
+        # Configuration must be provided - no fallback defaults
         if not intent_config:
-            intent_config = {
-                "enabled": True,
-                "handlers": {
-                    "enabled": ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"],
-                    "disabled": [],  # Phase 6: Enable all handlers by default with donation support
-                    "auto_discover": True
-                }
-            }
+            raise ValueError("IntentComponent requires configuration from CoreConfig.intent_system")
         
         self._config = intent_config
         
         # Initialize intent handler manager (Phase 5: Pass full intent system config)
         self.handler_manager = IntentHandlerManager()
-        # Handle both dict and Pydantic config objects
+        # Extract handler configuration from IntentSystemConfig
         if isinstance(intent_config, dict):
             handler_config = intent_config.get("handlers", {})
         else:
-            handler_config = getattr(intent_config, "handlers", {})
+            # For Pydantic IntentSystemConfig, convert IntentHandlerListConfig to dict
+            handlers_obj = getattr(intent_config, "handlers", None)
+            if handlers_obj:
+                handler_config = {
+                    "enabled": handlers_obj.enabled,
+                    "disabled": handlers_obj.disabled,
+                    "auto_discover": handlers_obj.auto_discover,
+                    "discovery_paths": handlers_obj.discovery_paths,
+                    "asset_validation": handlers_obj.asset_validation
+                }
+            else:
+                handler_config = {}
         
         # Phase 5: Pass full intent system config for handler-specific configurations
         await self.handler_manager.initialize(handler_config, intent_system_config=intent_config)
@@ -76,11 +80,96 @@ class IntentComponent(Component, WebAPIPlugin):
         # Inject component dependencies into handlers
         await self._inject_handler_dependencies(core)
         
+        # Validate initialization results
+        await self._validate_initialization_results()
+        
         # Log initialization status  
         handlers = self.handler_manager.get_handlers()
         donations = self.handler_manager.get_donations()
         logger.info(f"Intent component initialized with {len(handlers)} handlers: {list(handlers.keys())}")
         logger.info(f"Loaded {len(donations)} JSON donations for donation-driven execution")
+        
+    def get_enabled_handler_names(self) -> List[str]:
+        """
+        Get list of enabled intent handler names.
+        
+        Returns:
+            List of enabled handler names
+        """
+        if self.handler_manager:
+            return list(self.handler_manager.get_handlers().keys())
+        return []
+    
+    def get_enabled_handler_donations(self) -> Dict[str, Any]:
+        """
+        Get donations for enabled intent handlers.
+        
+        Returns:
+            Dictionary of handler donations
+        """
+        if self.handler_manager:
+            return self.handler_manager.get_donations()
+        return {}
+    
+    async def _validate_initialization_results(self) -> None:
+        """
+        Validate that initialization completed successfully with comprehensive checks.
+        """
+        try:
+            # Check that handler manager was created
+            if not self.handler_manager:
+                raise RuntimeError("IntentHandlerManager was not initialized")
+            
+            # Check that registry and orchestrator were created
+            if not self.intent_registry:
+                raise RuntimeError("Intent registry was not initialized")
+            
+            if not self.intent_orchestrator:
+                raise RuntimeError("Intent orchestrator was not initialized")
+            
+            # Get enabled handlers from configuration
+            if isinstance(self._config, dict):
+                enabled_config = self._config.get("handlers", {}).get("enabled", [])
+                disabled_config = self._config.get("handlers", {}).get("disabled", [])
+            else:
+                enabled_config = self._config.handlers.enabled
+                disabled_config = self._config.handlers.disabled
+            
+            expected_handlers = [h for h in enabled_config if h not in disabled_config]
+            
+            # Check that expected handlers were loaded
+            actual_handlers = self.get_enabled_handler_names()
+            
+            if not actual_handlers:
+                raise RuntimeError("No intent handlers were successfully loaded")
+            
+            missing_handlers = set(expected_handlers) - set(actual_handlers)
+            if missing_handlers:
+                logger.error(f"Expected handlers not loaded: {missing_handlers}")
+                logger.error(f"Configuration enabled: {enabled_config}")
+                logger.error(f"Configuration disabled: {disabled_config}")
+                logger.error(f"Actually loaded: {actual_handlers}")
+                raise RuntimeError(f"Critical intent handlers failed to load: {missing_handlers}")
+            
+            # Check that donations were loaded
+            donations = self.get_enabled_handler_donations()
+            if not donations:
+                raise RuntimeError("No intent handler donations were loaded")
+            
+            missing_donations = set(actual_handlers) - set(donations.keys())
+            if missing_donations:
+                logger.warning(f"Handlers missing donations: {missing_donations}")
+                # This is a warning, not a fatal error
+            
+            # Validate registry has patterns
+            if hasattr(self.intent_registry, 'handlers') and not self.intent_registry.handlers:
+                logger.warning("Intent registry has no registered handlers")
+            
+            logger.info("✅ Intent component initialization validation passed")
+            
+        except Exception as e:
+            logger.error(f"❌ Intent component initialization validation failed: {e}")
+            raise RuntimeError(f"Intent component failed validation: {e}")
         
     async def shutdown(self) -> None:
         """Shutdown the intent system"""
@@ -284,7 +373,7 @@ class IntentComponent(Component, WebAPIPlugin):
                         "enabled": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "default": ["conversation", "greetings", "timer", "datetime", "system", "train_schedule"]
+                            "default": []
                         },
                         "disabled": {
                             "type": "array", 

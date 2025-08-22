@@ -234,6 +234,9 @@ class ComponentManager:
         # Initialize components in dependency order
         await self._initialize_components_with_dependency_injection(core, initialization_order, available_components)
         
+        # Post-initialization coordination (Phase 2: Donation coordination)
+        await self._post_initialize_coordination()
+        
         self._initialized = True
         
         # Log deployment profile and status
@@ -279,6 +282,30 @@ class ComponentManager:
             except Exception as e:
                 # Advanced graceful degradation
                 await self._handle_component_failure(component_name, e, initialization_order)
+    
+    async def _post_initialize_coordination(self) -> None:
+        """
+        Handle post-initialization coordination between components.
+        
+        This method is called after all components are initialized to handle
+        cross-component coordination that requires all components to be available.
+        """
+        logger.info("Starting post-initialization coordination...")
+        
+        # Coordinate NLU and Intent components for donation loading (Phase 2)
+        nlu_component = self._components.get('nlu')
+        if nlu_component and hasattr(nlu_component, 'post_initialize_coordination'):
+            try:
+                await nlu_component.post_initialize_coordination()
+                logger.info("✅ NLU post-initialization coordination completed")
+            except Exception as e:
+                logger.error(f"❌ NLU post-initialization coordination failed: {e}")
+                # Don't fail the entire system for coordination issues
+                logger.warning("Continuing with NLU fallback patterns")
+        
+        # Future: Add other component coordination here as needed
+        
+        logger.info("Post-initialization coordination completed")
     
     async def _inject_component_dependencies(self, component: Component) -> None:
         """Inject component dependencies"""

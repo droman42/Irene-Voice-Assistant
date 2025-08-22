@@ -302,8 +302,23 @@ class NLUComponent(Component, WebAPIPlugin):
         # Initialize context processor
         logger.info("Context-aware NLU processor initialized")
         
-        # Initialize providers with JSON donations (Phase 2 integration)
-        await self.initialize_providers_from_json_donations()
+        # Note: Donation initialization is deferred to ensure proper coordination with Intent component
+        # It will be triggered after all components are initialized via post_initialize_coordination()
+    
+    async def post_initialize_coordination(self) -> None:
+        """
+        Post-initialization coordination with other components.
+        
+        This method is called after all components are initialized to ensure
+        proper coordination between NLU and Intent components for donation loading.
+        """
+        try:
+            logger.info("Starting NLU post-initialization coordination for donation loading...")
+            await self.initialize_providers_from_json_donations()
+            logger.info("NLU post-initialization coordination completed successfully")
+        except Exception as e:
+            logger.error(f"Failed during NLU post-initialization coordination: {e}")
+            raise
     
     @property
     def name(self) -> str:
@@ -338,41 +353,60 @@ class NLUComponent(Component, WebAPIPlugin):
 
     def get_component_dependencies(self) -> List[str]:
         """Get list of required component dependencies."""
-        return ["text_processor"]  # NLU needs processed text
+        return ["intent_system"]  # NLU needs intent_system for donation coordination
     
     def get_service_dependencies(self) -> Dict[str, type]:
         """Get list of required service dependencies."""
         return {}  # No service dependencies
     
-    async def initialize_providers_from_json_donations(self) -> None:
+    async def initialize_providers_from_json_donations(self, enabled_handler_names: Optional[List[str]] = None) -> None:
         """
-        Initialize NLU providers with JSON donation patterns.
+        Initialize NLU providers with JSON donation patterns for enabled intent handlers only.
         
-        This is the critical bridge between the JSON donation system (Phase 0)
-        and the NLU provider coordination (Phase 2).
+        This method coordinates with the IntentComponent to get donations that have already been
+        loaded for enabled intent handlers, avoiding duplicate loading and ensuring consistency.
+        
+        Args:
+            enabled_handler_names: List of enabled handler names. If None, will get from IntentComponent.
         """
         try:
-            # Import unified asset loader
-            from ..core.intent_asset_loader import IntentAssetLoader, AssetLoaderConfig
-            from pathlib import Path
+            # Try to get donations directly from IntentComponent (preferred approach)
+            intent_component = self.get_dependency('intent_system')
+            donations = None
             
-            logger.info("Loading JSON donations for NLU provider initialization...")
+            if intent_component and hasattr(intent_component, 'get_enabled_handler_donations'):
+                donations = intent_component.get_enabled_handler_donations()
+                enabled_handlers = intent_component.get_enabled_handler_names()
+                logger.info(f"Using shared donations from IntentComponent for handlers: {enabled_handlers}")
             
-            # Initialize asset loader with strict validation
-            asset_config = AssetLoaderConfig(strict_mode=True)
-            assets_root = Path("assets")
-            asset_loader = IntentAssetLoader(assets_root, asset_config)
-            
-            # Discover handler files and load all assets
-            handler_dir = Path("irene/intents/handlers")
-            handler_paths = self._discover_handler_files(handler_dir)
-            handler_names = [path.stem for path in handler_paths]
-            
-            # Load all assets (donations, templates, prompts, localizations)
-            await asset_loader.load_all_assets(handler_names)
-            
-            # Get donations from the unified loader
-            donations = asset_loader.donations
+            # Fallback: Load donations independently if IntentComponent not available
+            if not donations:
+                logger.warning("IntentComponent donations not available - loading independently")
+                
+                # Get enabled handler names
+                if enabled_handler_names is None:
+                    enabled_handler_names = await self._get_enabled_handler_names()
+                
+                if not enabled_handler_names:
+                    logger.warning("No enabled intent handlers found - NLU providers will not be initialized with donations")
+                    return
+                
+                logger.info(f"Loading JSON donations independently for enabled handlers: {enabled_handler_names}")
+                
+                # Import unified asset loader
+                from ..core.intent_asset_loader import IntentAssetLoader, AssetLoaderConfig
+                from pathlib import Path
+                
+                # Initialize asset loader with strict validation
+                asset_config = AssetLoaderConfig(strict_mode=True)
+                assets_root = Path("assets")
+                asset_loader = IntentAssetLoader(assets_root, asset_config)
+                
+                # Load assets only for enabled handlers
+                await asset_loader.load_all_assets(enabled_handler_names)
+                
+                # Get donations from the unified loader
+                donations = asset_loader.donations
             
             if not donations:
                 logger.warning("No JSON donations found - providers will use fallback patterns")
@@ -381,7 +415,16 @@ class NLUComponent(Component, WebAPIPlugin):
             logger.info(f"Loaded {len(donations)} JSON donations for NLU providers")
             
             # Convert donations to keyword format for providers
-            keyword_donations = asset_loader.convert_to_keyword_donations()
+            if intent_component and hasattr(intent_component, 'get_enabled_handler_donations'):
+                # Use the conversion method from the shared asset loader
+                if hasattr(intent_component.handler_manager, '_asset_loader'):
+                    keyword_donations = intent_component.handler_manager._asset_loader.convert_to_keyword_donations()
+                else:
+                    # Fallback conversion
+                    keyword_donations = self._convert_json_to_keyword_donations(donations)
+            else:
+                # Independent loading path
+                keyword_donations = asset_loader.convert_to_keyword_donations()
             
             # Initialize each provider with donations
             failed_providers = []
@@ -411,6 +454,74 @@ class NLUComponent(Component, WebAPIPlugin):
             # Phase 4: No fallback patterns - this is a critical failure
             raise RuntimeError(f"NLU Component: JSON donation system failed to initialize: {e}. "
                              "Cannot operate without valid donations.")
+    
+    async def _get_enabled_handler_names(self) -> List[str]:
+        """
+        Get enabled handler names from the IntentComponent with comprehensive error handling.
+        
+        Returns:
+            List of enabled intent handler names
+        """
+        try:
+            # Access the intent component through dependency injection
+            intent_component = self.get_dependency('intent_system')
+            if not intent_component:
+                logger.warning("IntentComponent not available via dependency injection - falling back to discovery")
+                return await self._discover_all_handler_names()
+            
+            # Validate intent component state
+            if not hasattr(intent_component, 'handler_manager'):
+                logger.error("IntentComponent missing handler_manager attribute")
+                return await self._discover_all_handler_names()
+            
+            if not intent_component.handler_manager:
+                logger.error("IntentComponent handler_manager is None")
+                return await self._discover_all_handler_names()
+            
+            # Get enabled handlers from the intent component's handler manager
+            try:
+                enabled_handlers = list(intent_component.handler_manager.get_handlers().keys())
+                
+                # Validate result
+                if not enabled_handlers:
+                    logger.warning("IntentComponent returned empty enabled handlers list")
+                    return await self._discover_all_handler_names()
+                
+                # Validate handler names
+                invalid_handlers = [h for h in enabled_handlers if not isinstance(h, str) or not h.strip()]
+                if invalid_handlers:
+                    logger.error(f"Invalid handler names from IntentComponent: {invalid_handlers}")
+                    return await self._discover_all_handler_names()
+                
+                logger.info(f"Successfully retrieved {len(enabled_handlers)} enabled handlers from IntentComponent: {enabled_handlers}")
+                return enabled_handlers
+                
+            except Exception as e:
+                logger.error(f"Error calling IntentComponent.handler_manager.get_handlers(): {e}")
+                return await self._discover_all_handler_names()
+                
+        except Exception as e:
+            logger.error(f"Unexpected error getting enabled handlers from IntentComponent: {e}")
+            logger.warning("Falling back to discovering all handler names")
+            return await self._discover_all_handler_names()
+    
+    async def _discover_all_handler_names(self) -> List[str]:
+        """
+        Fallback method to discover all available handler names.
+        
+        Returns:
+            List of all discovered handler names
+        """
+        try:
+            from pathlib import Path
+            handler_dir = Path("irene/intents/handlers")
+            handler_paths = self._discover_handler_files(handler_dir)
+            handler_names = [path.stem for path in handler_paths]
+            logger.info(f"Discovered all available handlers as fallback: {handler_names}")
+            return handler_names
+        except Exception as e:
+            logger.error(f"Failed to discover handler names: {e}")
+            return []
     
     def _convert_json_to_keyword_donations(self, donations: Dict[str, Any]) -> List[Any]:
         """

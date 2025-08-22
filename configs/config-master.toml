@@ -382,6 +382,13 @@ disabled = ["train_schedule"]       # Disabled handlers
 auto_discover = true               # Automatically discover handlers
 discovery_paths = ["irene.intents.handlers"]  # Entry-point discovery paths
 
+# Asset validation configuration
+[intent_system.handlers.asset_validation]
+strict_mode = true                 # Enable strict validation mode
+validate_method_existence = true   # Validate handler methods exist
+validate_spacy_patterns = false    # Validate spaCy patterns (disabled for runtime validation)
+validate_json_schema = true        # Validate JSON schema compliance
+
 # Specific handler configurations
 [intent_system.handlers.conversation]
 session_timeout = 1800             # Session timeout in seconds (30 minutes)
@@ -404,6 +411,20 @@ max_seconds = 86400                # Maximum timer duration in seconds (24 hours
 default_max_number = 100           # Default maximum for random numbers
 max_range_size = 1000000           # Maximum allowed range size
 default_dice_sides = 6             # Default number of dice sides
+
+[intent_system.handlers.datetime]
+timezone = ""                      # Default timezone (empty = system timezone)
+date_format = "%Y-%m-%d"           # Default date format
+time_format = "%H:%M:%S"           # Default time format
+
+[intent_system.handlers.greetings]
+personalized = true                # Use personalized greetings
+context_aware = true               # Consider time of day for greetings
+
+[intent_system.handlers.system]
+allow_shutdown = false             # Allow system shutdown commands
+allow_restart = false              # Allow system restart commands
+info_detail_level = "basic"        # Level of system info to provide (basic/detailed)
 
 # ============================================================
 # WORKFLOWS - Processing Pipelines (Two-Level Configuration)
