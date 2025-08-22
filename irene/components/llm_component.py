@@ -202,14 +202,24 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
         
         Args:
             messages: List of message dicts with 'role' and 'content' keys
-            model: Model name (optional, uses provider default)
+            model: Model name (optional, uses provider default). Can be in format "provider/model"
             provider: Provider name (optional, uses default provider)
             **kwargs: Additional parameters
             
         Returns:
             Generated response text
         """
-        provider_name = provider or self.default_provider
+        # Parse provider/model format if present
+        if model and "/" in model and not provider:
+            provider_name, model_name = model.split("/", 1)
+            if provider_name not in self.providers:
+                logger.warning(f"Provider '{provider_name}' from model spec '{model}' not available, using default")
+                provider_name = self.default_provider
+                model_name = model  # Use full original model string as fallback
+            else:
+                model = model_name  # Use just the model part for the provider
+        else:
+            provider_name = provider or self.default_provider
         
         if provider_name not in self.providers:
             raise ValueError(f"LLM provider '{provider_name}' not available")

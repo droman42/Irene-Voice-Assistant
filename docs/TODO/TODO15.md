@@ -4,238 +4,315 @@
 
 This TODO covers the refactoring of hardcoded response templates, LLM prompts, and configuration values found during Phase 3.5 pattern analysis. These patterns are **NOT** part of the JSON donation system (which focuses on NLU recognition patterns) but require separate refactoring approaches.
 
-## Scope: ~150 Non-NLU Hardcoded Patterns
+## Scope: ~200+ Non-NLU Hardcoded Patterns Across 15 Intent Handlers
 
-### Phase 3.5B Findings - Patterns NOT for JSON Donations:
-- **LLM System Prompts**: Hardcoded conversation prompts and templates
-- **Response Templates**: Greeting messages, error responses, status text
-- **Configuration Values**: Timeouts, models, version info, default settings
-- **Localization Data**: Language-specific formatting arrays for output generation
+### Pattern Categories (MECE Classification):
+1. **LLM System Prompts**: Hardcoded conversation prompts and templates (1 handler)
+2. **Response Templates**: Greeting messages, error responses, status text (8 handlers)
+3. **Configuration Constants**: Timeouts, limits, API settings (4 handlers)
+4. **Localization Data**: Language-specific formatting arrays (3 handlers)
+5. **Asset Migration**: JSON donation files and schema relocation (all handlers)
 
-## Handler-Specific Refactoring Tasks
+## Handler Classification by Pattern Type
 
-### 1. ConversationIntentHandler - LLM Prompt Externalization
+### Category A: Configuration-Driven Handlers (Require Pydantic Models)
+These handlers have configurable parameters that need TOML configuration and Pydantic validation.
 
-**Current Hardcoded Prompts (Lines 68-70):**
+#### A1. ConversationIntentHandler - LLM Prompts + Configuration
+**Current Issues:**
 ```python
+# Hardcoded prompts (Lines 68-70)
 self.config = {
-    "chat_system_prompt": "Ты - Ирина, голосовой помощник, помогающий человеку. Давай ответы кратко и по существу.",
-    "reference_system_prompt": "Ты помощник для получения точных фактов. Отвечай максимально кратко и точно на русском языке.",
-    "reference_prompt_template": "Вопрос: {0}. Ответь на русском языке максимально кратко - только запрошенные данные.",
-    # ... other config
+    "chat_system_prompt": "Ты - Ирина, голосовой помощник...",
+    "reference_system_prompt": "Ты помощник для получения точных фактов...",
+    "session_timeout": 1800, "max_sessions": 50, "max_context_length": 10
 }
 ```
 
-**TODO Tasks:**
-- [ ] Create `prompts/conversation/` directory structure
-- [ ] Extract prompts to external files:
-  - `prompts/conversation/chat_system.txt`
-  - `prompts/conversation/reference_system.txt` 
-  - `prompts/conversation/reference_template.txt`
-- [ ] Implement prompt loading system with fallback to defaults
-- [ ] Support multiple languages: `prompts/conversation/ru/`, `prompts/conversation/en/`
-- [ ] Add prompt validation and error handling
-- [ ] Update configuration schema to reference prompt files
+**Required Pydantic Model:**
+```python
+class ConversationHandlerConfig(BaseModel):
+    session_timeout: int = Field(default=1800, ge=60, description="Session timeout in seconds")
+    max_sessions: int = Field(default=50, ge=1, le=1000, description="Maximum concurrent sessions")
+    max_context_length: int = Field(default=10, ge=1, le=100, description="Maximum conversation context length")
+    default_conversation_confidence: float = Field(default=0.6, ge=0.0, le=1.0, description="Default confidence threshold")
+```
 
-**Priority**: High (LLM integration critical)
+**Priority**: High (LLM integration + configuration critical)
 
-### 2. GreetingsIntentHandler - Response Template System
+#### A2. TrainScheduleIntentHandler - API Configuration
+**Current Issues:**
+```python
+# Already uses config.get() but lacks validation (Lines 47-49, 187)
+self.api_key = self.config.get("api_key", "")
+self.default_from_station = self.config.get("from_station", "s9600681")
+self.max_results = self.config.get("max_results", 3)
+response = requests.get(url, params=params, timeout=10)  # Hardcoded timeout
+```
 
-**Current Hardcoded Templates (Lines 33-102):**
+**Required Pydantic Model:**
+```python
+class TrainScheduleHandlerConfig(BaseModel):
+    api_key: str = Field(default="", description="Yandex Schedules API key")
+    from_station: str = Field(default="s9600681", description="Default departure station ID")
+    to_station: str = Field(default="s2000002", description="Default destination station ID")
+    max_results: int = Field(default=3, ge=1, le=20, description="Maximum schedule results")
+    request_timeout: int = Field(default=10, ge=1, le=60, description="API request timeout in seconds")
+```
+
+**Priority**: Medium (existing config usage, needs proper model)
+
+#### A3. TimerIntentHandler - Time Limits and Multipliers
+**Current Issues:**
+```python
+# Hardcoded constants (Lines 383-396)
+unit_multipliers = {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400}
+if total_seconds < 1: raise ValueError("Время таймера слишком мало")
+if total_seconds > 86400: raise ValueError("Время таймера слишком велико")
+```
+
+**Required Pydantic Model:**
+```python
+class TimerHandlerConfig(BaseModel):
+    min_seconds: int = Field(default=1, ge=1, description="Minimum timer duration in seconds")
+    max_seconds: int = Field(default=86400, ge=1, description="Maximum timer duration in seconds")
+    unit_multipliers: Dict[str, int] = Field(default={'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400})
+```
+
+**Priority**: Medium (affects timer functionality limits)
+
+#### A4. RandomIntentHandler - Number Generation Limits
+**Current Issues:**
+```python
+# Hardcoded limits (Lines 185, 321-326)
+max_val = intent.entities.get("max", 100)  # Default max of 100
+if abs(max_val - min_val) > 1000000: raise ValueError("Range too large")
+```
+
+**Required Pydantic Model:**
+```python
+class RandomHandlerConfig(BaseModel):
+    default_max_number: int = Field(default=100, ge=1, description="Default maximum for random numbers")
+    max_range_size: int = Field(default=1000000, ge=1, description="Maximum allowed range size")
+    default_dice_sides: int = Field(default=6, ge=2, le=100, description="Default number of dice sides")
+```
+
+**Priority**: Low (entertainment functionality)
+
+### Category B: Template-Only Handlers (No Configuration Needed)
+These handlers only have hardcoded response templates and require template externalization.
+
+#### B1. GreetingsIntentHandler - Static Response Arrays
 ```python
 self.greetings_ru = [10 hardcoded responses]
-self.greetings_en = [10 hardcoded responses]  
 self.farewells_ru = [10 hardcoded responses]
-self.farewells_en = [10 hardcoded responses]
 self.welcome_messages_ru = [5 hardcoded responses]
-self.welcome_messages_en = [5 hardcoded responses]
 ```
+**Priority**: Medium (user-facing)
 
-**TODO Tasks:**
-- [ ] Create `templates/greetings/` directory structure
-- [ ] Extract templates to YAML/JSON files:
-  - `templates/greetings/ru/greetings.yaml`
-  - `templates/greetings/ru/farewells.yaml`
-  - `templates/greetings/ru/welcomes.yaml`
-  - `templates/greetings/en/greetings.yaml`
-  - `templates/greetings/en/farewells.yaml`
-  - `templates/greetings/en/welcomes.yaml`
-- [ ] Implement template loading system with random selection
-- [ ] Support template variables and formatting
-- [ ] Add fallback to hardcoded defaults if files missing
-
-**Priority**: Medium (user-facing but not critical)
-
-### 3. SystemIntentHandler - Multi-line Response Templates
-
-**Current Hardcoded Templates (Lines 122-265):**
+#### B2. SystemIntentHandler - Multi-line Help Text
 ```python
-help_text = """I'm Irene, your voice assistant. Here's what I can help you with:
-🗣️ **Conversation**: Just talk to me naturally
-⏰ **Timers**: "Set timer for 5 minutes"
-# ... ~10 lines per language
-"""
+help_text = """I'm Irene, your voice assistant. Here's what I can help you with:..."""
 ```
-
-**TODO Tasks:**
-- [ ] Create `templates/system/` directory structure  
-- [ ] Extract large multi-line templates to markdown files:
-  - `templates/system/ru/help.md`
-  - `templates/system/ru/status.md`
-  - `templates/system/ru/version.md`
-  - `templates/system/en/help.md`
-  - `templates/system/en/status.md`
-  - `templates/system/en/version.md`
-- [ ] Implement markdown template rendering with variable substitution
-- [ ] Support dynamic content injection (uptime, version, etc.)
-
 **Priority**: Medium (informational responses)
 
-### 4. DateTimeIntentHandler - Localization System
-
-**Current Hardcoded Arrays (Lines 33-72):**
+#### B3. SpeechRecognitionIntentHandler - Error Messages
 ```python
-# Russian temporal formatting (for OUTPUT, not NLU input)
-self.weekdays_ru = ["понедельник", "вторник", "среда", ...]
-self.months_ru = ["января", "февраля", "марта", ...]  
-self.days_ru = ["первое", "второе", "третье", ...]
-self.hours_ru = ["двенадцать", "час", "два", ...]
-
-# English temporal formatting
-self.weekdays_en = ["Monday", "Tuesday", "Wednesday", ...]
-self.months_en = ["January", "February", "March", ...]
+response_text = f"Настройка качества распознавания речи ({quality}) пока не реализована"
 ```
+**Priority**: Low (error messages only)
 
-**TODO Tasks:**
-- [ ] Create `localization/datetime/` directory structure
-- [ ] Extract temporal formatting to locale files:
-  - `localization/datetime/ru.yaml` (weekdays, months, ordinals, time periods)
-  - `localization/datetime/en.yaml` (weekdays, months, ordinals, time periods)
-- [ ] Implement locale-aware datetime formatting system
-- [ ] Support ICU/CLDR standard formatting where possible
-- [ ] **IMPORTANT**: Keep NLU recognition patterns in JSON donations (separate concern)
+#### B4. VoiceSynthesisIntentHandler - Status Responses
+```python
+response_text = f"Синтезирую речь '{text_to_speak}'"
+response = f"Переключился на TTS провайдер {provider_name}"
+```
+**Priority**: Medium (user-facing functionality)
 
+#### B5. TranslationIntentHandler - Result Formatting
+```python
+response_text = f"Перевод: {translated}"
+target_language = intent.entities.get("target_language", "английский")
+```
+**Priority**: Low (simple formatting)
+
+#### B6. TextEnhancementIntentHandler - Result Formatting
+```python
+response_text = f"Улучшенный текст: {enhanced}"
+```
+**Priority**: Low (simple formatting)
+
+#### B7. AudioPlaybackIntentHandler - Status Messages
+```python
+response_text = f"Начинаю воспроизведение аудио: {audio_file}"
+```
+**Priority**: Low (simple formatting)
+
+### Category C: Localization-Driven Handlers (Language-Specific Data)
+These handlers require locale-specific data externalization.
+
+#### C1. DateTimeIntentHandler - Temporal Formatting Arrays
+```python
+self.weekdays_ru = ["понедельник", "вторник", "среда", ...]
+self.months_ru = ["января", "февраля", "марта", ...]
+self.hours_ru = ["двенадцать", "час", "два", ...]
+```
 **Priority**: High (essential functionality, complex separation needed)
 
-### 5. TimerIntentHandler - Configuration Constants
-
-**Current Hardcoded Config (Lines 312-317, 322-326):**
+#### C2. VoiceSynthesisIntentHandler - Provider Mappings
 ```python
-unit_multipliers = {
-    'seconds': 1,
-    'minutes': 60,
-    'hours': 3600,
-    'days': 86400
+provider_mapping = {
+    "ксении": ("silero_v3", {"speaker": "xenia"}),
+    "силеро": ("silero_v3", {}), "консоли": ("console", {})
 }
-# Time limits: 1 second minimum, 24 hours maximum
 ```
+**Priority**: Medium (system functionality)
 
-**TODO Tasks:**
-- [ ] Move unit multipliers to TOML configuration
-- [ ] Move time limits to TOML configuration  
-- [ ] Extract error messages to template system
-- [ ] Support configurable timer constraints per deployment
-
-**Priority**: Low (internal constants, low user impact)
-
-### 6. TrainScheduleIntentHandler - Configuration Defaults
-
-**Current Hardcoded Config (Lines 47-49):**
+#### C3. ProviderControlIntentHandler - Component Mappings
 ```python
-self.default_from_station = self.config.get("from_station", "s9600681")  # Moscow
-self.default_to_station = self.config.get("to_station", "s2000002")     
-self.max_results = self.config.get("max_results", 3)
+component_mapping = {
+    "аудио": "audio", "llm": "llm", "распознавание": "asr", "голос": "tts"
+}
 ```
+**Priority**: Medium (system control)
 
-**TODO Tasks:**
-- [ ] Move all defaults to TOML configuration
-- [ ] Extract response templates to template system
-- [ ] Support multiple default station configurations
+#### C4. BaseIntentHandler - Universal Patterns
+```python
+stop_patterns = ["стоп", "останови", "stop", "halt"]
+domain_hints = {"music": ["музыка", "music"], "timer": ["таймер", "timer"]}
+```
+**Priority**: Medium (affects all handlers)
 
-**Priority**: Low (optional functionality)
+#### C5. RandomIntentHandler - Result Arrays
+```python
+self.coin_results_ru = ["Выпал орёл", "Выпала решка"]
+self.dice_results_ru = ["Выпала единица", "Выпало два", ...]
+```
+**Priority**: Low (entertainment)
 
-## Implementation Architecture
+## Assets Infrastructure Requirements
 
-### Template System Design
+### Unified Asset Loading Architecture
+
+Instead of multiple separate managers, we will implement a **single unified `IntentAssetLoader`** that handles all asset types. This approach:
+
+1. **Reuses Existing Patterns**: Extends the proven `DonationLoader` pattern already in use
+2. **Eliminates Duplication**: Single loader for all asset types (donations, templates, prompts, localization)
+3. **Maintains Consistency**: Unified error handling, validation, and caching across all assets
+4. **Simplifies Dependencies**: Handlers receive one asset loader instead of multiple managers
+
+### IntentAssetLoader Architecture
 
 ```python
-class TemplateManager:
-    """Manages response templates with i18n support"""
+class IntentAssetLoader:
+    """Unified loader for all intent handler assets"""
     
-    def __init__(self, template_dir: str):
-        self.template_dir = Path(template_dir)
-        self.templates = {}
-        self.load_templates()
-    
-    def get_template(self, handler: str, template_name: str, language: str = "ru") -> str:
-        """Get template with fallback to default language"""
-        # Implementation with fallback logic
+    def __init__(self, assets_root: Path, config: AssetLoaderConfig):
+        self.assets_root = assets_root
+        self.config = config
         
-    def render_template(self, template: str, **kwargs) -> str:
-        """Render template with variable substitution"""
-        # Support Jinja2-style templates or simple format strings
-```
-
-### Prompt System Design
-
-```python
-class PromptManager:
-    """Manages LLM prompts with external file support"""
-    
-    def __init__(self, prompt_dir: str):
-        self.prompt_dir = Path(prompt_dir)
-        self.prompts = {}
-        self.load_prompts()
-    
-    def get_system_prompt(self, handler: str, prompt_type: str = "default") -> str:
-        """Get system prompt with fallback to hardcoded default"""
+        # Asset caches
+        self.donations: Dict[str, HandlerDonation] = {}
+        self.templates: Dict[str, Dict[str, Any]] = {}
+        self.prompts: Dict[str, Dict[str, str]] = {}
+        self.localizations: Dict[str, Dict[str, Any]] = {}
         
-    def format_prompt(self, prompt: str, **kwargs) -> str:
-        """Format prompt with dynamic variables"""
-```
-
-### Localization System Design
-
-```python
-class LocalizationManager:
-    """Manages locale-specific formatting data"""
+        # Error tracking (reuse donation loader pattern)
+        self.validation_errors: List[str] = []
+        self.warnings: List[str] = []
     
-    def __init__(self, locale_dir: str):
-        self.locale_dir = Path(locale_dir)
-        self.locales = {}
-        self.load_locales()
-    
-    def get_locale_data(self, domain: str, language: str = "ru") -> Dict[str, Any]:
-        """Get locale-specific data (weekdays, months, etc.)"""
+    async def load_all_assets(self, handler_names: List[str]) -> None:
+        """Load all asset types for specified handlers"""
+        await self._load_donations(handler_names)      # JSON donations
+        await self._load_templates(handler_names)      # Response templates  
+        await self._load_prompts(handler_names)        # LLM prompts
+        await self._load_localizations(handler_names)  # Locale data
         
-    def format_datetime(self, dt: datetime, format_type: str, language: str = "ru") -> str:
-        """Format datetime using locale-specific rules"""
+    # Unified API for handlers (extends existing donation loader interface)
+    def get_donation(self, handler_name: str) -> Optional[HandlerDonation]:
+        """Get JSON donation (existing functionality)"""
+        
+    def get_template(self, handler_name: str, template_name: str, language: str = "ru") -> str:
+        """Get response template with i18n fallback"""
+        
+    def get_prompt(self, handler_name: str, prompt_type: str, language: str = "ru") -> str:
+        """Get LLM prompt with language fallback"""
+        
+    def get_localization(self, domain: str, language: str = "ru") -> Dict[str, Any]:
+        """Get localization data (arrays, mappings) with language fallback"""
+        
+    # Asset discovery and validation (reuses donation loader patterns)
+    async def _discover_assets(self, asset_type: str, handler_names: List[str]) -> Dict[str, Path]:
+        """Discover asset files following donation loader discovery patterns"""
+        
+    async def _validate_asset_schema(self, asset_path: Path, asset_type: str) -> bool:
+        """Validate asset schemas (similar to donation validation)"""
+        
+    def _handle_validation_errors(self) -> None:
+        """Fatal error handling (reuses donation loader error handling)"""
 ```
 
-## Directory Structure
+### Migration from Existing DonationLoader
 
+The `IntentAssetLoader` will replace the current `DonationLoader` and `EnhancedHandlerManager` pattern:
+
+**Current Architecture:**
+```python
+# Current: irene/core/donation_loader.py
+class DonationLoader:
+    async def discover_and_load_donations(handler_paths) -> Dict[str, HandlerDonation]
+
+class EnhancedHandlerManager:
+    def __init__(self, config):
+        self.donation_loader = DonationLoader(...)
 ```
-irene/
-├── templates/
-│   ├── greetings/
-│   │   ├── ru/
-│   │   │   ├── greetings.yaml
-│   │   │   ├── farewells.yaml
-│   │   │   └── welcomes.yaml
-│   │   └── en/
-│   │       ├── greetings.yaml
-│   │       ├── farewells.yaml
-│   │       └── welcomes.yaml
-│   └── system/
-│       ├── ru/
-│       │   ├── help.md
-│       │   ├── status.md
-│       │   └── version.md
-│       └── en/
-│           ├── help.md
-│           ├── status.md
-│           └── version.md
-├── prompts/
+
+**New Unified Architecture:**
+```python
+# New: irene/core/intent_asset_loader.py  
+class IntentAssetLoader:
+    async def load_all_assets(handler_names) -> None:
+        await self._load_donations(handler_names)      # Migrated from DonationLoader
+        await self._load_templates(handler_names)      # New functionality
+        await self._load_prompts(handler_names)        # New functionality  
+        await self._load_localizations(handler_names)  # New functionality
+
+class EnhancedHandlerManager:
+    def __init__(self, config):
+        self.asset_loader = IntentAssetLoader(...)  # Replaces donation_loader
+```
+
+### Asset Type Loading Implementation
+
+**Donations (Existing Pattern Extended):**
+- Migrate existing `DonationLoader._load_and_validate_donation()` logic
+- Path: `irene/assets/donations/{handler_name}.json`
+- Validation: Existing JSON schema validation
+
+**Templates (New - Category B Handlers):**
+- File formats: YAML (arrays), JSON (objects), Markdown (multi-line)
+- Path pattern: `irene/assets/templates/{handler_name}/{language}/{template_name}.{yaml|json|md}`
+- Fallback: `ru` → `en` → hardcoded defaults
+
+**Prompts (New - Category A1 Handler):**
+- File formats: Plain text (.txt)
+- Path pattern: `irene/assets/prompts/{handler_name}/{language}/{prompt_type}.txt`
+- Fallback: `ru` → `en` → hardcoded defaults
+
+**Localizations (New - Category C Handlers):**
+- File formats: YAML (structured data)
+- Path pattern: `irene/assets/localization/{domain}/{language}.yaml`
+- Fallback: `ru` → `en` → hardcoded defaults
+
+### Directory Structure
+```
+irene/assets/
+├── v1.0.json                    # JSON donation schema (moved from schemas/)
+├── donations/                   # Intent donation files (moved from handlers/donations/)
+│   ├── conversation.json
+│   ├── greetings.json
+│   └── [all 14 other handlers].json
+├── prompts/                     # LLM prompts (Category A1: ConversationIntentHandler)
 │   └── conversation/
 │       ├── ru/
 │       │   ├── chat_system.txt
@@ -245,60 +322,158 @@ irene/
 │           ├── chat_system.txt
 │           ├── reference_system.txt
 │           └── reference_template.txt
-└── localization/
-    ├── datetime/
-    │   ├── ru.yaml
+├── templates/                   # Response templates (Category B: 7 handlers)
+│   ├── greetings/ru|en/         # B1: Arrays of greeting/farewell messages
+│   ├── system/ru|en/            # B2: Multi-line help/status markdown
+│   ├── speech_recognition/ru|en/ # B3: Error message templates
+│   ├── voice_synthesis/ru|en/   # B4: Status response templates
+│   ├── translation/ru|en/       # B5: Result formatting templates
+│   ├── text_enhancement/ru|en/  # B6: Result formatting templates
+│   └── audio_playback/ru|en/    # B7: Status message templates
+└── localization/                # Locale-specific data (Category C: 5 handlers)
+    ├── datetime/                # C1: DateTimeIntentHandler temporal arrays
+    │   ├── ru.yaml              # weekdays, months, hours arrays
     │   └── en.yaml
-    └── units/
-        ├── ru.yaml
-        └── en.yaml
+    ├── voice_synthesis/         # C2: VoiceSynthesisIntentHandler mappings
+    │   ├── providers.yaml       # Provider name mappings
+    │   └── speakers.yaml        # Speaker name mappings  
+    ├── components/              # C3: ProviderControlIntentHandler mappings
+    │   ├── ru.yaml              # Component name mappings (ru)
+    │   └── en.yaml              # Component name mappings (en)
+    ├── commands/                # C4: BaseIntentHandler universal patterns
+    │   ├── ru.yaml              # Stop patterns (ru)
+    │   └── en.yaml              # Stop patterns (en)
+    ├── domains/                 # C4: BaseIntentHandler domain hints
+    │   ├── ru.yaml              # Domain vocabulary (ru)
+    │   └── en.yaml              # Domain vocabulary (en)
+    └── random/                  # C5: RandomIntentHandler result arrays
+        ├── ru.yaml              # Coin/dice results (ru)
+        └── en.yaml              # Coin/dice results (en)
 ```
 
-## Migration Strategy
+## MECE Implementation Phases
 
-### Phase 1: Create Infrastructure (TODO #15A)
-- [ ] Implement TemplateManager, PromptManager, LocalizationManager
-- [ ] Create directory structures
-- [ ] Add loading and fallback logic
+### Phase 0: Foundation (Week 1)
+**Assets Infrastructure Setup**
+- [ ] Create `irene/assets/` directory structure
+- [ ] Move donation files: `handlers/donations/` → `irene/assets/donations/`
+- [ ] Move schema: `schemas/donation/v1.0.json` → `irene/assets/v1.0.json`
+- [ ] Update all donation files: `"$schema": "../v1.0.json"`
+- [ ] Update donation loader paths in `irene/core/donation_loader.py`
+- [ ] Update build scripts (`install-irene.sh`, Docker files) for assets inclusion
+- [ ] Test build system with new structure
 
-### Phase 2: Extract Critical Templates (TODO #15B)
-- [ ] ConversationIntentHandler LLM prompts (highest priority)
-- [ ] DateTimeIntentHandler localization data (essential functionality)
+### Phase 1: Unified Asset Infrastructure (Weeks 2-3)
+**Pydantic Models and IntentAssetLoader**
+- [ ] **Pydantic Configuration Models** in `irene/config/models.py`:
+  - [ ] `ConversationHandlerConfig` (A1)
+  - [ ] `TrainScheduleHandlerConfig` (A2) 
+  - [ ] `TimerHandlerConfig` (A3)
+  - [ ] `RandomHandlerConfig` (A4)
+  - [ ] Update `IntentSystemConfig` to include handler configurations
+- [ ] **IntentAssetLoader Implementation** in `irene/core/intent_asset_loader.py`:
+  - [ ] Extend existing `DonationLoader` patterns for unified asset loading
+  - [ ] Implement `_load_donations()` (migrate existing donation loader logic)
+  - [ ] Implement `_load_templates()` (Category B: YAML/JSON/Markdown parsing)
+  - [ ] Implement `_load_prompts()` (Category A1: Text file loading)
+  - [ ] Implement `_load_localizations()` (Category C: YAML parsing)
+  - [ ] Unified error handling and validation following donation loader patterns
+  - [ ] Caching and fallback mechanisms
+- [ ] **Integration Points**:
+  - [ ] Update `EnhancedHandlerManager` to use `IntentAssetLoader` instead of separate `DonationLoader`
+  - [ ] Verify TOML configuration paths align with Pydantic models
+  - [ ] Handlers receive single asset loader instance via dependency injection
 
-### Phase 3: Extract Remaining Templates (TODO #15C)  
-- [ ] GreetingsIntentHandler response templates
-- [ ] SystemIntentHandler multi-line responses
-- [ ] Error messages and status responses
+### Phase 2: Critical Externalization (Weeks 4-5)
+**High-Priority Handlers (Essential Functionality)**
+- [ ] **A1: ConversationIntentHandler** - Extract LLM prompts to `prompts/conversation/`
+- [ ] **C1: DateTimeIntentHandler** - Extract temporal data to `localization/datetime/`
+- [ ] **C4: BaseIntentHandler** - Extract universal patterns to `localization/commands|domains/`
 
-### Phase 4: Configuration Cleanup (TODO #15D)
-- [ ] TimerIntentHandler configuration constants
-- [ ] TrainScheduleIntentHandler defaults
-- [ ] Version information centralization
+### Phase 3: Medium-Priority Externalization (Weeks 6-7)
+**User-Facing Response Templates**
+- [ ] **B1: GreetingsIntentHandler** - Extract to `templates/greetings/`
+- [ ] **B2: SystemIntentHandler** - Extract to `templates/system/`
+- [ ] **B4: VoiceSynthesisIntentHandler** - Extract to `templates/voice_synthesis/`
+- [ ] **C2: VoiceSynthesisIntentHandler** - Extract mappings to `localization/voice_synthesis/`
+- [ ] **C3: ProviderControlIntentHandler** - Extract mappings to `localization/components/`
+
+### Phase 4: Low-Priority Externalization (Week 8)
+**Simple Response Formatting**
+- [ ] **B3: SpeechRecognitionIntentHandler** - Extract to `templates/speech_recognition/`
+- [ ] **B5: TranslationIntentHandler** - Extract to `templates/translation/`
+- [ ] **B6: TextEnhancementIntentHandler** - Extract to `templates/text_enhancement/`
+- [ ] **B7: AudioPlaybackIntentHandler** - Extract to `templates/audio_playback/`
+- [ ] **C5: RandomIntentHandler** - Extract arrays to `templates/random/`
+
+### Phase 5: Configuration Integration (Week 9)
+**Handler Updates and Unified Asset Injection**
+- [ ] Update Category A handlers to use proper config injection instead of hardcoded dicts
+- [ ] Update all handlers to use `IntentAssetLoader` instead of direct file access or hardcoded values
+- [ ] Replace donation loader injection with unified `IntentAssetLoader` injection
+- [ ] Implement configuration validation end-to-end
+- [ ] Ensure fallback mechanisms work for missing files across all asset types
+
+## Success Criteria
+
+### Infrastructure
+- [ ] `irene/assets/` directory fully established and integrated
+- [ ] All donation files migrated with updated schema references
+- [ ] Build system updated to handle assets folder
+- [ ] **IntentAssetLoader** fully functional and replaces existing donation loader
+- [ ] Unified asset loading for donations, templates, prompts, and localization data
+
+### Configuration Models
+- [ ] All 4 Pydantic models implemented and integrated with `IntentSystemConfig`
+- [ ] TOML configuration paths verified and aligned
+- [ ] Configuration validation working end-to-end
+- [ ] Handlers receive configuration via proper dependency injection
+
+### Externalization
+- [ ] All LLM prompts externalized to `irene/assets/prompts/`
+- [ ] All response templates externalized to `irene/assets/templates/` with i18n support
+- [ ] All localization data externalized to `irene/assets/localization/`
+- [ ] All hardcoded configuration moved to TOML with validation
+
+### Quality Assurance
+- [ ] Fallback mechanisms working for missing files across all asset types
+- [ ] No functionality regression during migration
+- [ ] Template/prompt editing doesn't require code changes
+- [ ] **IntentAssetLoader** provides unified API for all handler asset access
+- [ ] Validation and error handling consistent across donations, templates, prompts, and localization
 
 ## Dependencies
 
 - **Requires**: Phase 3.5A (JSON donations) completion
-- **Blocks**: None (parallel development possible)
+- **Blocks**: All subsequent development (assets structure must be established first)
 - **Related**: TODO #5 (Build system configuration)
-
-## Success Criteria
-
-- [ ] All LLM prompts externalized to files
-- [ ] All response templates support i18n
-- [ ] All hardcoded configuration moved to TOML
-- [ ] Fallback mechanisms working for missing files
-- [ ] No functionality regression during migration
-- [ ] Template/prompt editing doesn't require code changes
+- **Critical**: Phase 0 must complete before any template/prompt extraction
 
 ## Estimated Effort
 
-- **Phase 1 (Infrastructure)**: 1-2 weeks
-- **Phase 2 (Critical)**: 1 week  
-- **Phase 3 (Remaining)**: 1-2 weeks
-- **Phase 4 (Config)**: 1 week
+- **Phase 0 (Foundation)**: 1 week (critical, blocking)
+- **Phase 1 (Infrastructure)**: 2 weeks (Pydantic models + management systems)
+- **Phase 2 (Critical)**: 2 weeks (3 high-priority handlers)
+- **Phase 3 (Medium-Priority)**: 2 weeks (5 medium-priority handlers)
+- **Phase 4 (Low-Priority)**: 1 week (5 low-priority handlers)
+- **Phase 5 (Integration)**: 1 week (config integration + validation)
 
-**Total**: 4-6 weeks (parallel with other development)
+**Total**: 9 weeks (Phase 0 must complete before parallel development)
 
 ## Notes
 
 This refactoring is **separate from and complementary to** the JSON donation system. JSON donations focus on NLU pattern recognition, while this TODO addresses response generation and configuration management.
+
+**Critical Architecture Change**: The introduction of `irene/assets/` as the central location for all external resources represents a fundamental shift in the project structure, centralizing all assets under a single manageable directory and enabling proper asset management systems.
+
+**MECE Compliance**: This restructured approach ensures:
+- **Mutually Exclusive**: Each handler falls into exactly one category (A, B, or C)
+- **Collectively Exhaustive**: All 15 handlers are covered across the three categories
+- **No Duplication**: Single `IntentAssetLoader` eliminates multiple manager classes
+- **Clear Dependencies**: Phases have explicit prerequisites and deliverables
+
+**Unified Asset Loading**: The `IntentAssetLoader` approach provides:
+- **Consistency**: Reuses proven `DonationLoader` patterns for all asset types
+- **Simplicity**: Single injection point for handlers instead of 3-4 separate managers
+- **Maintainability**: Unified error handling, validation, and caching logic
+- **Extensibility**: Easy to add new asset types following the same patterns

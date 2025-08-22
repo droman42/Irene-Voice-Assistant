@@ -384,8 +384,6 @@ discovery_paths = ["irene.intents.handlers"]  # Entry-point discovery paths
 
 # Specific handler configurations
 [intent_system.handlers.conversation]
-chat_model = "openai/gpt-4o-mini"   # Model for chat conversations
-reference_model = "perplexity/latest-large-online"  # Model for factual queries
 session_timeout = 1800             # Session timeout in seconds (30 minutes)
 max_sessions = 50                  # Maximum concurrent sessions
 

@@ -190,8 +190,7 @@ class ConversationDemoRunner:
         
         # Show configuration integration
         logger.info(f"\n🔧 Configuration integration:")
-        logger.info(f"  Chat model: {handler.config['chat_model']}")
-        logger.info(f"  Reference model: {handler.config['reference_model']}")
+        logger.info(f"  Using LLM component's default model")
         logger.info(f"  Session timeout: {handler.config['session_timeout']} seconds")
         logger.info(f"  Max sessions: {handler.config['max_sessions']}")
         
@@ -200,8 +199,6 @@ class ConversationDemoRunner:
 [intents.conversation]
 chat_system_prompt = "Ты - Ирина, голосовой помощник, помогающий человеку. Давай ответы кратко и по существу."
 reference_system_prompt = "Ты помощник для получения точных фактов. Отвечай максимально кратко и точно на русском языке."
-chat_model = "openai/gpt-4o-mini"
-reference_model = "perplexity/latest-large-online" 
 session_timeout = 1800
 max_sessions = 50
 """

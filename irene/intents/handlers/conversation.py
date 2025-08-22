@@ -71,8 +71,6 @@ class ConversationIntentHandler(IntentHandler):
             "chat_system_prompt": "Ты - Ирина, голосовой помощник, помогающий человеку. Давай ответы кратко и по существу.",
             "reference_system_prompt": "Ты помощник для получения точных фактов. Отвечай максимально кратко и точно на русском языке.",
             "reference_prompt_template": "Вопрос: {0}. Ответь на русском языке максимально кратко - только запрошенные данные.",
-            "chat_model": "openai/gpt-4o-mini",
-            "reference_model": "perplexity/latest-large-online", 
             "session_timeout": 1800,  # 30 minutes
             "max_sessions": 50,
             "default_conversation_confidence": 0.6  # Lower confidence for fallback
@@ -252,10 +250,9 @@ class ConversationIntentHandler(IntentHandler):
         formatted_prompt = self.config["reference_prompt_template"].format(query)
         
         try:
-            # Use reference model for factual queries
+            # Use LLM component's default model for factual queries
             response = await self.llm_component.generate_response(
-                messages=[{"role": "user", "content": formatted_prompt}],
-                model=self.config["reference_model"]
+                messages=[{"role": "user", "content": formatted_prompt}]
             )
             
             return IntentResult(
@@ -295,10 +292,9 @@ class ConversationIntentHandler(IntentHandler):
             # Get conversation history from session (properly formatted for LLM)
             messages = session.get_messages()
             
-            # Generate response using LLM
+            # Generate response using LLM component's default model
             response = await self.llm_component.generate_response(
-                messages=messages,
-                model=self.config["chat_model"]
+                messages=messages
             )
             
             # Add assistant response to session
