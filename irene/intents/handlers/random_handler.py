@@ -8,7 +8,7 @@ Provides random number generation, coin flips, and dice rolls.
 import random
 import asyncio
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
@@ -28,40 +28,27 @@ class RandomIntentHandler(IntentHandler):
     - Russian and English language support
     """
     
-    def __init__(self):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__()
         
-        # Coin flip results in Russian
-        self.coin_results_ru = [
-            "Выпал орёл",
-            "Выпала решка",
-        ]
-        
-        # Dice roll results in Russian
-        self.dice_results_ru = [
-            "Выпала единица",
-            "Выпало два",
-            "Выпало три",
-            "Выпало четыре",
-            "Выпало пять",
-            "Выпало шесть",
-        ]
-        
-        # Coin flip results in English
-        self.coin_results_en = [
-            "Heads!",
-            "Tails!",
-        ]
-        
-        # Dice roll results in English
-        self.dice_results_en = [
-            "You rolled a one",
-            "You rolled a two",
-            "You rolled a three",
-            "You rolled a four",
-            "You rolled a five",
-            "You rolled a six",
-        ]
+        # Phase 5: Configuration injection via Pydantic RandomHandlerConfig
+        if config:
+            self.config = config
+            self.default_max_number = config.get("default_max_number", 100)
+            self.max_range_size = config.get("max_range_size", 1000000)
+            self.default_dice_sides = config.get("default_dice_sides", 6)
+            logger.info(f"RandomIntentHandler initialized with config: default_max={self.default_max_number}, max_range={self.max_range_size}, dice_sides={self.default_dice_sides}")
+        else:
+            # Fallback defaults (should not be used in production with proper config)
+            self.config = {
+                "default_max_number": 100,
+                "max_range_size": 1000000,
+                "default_dice_sides": 6
+            }
+            self.default_max_number = 100
+            self.max_range_size = 1000000
+            self.default_dice_sides = 6
+            logger.warning("RandomIntentHandler initialized without configuration - using fallback defaults")
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
@@ -168,7 +155,7 @@ class RandomIntentHandler(IntentHandler):
             )
             
         except ValueError as e:
-            error_msg = "Некорректные параметры кубика" if language == "ru" else f"Invalid dice parameters: {str(e)}"
+            error_msg = self._get_template("invalid_dice_params", language) if language == "ru" else self._get_template("invalid_dice_params", language, error=str(e))
             return IntentResult(
                 text=error_msg,
                 should_speak=True,
@@ -180,9 +167,9 @@ class RandomIntentHandler(IntentHandler):
         # Determine language from context or intent
         language = self._get_language(intent, context)
         
-        # Extract parameters from intent
+        # Extract parameters from intent (Phase 5: Use configured defaults)
         min_val = intent.entities.get("min", 1)
-        max_val = intent.entities.get("max", 100)
+        max_val = intent.entities.get("max", self.default_max_number)
         
         # Validate parameters
         try:
@@ -212,7 +199,7 @@ class RandomIntentHandler(IntentHandler):
             )
             
         except ValueError as e:
-            error_msg = "Некорректный диапазон чисел" if language == "ru" else f"Invalid number range: {str(e)}"
+            error_msg = self._get_template("invalid_number_range", language) if language == "ru" else self._get_template("invalid_number_range", language, error=str(e))
             return IntentResult(
                 text=error_msg,
                 should_speak=True,
@@ -231,7 +218,7 @@ class RandomIntentHandler(IntentHandler):
             options = [opt.strip() for opt in options.replace(',', ' ').replace('или', ' ').replace('or', ' ').split()]
         
         if not options:
-            error_msg = "Не указаны варианты для выбора" if language == "ru" else "No options provided for choice"
+            error_msg = self._get_template("no_options", language)
             return IntentResult(
                 text=error_msg,
                 should_speak=True,
@@ -258,7 +245,7 @@ class RandomIntentHandler(IntentHandler):
             )
             
         except ValueError as e:
-            error_msg = "Ошибка при выборе варианта" if language == "ru" else f"Error making choice: {str(e)}"
+            error_msg = self._get_template("choice_error", language) if language == "ru" else self._get_template("choice_error", language, error=str(e))
             return IntentResult(
                 text=error_msg,
                 should_speak=True,
@@ -272,10 +259,8 @@ class RandomIntentHandler(IntentHandler):
         """Flip a coin and return result"""
         result_index = random.randint(0, 1)
         
-        if language.lower() == "ru":
-            result_text = self.coin_results_ru[result_index]
-        else:
-            result_text = self.coin_results_en[result_index]
+        coin_results = self._get_template_data("coin_results", language)
+        result_text = coin_results[result_index]
         
         return {
             "result": "heads" if result_index == 0 else "tails",
@@ -283,8 +268,12 @@ class RandomIntentHandler(IntentHandler):
             "language": language
         }
     
-    def roll_dice(self, sides: int = 6, count: int = 1, language: str = "ru") -> Dict[str, Any]:
-        """Roll dice and return results"""
+    def roll_dice(self, sides: int = None, count: int = 1, language: str = "ru") -> Dict[str, Any]:
+        """Roll dice and return results (Phase 5: Use configured defaults)"""
+        # Use configured default dice sides if not specified
+        if sides is None:
+            sides = self.default_dice_sides
+            
         if sides < 2 or sides > 100:
             raise ValueError("Dice sides must be between 2 and 100")
         if count < 1 or count > 10:
@@ -294,20 +283,15 @@ class RandomIntentHandler(IntentHandler):
         total = sum(rolls)
         
         # Format result text
-        if language.lower() == "ru":
-            if count == 1 and sides == 6 and rolls[0] <= 6:
-                result_text = self.dice_results_ru[rolls[0] - 1]
-            else:
-                result_text = f"Выпало: {', '.join(map(str, rolls))}"
-                if count > 1:
-                    result_text += f" (сумма: {total})"
+        if count == 1 and sides == 6 and rolls[0] <= 6:
+            dice_results = self._get_template_data("dice_results", language)
+            result_text = dice_results[rolls[0] - 1]
         else:
-            if count == 1 and sides == 6 and rolls[0] <= 6:
-                result_text = self.dice_results_en[rolls[0] - 1]
+            rolls_str = ', '.join(map(str, rolls))
+            if count > 1:
+                result_text = self._get_template("dice_with_total", language, rolls=rolls_str, total=total)
             else:
-                result_text = f"Rolled: {', '.join(map(str, rolls))}"
-                if count > 1:
-                    result_text += f" (total: {total})"
+                result_text = self._get_template("dice_multiple", language, rolls=rolls_str)
         
         return {
             "rolls": rolls,
@@ -322,15 +306,12 @@ class RandomIntentHandler(IntentHandler):
         """Generate a random number in specified range"""
         if min_val >= max_val:
             raise ValueError("min_val must be less than max_val")
-        if abs(max_val - min_val) > 1000000:
-            raise ValueError("Range too large (max 1,000,000)")
+        if abs(max_val - min_val) > self.max_range_size:
+            raise ValueError(f"Range too large (max {self.max_range_size:,})")
         
         number = random.randint(min_val, max_val)
         
-        if language.lower() == "ru":
-            result_text = f"Случайное число: {number}"
-        else:
-            result_text = f"Random number: {number}"
+        result_text = self._get_template("random_number", language, number=number)
         
         return {
             "number": number,
@@ -349,10 +330,7 @@ class RandomIntentHandler(IntentHandler):
         
         choice = random.choice(options)
         
-        if language.lower() == "ru":
-            result_text = f"Выбрано: {choice}"
-        else:
-            result_text = f"Chosen: {choice}"
+        result_text = self._get_template("random_choice", language, choice=choice)
         
         return {
             "choice": choice,
@@ -363,6 +341,61 @@ class RandomIntentHandler(IntentHandler):
     
 
         
+    def _get_template_data(self, template_name: str, language: str = "ru") -> List[str]:
+        """Get template data from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"RandomIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - random templates must be externalized."
+            )
+        
+        # Get template directly from asset loader (template_name is the key from YAML)
+        template_data = self.asset_loader.get_template("random", template_name, language)
+        if template_data is None:
+            raise RuntimeError(
+                f"RandomIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/random/{language}/results.yaml. "
+                f"This is a fatal error - all random templates must be externalized."
+            )
+        
+        # Ensure it's a list and not empty
+        if not isinstance(template_data, list) or not template_data:
+            raise RuntimeError(
+                f"RandomIntentHandler: Template '{template_name}' in "
+                f"assets/templates/random/{language}/results.yaml is not a valid list or is empty. "
+                f"At least one {template_name} must be defined for language '{language}'."
+            )
+        
+        return template_data
+    
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"RandomIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - random templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("random", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"RandomIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/random/{language}/results.yaml. "
+                f"This is a fatal error - all random templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"RandomIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/random/{language}/results.yaml for correct placeholders."
+            )
+    
     def _get_language(self, intent: Intent, context: ConversationContext) -> str:
         """Determine language from intent or context"""
         # Check intent entities first

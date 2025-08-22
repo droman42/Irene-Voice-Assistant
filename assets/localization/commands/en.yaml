@@ -1,0 +1,8 @@
+# English command patterns for BaseIntentHandler
+# Phase 2: Extracted from hardcoded patterns in base.py
+
+stop_patterns:
+  - "stop"
+  - "halt"
+  - "cancel"
+  - "turn off"

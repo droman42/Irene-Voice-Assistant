@@ -225,26 +225,61 @@ class ProviderControlIntentHandler(IntentHandler):
             logger.error(f"Error getting {component_type} provider info: {e}")
             return f"Error getting provider info: {e}"
     
+    def _get_component_mappings(self, language: str = "ru") -> Dict[str, str]:
+        """Get component mappings from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"ProviderControlIntentHandler: Asset loader not initialized. "
+                f"Cannot access component mappings for language '{language}'. "
+                f"This is a fatal configuration error - component mappings must be externalized."
+            )
+        
+        # Get localization data from asset loader
+        components_data = self.asset_loader.get_localization("components", language)
+        if components_data is None:
+            raise RuntimeError(
+                f"ProviderControlIntentHandler: Required component mappings for language '{language}' "
+                f"not found in assets/localization/components/{language}.yaml. "
+                f"This is a fatal error - all component mappings must be externalized."
+            )
+        
+        component_mappings = components_data.get("component_mappings", {})
+        if not component_mappings:
+            raise RuntimeError(
+                f"ProviderControlIntentHandler: Empty component_mappings in "
+                f"assets/localization/components/{language}.yaml. "
+                f"Component mappings must be defined for language '{language}'."
+            )
+        
+        return component_mappings
+
     def _parse_provider_switch_command(self, text: str) -> tuple[str, str]:
         """Parse component type and provider name from text"""
         text_lower = text.lower()
         
-        # Component type mapping
-        component_mapping = {
-            "аудио": "audio",
-            "audio": "audio",
-            "звук": "audio",
-            "llm": "llm",
-            "лл": "llm", 
-            "модель": "llm",
-            "распознавание": "asr",
-            "asr": "asr",
-            "распознавание речи": "asr",
-            "голос": "tts",
-            "tts": "tts",
-            "синтез": "tts",
-            "речь": "tts"
-        }
+        # Get component mappings from localization (try both languages)
+        try:
+            component_mapping = self._get_component_mappings("ru")
+            # Add English mappings if needed
+            en_mappings = self._get_component_mappings("en")
+            component_mapping.update(en_mappings)
+        except RuntimeError:
+            # Fallback to hardcoded if assets not available
+            component_mapping = {
+                "аудио": "audio",
+                "audio": "audio",
+                "звук": "audio",
+                "llm": "llm",
+                "лл": "llm", 
+                "модель": "llm",
+                "распознавание": "asr",
+                "asr": "asr",
+                "распознавание речи": "asr",
+                "голос": "tts",
+                "tts": "tts",
+                "синтез": "tts",
+                "речь": "tts"
+            }
         
         component_type = ""
         provider_name = ""
@@ -271,19 +306,26 @@ class ProviderControlIntentHandler(IntentHandler):
         """Parse component type from list providers command"""
         text_lower = text.lower()
         
-        # Component type mapping
-        component_mapping = {
-            "аудио": "audio",
-            "audio": "audio",
-            "звук": "audio",
-            "llm": "llm",
-            "модель": "llm",
-            "распознавание": "asr",
-            "asr": "asr",
-            "голос": "tts",
-            "tts": "tts",
-            "синтез": "tts"
-        }
+        # Get component mappings from localization (try both languages)
+        try:
+            component_mapping = self._get_component_mappings("ru")
+            # Add English mappings if needed
+            en_mappings = self._get_component_mappings("en")
+            component_mapping.update(en_mappings)
+        except RuntimeError:
+            # Fallback to hardcoded if assets not available
+            component_mapping = {
+                "аудио": "audio",
+                "audio": "audio",
+                "звук": "audio",
+                "llm": "llm",
+                "модель": "llm",
+                "распознавание": "asr",
+                "asr": "asr",
+                "голос": "tts",
+                "tts": "tts",
+                "синтез": "tts"
+            }
         
         # Find component type
         for key, value in component_mapping.items():

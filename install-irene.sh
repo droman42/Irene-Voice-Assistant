@@ -506,13 +506,13 @@ install_irene() {
     if [[ "$INSTALL_TYPE" == "system" ]]; then
         sudo cp -r irene/ "$INSTALL_DIR/"
         sudo cp -r configs/ "$INSTALL_DIR/"
-        sudo cp -r schemas/ "$INSTALL_DIR/"
+        sudo cp -r assets/ "$INSTALL_DIR/"
         sudo cp pyproject.toml uv.lock "$INSTALL_DIR/"
         sudo chown -R root:root "$INSTALL_DIR"
     else
         cp -r irene/ "$INSTALL_DIR/"
         cp -r configs/ "$INSTALL_DIR/"
-        cp -r schemas/ "$INSTALL_DIR/"
+        cp -r assets/ "$INSTALL_DIR/"
         cp pyproject.toml uv.lock "$INSTALL_DIR/"
     fi
     

@@ -29,81 +29,8 @@ class GreetingsIntentHandler(IntentHandler):
     def __init__(self):
         super().__init__()
         
-        # TODO #15: Move response arrays to localization system (not JSON donations)
-        # These arrays are for OUTPUT GENERATION, not NLU input recognition
-        # They should be extracted to localization/greetings/ru.yaml and en.yaml
-        
-        # Russian greetings
-        self.greetings_ru = [
-            "Привет! Как дела?",
-            "Здравствуйте! Чем могу помочь?",
-            "Добро пожаловать! Я готова к работе.",
-            "Приветствую! Что будем делать?",
-            "Привет! Рада вас видеть.",
-            "Здравствуйте! Готова к выполнению команд.",
-            "Добрый день! Чем займёмся?",
-            "Привет! Я здесь и готова помочь.",
-            "Здравствуйте! Давайте работать вместе.",
-            "Приветствую! Какие у вас планы?"
-        ]
-        
-        # English greetings
-        self.greetings_en = [
-            "Hello! How are you today?",
-            "Hi there! What can I do for you?",
-            "Welcome! I'm ready to help.",
-            "Greetings! What shall we do?",
-            "Hello! Nice to see you.",
-            "Hi! I'm here and ready to assist.",
-            "Good day! How can I help?",
-            "Welcome back! What's on the agenda?",
-            "Hello! Let's get started.",
-            "Hi! Ready for some assistance?"
-        ]
-        
-        # Farewell messages
-        self.farewells_ru = [
-            "До свидания! Хорошего дня!",
-            "Пока! Обращайтесь ещё.",
-            "До встречи! Было приятно помочь.",
-            "Всего доброго! Увидимся позже.",
-            "До свидания! Удачи во всех делах.",
-            "Пока-пока! Хорошего настроения.",
-            "До новых встреч! Берегите себя.",
-            "Всего хорошего! До скорого.",
-            "Прощайте! Отличного дня.",
-            "До свидания! Рада была помочь."
-        ]
-        
-        self.farewells_en = [
-            "Goodbye! Have a great day!",
-            "See you later! Take care.",
-            "Farewell! It was nice helping you.",
-            "Bye! Hope to see you again soon.",
-            "Goodbye! Wishing you all the best.",
-            "Take care! Have a wonderful time.",
-            "See you next time! Stay safe.",
-            "Bye-bye! Until we meet again.",
-            "Farewell! Enjoy your day.",
-            "Goodbye! It was a pleasure helping."
-        ]
-        
-        # Welcome messages for first interaction
-        self.welcome_messages_ru = [
-            "Добро пожаловать! Я Ирина, ваш голосовой помощник. Чем могу помочь?",
-            "Здравствуйте! Меня зовут Ирина. Готова выполнять ваши команды.",
-            "Приветствую! Я ваш персональный помощник Ирина. Что будем делать?",
-            "Добро пожаловать в систему! Я Ирина, готова помочь вам в работе.",
-            "Здравствуйте! Ирина к вашим услугам. Какие задачи решаем?"
-        ]
-        
-        self.welcome_messages_en = [
-            "Welcome! I'm Irene, your voice assistant. How can I help you?",
-            "Hello! My name is Irene. I'm ready to assist you.",
-            "Greetings! I'm your personal assistant Irene. What shall we do?",
-            "Welcome to the system! I'm Irene, ready to help with your tasks.",
-            "Hello! Irene at your service. What can I do for you today?"
-        ]
+        # TODO #15: Phase 3 - Greeting templates now externalized to assets/templates/greetings/
+        # All greeting arrays are loaded from template files with fatal error handling
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
@@ -175,6 +102,63 @@ class GreetingsIntentHandler(IntentHandler):
         """Greetings are always available"""
         return True
     
+    def _get_template_data(self, template_name: str, language: str = "ru") -> List[str]:
+        """Get template data from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"GreetingsIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - greeting templates must be externalized."
+            )
+        
+        # Get template directly from asset loader (template_name is the key from YAML)
+        template_data = self.asset_loader.get_template("greetings", template_name, language)
+        if template_data is None:
+            raise RuntimeError(
+                f"GreetingsIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/greetings/{language}/greetings.yaml. "
+                f"This is a fatal error - all greeting templates must be externalized."
+            )
+        
+        # Ensure it's a list and not empty
+        if not isinstance(template_data, list) or not template_data:
+            raise RuntimeError(
+                f"GreetingsIntentHandler: Template '{template_name}' in "
+                f"assets/templates/greetings/{language}/greetings.yaml is not a valid list or is empty. "
+                f"At least one {template_name} must be defined for language '{language}'."
+            )
+        
+        return template_data
+    
+    def _get_time_based_greeting_template(self, time_period: str, language: str = "ru") -> str:
+        """Get time-based greeting from templates - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"GreetingsIntentHandler: Asset loader not initialized. "
+                f"Cannot access time-based greeting for language '{language}'. "
+                f"This is a fatal configuration error - greeting templates must be externalized."
+            )
+        
+        # Get time-based greetings template directly
+        time_greetings = self.asset_loader.get_template("greetings", "time_based_greetings", language)
+        if time_greetings is None:
+            raise RuntimeError(
+                f"GreetingsIntentHandler: Required time-based greetings for language '{language}' "
+                f"not found in assets/templates/greetings/{language}/greetings.yaml. "
+                f"This is a fatal error - all time-based greeting templates must be externalized."
+            )
+        
+        # Ensure it's a dict and has the time period
+        greeting = time_greetings.get(time_period) if isinstance(time_greetings, dict) else None
+        if not greeting:
+            raise RuntimeError(
+                f"GreetingsIntentHandler: Missing time-based greeting '{time_period}' in "
+                f"assets/templates/greetings/{language}/greetings.yaml. "
+                f"All time periods (morning, afternoon, evening, night) must be defined."
+            )
+        
+        return greeting
+    
     def _detect_language(self, text: str, context: ConversationContext) -> str:
         """Detect language from text or context"""
         # Simple language detection based on common words
@@ -195,10 +179,8 @@ class GreetingsIntentHandler(IntentHandler):
     
     async def _handle_greeting(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle hello greeting intent"""
-        if language == "en":
-            greeting = random.choice(self.greetings_en)
-        else:
-            greeting = random.choice(self.greetings_ru)
+        greetings = self._get_template_data("greetings", language)
+        greeting = random.choice(greetings)
         
         # Add time-based greeting if possible
         time_greeting = self._get_time_based_greeting(language)
@@ -217,10 +199,8 @@ class GreetingsIntentHandler(IntentHandler):
     
     async def _handle_farewell(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle goodbye farewell intent"""
-        if language == "en":
-            farewell = random.choice(self.farewells_en)
-        else:
-            farewell = random.choice(self.farewells_ru)
+        farewells = self._get_template_data("farewells", language)
+        farewell = random.choice(farewells)
         
         return IntentResult(
             text=farewell,
@@ -234,10 +214,8 @@ class GreetingsIntentHandler(IntentHandler):
     
     async def _handle_welcome(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle welcome message intent"""
-        if language == "en":
-            welcome = random.choice(self.welcome_messages_en)
-        else:
-            welcome = random.choice(self.welcome_messages_ru)
+        welcome_messages = self._get_template_data("welcome_messages", language)
+        welcome = random.choice(welcome_messages)
         
         return IntentResult(
             text=welcome,
@@ -250,29 +228,23 @@ class GreetingsIntentHandler(IntentHandler):
         )
     
     def _get_time_based_greeting(self, language: str) -> Optional[str]:
-        """Get time-based greeting prefix"""
+        """Get time-based greeting prefix from templates"""
         try:
             import datetime
             current_hour = datetime.datetime.now().hour
             
-            if language == "en":
-                if 5 <= current_hour < 12:
-                    return "Good morning!"
-                elif 12 <= current_hour < 18:
-                    return "Good afternoon!"
-                elif 18 <= current_hour < 22:
-                    return "Good evening!"
-                else:
-                    return "Good night!"
-            else:  # Russian
-                if 5 <= current_hour < 12:
-                    return "Доброе утро!"
-                elif 12 <= current_hour < 18:
-                    return "Добрый день!"
-                elif 18 <= current_hour < 22:
-                    return "Добрый вечер!"
-                else:
-                    return "Доброй ночи!"
+            # Determine time period
+            if 5 <= current_hour < 12:
+                time_period = "morning"
+            elif 12 <= current_hour < 18:
+                time_period = "afternoon"
+            elif 18 <= current_hour < 22:
+                time_period = "evening"
+            else:
+                time_period = "night"
+            
+            # Get time-based greeting from templates
+            return self._get_time_based_greeting_template(time_period, language)
                     
         except Exception:
             return None

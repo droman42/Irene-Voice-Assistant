@@ -1,0 +1,16 @@
+# Russian conversation response templates for ConversationIntentHandler
+# Phase 2: Extracted from hardcoded arrays in conversation.py
+
+start_greetings:
+  - "Давайте поговорим! О чём хотите поболтать?"
+  - "Отлично! Я готова к беседе. О чём поговорим?"
+  - "Хорошо, начинаем диалог. Что вас интересует?"
+  - "Замечательно! Я вас слушаю."
+
+end_farewells:
+  - "До свидания! Было приятно поговорить."
+  - "Пока! Обращайтесь ещё."
+  - "До встречи! Хорошего дня."
+  - "Всего доброго!"
+
+clear_response: "Хорошо, начинаем диалог заново. О чём поговорим?"

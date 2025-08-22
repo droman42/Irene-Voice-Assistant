@@ -1,0 +1,34 @@
+# Russian voice synthesis provider mappings for VoiceSynthesisIntentHandler
+# Phase 3: Extracted from hardcoded provider mapping dictionaries
+
+provider_mappings:
+  voice_names:
+    "ксении":
+      provider: "silero_v3"
+      params:
+        speaker: "xenia"
+    "кcении":  # Alternative spelling
+      provider: "silero_v3" 
+      params:
+        speaker: "xenia"
+    "айдара":
+      provider: "silero_v3"
+      params:
+        speaker: "aidar"
+    "силеро":
+      provider: "silero_v3"
+      params: {}
+    "консоли":
+      provider: "console"
+      params: {}
+    "системным":
+      provider: "pyttsx"
+      params: {}
+
+  provider_names:
+    "силеро": "silero_v3"
+    "силеро3": "silero_v3"
+    "силеро4": "silero_v4"
+    "консоль": "console"
+    "системный": "pyttsx"
+    "воск": "vosk_tts"

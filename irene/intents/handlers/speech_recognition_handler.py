@@ -120,15 +120,9 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         success = asr_component.set_default_provider(provider_name)
         
         if success:
-            if language == "ru":
-                message = f"Переключился на {provider_name}"
-            else:
-                message = f"Switched to {provider_name}"
+            message = self._get_template("provider_switched", language, provider_name=provider_name)
         else:
-            if language == "ru":
-                message = f"Провайдер {provider_name} недоступен"
-            else:
-                message = f"Provider {provider_name} not available"
+            message = self._get_template("provider_unavailable", language, provider_name=provider_name)
         
         self.logger.info(f"ASR provider switch to {provider_name} - success: {success}")
         
@@ -181,10 +175,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         language = self._get_language(intent, context)
         
         # TODO: Implement quality configuration logic
-        if language == "ru":
-            response_text = f"Настройка качества распознавания речи ({quality}) пока не реализована"
-        else:
-            response_text = f"Speech recognition quality configuration ({quality}) not yet implemented"
+        response_text = self._get_template("quality_not_implemented", language, quality=quality)
         
         self.logger.info(f"ASR quality configuration request: {quality}")
         
@@ -209,10 +200,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         language = self._get_language(intent, context)
         
         # TODO: Implement microphone configuration logic
-        if language == "ru":
-            response_text = f"Настройка микрофона ({microphone}) пока не реализована"
-        else:
-            response_text = f"Microphone configuration ({microphone}) not yet implemented"
+        response_text = self._get_template("microphone_not_implemented", language, microphone=microphone)
         
         self.logger.info(f"Microphone configuration request: {microphone}")
         
@@ -255,14 +243,38 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         # Default to Russian
         return "ru"
         
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"SpeechRecognitionIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - speech recognition templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("speech_recognition", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"SpeechRecognitionIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/speech_recognition/{language}/error_messages.yaml. "
+                f"This is a fatal error - all speech recognition templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"SpeechRecognitionIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/speech_recognition/{language}/error_messages.yaml for correct placeholders."
+            )
+    
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = self._get_language(intent, context)
         
-        if language == "ru":
-            error_text = f"Ошибка настройки распознавания речи: {error}"
-        else:
-            error_text = f"Speech recognition configuration error: {error}"
+        error_text = self._get_template("error_configuration", language, error=error)
         
         return IntentResult(
             text=error_text,

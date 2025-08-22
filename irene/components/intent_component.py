@@ -42,10 +42,10 @@ class IntentComponent(Component, WebAPIPlugin):
         """Initialize the intent system with configuration-driven handler discovery"""
         await super().initialize(core)
         
-        # Get intent handler configuration
-        intent_config = getattr(core.config, 'intents', {})
+        # Get intent system configuration (Phase 5: Use proper Pydantic IntentSystemConfig)
+        intent_config = getattr(core.config, 'intent_system', None)
         
-        # Default configuration if not provided
+        # Default configuration if not provided (fallback for non-Pydantic configs)
         if not intent_config:
             intent_config = {
                 "enabled": True,
@@ -58,7 +58,7 @@ class IntentComponent(Component, WebAPIPlugin):
         
         self._config = intent_config
         
-        # Initialize intent handler manager
+        # Initialize intent handler manager (Phase 5: Pass full intent system config)
         self.handler_manager = IntentHandlerManager()
         # Handle both dict and Pydantic config objects
         if isinstance(intent_config, dict):
@@ -66,7 +66,8 @@ class IntentComponent(Component, WebAPIPlugin):
         else:
             handler_config = getattr(intent_config, "handlers", {})
         
-        await self.handler_manager.initialize(handler_config)
+        # Phase 5: Pass full intent system config for handler-specific configurations
+        await self.handler_manager.initialize(handler_config, intent_system_config=intent_config)
         
         # Get registry and orchestrator from manager
         self.intent_registry = self.handler_manager.get_registry()

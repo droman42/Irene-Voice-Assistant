@@ -1,0 +1,102 @@
+# Russian temporal formatting data for DateTimeIntentHandler
+# Phase 2: Extracted from hardcoded arrays in datetime.py
+
+weekdays:
+  - "понедельник"
+  - "вторник" 
+  - "среда"
+  - "четверг"
+  - "пятница"
+  - "суббота"
+  - "воскресенье"
+
+months:
+  - "января"
+  - "февраля"
+  - "марта"
+  - "апреля"
+  - "мая"
+  - "июня"
+  - "июля"
+  - "августа"
+  - "сентября"
+  - "октября"
+  - "ноября"
+  - "декабря"
+
+days_ordinal:
+  - "первое"
+  - "второе"
+  - "третье"
+  - "четвёртое"
+  - "пятое"
+  - "шестое"
+  - "седьмое"
+  - "восьмое"
+  - "девятое"
+  - "десятое"
+  - "одиннадцатое"
+  - "двенадцатое"
+  - "тринадцатое"
+  - "четырнадцатое"
+  - "пятнадцатое"
+  - "шестнадцатое"
+  - "семнадцатое"
+  - "восемнадцатое"
+  - "девятнадцатое"
+  - "двадцатое"
+  - "двадцать первое"
+  - "двадцать второе"
+  - "двадцать третье"
+  - "двадцать четвёртое"
+  - "двадцать пятое"
+  - "двадцать шестое"
+  - "двадцать седьмое"
+  - "двадцать восьмое"
+  - "двадцать девятое"
+  - "тридцатое"
+  - "тридцать первое"
+
+hours:
+  - "двенадцать"
+  - "час"
+  - "два"
+  - "три"
+  - "четыре"
+  - "пять"
+  - "шесть"
+  - "семь"
+  - "восемь"
+  - "девять"
+  - "десять"
+  - "одиннадцать"
+
+# Time periods for different hours
+periods:
+  night: "ночи"      # 0-5
+  morning: "утра"    # 6-11
+  day: "дня"        # 12-17
+  evening: "вечера"  # 18-23
+
+# Special hour names  
+special_hours:
+  midnight: "двенадцать"
+  noon: "двенадцать"
+
+# Template strings for time/date formatting
+templates:
+  date_full: "Сегодня {weekday}, {day_ordinal} {month} {year} года"
+  time_exact: "Сейчас {hour_text} часов {period}"
+  time_with_minutes_zero: "Сейчас {hour_text} ноль {minute} {period}"
+  time_with_minutes: "Сейчас {hour_text} {minute} {period}"
+  datetime_full: "Сегодня {weekday}, {day_ordinal} {month} {year} года. Время: {time_part}"
+
+# Language detection arrays - migrated from datetime.json
+language_detection:
+  russian_indicators:
+    - "время"
+    - "дата"
+    - "который"
+    - "какая"
+    - "сколько"
+    - "число"

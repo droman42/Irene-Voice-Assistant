@@ -91,10 +91,7 @@ class TextEnhancementIntentHandler(IntentHandler):
         if text_to_enhance:
             try:
                 enhanced = await llm_component.enhance_text(text_to_enhance, task="improve")
-                if language == "ru":
-                    response_text = f"Улучшенный текст: {enhanced}"
-                else:
-                    response_text = f"Enhanced text: {enhanced}"
+                response_text = self._get_template("enhanced_text", language, enhanced=enhanced)
                     
                 self.logger.info(f"Text enhancement completed")
                 
@@ -137,10 +134,7 @@ class TextEnhancementIntentHandler(IntentHandler):
             # Determine language
             language = self._get_language(intent, context)
             
-            if language == "ru":
-                response_text = f"Улучшенный текст: {improved}"
-            else:
-                response_text = f"Improved text: {improved}"
+            response_text = self._get_template("improved_text", language, improved=improved)
             
             self.logger.info(f"Text improvement completed")
             
@@ -182,10 +176,7 @@ class TextEnhancementIntentHandler(IntentHandler):
             # Determine language
             language = self._get_language(intent, context)
             
-            if language == "ru":
-                response_text = f"Исправленный текст: {corrected}"
-            else:
-                response_text = f"Corrected text: {corrected}"
+            response_text = self._get_template("corrected_text", language, corrected=corrected)
             
             self.logger.info(f"Text correction completed")
             
@@ -232,14 +223,38 @@ class TextEnhancementIntentHandler(IntentHandler):
         # Default to Russian
         return "ru"
         
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"TextEnhancementIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - text enhancement templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("text_enhancement", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"TextEnhancementIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/text_enhancement/{language}/result_messages.yaml. "
+                f"This is a fatal error - all text enhancement templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"TextEnhancementIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/text_enhancement/{language}/result_messages.yaml for correct placeholders."
+            )
+    
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = self._get_language(intent, context)
         
-        if language == "ru":
-            error_text = f"Ошибка улучшения текста: {error}"
-        else:
-            error_text = f"Text enhancement error: {error}"
+        error_text = self._get_template("error_enhancement", language, error=error)
         
         return IntentResult(
             text=error_text,

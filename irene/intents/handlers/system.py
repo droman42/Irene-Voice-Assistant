@@ -105,6 +105,33 @@ class SystemIntentHandler(IntentHandler):
         """System commands are always available"""
         return True
     
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"SystemIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - system templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("system", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"SystemIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/system/{language}/{template_name}.md. "
+                f"This is a fatal error - all system templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"SystemIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/system/{language}/{template_name}.md for correct placeholders."
+            )
+    
     def _detect_language(self, text: str, context: ConversationContext) -> str:
         """Detect language from text or context"""
         text_lower = text.lower()
@@ -124,26 +151,7 @@ class SystemIntentHandler(IntentHandler):
     
     async def _handle_help_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle help/assistance request"""
-        if language == "en":
-            help_text = """I'm Irene, your voice assistant. Here's what I can help you with:
-
-🗣️ **Conversation**: Just talk to me naturally
-⏰ **Timers**: "Set timer for 5 minutes"
-📅 **Date & Time**: "What time is it?" or "What's today's date?"
-👋 **Greetings**: Say hello or goodbye
-🔧 **System**: Ask for status, version, or help
-
-You can speak to me in Russian or English. How can I help you today?"""
-        else:
-            help_text = """Я Ирина, ваш голосовой помощник. Вот что я умею:
-
-🗣️ **Разговор**: Просто говорите со мной естественно
-⏰ **Таймеры**: "Поставь таймер на 5 минут"
-📅 **Дата и время**: "Сколько времени?" или "Какая сегодня дата?"
-👋 **Приветствия**: Поздоровайтесь или попрощайтесь
-🔧 **Система**: Спросите статус, версию или помощь
-
-Вы можете говорить со мной на русском или английском языке. Чем могу помочь?"""
+        help_text = self._get_template("help", language)
         
         return IntentResult(
             text=help_text,
@@ -166,29 +174,15 @@ You can speak to me in Russian or English. How can I help you today?"""
                 uptime_str = f"{uptime_hours} hours and {uptime_minutes} minutes"
             else:
                 uptime_str = f"{uptime_minutes} minutes"
-            
-            # TODO #15: Move hardcoded version to TOML configuration (not JSON donations)
-            version = "13.0.0"  # Should come from config
-            status_text = f"""System Status: ✅ Running
-Uptime: {uptime_str}
-Version: Irene v{version}
-Mode: Intent-based processing
-Language: Bilingual (Russian/English)
-
-All systems operational!"""
         else:
             if uptime_hours > 0:
                 uptime_str = f"{uptime_hours} часов и {uptime_minutes} минут"
             else:
                 uptime_str = f"{uptime_minutes} минут"
-            
-            status_text = f"""Статус системы: ✅ Работает
-Время работы: {uptime_str}
-Версия: Ирина v13.0.0
-Режим: Обработка интентов
-Язык: Двуязычная (русский/английский)
-
-Все системы работают нормально!"""
+        
+        # TODO #15: Move hardcoded version to TOML configuration (not JSON donations)
+        version = "13.0.0"  # Should come from config
+        status_text = self._get_template("status", language, uptime_str=uptime_str, version=version)
         
         return IntentResult(
             text=status_text,
@@ -196,35 +190,21 @@ All systems operational!"""
             metadata={
                 "status": "running",
                 "uptime_seconds": uptime_seconds,
-                "version": "13.0.0",
+                "version": version,
                 "language": language
             }
         )
     
     async def _handle_version_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle version information request"""
-        if language == "en":
-            version_text = """Irene Voice Assistant v13.0.0
-🤖 Modern async voice assistant
-🧠 Intent-based natural language processing
-🗣️ Bilingual support (Russian/English)
-🔧 Component-based architecture
-
-Built with modern Python async/await patterns."""
-        else:
-            version_text = """Голосовой помощник Ирина v13.0.0
-🤖 Современный асинхронный голосовой помощник
-🧠 Обработка естественного языка на основе интентов
-🗣️ Двуязычная поддержка (русский/английский)
-🔧 Компонентная архитектура
-
-Создано с использованием современных асинхронных паттернов Python."""
+        version = "13.0.0"  # TODO: Should come from config
+        version_text = self._get_template("version", language, version=version)
         
         return IntentResult(
             text=version_text,
             should_speak=True,
             metadata={
-                "version": "13.0.0",
+                "version": version,
                 "architecture": "intent-based",
                 "language": language
             }
@@ -233,25 +213,16 @@ Built with modern Python async/await patterns."""
     async def _handle_info_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle general information request"""
         session_stats = self._get_session_stats(context)
+        version = "13.0.0"  # TODO: Should come from config
         
-        if language == "en":
-            info_text = f"""System Information:
-💻 Assistant: Irene v13.0.0
-🕐 Session started: {datetime.fromtimestamp(context.created_at).strftime('%H:%M')}
-💬 Messages exchanged: {len(context.history)}
-🎯 Current session: {context.session_id}
-🧠 Processing mode: Intent-based NLU
-
-Ready to assist you!"""
-        else:
-            info_text = f"""Информация о системе:
-💻 Помощник: Ирина v13.0.0
-🕐 Сессия начата: {datetime.fromtimestamp(context.created_at).strftime('%H:%M')}
-💬 Сообщений обменено: {len(context.history)}
-🎯 Текущая сессия: {context.session_id}
-🧠 Режим обработки: NLU на основе интентов
-
-Готова помочь вам!"""
+        info_text = self._get_template(
+            "info", 
+            language,
+            version=version,
+            session_start_time=datetime.fromtimestamp(context.created_at).strftime('%H:%M'),
+            message_count=len(context.history),
+            session_id=context.session_id
+        )
         
         return IntentResult(
             text=info_text,
@@ -264,14 +235,8 @@ Ready to assist you!"""
     
     async def _handle_general_info(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle general system information request"""
-        if language == "en":
-            info_text = """I'm Irene, your intelligent voice assistant running on v13.0.0.
-I use modern intent-based processing to understand and respond to your requests.
-Ask me for help to learn about my capabilities!"""
-        else:
-            info_text = """Я Ирина, ваш интеллектуальный голосовой помощник версии 13.0.0.
-Я использую современную обработку на основе интентов для понимания ваших запросов.
-Спросите у меня помощь, чтобы узнать о моих возможностях!"""
+        version = "13.0.0"  # TODO: Should come from config
+        info_text = self._get_template("general", language, version=version)
         
         return IntentResult(
             text=info_text,

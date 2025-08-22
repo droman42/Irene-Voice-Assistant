@@ -1,0 +1,22 @@
+# English domain hints for BaseIntentHandler
+# Phase 2: Extracted from hardcoded domain_hints in base.py
+
+domain_hints:
+  music:
+    - "music"
+    - "song"
+    - "track"
+  lights:
+    - "lights"
+    - "lamp"
+    - "lighting"
+  smart_home:
+    - "device"
+    - "smart"
+  media:
+    - "video"
+    - "movie"
+    - "media"
+  timer:
+    - "timer"
+    - "alarm"

@@ -56,25 +56,27 @@ class ConversationIntentHandler(IntentHandler):
     intelligent responses using Large Language Models.
     """
     
-    def __init__(self):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__()
         self.conversation_context: List[Dict[str, str]] = []
-        self.max_context_length = 10  # Keep last 10 exchanges
         self.sessions: Dict[str, ConversationSession] = {}
         self.llm_component = None
         
-        # TODO #15: Move configuration to TOML and prompts to external files (not JSON donations)
-        # - LLM prompts should be in prompts/chat_system.txt and prompts/reference_system.txt  
-        # - Configuration values should be in main TOML config
-        # Configuration for conversation modes
-        self.config = {
-            "chat_system_prompt": "Ты - Ирина, голосовой помощник, помогающий человеку. Давай ответы кратко и по существу.",
-            "reference_system_prompt": "Ты помощник для получения точных фактов. Отвечай максимально кратко и точно на русском языке.",
-            "reference_prompt_template": "Вопрос: {0}. Ответь на русском языке максимально кратко - только запрошенные данные.",
-            "session_timeout": 1800,  # 30 minutes
-            "max_sessions": 50,
-            "default_conversation_confidence": 0.6  # Lower confidence for fallback
-        }
+        # Phase 5: Configuration injection via Pydantic ConversationHandlerConfig
+        if config:
+            self.config = config
+            self.max_context_length = config.get("max_context_length", 10)
+            logger.info(f"ConversationIntentHandler initialized with config: session_timeout={config.get('session_timeout')}, max_sessions={config.get('max_sessions')}, max_context_length={self.max_context_length}")
+        else:
+            # Fallback defaults (should not be used in production with proper config)
+            self.config = {
+                "session_timeout": 1800,  # 30 minutes
+                "max_sessions": 50,
+                "max_context_length": 10,
+                "default_conversation_confidence": 0.6  # Lower confidence for fallback
+            }
+            self.max_context_length = 10
+            logger.warning("ConversationIntentHandler initialized without configuration - using fallback defaults")
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
@@ -158,6 +160,98 @@ class ConversationIntentHandler(IntentHandler):
         """Set the LLM component reference"""
         self.llm_component = llm_component
     
+    def _get_prompt(self, prompt_type: str, language: str = "ru") -> str:
+        """Get prompt from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"ConversationIntentHandler: Asset loader not initialized. "
+                f"Cannot access prompt '{prompt_type}' for language '{language}'. "
+                f"This is a fatal configuration error - prompts must be externalized."
+            )
+        
+        # Get prompt from asset loader
+        prompt = self.asset_loader.get_prompt("conversation", prompt_type, language)
+        if prompt is None:
+            raise RuntimeError(
+                f"ConversationIntentHandler: Required prompt '{prompt_type}' for language '{language}' "
+                f"not found in assets/prompts/conversation/{language}/{prompt_type}.txt. "
+                f"This is a fatal error - all conversation prompts must be externalized."
+            )
+        
+        return prompt
+
+    def _get_template_data(self, template_name: str, language: str = "ru") -> List[str]:
+        """Get template data (arrays) from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"ConversationIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_data = self.asset_loader.get_template("conversation", template_name, language)
+        if template_data is None:
+            raise RuntimeError(
+                f"ConversationIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/conversation/{language}/responses.yaml. "
+                f"This is a fatal error - all conversation templates must be externalized."
+            )
+        
+        # Ensure it's a list
+        if not isinstance(template_data, list):
+            raise RuntimeError(
+                f"ConversationIntentHandler: Template '{template_name}' should be a list but got {type(template_data)}. "
+                f"Check assets/templates/conversation/{language}/responses.yaml"
+            )
+        
+        return template_data
+
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template string from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"ConversationIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("conversation", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"ConversationIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/conversation/{language}/responses.yaml. "
+                f"This is a fatal error - all conversation templates must be externalized."
+            )
+        
+        # Format template with provided arguments if any
+        if format_args:
+            try:
+                return template_content.format(**format_args)
+            except KeyError as e:
+                raise RuntimeError(
+                    f"ConversationIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                    f"Check assets/templates/conversation/{language}/responses.yaml for correct placeholders."
+                )
+        
+        return template_content
+    
+    def _detect_language(self, text: str, session_or_context) -> str:
+        """Detect language from text or context/session"""
+        # Check if text contains Russian characters
+        if any(char in text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
+            return "ru"
+        
+        # Check context metadata for language preference (if it's a ConversationContext)
+        if hasattr(session_or_context, 'metadata') and hasattr(session_or_context.metadata, 'get'):
+            language = session_or_context.metadata.get('language')
+            if language:
+                return language
+        
+        # Default to Russian if unclear
+        return "ru"
+    
     async def is_available(self) -> bool:
         """Check if LLM component is available for conversation"""
         if not self.llm_component:
@@ -169,8 +263,8 @@ class ConversationIntentHandler(IntentHandler):
         if session_id not in self.sessions:
             # Determine conversation type from intent
             conversation_type = "reference" if intent.action == "reference" else "chat"
-            system_prompt = (self.config["reference_system_prompt"] if conversation_type == "reference" 
-                           else self.config["chat_system_prompt"])
+            system_prompt = (self._get_prompt("reference_system") if conversation_type == "reference" 
+                           else self._get_prompt("chat_system"))
             
             self.sessions[session_id] = ConversationSession(
                 session_id=session_id,
@@ -185,12 +279,11 @@ class ConversationIntentHandler(IntentHandler):
         # Clear any existing history
         session.clear_history(keep_system=True)
         
-        greetings = [
-            "Давайте поговорим! О чём хотите поболтать?",
-            "Отлично! Я готова к беседе. О чём поговорим?",
-            "Хорошо, начинаем диалог. Что вас интересует?",
-            "Замечательно! Я вас слушаю."
-        ]
+        # Determine language preference
+        language = self._detect_language(intent.raw_text, session)
+        
+        # Get greeting templates from asset loader
+        greetings = self._get_template_data("start_greetings", language)
         
         import random
         response = random.choice(greetings)
@@ -206,12 +299,11 @@ class ConversationIntentHandler(IntentHandler):
     
     async def _handle_end_conversation(self, intent: Intent, session: ConversationSession) -> IntentResult:
         """Handle conversation end intent"""
-        farewells = [
-            "До свидания! Было приятно поговорить.",
-            "Пока! Обращайтесь ещё.",
-            "До встречи! Хорошего дня.",
-            "Всего доброго!"
-        ]
+        # Determine language preference
+        language = self._detect_language(intent.raw_text, session)
+        
+        # Get farewell templates from asset loader
+        farewells = self._get_template_data("end_farewells", language)
         
         import random
         response = random.choice(farewells)
@@ -230,8 +322,14 @@ class ConversationIntentHandler(IntentHandler):
         """Handle conversation clear/reset intent"""
         session.clear_history(keep_system=True)
         
+        # Determine language preference
+        language = self._detect_language(intent.raw_text, session)
+        
+        # Get clear response template from asset loader
+        response = self._get_template("clear_response", language)
+        
         return IntentResult(
-            text="Хорошо, начинаем диалог заново. О чём поговорим?",
+            text=response,
             should_speak=True,
             metadata={"conversation_cleared": True}
         )
@@ -247,7 +345,8 @@ class ConversationIntentHandler(IntentHandler):
         
         # Format query for reference mode
         query = intent.raw_text
-        formatted_prompt = self.config["reference_prompt_template"].format(query)
+        template = self._get_prompt("reference_template")
+        formatted_prompt = template.format(query)
         
         try:
             # Use LLM component's default model for factual queries

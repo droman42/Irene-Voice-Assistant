@@ -1,0 +1,659 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "conversation",
+  "description": "General conversation and reference queries with context management",
+  "intent_name_patterns": [
+    "chat.start",
+    "chat.continue",
+    "chat.reference",
+    "chat.end"
+  ],
+  "action_patterns": [
+    "start",
+    "end",
+    "clear",
+    "reference"
+  ],
+  "domain_patterns": [
+    "conversation"
+  ],
+  "fallback_conditions": [
+    {
+      "domain": "general",
+      "confidence_threshold": 0.8
+    }
+  ],
+  "global_parameters": [
+    {
+      "name": "session_id",
+      "type": "string",
+      "required": true,
+      "description": "Conversation session identifier"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_start_conversation",
+      "intent_suffix": "start",
+      "description": "Start a new conversation or chat session",
+      "phrases": [
+        "поболтаем",
+        "поговорим",
+        "давай поговорим",
+        "начинаем диалог",
+        "хочу с тобой общаться",
+        "let's talk",
+        "let's chat",
+        "let's have a conversation",
+        "I want to chat with you"
+      ],
+      "lemmas": [
+        "поболтать",
+        "поговорить",
+        "общаться",
+        "диалог",
+        "разговор"
+      ],
+      "parameters": [
+        {
+          "name": "topic",
+          "type": "string",
+          "required": false,
+          "description": "Conversation topic",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "о",
+                      "про",
+                      "about"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "TOPIC"
+            }
+          ],
+          "aliases": [
+            "тема",
+            "subject"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "поболтать",
+                "поговорить",
+                "общаться"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "let's"
+          },
+          {
+            "TEXT": {
+              "REGEX": "talk|chat"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "давай"
+          },
+          {
+            "LEMMA": "поговорить"
+          }
+        ],
+        [
+          {
+            "TEXT": "I"
+          },
+          {
+            "TEXT": "want"
+          },
+          {
+            "TEXT": "to"
+          },
+          {
+            "TEXT": {
+              "REGEX": "chat|talk"
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "TOPIC": [
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "о",
+                  "про"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "about"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "давай поговорим",
+          "parameters": {}
+        },
+        {
+          "text": "поболтаем о погоде",
+          "parameters": {
+            "topic": "погоде"
+          }
+        },
+        {
+          "text": "let's chat",
+          "parameters": {}
+        },
+        {
+          "text": "let's talk about music",
+          "parameters": {
+            "topic": "music"
+          }
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_end_conversation",
+      "intent_suffix": "end",
+      "description": "End the current conversation",
+      "phrases": [
+        "закончим разговор",
+        "хватит болтать",
+        "конец диалога",
+        "stop talking",
+        "end conversation",
+        "that's enough"
+      ],
+      "lemmas": [
+        "закончить",
+        "конец",
+        "хватить",
+        "разговор",
+        "диалог"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "закончить",
+                "конец"
+              ]
+            }
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "разговор",
+                "диалог"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "stop|end"
+            }
+          },
+          {
+            "TEXT": {
+              "REGEX": "talking|conversation"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "хватить"
+          },
+          {
+            "LEMMA": "болтать"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "закончим разговор",
+          "parameters": {}
+        },
+        {
+          "text": "stop talking",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.0
+    },
+    {
+      "method_name": "_handle_clear_conversation",
+      "intent_suffix": "clear",
+      "description": "Clear conversation history",
+      "phrases": [
+        "очисти историю",
+        "сбрось контекст",
+        "забудь все",
+        "clear history",
+        "reset context",
+        "forget everything"
+      ],
+      "lemmas": [
+        "очистить",
+        "сбросить",
+        "забыть",
+        "история",
+        "контекст"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "очистить",
+                "сбросить"
+              ]
+            }
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "история",
+                "контекст"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "clear|reset"
+            }
+          },
+          {
+            "TEXT": {
+              "REGEX": "history|context"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "забыть"
+          },
+          {
+            "LEMMA": "все"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "очисти историю",
+          "parameters": {}
+        },
+        {
+          "text": "clear history",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.0
+    },
+    {
+      "method_name": "_handle_reference_query",
+      "intent_suffix": "reference",
+      "description": "Handle reference questions and information requests",
+      "phrases": [
+        "что такое",
+        "кто такой",
+        "расскажи о",
+        "объясни",
+        "справка",
+        "what is",
+        "who is",
+        "tell me about",
+        "explain this to me"
+      ],
+      "lemmas": [
+        "что",
+        "кто",
+        "рассказать",
+        "объяснить",
+        "справка"
+      ],
+      "parameters": [
+        {
+          "name": "query_topic",
+          "type": "string",
+          "required": true,
+          "description": "Topic or subject to explain",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "что",
+                      "кто"
+                    ]
+                  }
+                },
+                {
+                  "LEMMA": "такой"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "QUERY_TOPIC"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "what|who"
+                  }
+                },
+                {
+                  "TEXT": "is"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "QUERY_TOPIC"
+            }
+          ],
+          "aliases": [
+            "тема",
+            "предмет",
+            "subject"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "что"
+          },
+          {
+            "LEMMA": "такой"
+          }
+        ],
+        [
+          {
+            "LEMMA": "кто"
+          },
+          {
+            "LEMMA": "такой"
+          }
+        ],
+        [
+          {
+            "LEMMA": "рассказать"
+          },
+          {
+            "LEMMA": "о"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "what|who"
+            }
+          },
+          {
+            "TEXT": "is"
+          }
+        ],
+        [
+          {
+            "TEXT": "tell"
+          },
+          {
+            "TEXT": "me"
+          },
+          {
+            "TEXT": "about"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "QUERY_TOPIC": [
+          [
+            {
+              "LEMMA": {
+                "IN": [
+                  "что",
+                  "кто"
+                ]
+              }
+            },
+            {
+              "LEMMA": "такой"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "REGEX": "what|who"
+              }
+            },
+            {
+              "TEXT": "is"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LEMMA": "рассказать"
+            },
+            {
+              "LEMMA": "о"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "что такое Python",
+          "parameters": {
+            "query_topic": "Python"
+          }
+        },
+        {
+          "text": "расскажи о машинном обучении",
+          "parameters": {
+            "query_topic": "машинном обучении"
+          }
+        },
+        {
+          "text": "what is artificial intelligence",
+          "parameters": {
+            "query_topic": "artificial intelligence"
+          }
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_continue_conversation",
+      "intent_suffix": "general",
+      "description": "Handle general conversation continuation and fallback",
+      "phrases": [
+        "продолжим",
+        "еще поговорим",
+        "дальше",
+        "что еще",
+        "continue",
+        "let's continue",
+        "what else",
+        "go on"
+      ],
+      "lemmas": [
+        "продолжить",
+        "еще",
+        "дальше",
+        "что"
+      ],
+      "parameters": [
+        {
+          "name": "context_reference",
+          "type": "string",
+          "required": false,
+          "description": "Reference to previous conversation context",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "это",
+                      "то",
+                      "that",
+                      "this"
+                    ]
+                  }
+                }
+              ],
+              "label": "CONTEXT_REF"
+            }
+          ],
+          "aliases": [
+            "контекст",
+            "ссылка"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "продолжить",
+                "продолжим"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "continue|go"
+            }
+          },
+          {
+            "TEXT": {
+              "REGEX": "on|ahead"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "что"
+          },
+          {
+            "LEMMA": "еще"
+          }
+        ],
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": "else"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "продолжим",
+          "parameters": {}
+        },
+        {
+          "text": "что еще",
+          "parameters": {}
+        },
+        {
+          "text": "continue",
+          "parameters": {}
+        }
+      ],
+      "boost": 0.8
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не",
+            "стоп"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "разговор",
+            "диалог"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not|stop"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "talking|conversation"
+        }
+      }
+    ]
+  ]
+}

@@ -1,0 +1,1195 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "speech_recognition",
+  "description": "ASR configuration and speech recognition management",
+  "intent_name_patterns": [
+    "asr.show",
+    "asr.switch",
+    "asr.language",
+    "asr.config",
+    "speech.recognition"
+  ],
+  "action_patterns": [
+    "show",
+    "switch",
+    "configure",
+    "language",
+    "recognition"
+  ],
+  "domain_patterns": [
+    "asr",
+    "speech",
+    "recognition",
+    "configuration"
+  ],
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "ru",
+        "en"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_show_recognition",
+      "intent_suffix": "show",
+      "description": "Show ASR providers and recognition information",
+      "phrases": [
+        "покажи распознавание",
+        "покажи провайдеры asr",
+        "показать речь",
+        "show recognition",
+        "show asr providers",
+        "speech recognition info",
+        "список распознавания",
+        "asr информация",
+        "recognition providers",
+        "покажи asr",
+        "show speech",
+        "распознавание речи",
+        "speech recognition"
+      ],
+      "lemmas": [
+        "показывать",
+        "распознавание",
+        "речь",
+        "провайдер",
+        "информация",
+        "asr"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "показывать"
+          },
+          {
+            "LEMMA": "распознавание"
+          }
+        ],
+        [
+          {
+            "TEXT": "show"
+          },
+          {
+            "TEXT": {
+              "IN": [
+                "recognition",
+                "asr"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "показывать"
+          },
+          {
+            "LEMMA": "провайдер"
+          },
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "TEXT": "show"
+          },
+          {
+            "TEXT": "asr"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "LEMMA": "список"
+          },
+          {
+            "LEMMA": "распознавание"
+          }
+        ],
+        [
+          {
+            "TEXT": "list"
+          },
+          {
+            "TEXT": "recognition"
+          }
+        ],
+        [
+          {
+            "TEXT": "asr"
+          },
+          {
+            "LEMMA": "информация"
+          }
+        ],
+        [
+          {
+            "TEXT": "asr"
+          },
+          {
+            "TEXT": "information"
+          }
+        ],
+        [
+          {
+            "LEMMA": "распознавание"
+          },
+          {
+            "LEMMA": "речь"
+          }
+        ],
+        [
+          {
+            "TEXT": "speech"
+          },
+          {
+            "TEXT": "recognition"
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "покажи распознавание",
+          "parameters": {}
+        },
+        {
+          "text": "показать asr провайдеры",
+          "parameters": {}
+        },
+        {
+          "text": "show recognition",
+          "parameters": {}
+        },
+        {
+          "text": "speech recognition info",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_switch_asr_provider",
+      "intent_suffix": "switch",
+      "description": "Switch ASR provider",
+      "phrases": [
+        "переключись на whisper",
+        "смени asr",
+        "используй vosk",
+        "switch to whisper",
+        "переключи распознавание",
+        "смени провайдер asr",
+        "switch asr provider",
+        "используй google asr",
+        "change to vosk",
+        "переключись на google",
+        "switch recognition",
+        "change asr",
+        "use different asr"
+      ],
+      "lemmas": [
+        "переключаться",
+        "менять",
+        "использовать",
+        "asr",
+        "распознавание",
+        "провайдер"
+      ],
+      "parameters": [
+        {
+          "name": "provider",
+          "type": "choice",
+          "required": true,
+          "choices": [
+            "whisper",
+            "vosk",
+            "google_cloud",
+            "azure",
+            "виспер",
+            "воск",
+            "гугл",
+            "облако"
+          ],
+          "description": "ASR provider to switch to",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": "переключаться"
+                },
+                {
+                  "TEXT": "на"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "whisper",
+                      "vosk",
+                      "google",
+                      "azure",
+                      "виспер",
+                      "воск",
+                      "гугл"
+                    ]
+                  }
+                }
+              ],
+              "label": "PROVIDER"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": [
+                      "switch",
+                      "change"
+                    ]
+                  }
+                },
+                {
+                  "TEXT": "to"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "whisper",
+                      "vosk",
+                      "google",
+                      "azure"
+                    ]
+                  }
+                }
+              ],
+              "label": "PROVIDER"
+            }
+          ],
+          "aliases": [
+            "система",
+            "движок",
+            "сервис"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "переключаться"
+          },
+          {
+            "TEXT": "на"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "whisper",
+                "vosk",
+                "google",
+                "azure",
+                "виспер",
+                "воск",
+                "гугл"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "switch",
+                "change"
+              ]
+            }
+          },
+          {
+            "TEXT": "to"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "whisper",
+                "vosk",
+                "google",
+                "azure"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "менять"
+          },
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "TEXT": "change"
+          },
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "LEMMA": "использовать"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "whisper",
+                "vosk",
+                "google"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "whisper",
+                "vosk",
+                "google"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "переключать"
+          },
+          {
+            "LEMMA": "распознавание"
+          }
+        ],
+        [
+          {
+            "TEXT": "switch"
+          },
+          {
+            "TEXT": "recognition"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "PROVIDER": [
+          [
+            {
+              "LEMMA": "переключаться"
+            },
+            {
+              "TEXT": "на"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "whisper",
+                  "vosk",
+                  "google",
+                  "azure",
+                  "виспер",
+                  "воск",
+                  "гугл"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": [
+                  "switch",
+                  "change"
+                ]
+              }
+            },
+            {
+              "TEXT": "to"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "whisper",
+                  "vosk",
+                  "google",
+                  "azure"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "переключись на whisper",
+          "parameters": {
+            "provider": "whisper"
+          }
+        },
+        {
+          "text": "switch to vosk",
+          "parameters": {
+            "provider": "vosk"
+          }
+        },
+        {
+          "text": "смени asr на google",
+          "parameters": {
+            "provider": "google"
+          }
+        },
+        {
+          "text": "use azure asr",
+          "parameters": {
+            "provider": "azure"
+          }
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_switch_language",
+      "intent_suffix": "language",
+      "description": "Switch ASR language",
+      "phrases": [
+        "переключи язык",
+        "смени язык распознавания",
+        "используй русский",
+        "switch language",
+        "change recognition language",
+        "use english",
+        "язык на русский",
+        "language to english",
+        "переключись на английский",
+        "change to russian",
+        "распознавание на",
+        "recognition in"
+      ],
+      "lemmas": [
+        "переключать",
+        "менять",
+        "язык",
+        "распознавание",
+        "использовать"
+      ],
+      "parameters": [
+        {
+          "name": "language",
+          "type": "choice",
+          "required": true,
+          "choices": [
+            "русский",
+            "английский",
+            "немецкий",
+            "французский",
+            "spanish",
+            "russian",
+            "english",
+            "german",
+            "french"
+          ],
+          "description": "Language to switch ASR to",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": "язык"
+                },
+                {
+                  "TEXT": "на"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "русский",
+                      "английский",
+                      "немецкий",
+                      "французский"
+                    ]
+                  }
+                }
+              ],
+              "label": "LANGUAGE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "language"
+                },
+                {
+                  "TEXT": "to"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "russian",
+                      "english",
+                      "german",
+                      "french",
+                      "spanish"
+                    ]
+                  }
+                }
+              ],
+              "label": "LANGUAGE"
+            }
+          ],
+          "aliases": [
+            "локаль",
+            "locale",
+            "речь"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "переключать"
+          },
+          {
+            "LEMMA": "язык"
+          }
+        ],
+        [
+          {
+            "TEXT": "switch"
+          },
+          {
+            "TEXT": "language"
+          }
+        ],
+        [
+          {
+            "LEMMA": "менять"
+          },
+          {
+            "LEMMA": "язык"
+          },
+          {
+            "LEMMA": "распознавание"
+          }
+        ],
+        [
+          {
+            "TEXT": "change"
+          },
+          {
+            "TEXT": "recognition"
+          },
+          {
+            "TEXT": "language"
+          }
+        ],
+        [
+          {
+            "LEMMA": "язык"
+          },
+          {
+            "TEXT": "на"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "русский",
+                "английский",
+                "немецкий",
+                "французский"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "language"
+          },
+          {
+            "TEXT": "to"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "russian",
+                "english",
+                "german",
+                "french"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "использовать"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "русский",
+                "английский"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "russian",
+                "english"
+              ]
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "LANGUAGE": [
+          [
+            {
+              "LEMMA": "язык"
+            },
+            {
+              "TEXT": "на"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "русский",
+                  "английский",
+                  "немецкий",
+                  "французский"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": "language"
+            },
+            {
+              "TEXT": "to"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "russian",
+                  "english",
+                  "german",
+                  "french",
+                  "spanish"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "переключи язык на русский",
+          "parameters": {
+            "language": "русский"
+          }
+        },
+        {
+          "text": "switch language to english",
+          "parameters": {
+            "language": "english"
+          }
+        },
+        {
+          "text": "смени язык распознавания на английский",
+          "parameters": {
+            "language": "английский"
+          }
+        },
+        {
+          "text": "use russian recognition",
+          "parameters": {
+            "language": "russian"
+          }
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_configure_quality",
+      "intent_suffix": "quality",
+      "description": "Configure ASR quality settings",
+      "phrases": [
+        "настрой качество",
+        "улучши распознавание",
+        "высокое качество asr",
+        "configure quality",
+        "improve recognition",
+        "high quality asr",
+        "качество распознавания",
+        "recognition quality",
+        "настройки asr",
+        "asr settings",
+        "точность распознавания",
+        "recognition accuracy"
+      ],
+      "lemmas": [
+        "настраивать",
+        "качество",
+        "улучшать",
+        "распознавание",
+        "точность",
+        "настройка"
+      ],
+      "parameters": [
+        {
+          "name": "quality",
+          "type": "choice",
+          "required": false,
+          "default_value": "high",
+          "choices": [
+            "low",
+            "medium",
+            "high",
+            "ultra",
+            "низкое",
+            "среднее",
+            "высокое",
+            "максимальное"
+          ],
+          "description": "Quality level for ASR",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "низкое",
+                      "среднее",
+                      "высокое",
+                      "максимальное",
+                      "low",
+                      "medium",
+                      "high",
+                      "ultra"
+                    ]
+                  }
+                }
+              ],
+              "label": "QUALITY"
+            }
+          ],
+          "aliases": [
+            "уровень",
+            "level",
+            "степень"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "настраивать"
+          },
+          {
+            "LEMMA": "качество"
+          }
+        ],
+        [
+          {
+            "TEXT": "configure"
+          },
+          {
+            "TEXT": "quality"
+          }
+        ],
+        [
+          {
+            "LEMMA": "улучшать"
+          },
+          {
+            "LEMMA": "распознавание"
+          }
+        ],
+        [
+          {
+            "TEXT": "improve"
+          },
+          {
+            "TEXT": "recognition"
+          }
+        ],
+        [
+          {
+            "LOWER": {
+              "IN": [
+                "высокое",
+                "низкое",
+                "среднее"
+              ]
+            }
+          },
+          {
+            "LEMMA": "качество"
+          }
+        ],
+        [
+          {
+            "LOWER": {
+              "IN": [
+                "high",
+                "low",
+                "medium"
+              ]
+            }
+          },
+          {
+            "TEXT": "quality"
+          }
+        ],
+        [
+          {
+            "LEMMA": "качество"
+          },
+          {
+            "LEMMA": "распознавание"
+          }
+        ],
+        [
+          {
+            "TEXT": "recognition"
+          },
+          {
+            "TEXT": "quality"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "QUALITY": [
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "низкое",
+                  "среднее",
+                  "высокое",
+                  "максимальное",
+                  "low",
+                  "medium",
+                  "high",
+                  "ultra"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "настрой высокое качество",
+          "parameters": {
+            "quality": "высокое"
+          }
+        },
+        {
+          "text": "configure high quality",
+          "parameters": {
+            "quality": "high"
+          }
+        },
+        {
+          "text": "улучши распознавание",
+          "parameters": {}
+        },
+        {
+          "text": "medium quality asr",
+          "parameters": {
+            "quality": "medium"
+          }
+        }
+      ],
+      "boost": 1.0
+    },
+    {
+      "method_name": "_handle_configure_microphone",
+      "intent_suffix": "microphone",
+      "description": "Configure microphone settings for ASR",
+      "phrases": [
+        "настрой микрофон",
+        "смени микрофон",
+        "используй другой микрофон",
+        "configure microphone",
+        "change microphone",
+        "use different microphone",
+        "микрофон для asr",
+        "microphone for asr",
+        "настройки микрофона",
+        "microphone settings",
+        "выбери микрофон",
+        "select microphone"
+      ],
+      "lemmas": [
+        "настраивать",
+        "микрофон",
+        "менять",
+        "использовать",
+        "выбирать",
+        "настройка"
+      ],
+      "parameters": [
+        {
+          "name": "microphone",
+          "type": "string",
+          "required": false,
+          "default_value": "default",
+          "description": "Microphone device to use",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "настраивать",
+                      "использовать",
+                      "выбирать"
+                    ]
+                  }
+                },
+                {
+                  "LEMMA": "микрофон"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "MICROPHONE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": [
+                      "configure",
+                      "use",
+                      "select"
+                    ]
+                  }
+                },
+                {
+                  "TEXT": "microphone"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "MICROPHONE"
+            }
+          ],
+          "aliases": [
+            "устройство",
+            "device",
+            "девайс"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "настраивать"
+          },
+          {
+            "LEMMA": "микрофон"
+          }
+        ],
+        [
+          {
+            "TEXT": "configure"
+          },
+          {
+            "TEXT": "microphone"
+          }
+        ],
+        [
+          {
+            "LEMMA": "менять"
+          },
+          {
+            "LEMMA": "микрофон"
+          }
+        ],
+        [
+          {
+            "TEXT": "change"
+          },
+          {
+            "TEXT": "microphone"
+          }
+        ],
+        [
+          {
+            "LEMMA": "использовать"
+          },
+          {
+            "LEMMA": "микрофон"
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          },
+          {
+            "TEXT": "microphone"
+          }
+        ],
+        [
+          {
+            "LEMMA": "микрофон"
+          },
+          {
+            "TEXT": "для"
+          },
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "TEXT": "microphone"
+          },
+          {
+            "TEXT": "for"
+          },
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "LEMMA": "выбирать"
+          },
+          {
+            "LEMMA": "микрофон"
+          }
+        ],
+        [
+          {
+            "TEXT": "select"
+          },
+          {
+            "TEXT": "microphone"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "MICROPHONE": [
+          [
+            {
+              "LEMMA": {
+                "IN": [
+                  "настраивать",
+                  "использовать",
+                  "выбирать"
+                ]
+              }
+            },
+            {
+              "LEMMA": "микрофон"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": [
+                  "configure",
+                  "use",
+                  "select"
+                ]
+              }
+            },
+            {
+              "TEXT": "microphone"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "настрой микрофон",
+          "parameters": {}
+        },
+        {
+          "text": "configure default microphone",
+          "parameters": {
+            "microphone": "default"
+          }
+        },
+        {
+          "text": "используй микрофон usb",
+          "parameters": {
+            "microphone": "usb"
+          }
+        },
+        {
+          "text": "select built-in microphone",
+          "parameters": {
+            "microphone": "built-in"
+          }
+        }
+      ],
+      "boost": 0.9
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "распознавание",
+            "asr",
+            "микрофон"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "recognition|asr|microphone"
+        }
+      }
+    ]
+  ]
+}

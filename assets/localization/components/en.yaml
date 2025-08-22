@@ -1,0 +1,16 @@
+# English component mappings for ProviderControlIntentHandler
+# Phase 3: Extracted from hardcoded component_mapping dictionaries
+
+component_mappings:
+  "audio": "audio"
+  "sound": "audio"
+  "llm": "llm"
+  "model": "llm"
+  "language model": "llm"
+  "asr": "asr"
+  "speech recognition": "asr"
+  "recognition": "asr"
+  "tts": "tts"
+  "voice": "tts"
+  "synthesis": "tts"
+  "speech": "tts"

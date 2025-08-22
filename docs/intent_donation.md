@@ -333,10 +333,10 @@ class DonationDiscoveryError(Exception):
     """Raised when donation discovery or validation fails"""
     pass
 
-class DonationLoader:
-    """Loads and validates JSON donations with fatal error handling"""
+class IntentAssetLoader:
+    """Unified loader for all intent handler assets (replaces DonationLoader)"""
     
-    def __init__(self, config: DonationValidationConfig):
+    def __init__(self, assets_root: Path, config: AssetLoaderConfig):
         self.config = config
         self.validation_errors: List[str] = []
         self.warnings: List[str] = []
@@ -496,8 +496,8 @@ class EnhancedHandlerManager:
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.donation_loader = DonationLoader(
-            DonationValidationConfig(**config.get('donation_validation', {}))
+        self.asset_loader = IntentAssetLoader(
+            Path("assets"), AssetLoaderConfig(**config.get('asset_validation', {}))
         )
         self.handlers: Dict[str, IntentHandler] = {}
         self.donations: Dict[str, HandlerDonation] = {}
@@ -1486,10 +1486,11 @@ This section provides a comprehensive, MECE-structured implementation guide for 
    - ✅ `MethodDonation`, `HandlerDonation`, `KeywordDonation` models
    - ✅ `DonationValidationConfig` for validation settings
    - ✅ All models with comprehensive validation and error handling
-3. **DonationLoader System** (Priority: Critical) ✅ **COMPLETED**
-   - ✅ Core discovery, loading, and validation system (`irene/core/donation_loader.py`)
+3. **IntentAssetLoader System** (Priority: Critical) ✅ **MIGRATED**
+   - ✅ Unified asset loading system (`irene/core/intent_asset_loader.py`)
    - ✅ Fatal error handling for missing/invalid donations
    - ✅ Validation of JSON files against Pydantic schema
+   - ✅ Support for templates, prompts, and localization data
    - ✅ `EnhancedHandlerManager` for handler-donation integration
    - ✅ Conversion to `KeywordDonation` format for NLU providers
 4. **Parameter Extraction** (Priority: High) ✅ **COMPLETED**
@@ -1576,7 +1577,7 @@ This section provides a comprehensive, MECE-structured implementation guide for 
    - ✅ `initialize_providers_from_json_donations()` method in NLUComponent **IMPLEMENTED** 
    - ✅ `_convert_json_to_keyword_donations()` conversion system **IMPLEMENTED**
    - ✅ Provider initialization with loaded donations **FULLY FUNCTIONAL**
-   - ✅ Bridge between `DonationLoader` (Phase 0) and NLU providers **CONNECTED**
+   - ✅ Bridge between `IntentAssetLoader` (Phase 1) and NLU providers **CONNECTED**
 
 2. **Provider-Donation Architecture** (Priority: Critical) ✅ **COMPLETED**
    - ✅ All NLU providers have `_initialize_from_donations()` method **IMPLEMENTED**
@@ -1740,10 +1741,11 @@ This section provides a comprehensive, MECE-structured implementation guide for 
    - Eliminated dependency on non-existent remote schema URLs
    - Validated all existing JSON files against generated schema
 
-3. **DonationLoader Enhancement** ✅ **COMPLETED**
-   - Added `validate_json_schema` configuration option
+3. **IntentAssetLoader Enhancement** ✅ **MIGRATED**
+   - Unified asset loading with `validate_json_schema` configuration option
    - Implemented `_validate_json_schema()` method with jsonschema library
    - Added proper error handling for strict/non-strict validation modes
+   - Extended to support templates, prompts, and localization data
    - Enhanced `DonationValidationConfig` with schema validation controls
 
 4. **Validation Testing** ✅ **COMPLETED**
@@ -1755,7 +1757,7 @@ This section provides a comprehensive, MECE-structured implementation guide for 
 **Infrastructure Created:**
 - `schemas/donation/v1.0.json` - Complete JSON Schema generated from Pydantic models
 - `tools/generate_schemas.py` - Automated schema generation tool
-- Enhanced `DonationLoader` with schema validation
+- Enhanced `IntentAssetLoader` with schema validation
 - Added `jsonschema` dependency for validation
 
 **Validation Results:**

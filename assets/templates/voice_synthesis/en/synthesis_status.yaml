@@ -1,0 +1,12 @@
+# English voice synthesis status templates for VoiceSynthesisIntentHandler  
+# Phase 3: Extracted from hardcoded status responses
+
+synthesis_with_voice: "Synthesizing speech '{text}' with voice {voice}"
+synthesis_without_voice: "Synthesizing speech '{text}'"
+synthesis_basic_with_voice: "Synthesizing: {text}"
+synthesis_basic: "Synthesizing: {text}"
+provider_switch_success: "Switched to TTS provider {provider}"
+provider_switch_failed: "TTS provider {provider} not available"
+tts_unavailable: "TTS component not available"
+no_text_error: "No text to speak found"
+synthesis_error: "Speech synthesis error: {error}"

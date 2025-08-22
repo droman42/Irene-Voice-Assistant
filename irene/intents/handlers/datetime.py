@@ -7,7 +7,7 @@ Adapted from datetime_plugin.py for the new intent architecture.
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
@@ -29,51 +29,8 @@ class DateTimeIntentHandler(IntentHandler):
     def __init__(self):
         super().__init__()
         
-        # TODO #15: Move response formatting arrays to localization system
-        # These arrays are for OUTPUT FORMATTING, not NLU input recognition
-        # They should be extracted to localization/datetime/ru.yaml and en.yaml
-        
-        # Russian weekdays
-        self.weekdays_ru = [
-            "понедельник", "вторник", "среда", "четверг", 
-            "пятница", "суббота", "воскресенье"
-        ]
-        
-        # Russian months in genitive case (for date)
-        self.months_ru = [
-            "января", "февраля", "марта", "апреля", "мая", "июня",
-            "июля", "августа", "сентября", "октября", "ноября", "декабря"
-        ]
-        
-        # Russian day names (ordinal numbers)
-        self.days_ru = [
-            "первое", "второе", "третье", "четвёртое", "пятое", "шестое", 
-            "седьмое", "восьмое", "девятое", "десятое", "одиннадцатое", 
-            "двенадцатое", "тринадцатое", "четырнадцатое", "пятнадцатое", 
-            "шестнадцатое", "семнадцатое", "восемнадцатое", "девятнадцатое", 
-            "двадцатое", "двадцать первое", "двадцать второе", "двадцать третье",
-            "двадцать четвёртое", "двадцать пятое", "двадцать шестое",
-            "двадцать седьмое", "двадцать восьмое", "двадцать девятое",
-            "тридцатое", "тридцать первое"
-        ]
-        
-        # Russian times (hours)
-        self.hours_ru = [
-            "двенадцать", "час", "два", "три", "четыре", "пять", "шесть",
-            "семь", "восемь", "девять", "десять", "одиннадцать"
-        ]
-        
-        # English weekdays
-        self.weekdays_en = [
-            "Monday", "Tuesday", "Wednesday", "Thursday", 
-            "Friday", "Saturday", "Sunday"
-        ]
-        
-        # English months
-        self.months_en = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-        ]
+        # TODO #15: Phase 2 - Temporal formatting arrays now externalized to assets/localization/datetime/
+        # All temporal data is loaded from localization files with fallback to hardcoded defaults
     
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process datetime intents"""
@@ -124,13 +81,38 @@ class DateTimeIntentHandler(IntentHandler):
         """DateTime functionality is always available"""
         return True
     
+    def _get_localization_data(self, language: str = "ru") -> Dict[str, List[str]]:
+        """Get localization data from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"DateTimeIntentHandler: Asset loader not initialized. "
+                f"Cannot access temporal data for language '{language}'. "
+                f"This is a fatal configuration error - temporal data must be externalized."
+            )
+        
+        # Get localization data from asset loader
+        locale_data = self.asset_loader.get_localization("datetime", language)
+        if locale_data is None:
+            raise RuntimeError(
+                f"DateTimeIntentHandler: Required temporal localization for language '{language}' "
+                f"not found in assets/localization/datetime/{language}.yaml. "
+                f"This is a fatal error - all temporal data must be externalized."
+            )
+        
+        return locale_data
+    
+
+    
     def _detect_language(self, text: str, context: ConversationContext) -> str:
         """Detect language from text or context"""
         text_lower = text.lower()
         
-        # TODO: These language detection arrays are now migrated to datetime.json language_detection
-        english_indicators = ["time", "date", "what time", "what date", "current"]
-        russian_indicators = ["время", "дата", "который", "какая", "сколько", "число"]
+        # Get language detection indicators from localization data
+        ru_data = self._get_localization_data("ru")
+        en_data = self._get_localization_data("en")
+        
+        english_indicators = en_data.get("language_detection", {}).get("english_indicators", [])
+        russian_indicators = ru_data.get("language_detection", {}).get("russian_indicators", [])
         
         english_count = sum(1 for word in english_indicators if word in text_lower)
         russian_count = sum(1 for word in russian_indicators if word in text_lower)
@@ -145,16 +127,24 @@ class DateTimeIntentHandler(IntentHandler):
     async def _handle_date_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle current date request"""
         now = datetime.now()
+        locale_data = self._get_localization_data(language)
+        
+        weekdays = locale_data.get("weekdays", [])
+        months = locale_data.get("months", [])
+        templates = locale_data.get("templates", {})
         
         if language == "en":
-            weekday = self.weekdays_en[now.weekday()]
-            month = self.months_en[now.month - 1]
-            date_str = f"Today is {weekday}, {month} {now.day}, {now.year}"
+            weekday = weekdays[now.weekday()] if now.weekday() < len(weekdays) else "Unknown"
+            month = months[now.month - 1] if now.month - 1 < len(months) else "Unknown"
+            template = templates.get("date_full", "Today is {weekday}, {month} {day}, {year}")
+            date_str = template.format(weekday=weekday, month=month, day=now.day, year=now.year)
         else:
-            weekday = self.weekdays_ru[now.weekday()]
-            month = self.months_ru[now.month - 1]
-            day_ordinal = self.days_ru[now.day - 1] if now.day <= len(self.days_ru) else str(now.day)
-            date_str = f"Сегодня {weekday}, {day_ordinal} {month} {now.year} года"
+            days_ordinal = locale_data.get("days_ordinal", [])
+            weekday = weekdays[now.weekday()] if now.weekday() < len(weekdays) else "неизвестно"
+            month = months[now.month - 1] if now.month - 1 < len(months) else "неизвестно"
+            day_ordinal = days_ordinal[now.day - 1] if now.day <= len(days_ordinal) else str(now.day)
+            template = templates.get("date_full", "Сегодня {weekday}, {day_ordinal} {month} {year} года")
+            date_str = template.format(weekday=weekday, day_ordinal=day_ordinal, month=month, year=now.year)
         
         return IntentResult(
             text=date_str,
@@ -169,33 +159,50 @@ class DateTimeIntentHandler(IntentHandler):
     async def _handle_time_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
         """Handle current time request"""
         now = datetime.now()
+        locale_data = self._get_localization_data(language)
         
         if language == "en":
             time_str = f"It's {now.strftime('%I:%M %p')}"
         else:
             hour = now.hour
             minute = now.minute
+            hours = locale_data.get("hours", [])
+            periods = locale_data.get("periods", {})
+            special_hours = locale_data.get("special_hours", {})
+            templates = locale_data.get("templates", {})
             
             # Convert to 12-hour format for natural language
             if hour == 0:
-                hour_text = "двенадцать"
-                period = "ночи"
+                hour_text = special_hours.get("midnight", "двенадцать")
+                period = periods.get("night", "ночи")
+            elif hour < 6:
+                hour_text = hours[hour % 12] if hour <= len(hours) else str(hour)
+                period = periods.get("night", "ночи")
             elif hour < 12:
-                hour_text = self.hours_ru[hour % 12] if hour <= 11 else str(hour)
-                period = "утра" if hour < 6 else "утра" if hour < 12 else "дня"
+                hour_text = hours[hour % 12] if hour <= len(hours) else str(hour)
+                period = periods.get("morning", "утра")
             elif hour == 12:
-                hour_text = "двенадцать"
-                period = "дня"
+                hour_text = special_hours.get("noon", "двенадцать")
+                period = periods.get("day", "дня")
+            elif hour < 18:
+                hour_12 = (hour - 12) % 12
+                hour_text = hours[hour_12] if hour_12 < len(hours) else str(hour - 12)
+                period = periods.get("day", "дня")
             else:
-                hour_text = self.hours_ru[(hour - 12) % 12] if (hour - 12) <= 11 else str(hour - 12)
-                period = "дня" if hour < 18 else "вечера"
+                hour_12 = (hour - 12) % 12
+                hour_text = hours[hour_12] if hour_12 < len(hours) else str(hour - 12)
+                period = periods.get("evening", "вечера")
             
+            # Use templates for time formatting
             if minute == 0:
-                time_str = f"Сейчас {hour_text} часов {period}"
+                template = templates.get("time_exact", "Сейчас {hour_text} часов {period}")
+                time_str = template.format(hour_text=hour_text, period=period)
             elif minute < 10:
-                time_str = f"Сейчас {hour_text} ноль {minute} {period}"
+                template = templates.get("time_with_minutes_zero", "Сейчас {hour_text} ноль {minute} {period}")
+                time_str = template.format(hour_text=hour_text, minute=minute, period=period)
             else:
-                time_str = f"Сейчас {hour_text} {minute} {period}"
+                template = templates.get("time_with_minutes", "Сейчас {hour_text} {minute} {period}")
+                time_str = template.format(hour_text=hour_text, minute=minute, period=period)
         
         return IntentResult(
             text=time_str,
@@ -212,40 +219,67 @@ class DateTimeIntentHandler(IntentHandler):
         """Handle combined date and time request"""
         now = datetime.now()
         
+        locale_data = self._get_localization_data(language)
+        
+        weekdays = locale_data.get("weekdays", [])
+        months = locale_data.get("months", [])
+        templates = locale_data.get("templates", {})
+        
         if language == "en":
-            weekday = self.weekdays_en[now.weekday()]
-            month = self.months_en[now.month - 1]
-            date_time_str = f"Today is {weekday}, {month} {now.day}, {now.year}. The time is {now.strftime('%I:%M %p')}"
+            weekday = weekdays[now.weekday()] if now.weekday() < len(weekdays) else "Unknown"
+            month = months[now.month - 1] if now.month - 1 < len(months) else "Unknown"
+            time_part = now.strftime('%I:%M %p')
+            template = templates.get("datetime_full", "Today is {weekday}, {month} {day}, {year}. The time is {time_part}")
+            date_time_str = template.format(weekday=weekday, month=month, day=now.day, year=now.year, time_part=time_part)
         else:
-            weekday = self.weekdays_ru[now.weekday()]
-            month = self.months_ru[now.month - 1]
-            day_ordinal = self.days_ru[now.day - 1] if now.day <= len(self.days_ru) else str(now.day)
+            days_ordinal = locale_data.get("days_ordinal", [])
+            hours = locale_data.get("hours", [])
+            periods = locale_data.get("periods", {})
+            special_hours = locale_data.get("special_hours", {})
+            
+            weekday = weekdays[now.weekday()] if now.weekday() < len(weekdays) else "неизвестно"
+            month = months[now.month - 1] if now.month - 1 < len(months) else "неизвестно"
+            day_ordinal = days_ordinal[now.day - 1] if now.day <= len(days_ordinal) else str(now.day)
             
             hour = now.hour
             minute = now.minute
             
-            # Time formatting (same as time request)
+            # Time formatting using localized periods and special hours
             if hour == 0:
-                hour_text = "двенадцать"
-                period = "ночи"
+                hour_text = special_hours.get("midnight", "двенадцать")
+                period = periods.get("night", "ночи")
+            elif hour < 6:
+                hour_text = hours[hour % 12] if hour <= len(hours) else str(hour)
+                period = periods.get("night", "ночи")
             elif hour < 12:
-                hour_text = self.hours_ru[hour % 12] if hour <= 11 else str(hour)
-                period = "утра" if hour < 6 else "утра" if hour < 12 else "дня"
+                hour_text = hours[hour % 12] if hour <= len(hours) else str(hour)
+                period = periods.get("morning", "утра")
             elif hour == 12:
-                hour_text = "двенадцать"
-                period = "дня"
+                hour_text = special_hours.get("noon", "двенадцать")
+                period = periods.get("day", "дня")
+            elif hour < 18:
+                hour_12 = (hour - 12) % 12
+                hour_text = hours[hour_12] if hour_12 < len(hours) else str(hour - 12)
+                period = periods.get("day", "дня")
             else:
-                hour_text = self.hours_ru[(hour - 12) % 12] if (hour - 12) <= 11 else str(hour - 12)
-                period = "дня" if hour < 18 else "вечера"
+                hour_12 = (hour - 12) % 12
+                hour_text = hours[hour_12] if hour_12 < len(hours) else str(hour - 12)
+                period = periods.get("evening", "вечера")
             
+            # Format time part using templates
             if minute == 0:
-                time_part = f"{hour_text} часов {period}"
+                time_template = templates.get("time_exact", "Сейчас {hour_text} часов {period}")
+                time_part = time_template.format(hour_text=hour_text, period=period).replace("Сейчас ", "")
             elif minute < 10:
-                time_part = f"{hour_text} ноль {minute} {period}"
+                time_template = templates.get("time_with_minutes_zero", "Сейчас {hour_text} ноль {minute} {period}")
+                time_part = time_template.format(hour_text=hour_text, minute=minute, period=period).replace("Сейчас ", "")
             else:
-                time_part = f"{hour_text} {minute} {period}"
+                time_template = templates.get("time_with_minutes", "Сейчас {hour_text} {minute} {period}")
+                time_part = time_template.format(hour_text=hour_text, minute=minute, period=period).replace("Сейчас ", "")
             
-            date_time_str = f"Сегодня {weekday}, {day_ordinal} {month} {now.year} года. Время: {time_part}"
+            # Format combined datetime using template
+            datetime_template = templates.get("datetime_full", "Сегодня {weekday}, {day_ordinal} {month} {year} года. Время: {time_part}")
+            date_time_str = datetime_template.format(weekday=weekday, day_ordinal=day_ordinal, month=month, year=now.year, time_part=time_part)
         
         return IntentResult(
             text=date_time_str,

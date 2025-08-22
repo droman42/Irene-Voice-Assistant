@@ -105,14 +105,10 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         )
         
         # Immediate response while TTS runs in background
-        if language == "ru":
-            response_text = f"Синтезирую речь '{text_to_speak}'"
-            if voice_name:
-                response_text += f" голосом {voice_name}"
+        if voice_name:
+            response_text = self._get_template("synthesis_with_voice", language, text=text_to_speak, voice=voice_name)
         else:
-            response_text = f"Synthesizing speech '{text_to_speak}'"
-            if voice_name:
-                response_text += f" with voice {voice_name}"
+            response_text = self._get_template("synthesis_without_voice", language, text=text_to_speak)
         
         return self.create_action_result(
             response_text=response_text,
@@ -175,10 +171,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         )
         
         # Immediate response
-        if language == "ru":
-            response_text = f"Синтезирую: {text_to_speak}"
-        else:
-            response_text = f"Synthesizing: {text_to_speak}"
+        response_text = self._get_template("synthesis_basic", language, text=text_to_speak)
         
         return self.create_action_result(
             response_text=response_text,
@@ -202,15 +195,9 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         success = tts_component.set_default_provider(provider_name) if provider_name else False
         
         if success:
-            if language == "ru":
-                response = f"Переключился на TTS провайдер {provider_name}"
-            else:
-                response = f"Switched to TTS provider {provider_name}"
+            response = self._get_template("provider_switch_success", language, provider=provider_name)
         else:
-            if language == "ru":
-                response = f"TTS провайдер {provider_name or 'неизвестный'} недоступен"
-            else:
-                response = f"TTS provider {provider_name or 'unknown'} not available"
+            response = self._get_template("provider_switch_failed", language, provider=provider_name or "unknown")
         
         self.logger.info(f"TTS provider switch request - success: {success}")
         
@@ -240,6 +227,61 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         
         return self._tts_component
         
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"VoiceSynthesisIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - voice synthesis templates must be externalized."
+            )
+        
+        # Get template directly from asset loader (template_name is the key from YAML)
+        template_content = self.asset_loader.get_template("voice_synthesis", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"VoiceSynthesisIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/voice_synthesis/{language}/synthesis_status.yaml. "
+                f"This is a fatal error - all voice synthesis templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"VoiceSynthesisIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/voice_synthesis/{language}/synthesis_status.yaml for correct placeholders."
+            )
+    
+    def _get_provider_mappings(self, language: str = "ru") -> Dict[str, Any]:
+        """Get provider mappings from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"VoiceSynthesisIntentHandler: Asset loader not initialized. "
+                f"Cannot access provider mappings for language '{language}'. "
+                f"This is a fatal configuration error - voice synthesis mappings must be externalized."
+            )
+        
+        # Get localization data from asset loader
+        mappings_data = self.asset_loader.get_localization("voice_synthesis", language)
+        if mappings_data is None:
+            raise RuntimeError(
+                f"VoiceSynthesisIntentHandler: Required provider mappings for language '{language}' "
+                f"not found in assets/localization/voice_synthesis/{language}.yaml. "
+                f"This is a fatal error - all voice synthesis mappings must be externalized."
+            )
+        
+        provider_mappings = mappings_data.get("provider_mappings", {})
+        if not provider_mappings:
+            raise RuntimeError(
+                f"VoiceSynthesisIntentHandler: Empty provider_mappings in "
+                f"assets/localization/voice_synthesis/{language}.yaml. "
+                f"Provider mappings must be defined for language '{language}'."
+            )
+        
+        return provider_mappings
+
     def _get_language(self, intent: Intent, context: ConversationContext) -> str:
         """Determine language from intent or context"""
         # Check intent entities first
@@ -256,11 +298,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = self._get_language(intent, context)
-        
-        if language == "ru":
-            error_text = f"Ошибка синтеза речи: {error}"
-        else:
-            error_text = f"Speech synthesis error: {error}"
+        error_text = self._get_template("synthesis_error", language, error=error)
         
         return IntentResult(
             text=error_text,
@@ -289,18 +327,14 @@ class VoiceSynthesisIntentHandler(IntentHandler):
                 if voice_idx + 1 < len(parts):
                     voice_name = parts[voice_idx + 1]
                     
-                    # Map voice names to providers
-                    provider_mapping = {
-                        "ксении": ("silero_v3", {"speaker": "xenia"}),
-                        "кcении": ("silero_v3", {"speaker": "xenia"}),
-                        "айдара": ("silero_v3", {"speaker": "aidar"}),
-                        "силеро": ("silero_v3", {}),
-                        "консоли": ("console", {}),
-                        "системным": ("pyttsx", {})
-                    }
+                    # Get voice name mappings from localization
+                    mappings = self._get_provider_mappings(language)
+                    voice_mappings = mappings.get("voice_names", {})
                     
-                    if voice_name in provider_mapping:
-                        provider, params = provider_mapping[voice_name]
+                    if voice_name in voice_mappings:
+                        voice_config = voice_mappings[voice_name]
+                        provider = voice_config.get("provider")
+                        params = voice_config.get("params", {})
                         if provider in tts_component.providers:
                             await tts_component.speak(text, provider=provider, **params)
                             if language == "ru":
@@ -342,19 +376,36 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         """Extract TTS provider name from command"""
         command_lower = command.lower()
         
-        # Simple provider name mapping
-        provider_mapping = {
-            "силеро": "silero_v3",
-            "силеро3": "silero_v3", 
-            "силеро4": "silero_v4",
-            "консоль": "console",
-            "системный": "pyttsx",
-            "воск": "vosk_tts"
-        }
-        
-        for name, provider in provider_mapping.items():
-            if name in command_lower:
-                return provider
+        # Get provider name mappings from localization (try Russian first, then English)
+        try:
+            mappings_ru = self._get_provider_mappings("ru")
+            provider_names_ru = mappings_ru.get("provider_names", {})
+            
+            for name, provider in provider_names_ru.items():
+                if name in command_lower:
+                    return provider
+            
+            # Try English mappings if Russian doesn't match
+            mappings_en = self._get_provider_mappings("en")
+            provider_names_en = mappings_en.get("provider_names", {})
+            
+            for name, provider in provider_names_en.items():
+                if name in command_lower:
+                    return provider
+        except RuntimeError:
+            # Fallback to hardcoded if assets not available
+            provider_mapping = {
+                "силеро": "silero_v3",
+                "силеро3": "silero_v3", 
+                "силеро4": "silero_v4",
+                "консоль": "console",
+                "системный": "pyttsx",
+                "воск": "vosk_tts"
+            }
+            
+            for name, provider in provider_mapping.items():
+                if name in command_lower:
+                    return provider
         
         return ""
     
@@ -399,18 +450,30 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         """Fire-and-forget TTS synthesis action"""
         try:
             if voice_name:
-                # Map voice names to providers
-                provider_mapping = {
-                    "ксении": ("silero_v3", {"speaker": "xenia"}),
-                    "кcении": ("silero_v3", {"speaker": "xenia"}),
-                    "айдара": ("silero_v3", {"speaker": "aidar"}),
-                    "силеро": ("silero_v3", {}),
-                    "консоли": ("console", {}),
-                    "системным": ("pyttsx", {})
-                }
+                # Get voice name mappings from localization (try Russian first)
+                try:
+                    mappings = self._get_provider_mappings("ru")
+                    voice_mappings = mappings.get("voice_names", {})
+                    
+                    # Try English if not found in Russian
+                    if voice_name not in voice_mappings:
+                        mappings = self._get_provider_mappings("en")
+                        voice_mappings = mappings.get("voice_names", {})
+                except RuntimeError:
+                    # Fallback to hardcoded if assets not available
+                    voice_mappings = {
+                        "ксении": {"provider": "silero_v3", "params": {"speaker": "xenia"}},
+                        "кcении": {"provider": "silero_v3", "params": {"speaker": "xenia"}},
+                        "айдара": {"provider": "silero_v3", "params": {"speaker": "aidar"}},
+                        "силеро": {"provider": "silero_v3", "params": {}},
+                        "консоли": {"provider": "console", "params": {}},
+                        "системным": {"provider": "pyttsx", "params": {}}
+                    }
                 
-                if voice_name in provider_mapping:
-                    provider, params = provider_mapping[voice_name]
+                if voice_name in voice_mappings:
+                    voice_config = voice_mappings[voice_name]
+                    provider = voice_config.get("provider")
+                    params = voice_config.get("params", {})
                     if provider in tts_component.providers:
                         await tts_component.speak(text_to_speak, provider=provider, **params)
                         self.logger.info(f"🔊 TTS synthesis completed with voice {voice_name}: '{text_to_speak}'")

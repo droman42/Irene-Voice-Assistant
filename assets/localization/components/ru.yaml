@@ -1,0 +1,17 @@
+# Russian component mappings for ProviderControlIntentHandler
+# Phase 3: Extracted from hardcoded component_mapping dictionaries
+
+component_mappings:
+  "аудио": "audio"
+  "audio": "audio" 
+  "звук": "audio"
+  "llm": "llm"
+  "лл": "llm"
+  "модель": "llm"
+  "распознавание": "asr"
+  "asr": "asr"
+  "распознавание речи": "asr"
+  "голос": "tts"
+  "tts": "tts"
+  "синтез": "tts"
+  "речь": "tts"

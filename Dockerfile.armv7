@@ -29,7 +29,7 @@ COPY pyproject.toml pyproject.toml
 
 # Copy intent handlers and JSON configurations for validation
 COPY irene/intents/handlers/ irene/intents/handlers/
-COPY schemas/ schemas/
+COPY assets/ assets/
 
 # Build argument for configuration profile selection
 ARG CONFIG_PROFILE=embedded-armv7
@@ -194,8 +194,8 @@ ENV PATH="/root/.local/bin:$PATH"
 COPY irene/ irene/
 COPY configs/ configs/
 
-# Copy schemas for intent JSON validation at runtime
-COPY schemas/ schemas/
+# Copy assets for intent JSON validation at runtime
+COPY assets/ assets/
 
 # Copy specific configuration profile for runtime
 COPY --from=analyzer configs/${CONFIG_PROFILE}.toml /app/runtime-config.toml

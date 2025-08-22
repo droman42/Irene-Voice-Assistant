@@ -1,0 +1,39 @@
+# English temporal formatting data for DateTimeIntentHandler
+# Phase 2: Extracted from hardcoded arrays in datetime.py
+
+weekdays:
+  - "Monday"
+  - "Tuesday"
+  - "Wednesday"
+  - "Thursday"
+  - "Friday"
+  - "Saturday"
+  - "Sunday"
+
+months:
+  - "January"
+  - "February"
+  - "March"
+  - "April"
+  - "May"
+  - "June"
+  - "July"
+  - "August"
+  - "September"
+  - "October"
+  - "November"
+  - "December"
+
+# Template strings for time/date formatting
+templates:
+  date_full: "Today is {weekday}, {month} {day}, {year}"
+  datetime_full: "Today is {weekday}, {month} {day}, {year}. The time is {time_part}"
+
+# Language detection arrays
+language_detection:
+  english_indicators:
+    - "time"
+    - "date"
+    - "what time"
+    - "what date"
+    - "current"

@@ -286,27 +286,27 @@ class EnhancedHandlerManager:
 
 **Donations (Existing Pattern Extended):**
 - Migrate existing `DonationLoader._load_and_validate_donation()` logic
-- Path: `irene/assets/donations/{handler_name}.json`
+- Path: `assets/donations/{handler_name}.json`
 - Validation: Existing JSON schema validation
 
 **Templates (New - Category B Handlers):**
 - File formats: YAML (arrays), JSON (objects), Markdown (multi-line)
-- Path pattern: `irene/assets/templates/{handler_name}/{language}/{template_name}.{yaml|json|md}`
+- Path pattern: `assets/templates/{handler_name}/{language}/{template_name}.{yaml|json|md}`
 - Fallback: `ru` → `en` → hardcoded defaults
 
 **Prompts (New - Category A1 Handler):**
 - File formats: Plain text (.txt)
-- Path pattern: `irene/assets/prompts/{handler_name}/{language}/{prompt_type}.txt`
+- Path pattern: `assets/prompts/{handler_name}/{language}/{prompt_type}.txt`
 - Fallback: `ru` → `en` → hardcoded defaults
 
 **Localizations (New - Category C Handlers):**
 - File formats: YAML (structured data)
-- Path pattern: `irene/assets/localization/{domain}/{language}.yaml`
+- Path pattern: `assets/localization/{domain}/{language}.yaml`
 - Fallback: `ru` → `en` → hardcoded defaults
 
 ### Directory Structure
 ```
-irene/assets/
+assets/
 ├── v1.0.json                    # JSON donation schema (moved from schemas/)
 ├── donations/                   # Intent donation files (moved from handlers/donations/)
 │   ├── conversation.json
@@ -355,92 +355,111 @@ irene/assets/
 
 ### Phase 0: Foundation (Week 1)
 **Assets Infrastructure Setup**
-- [ ] Create `irene/assets/` directory structure
-- [ ] Move donation files: `handlers/donations/` → `irene/assets/donations/`
-- [ ] Move schema: `schemas/donation/v1.0.json` → `irene/assets/v1.0.json`
-- [ ] Update all donation files: `"$schema": "../v1.0.json"`
-- [ ] Update donation loader paths in `irene/core/donation_loader.py`
-- [ ] Update build scripts (`install-irene.sh`, Docker files) for assets inclusion
-- [ ] Test build system with new structure
+- [x] Create `assets/` directory structure
+- [x] Move donation files: `handlers/donations/` → `assets/donations/`
+- [x] Move schema: `schemas/donation/v1.0.json` → `assets/v1.0.json`
+- [x] Update all donation files: `"$schema": "../v1.0.json"`
+- [x] Update donation loader paths in `irene/core/donation_loader.py`
+- [x] Update build scripts (`install-irene.sh`, Docker files) for assets inclusion
+- [x] Test build system with new structure
 
 ### Phase 1: Unified Asset Infrastructure (Weeks 2-3)
 **Pydantic Models and IntentAssetLoader**
-- [ ] **Pydantic Configuration Models** in `irene/config/models.py`:
-  - [ ] `ConversationHandlerConfig` (A1)
-  - [ ] `TrainScheduleHandlerConfig` (A2) 
-  - [ ] `TimerHandlerConfig` (A3)
-  - [ ] `RandomHandlerConfig` (A4)
-  - [ ] Update `IntentSystemConfig` to include handler configurations
-- [ ] **IntentAssetLoader Implementation** in `irene/core/intent_asset_loader.py`:
-  - [ ] Extend existing `DonationLoader` patterns for unified asset loading
-  - [ ] Implement `_load_donations()` (migrate existing donation loader logic)
-  - [ ] Implement `_load_templates()` (Category B: YAML/JSON/Markdown parsing)
-  - [ ] Implement `_load_prompts()` (Category A1: Text file loading)
-  - [ ] Implement `_load_localizations()` (Category C: YAML parsing)
-  - [ ] Unified error handling and validation following donation loader patterns
-  - [ ] Caching and fallback mechanisms
-- [ ] **Integration Points**:
-  - [ ] Update `EnhancedHandlerManager` to use `IntentAssetLoader` instead of separate `DonationLoader`
-  - [ ] Verify TOML configuration paths align with Pydantic models
-  - [ ] Handlers receive single asset loader instance via dependency injection
+- [x] **Pydantic Configuration Models** in `irene/config/models.py`:
+  - [x] `ConversationHandlerConfig` (A1)
+  - [x] `TrainScheduleHandlerConfig` (A2) 
+  - [x] `TimerHandlerConfig` (A3)
+  - [x] `RandomHandlerConfig` (A4)
+  - [x] Update `IntentSystemConfig` to include handler configurations
+- [x] **IntentAssetLoader Implementation** in `irene/core/intent_asset_loader.py`:
+  - [x] Extend existing `DonationLoader` patterns for unified asset loading
+  - [x] Implement `_load_donations()` (migrate existing donation loader logic)
+  - [x] Implement `_load_templates()` (Category B: YAML/JSON/Markdown parsing)
+  - [x] Implement `_load_prompts()` (Category A1: Text file loading)
+  - [x] Implement `_load_localizations()` (Category C: YAML parsing)
+  - [x] Unified error handling and validation following donation loader patterns
+  - [x] Caching and fallback mechanisms
+- [x] **Integration Points**:
+  - [x] Update `EnhancedHandlerManager` to use `IntentAssetLoader` instead of separate `DonationLoader`
+  - [x] Verify TOML configuration paths align with Pydantic models
+  - [x] Handlers receive single asset loader instance via dependency injection
 
-### Phase 2: Critical Externalization (Weeks 4-5)
+### Phase 2: Critical Externalization (Weeks 4-5) ✅ COMPLETED
 **High-Priority Handlers (Essential Functionality)**
-- [ ] **A1: ConversationIntentHandler** - Extract LLM prompts to `prompts/conversation/`
-- [ ] **C1: DateTimeIntentHandler** - Extract temporal data to `localization/datetime/`
-- [ ] **C4: BaseIntentHandler** - Extract universal patterns to `localization/commands|domains/`
+- [x] **A1: ConversationIntentHandler** - Extract LLM prompts to `prompts/conversation/` and responses to `templates/conversation/`
+- [x] **C1: DateTimeIntentHandler** - Extract temporal data, periods, and templates to `localization/datetime/`
+- [x] **C4: BaseIntentHandler** - Extract universal patterns to `localization/commands|domains/`
 
-### Phase 3: Medium-Priority Externalization (Weeks 6-7)
+**✅ INTEGRATION STATUS:**
+- [x] **A1**: ConversationIntentHandler - Fully integrated with external prompts and response templates
+- [x] **C1**: DateTimeIntentHandler - Fully integrated with extended localization (periods, templates, special hours)
+- [x] **C4**: BaseIntentHandler - Already completed in earlier phases
+
+**⚠️ CRITICAL: All hardcoded fallbacks removed - handlers now raise fatal errors for missing assets**
+
+### Phase 3: Medium-Priority Externalization (Weeks 6-7) ✅ COMPLETED
 **User-Facing Response Templates**
-- [ ] **B1: GreetingsIntentHandler** - Extract to `templates/greetings/`
-- [ ] **B2: SystemIntentHandler** - Extract to `templates/system/`
-- [ ] **B4: VoiceSynthesisIntentHandler** - Extract to `templates/voice_synthesis/`
-- [ ] **C2: VoiceSynthesisIntentHandler** - Extract mappings to `localization/voice_synthesis/`
-- [ ] **C3: ProviderControlIntentHandler** - Extract mappings to `localization/components/`
+- [x] **B1: GreetingsIntentHandler** - Extract to `templates/greetings/`
+- [x] **B2: SystemIntentHandler** - Extract to `templates/system/`
+- [x] **B4: VoiceSynthesisIntentHandler** - Extract to `templates/voice_synthesis/`
+- [x] **C2: VoiceSynthesisIntentHandler** - Extract mappings to `localization/voice_synthesis/`
+- [x] **C3: ProviderControlIntentHandler** - Extract mappings to `localization/components/`
 
-### Phase 4: Low-Priority Externalization (Week 8)
+**✅ INTEGRATION STATUS:**
+- [x] **B1 & B2**: GreetingsIntentHandler & SystemIntentHandler - Fully integrated with template usage
+- [x] **B4 & C2**: VoiceSynthesisIntentHandler - Fully integrated with templates and provider mappings  
+- [x] **C3**: ProviderControlIntentHandler - Fully integrated with component mappings
+
+### Phase 4: Low-Priority Externalization (Week 8) ✅ COMPLETED
 **Simple Response Formatting**
-- [ ] **B3: SpeechRecognitionIntentHandler** - Extract to `templates/speech_recognition/`
-- [ ] **B5: TranslationIntentHandler** - Extract to `templates/translation/`
-- [ ] **B6: TextEnhancementIntentHandler** - Extract to `templates/text_enhancement/`
-- [ ] **B7: AudioPlaybackIntentHandler** - Extract to `templates/audio_playback/`
-- [ ] **C5: RandomIntentHandler** - Extract arrays to `templates/random/`
+- [x] **B3: SpeechRecognitionIntentHandler** - Extract to `templates/speech_recognition/`
+- [x] **B5: TranslationIntentHandler** - Extract to `templates/translation/`
+- [x] **B6: TextEnhancementIntentHandler** - Extract to `templates/text_enhancement/`
+- [x] **B7: AudioPlaybackIntentHandler** - Extract to `templates/audio_playback/`
+- [x] **C5: RandomIntentHandler** - Extract arrays to `templates/random/`
 
-### Phase 5: Configuration Integration (Week 9)
+**✅ INTEGRATION STATUS:**
+- [x] **B3**: SpeechRecognitionIntentHandler - Fully integrated with error message templates
+- [x] **B5**: TranslationIntentHandler - Fully integrated with result formatting templates
+- [x] **B6**: TextEnhancementIntentHandler - Fully integrated with result formatting templates
+- [x] **B7**: AudioPlaybackIntentHandler - Fully integrated with status message templates
+- [x] **C5**: RandomIntentHandler - Fully integrated with result arrays and formatting templates
+
+### Phase 5: Configuration Integration (Week 9) ✅ COMPLETED
 **Handler Updates and Unified Asset Injection**
-- [ ] Update Category A handlers to use proper config injection instead of hardcoded dicts
-- [ ] Update all handlers to use `IntentAssetLoader` instead of direct file access or hardcoded values
-- [ ] Replace donation loader injection with unified `IntentAssetLoader` injection
-- [ ] Implement configuration validation end-to-end
-- [ ] Ensure fallback mechanisms work for missing files across all asset types
+- [x] Update Category A handlers to use proper config injection instead of hardcoded dicts
+- [x] Update all handlers to use `IntentAssetLoader` instead of direct file access or hardcoded values
+- [x] Replace donation loader injection with unified `IntentAssetLoader` injection
+- [x] Implement configuration validation end-to-end
+- [x] Ensure fallback mechanisms work for missing files across all asset types
 
 ## Success Criteria
 
 ### Infrastructure
-- [ ] `irene/assets/` directory fully established and integrated
+- [ ] `assets/` directory fully established and integrated
 - [ ] All donation files migrated with updated schema references
 - [ ] Build system updated to handle assets folder
 - [ ] **IntentAssetLoader** fully functional and replaces existing donation loader
 - [ ] Unified asset loading for donations, templates, prompts, and localization data
 
 ### Configuration Models
-- [ ] All 4 Pydantic models implemented and integrated with `IntentSystemConfig`
-- [ ] TOML configuration paths verified and aligned
-- [ ] Configuration validation working end-to-end
-- [ ] Handlers receive configuration via proper dependency injection
+- [x] All 4 Pydantic models implemented and integrated with `IntentSystemConfig`
+- [x] TOML configuration paths verified and aligned
+- [x] Configuration validation working end-to-end
+- [x] Handlers receive configuration via proper dependency injection
 
 ### Externalization
-- [ ] All LLM prompts externalized to `irene/assets/prompts/`
-- [ ] All response templates externalized to `irene/assets/templates/` with i18n support
-- [ ] All localization data externalized to `irene/assets/localization/`
+- [ ] All LLM prompts externalized to `assets/prompts/`
+- [ ] All response templates externalized to `assets/templates/` with i18n support
+- [ ] All localization data externalized to `assets/localization/`
 - [ ] All hardcoded configuration moved to TOML with validation
 
 ### Quality Assurance
-- [ ] Fallback mechanisms working for missing files across all asset types
+- [x] Fallback mechanisms working for missing files across all asset types
 - [ ] No functionality regression during migration
 - [ ] Template/prompt editing doesn't require code changes
-- [ ] **IntentAssetLoader** provides unified API for all handler asset access
-- [ ] Validation and error handling consistent across donations, templates, prompts, and localization
+- [x] **IntentAssetLoader** provides unified API for all handler asset access
+- [x] Validation and error handling consistent across donations, templates, prompts, and localization
 
 ## Dependencies
 
@@ -464,7 +483,7 @@ irene/assets/
 
 This refactoring is **separate from and complementary to** the JSON donation system. JSON donations focus on NLU pattern recognition, while this TODO addresses response generation and configuration management.
 
-**Critical Architecture Change**: The introduction of `irene/assets/` as the central location for all external resources represents a fundamental shift in the project structure, centralizing all assets under a single manageable directory and enabling proper asset management systems.
+**Critical Architecture Change**: The introduction of `assets/` as the central location for all external resources represents a fundamental shift in the project structure, centralizing all assets under a single manageable directory and enabling proper asset management systems.
 
 **MECE Compliance**: This restructured approach ensures:
 - **Mutually Exclusive**: Each handler falls into exactly one category (A, B, or C)

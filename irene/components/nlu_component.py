@@ -352,23 +352,27 @@ class NLUComponent(Component, WebAPIPlugin):
         and the NLU provider coordination (Phase 2).
         """
         try:
-            # Import donation loader
-            from ..core.donation_loader import DonationLoader
-            from ..core.donations import DonationValidationConfig
+            # Import unified asset loader
+            from ..core.intent_asset_loader import IntentAssetLoader, AssetLoaderConfig
             from pathlib import Path
             
             logger.info("Loading JSON donations for NLU provider initialization...")
             
-            # Initialize donation loader with strict validation
-            donation_config = DonationValidationConfig(strict_mode=True)
-            donation_loader = DonationLoader(donation_config)
+            # Initialize asset loader with strict validation
+            asset_config = AssetLoaderConfig(strict_mode=True)
+            assets_root = Path("assets")
+            asset_loader = IntentAssetLoader(assets_root, asset_config)
             
-            # Discover handler files and load donations
+            # Discover handler files and load all assets
             handler_dir = Path("irene/intents/handlers")
             handler_paths = self._discover_handler_files(handler_dir)
+            handler_names = [path.stem for path in handler_paths]
             
-            # Load and validate JSON donations
-            donations = await donation_loader.discover_and_load_donations(handler_paths)
+            # Load all assets (donations, templates, prompts, localizations)
+            await asset_loader.load_all_assets(handler_names)
+            
+            # Get donations from the unified loader
+            donations = asset_loader.donations
             
             if not donations:
                 logger.warning("No JSON donations found - providers will use fallback patterns")
@@ -377,7 +381,7 @@ class NLUComponent(Component, WebAPIPlugin):
             logger.info(f"Loaded {len(donations)} JSON donations for NLU providers")
             
             # Convert donations to keyword format for providers
-            keyword_donations = self._convert_json_to_keyword_donations(donations)
+            keyword_donations = asset_loader.convert_to_keyword_donations()
             
             # Initialize each provider with donations
             failed_providers = []
@@ -419,11 +423,17 @@ class NLUComponent(Component, WebAPIPlugin):
             List of KeywordDonation objects ready for provider consumption
         """
         try:
-            from ..core.donation_loader import DonationLoader
+            from ..core.intent_asset_loader import IntentAssetLoader, AssetLoaderConfig
+            from pathlib import Path
             
-            # Use the donation loader's conversion method
-            donation_loader = DonationLoader()
-            keyword_donations = donation_loader.convert_to_keyword_donations(donations)
+            # Use the unified asset loader's conversion method
+            asset_config = AssetLoaderConfig()
+            assets_root = Path("assets")
+            asset_loader = IntentAssetLoader(assets_root, asset_config)
+            
+            # Set the donations directly and convert
+            asset_loader.donations = donations
+            keyword_donations = asset_loader.convert_to_keyword_donations()
             
             logger.debug(f"Converted {len(donations)} JSON donations to {len(keyword_donations)} keyword donations")
             

@@ -55,8 +55,8 @@ def validate_existing_json_files(schema: Dict[str, Any]) -> bool:
         import jsonschema
         
         # Find all JSON donation files
-        handlers_dir = Path("irene/intents/handlers")
-        json_files = list(handlers_dir.glob("*.json"))
+        donations_dir = Path("assets/donations")
+        json_files = list(donations_dir.glob("*.json"))
         
         if not json_files:
             print("⚠️  No JSON donation files found to validate")
@@ -102,7 +102,7 @@ def main():
         schema = generate_donation_schema()
         
         # Write v1.0 schema file
-        schema_path = Path("schemas/donation/v1.0.json")
+        schema_path = Path("assets/v1.0.json")
         print(f"💾 Writing schema to {schema_path}...")
         write_schema_file(schema, schema_path)
         

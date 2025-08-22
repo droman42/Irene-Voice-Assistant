@@ -41,13 +41,24 @@ class TrainScheduleIntentHandler(IntentHandler):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__()
         
-        # TODO #15: Move configuration defaults to TOML configuration (not JSON donations)
-        # Default configuration
-        self.config = config or {}
-        self.api_key = self.config.get("api_key", "")
-        self.default_from_station = self.config.get("from_station", "s9600681")  # Default Moscow station
-        self.default_to_station = self.config.get("to_station", "s2000002")     # Default destination
-        self.max_results = self.config.get("max_results", 3)
+        # Phase 5: Configuration injection via Pydantic TrainScheduleHandlerConfig
+        if config:
+            self.config = config
+            self.api_key = config.get("api_key", "")
+            self.default_from_station = config.get("from_station", "s9600681")
+            self.default_to_station = config.get("to_station", "s2000002")
+            self.max_results = config.get("max_results", 3)
+            self.request_timeout = config.get("request_timeout", 10)
+            logger.info(f"TrainScheduleIntentHandler initialized with config: api_key={'***' if self.api_key else 'None'}, max_results={self.max_results}, timeout={self.request_timeout}")
+        else:
+            # Fallback defaults (should not be used in production with proper config)
+            self.config = {}
+            self.api_key = ""
+            self.default_from_station = "s9600681"
+            self.default_to_station = "s2000002"
+            self.max_results = 3
+            self.request_timeout = 10
+            logger.warning("TrainScheduleIntentHandler initialized without configuration - using fallback defaults")
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process train schedule intents"""

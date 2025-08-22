@@ -1,0 +1,23 @@
+# Russian domain hints for BaseIntentHandler
+# Phase 2: Extracted from hardcoded domain_hints in base.py
+
+domain_hints:
+  music:
+    - "музыка"
+    - "музыку"
+    - "песню"
+    - "трек"
+  lights:
+    - "свет"
+    - "лампы"
+    - "освещение"
+  smart_home:
+    - "устройство"
+    - "девайс"
+  media:
+    - "видео"
+    - "фильм"
+    - "медиа"
+  timer:
+    - "таймер"
+    - "будильник"

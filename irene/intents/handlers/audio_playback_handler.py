@@ -104,10 +104,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
         )
         
         # Immediate response
-        if language == "ru":
-            response_text = f"Начинаю воспроизведение аудио: {audio_file}"
-        else:
-            response_text = f"Starting audio playback: {audio_file}"
+        response_text = self._get_template("start_playback", language, audio_file=audio_file)
         
         return self.create_action_result(
             response_text=response_text,
@@ -132,10 +129,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
         )
         
         # Immediate response
-        if language == "ru":
-            response_text = "Останавливаю воспроизведение аудио"
-        else:
-            response_text = "Stopping audio playback"
+        response_text = self._get_template("stop_playback", language)
         
         return self.create_action_result(
             response_text=response_text,
@@ -164,7 +158,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
             )
             
             return self.create_action_result(
-                response_text="Останавливаю аудио" if language == "ru" else "Stopping audio",
+                response_text=self._get_template("stop_audio", language),
                 action_name=stop_id,
                 domain="audio",
                 should_speak=True,
@@ -172,8 +166,9 @@ class AudioPlaybackIntentHandler(IntentHandler):
             )
         
         # Not targeting audio domain
+        language = self._get_language_from_context(context)
         return self._create_success_result(
-            text="Команда остановки не относится к аудио",
+            text=self._get_template("command_not_audio", language),
             should_speak=False
         )
         
@@ -198,16 +193,10 @@ class AudioPlaybackIntentHandler(IntentHandler):
         
         # Create appropriate response message
         if success:
-            if language == "ru":
-                message = f"Переключился на аудио провайдер {provider_name}"
-            else:
-                message = f"Switched to audio provider {provider_name}"
+            message = self._get_template("provider_switched", language, provider_name=provider_name)
         else:
             available = ", ".join(audio_component.providers.keys())
-            if language == "ru":
-                message = f"Неизвестный провайдер. Доступные: {available}"
-            else:
-                message = f"Unknown provider. Available: {available}"
+            message = self._get_template("provider_unknown", language, available=available)
         
         self.logger.info(f"Audio provider switch to {provider_name} - success: {success}")
         
@@ -273,14 +262,38 @@ class AudioPlaybackIntentHandler(IntentHandler):
         # Default to Russian
         return "ru"
         
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"AudioPlaybackIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - audio playback templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("audio_playback", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"AudioPlaybackIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/audio_playback/{language}/status_messages.yaml. "
+                f"This is a fatal error - all audio playback templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"AudioPlaybackIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/audio_playback/{language}/status_messages.yaml for correct placeholders."
+            )
+    
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = self._get_language(intent, context)
         
-        if language == "ru":
-            error_text = f"Ошибка: {error}"
-        else:
-            error_text = f"Error: {error}"
+        error_text = self._get_template("error_general", language, error=error)
         
         return IntentResult(
             text=error_text,

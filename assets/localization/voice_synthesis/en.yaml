@@ -1,0 +1,30 @@
+# English voice synthesis provider mappings for VoiceSynthesisIntentHandler
+# Phase 3: Extracted from hardcoded provider mapping dictionaries
+
+provider_mappings:
+  voice_names:
+    "xenia":
+      provider: "silero_v3"
+      params:
+        speaker: "xenia"
+    "aidar":
+      provider: "silero_v3"
+      params:
+        speaker: "aidar"
+    "silero":
+      provider: "silero_v3"
+      params: {}
+    "console":
+      provider: "console"
+      params: {}
+    "system":
+      provider: "pyttsx"
+      params: {}
+
+  provider_names:
+    "silero": "silero_v3"
+    "silero3": "silero_v3"
+    "silero4": "silero_v4"
+    "console": "console"
+    "system": "pyttsx"
+    "vosk": "vosk_tts"

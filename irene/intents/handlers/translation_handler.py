@@ -92,10 +92,7 @@ class TranslationIntentHandler(IntentHandler):
             text, target_lang = text_and_lang
             try:
                 translated = await llm_component.enhance_text(text, task="translation", target_language=target_lang)
-                if language == "ru":
-                    response_text = f"Перевод: {translated}"
-                else:
-                    response_text = f"Translation: {translated}"
+                response_text = self._get_template("translation_result", language, translated=translated)
                     
                 self.logger.info(f"Translation completed: {text} -> {target_lang}")
                 
@@ -123,9 +120,12 @@ class TranslationIntentHandler(IntentHandler):
         if not llm_component:
             return self._create_error_result(intent, context, "LLM component not available")
         
+        # Determine language first
+        language = self._get_language(intent, context)
+        
         # Extract text and target language from intent entities
         text_to_translate = intent.entities.get("text")
-        target_language = intent.entities.get("target_language", "английский")
+        target_language = intent.entities.get("target_language", self._get_template("default_target_language", language))
         
         if not text_to_translate:
             # Try to extract from original command using LLM component
@@ -142,13 +142,7 @@ class TranslationIntentHandler(IntentHandler):
                 target_language=target_language
             )
             
-            # Determine language
-            language = self._get_language(intent, context)
-            
-            if language == "ru":
-                response_text = f"Перевод: {translated}"
-            else:
-                response_text = f"Translation: {translated}"
+            response_text = self._get_template("translation_result", language, translated=translated)
             
             self.logger.info(f"Specific translation: {text_to_translate} -> {target_language}")
             
@@ -196,14 +190,38 @@ class TranslationIntentHandler(IntentHandler):
         # Default to Russian
         return "ru"
         
+    def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
+        """Get template from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"TranslationIntentHandler: Asset loader not initialized. "
+                f"Cannot access template '{template_name}' for language '{language}'. "
+                f"This is a fatal configuration error - translation templates must be externalized."
+            )
+        
+        # Get template from asset loader
+        template_content = self.asset_loader.get_template("translation", template_name, language)
+        if template_content is None:
+            raise RuntimeError(
+                f"TranslationIntentHandler: Required template '{template_name}' for language '{language}' "
+                f"not found in assets/templates/translation/{language}/result_messages.yaml. "
+                f"This is a fatal error - all translation templates must be externalized."
+            )
+        
+        # Format template with provided arguments
+        try:
+            return template_content.format(**format_args)
+        except KeyError as e:
+            raise RuntimeError(
+                f"TranslationIntentHandler: Template '{template_name}' missing required format argument: {e}. "
+                f"Check assets/templates/translation/{language}/result_messages.yaml for correct placeholders."
+            )
+    
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = self._get_language(intent, context)
         
-        if language == "ru":
-            error_text = f"Ошибка перевода: {error}"
-        else:
-            error_text = f"Translation error: {error}"
+        error_text = self._get_template("error_translation", language, error=error)
         
         return IntentResult(
             text=error_text,

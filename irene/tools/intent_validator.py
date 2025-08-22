@@ -6,7 +6,7 @@ against their JSON schema to ensure correctness during build time and deployment
 
 Usage:
     python -m irene.tools.intent_validator --validate-all
-    python -m irene.tools.intent_validator --file irene/intents/handlers/donations/timer.json
+    python -m irene.tools.intent_validator --file assets/donations/timer.json
     python -m irene.tools.intent_validator --handler timer
 """
 
@@ -49,8 +49,8 @@ class IntentJSONValidator:
             project_root: Path to project root. If None, auto-detect from current directory.
         """
         self.project_root = project_root or self._find_project_root()
-        self.schema_path = self.project_root / "schemas" / "donation" / "v1.0.json"
-        self.intents_dir = self.project_root / "irene" / "intents" / "handlers"
+        self.schema_path = self.project_root / "assets" / "v1.0.json"
+        self.donations_dir = self.project_root / "assets" / "donations"
         
         # Cache for loaded schema
         self._schema_cache: Optional[Dict[str, Any]] = None
@@ -89,14 +89,16 @@ class IntentJSONValidator:
         Returns:
             List of Path objects for JSON files found
         """
-        if not self.intents_dir.exists():
-            logger.warning(f"Intents directory not found: {self.intents_dir}")
+        if not self.donations_dir.exists():
+            logger.warning(f"Intents directory not found: {self.donations_dir}")
             return []
         
         json_files = []
-        for json_file in self.intents_dir.glob("*.json"):
+        handlers_dir = self.project_root / "irene" / "intents" / "handlers"
+        for json_file in self.donations_dir.glob("*.json"):
             # Check if corresponding Python handler exists
-            py_file = json_file.with_suffix('.py')
+            handler_name = json_file.stem
+            py_file = handlers_dir / f"{handler_name}.py"
             if py_file.exists():
                 json_files.append(json_file)
             else:
@@ -266,7 +268,10 @@ class IntentJSONValidator:
             json_path: Path to the JSON file
             result: Validation result to update
         """
-        py_path = json_path.with_suffix('.py')
+        # Look for Python handler in the handlers directory
+        handler_name = json_path.stem
+        handlers_dir = self.project_root / "irene" / "intents" / "handlers"
+        py_path = handlers_dir / f"{handler_name}.py"
         if not py_path.exists():
             result.errors.append(f"No corresponding Python handler found: {py_path}")
             result.is_valid = False
@@ -313,7 +318,7 @@ class IntentJSONValidator:
         Returns:
             IntentValidationResult for the specified handler
         """
-        json_file = self.intents_dir / f"{handler_name}.json"
+        json_file = self.donations_dir / f"{handler_name}.json"
         return self.validate_intent_file(json_file)
     
     def get_validation_summary(self, results: Dict[str, IntentValidationResult]) -> Dict[str, Any]:

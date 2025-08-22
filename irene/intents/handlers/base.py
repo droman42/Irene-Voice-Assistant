@@ -28,6 +28,8 @@ class IntentHandler(EntryPointMetadata, ABC):
         self.logger = logging.getLogger(f"{__name__}.{self.name}")
         self.donation: Optional[Any] = None  # Will be HandlerDonation
         self._donation_initialized = False
+        self.asset_loader: Optional[Any] = None  # Will be IntentAssetLoader
+        self._asset_loader_initialized = False
     
     @abstractmethod
     async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
@@ -93,6 +95,35 @@ class IntentHandler(EntryPointMetadata, ABC):
             True if donation is set and initialized
         """
         return self._donation_initialized and self.donation is not None
+    
+    def set_asset_loader(self, asset_loader: Any) -> None:
+        """
+        Set the IntentAssetLoader for this handler.
+        
+        Args:
+            asset_loader: IntentAssetLoader object for accessing external assets
+        """
+        self.asset_loader = asset_loader
+        self._asset_loader_initialized = True
+        self.logger.info(f"Handler {self.name} initialized with asset loader")
+    
+    def get_asset_loader(self) -> Optional[Any]:
+        """
+        Get the IntentAssetLoader for this handler.
+        
+        Returns:
+            IntentAssetLoader object or None if not set
+        """
+        return self.asset_loader
+    
+    def has_asset_loader(self) -> bool:
+        """
+        Check if this handler has an asset loader set.
+        
+        Returns:
+            True if asset loader is set and initialized
+        """
+        return self._asset_loader_initialized and self.asset_loader is not None
     
     def find_method_for_intent(self, intent: Intent) -> Optional[str]:
         """
@@ -427,6 +458,60 @@ class IntentHandler(EntryPointMetadata, ABC):
             confidence=1.0
         )
     
+    def _get_stop_patterns(self, language: str = "ru") -> List[str]:
+        """Get stop command patterns from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"BaseIntentHandler: Asset loader not initialized. "
+                f"Cannot access stop patterns for language '{language}'. "
+                f"This is a fatal configuration error - command patterns must be externalized."
+            )
+        
+        # Get patterns from asset loader
+        commands_data = self.asset_loader.get_localization("commands", language)
+        if commands_data is None:
+            raise RuntimeError(
+                f"BaseIntentHandler: Required command patterns for language '{language}' "
+                f"not found in assets/localization/commands/{language}.yaml. "
+                f"This is a fatal error - all command patterns must be externalized."
+            )
+        
+        stop_patterns = commands_data.get("stop_patterns", [])
+        if not stop_patterns:
+            raise RuntimeError(
+                f"BaseIntentHandler: Empty stop_patterns in assets/localization/commands/{language}.yaml. "
+                f"At least one stop pattern must be defined for language '{language}'."
+            )
+        
+        return stop_patterns
+    
+    def _get_domain_hints(self, language: str = "ru") -> Dict[str, List[str]]:
+        """Get domain hints from asset loader - raises fatal error if not available"""
+        if not self.has_asset_loader():
+            raise RuntimeError(
+                f"BaseIntentHandler: Asset loader not initialized. "
+                f"Cannot access domain hints for language '{language}'. "
+                f"This is a fatal configuration error - domain patterns must be externalized."
+            )
+        
+        # Get domain hints from asset loader
+        domains_data = self.asset_loader.get_localization("domains", language)
+        if domains_data is None:
+            raise RuntimeError(
+                f"BaseIntentHandler: Required domain hints for language '{language}' "
+                f"not found in assets/localization/domains/{language}.yaml. "
+                f"This is a fatal error - all domain patterns must be externalized."
+            )
+        
+        domain_hints = domains_data.get("domain_hints", {})
+        if not domain_hints:
+            raise RuntimeError(
+                f"BaseIntentHandler: Empty domain_hints in assets/localization/domains/{language}.yaml. "
+                f"At least one domain hint must be defined for language '{language}'."
+            )
+        
+        return domain_hints
+    
     def parse_stop_command(self, intent: Intent) -> Optional[Dict[str, Any]]:
         """
         Parse stop command to extract target action/domain information.
@@ -439,28 +524,32 @@ class IntentHandler(EntryPointMetadata, ABC):
         """
         text = intent.text.lower()
         
-        # Basic stop command patterns
-        stop_patterns = [
-            "стоп", "останови", "прекрати", "выключи",
-            "stop", "halt", "cancel", "turn off"
-        ]
+        # Get stop patterns from localization data (both languages)
+        ru_stop_patterns = self._get_stop_patterns("ru")
+        en_stop_patterns = self._get_stop_patterns("en")
+        all_stop_patterns = ru_stop_patterns + en_stop_patterns
         
-        if not any(pattern in text for pattern in stop_patterns):
+        if not any(pattern in text for pattern in all_stop_patterns):
             return None
         
-        # Extract target domain/action hints
-        domain_hints = {
-            "music": ["музыка", "музыку", "песню", "трек", "music", "song", "track"],
-            "lights": ["свет", "лампы", "освещение", "lights", "lamp", "lighting"],
-            "smart_home": ["устройство", "девайс", "device", "smart"],
-            "media": ["видео", "фильм", "медиа", "video", "movie", "media"],
-            "timer": ["таймер", "будильник", "timer", "alarm"]
-        }
+        # Get domain hints from localization data (both languages)
+        ru_domain_hints = self._get_domain_hints("ru")
+        en_domain_hints = self._get_domain_hints("en")
         
         target_domains = []
-        for domain, keywords in domain_hints.items():
+        
+        # Check Russian domain hints
+        for domain, keywords in ru_domain_hints.items():
             if any(keyword in text for keyword in keywords):
                 target_domains.append(domain)
+        
+        # Check English domain hints
+        for domain, keywords in en_domain_hints.items():
+            if any(keyword in text for keyword in keywords):
+                target_domains.append(domain)
+        
+        # Remove duplicates
+        target_domains = list(set(target_domains))
         
         return {
             "is_stop_command": True,

@@ -1,0 +1,3 @@
+translation_result: "Перевод: {translated}"
+error_translation: "Ошибка перевода: {error}"
+default_target_language: "английский"

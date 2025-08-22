@@ -29,10 +29,29 @@ class TimerIntentHandler(IntentHandler):
     - Async timer execution
     """
     
-    def __init__(self):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__()
         self.active_timers: Dict[str, Dict[str, Any]] = {}
         self.timer_counter = 0
+        
+        # Phase 5: Configuration injection via Pydantic TimerHandlerConfig
+        if config:
+            self.config = config
+            self.min_seconds = config.get("min_seconds", 1)
+            self.max_seconds = config.get("max_seconds", 86400)
+            self.unit_multipliers = config.get("unit_multipliers", {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400})
+            logger.info(f"TimerIntentHandler initialized with config: min_seconds={self.min_seconds}, max_seconds={self.max_seconds}")
+        else:
+            # Fallback defaults (should not be used in production with proper config)
+            self.config = {
+                "min_seconds": 1,
+                "max_seconds": 86400,
+                "unit_multipliers": {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400}
+            }
+            self.min_seconds = 1
+            self.max_seconds = 86400
+            self.unit_multipliers = {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400}
+            logger.warning("TimerIntentHandler initialized without configuration - using fallback defaults")
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
@@ -377,23 +396,17 @@ class TimerIntentHandler(IntentHandler):
         return "Таймер завершён!"
     
     def _convert_to_seconds(self, duration: int, unit: str) -> int:
-        """Convert duration to seconds"""
-        # TODO #15: Move unit multipliers to TOML configuration (not JSON donations - these are processing constants)
-        unit_multipliers = {
-            'seconds': 1,
-            'minutes': 60,
-            'hours': 3600,
-            'days': 86400
-        }
-        
-        multiplier = unit_multipliers.get(unit, 1)
+        """Convert duration to seconds using injected configuration"""
+        # Phase 5: Use injected unit multipliers from configuration
+        multiplier = self.unit_multipliers.get(unit, 1)
         total_seconds = duration * multiplier
         
-        # Reasonable limits
-        if total_seconds < 1:
-            raise ValueError("Время таймера слишком мало")
-        if total_seconds > 86400:  # 24 hours
-            raise ValueError("Время таймера слишком велико (максимум 24 часа)")
+        # Use configured limits
+        if total_seconds < self.min_seconds:
+            raise ValueError(f"Время таймера слишком мало (минимум {self.min_seconds} секунд)")
+        if total_seconds > self.max_seconds:
+            max_hours = self.max_seconds // 3600
+            raise ValueError(f"Время таймера слишком велико (максимум {max_hours} часов)")
         
         return total_seconds
     

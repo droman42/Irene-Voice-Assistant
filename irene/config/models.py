@@ -263,6 +263,44 @@ class TextProcessorConfig(BaseModel):
     )
 
 
+# ============================================================
+# INTENT HANDLER CONFIGURATIONS (Phase 1)
+# ============================================================
+
+class ConversationHandlerConfig(BaseModel):
+    """Configuration for conversation intent handler"""
+    session_timeout: int = Field(default=1800, ge=60, description="Session timeout in seconds")
+    max_sessions: int = Field(default=50, ge=1, le=1000, description="Maximum concurrent sessions")
+    max_context_length: int = Field(default=10, ge=1, le=100, description="Maximum conversation context length")
+    default_conversation_confidence: float = Field(default=0.6, ge=0.0, le=1.0, description="Default confidence threshold")
+
+
+class TrainScheduleHandlerConfig(BaseModel):
+    """Configuration for train schedule intent handler"""
+    api_key: str = Field(default="", description="Yandex Schedules API key")
+    from_station: str = Field(default="s9600681", description="Default departure station ID")
+    to_station: str = Field(default="s2000002", description="Default destination station ID")
+    max_results: int = Field(default=3, ge=1, le=20, description="Maximum schedule results")
+    request_timeout: int = Field(default=10, ge=1, le=60, description="API request timeout in seconds")
+
+
+class TimerHandlerConfig(BaseModel):
+    """Configuration for timer intent handler"""
+    min_seconds: int = Field(default=1, ge=1, description="Minimum timer duration in seconds")
+    max_seconds: int = Field(default=86400, ge=1, description="Maximum timer duration in seconds")
+    unit_multipliers: Dict[str, int] = Field(
+        default={'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400},
+        description="Time unit multipliers"
+    )
+
+
+class RandomHandlerConfig(BaseModel):
+    """Configuration for random number intent handler"""
+    default_max_number: int = Field(default=100, ge=1, description="Default maximum for random numbers")
+    max_range_size: int = Field(default=1000000, ge=1, description="Maximum allowed range size")
+    default_dice_sides: int = Field(default=6, ge=2, le=100, description="Default number of dice sides")
+
+
 class IntentSystemConfig(BaseModel):
     """Intent system component configuration"""
     enabled: bool = Field(default=True, description="Enable intent system component")
@@ -285,6 +323,76 @@ class IntentSystemConfig(BaseModel):
         },
         description="Intent handler configuration"
     )
+    
+    # Handler-specific configurations
+    conversation: ConversationHandlerConfig = Field(
+        default_factory=ConversationHandlerConfig,
+        description="Conversation handler configuration"
+    )
+    train_schedule: TrainScheduleHandlerConfig = Field(
+        default_factory=TrainScheduleHandlerConfig,
+        description="Train schedule handler configuration"
+    )
+    timer: TimerHandlerConfig = Field(
+        default_factory=TimerHandlerConfig,
+        description="Timer handler configuration"
+    )
+    random_handler: RandomHandlerConfig = Field(
+        default_factory=RandomHandlerConfig,
+        description="Random handler configuration"
+    )
+    
+    @model_validator(mode='after')
+    def validate_handler_configurations(self):
+        """Validate handler-specific configurations for enabled handlers"""
+        if not self.enabled:
+            return self
+        
+        # Get enabled handlers list
+        enabled_handlers = self.handlers.get("enabled", []) if isinstance(self.handlers, dict) else []
+        
+        # Validate that each enabled handler has proper configuration
+        handler_config_mapping = {
+            "conversation": self.conversation,
+            "train_schedule": self.train_schedule,
+            "timer": self.timer,
+            "random_handler": self.random_handler
+        }
+        
+        for handler_name in enabled_handlers:
+            if handler_name in handler_config_mapping:
+                handler_config = handler_config_mapping[handler_name]
+                
+                # Validate configuration is present and valid
+                if handler_config is None:
+                    raise ValueError(f"Handler '{handler_name}' is enabled but has no configuration")
+                
+                # Additional validation for specific handlers
+                if handler_name == "conversation":
+                    if handler_config.session_timeout <= 0:
+                        raise ValueError("Conversation handler session_timeout must be positive")
+                    if handler_config.max_sessions <= 0:
+                        raise ValueError("Conversation handler max_sessions must be positive")
+                
+                elif handler_name == "timer":
+                    if handler_config.min_seconds >= handler_config.max_seconds:
+                        raise ValueError("Timer handler min_seconds must be less than max_seconds")
+                    if not handler_config.unit_multipliers:
+                        raise ValueError("Timer handler unit_multipliers cannot be empty")
+                
+                elif handler_name == "random_handler":
+                    if handler_config.default_max_number <= 0:
+                        raise ValueError("Random handler default_max_number must be positive")
+                    if handler_config.max_range_size <= 0:
+                        raise ValueError("Random handler max_range_size must be positive")
+                
+                elif handler_name == "train_schedule":
+                    if handler_config.max_results <= 0:
+                        raise ValueError("Train schedule handler max_results must be positive")
+                    if handler_config.request_timeout <= 0:
+                        raise ValueError("Train schedule handler request_timeout must be positive")
+        
+        return self
 
 
 # ============================================================

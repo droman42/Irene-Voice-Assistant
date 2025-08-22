@@ -20,7 +20,7 @@ This document tracks architectural improvements and refactoring tasks for the Ir
 | 12 | [Complete Dynamic Discovery Implementation for Intent Handlers and Plugins](TODO/TODO12.md) | ✅ **SUBSTANTIALLY COMPLETED** | High | Intent system, Plugin system, Build system integration |
 | 13 | [Binary WebSocket Optimization for External Devices](TODO/TODO13.md) | ❌ **Open** | Low | WebSocket endpoints, ESP32 integration, Audio streaming |
 | 14 | [ESP32 INT8 Wake Word Model Migration](TODO/TODO14.md) | ✅ **COMPLETED** | High | ESP32 firmware, wake word training pipeline |
-| 15 | [Handler Response Templates and Configuration Refactoring](TODO/TODO15.md) | ❌ **Open** | Medium | Response templates, LLM prompts, Localization, Configuration externalization |
+| 15 | [Handler Response Templates and Configuration Refactoring](TODO/TODO15.md) | ✅ **COMPLETED** | Medium | Response templates, LLM prompts, Localization, Configuration externalization |
 | 16 | [General Command Disambiguation & Context-Aware Action Resolution](TODO/TODO16.md) | ❌ **Open** | Medium | Context aware  disambiguation for simple commands |
 
 ## 🎯 Status Legend

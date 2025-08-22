@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional
 from .registry import IntentRegistry
 from .orchestrator import IntentOrchestrator
 from ..utils.loader import dynamic_loader
-from ..core.donation_loader import DonationLoader
+from ..core.intent_asset_loader import IntentAssetLoader, AssetLoaderConfig
 # PHASE 5: Remove parameter extractor import - now integrated into NLU providers
 
 logger = logging.getLogger(__name__)
@@ -37,22 +37,27 @@ class IntentHandlerManager:
         self._handler_instances: Dict[str, Any] = {}
         self._registry = IntentRegistry()
         self._orchestrator: Optional[IntentOrchestrator] = None
-        self._donation_loader: Optional[DonationLoader] = None
+        self._asset_loader: Optional[IntentAssetLoader] = None
         # PHASE 5: Remove parameter extractor field - now integrated into NLU providers
         self._donations: Dict[str, Any] = {}
+        self._intent_system_config: Optional[Any] = None  # Phase 5: Store full intent system config
         self._initialized = False
         
-    async def initialize(self, config: Optional[Dict[str, Any]] = None) -> None:
+    async def initialize(self, config: Optional[Dict[str, Any]] = None, intent_system_config: Optional[Any] = None) -> None:
         """
         Discover and register intent handlers from entry-points with donation support.
         
         Args:
             config: Configuration dictionary for intent handler settings
+            intent_system_config: Full intent system configuration (Pydantic IntentSystemConfig or dict)
         """
         if self._initialized:
             return
             
         logger.info("Initializing IntentHandlerManager with donation support...")
+        
+        # Phase 5: Store full intent system config for handler-specific configurations
+        self._intent_system_config = intent_system_config
         
         # Default configuration
         default_config = {
@@ -75,10 +80,11 @@ class IntentHandlerManager:
         enabled_handlers = handler_config.get("enabled", [])
         logger.info(f"Enabled intent handlers: {enabled_handlers}")
         
-        # Phase 6: Initialize donation loader
-        from ..core.donations import DonationValidationConfig
-        validation_config = DonationValidationConfig(**handler_config.get("donation_validation", {}))
-        self._donation_loader = DonationLoader(validation_config)
+        # Phase 6: Initialize unified asset loader
+        from pathlib import Path
+        asset_config = AssetLoaderConfig(**handler_config.get("asset_validation", {}))
+        assets_root = Path("assets")
+        self._asset_loader = IntentAssetLoader(assets_root, asset_config)
         
         # Discover handlers from entry-points (configuration-driven filtering)
         self._handler_classes = dynamic_loader.discover_providers(
@@ -103,48 +109,105 @@ class IntentHandlerManager:
         self._initialized = True
         logger.info(f"IntentHandlerManager initialized with {len(self._handler_instances)} handlers and donation support")
     
+    def _get_handler_config(self, handler_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get configuration for a specific handler.
+        
+        Args:
+            handler_name: Name of the handler
+            
+        Returns:
+            Handler configuration dict or None if not available
+        """
+        if not self._intent_system_config:
+            return None
+        
+        # Map handler names to configuration attributes in IntentSystemConfig
+        handler_config_mapping = {
+            "conversation": "conversation",
+            "train_schedule": "train_schedule", 
+            "timer": "timer",
+            "random_handler": "random_handler"
+        }
+        
+        config_attr = handler_config_mapping.get(handler_name)
+        if not config_attr:
+            return None
+        
+        # Get configuration from Pydantic model or dict
+        if hasattr(self._intent_system_config, config_attr):
+            handler_config = getattr(self._intent_system_config, config_attr)
+            
+            # Convert Pydantic model to dict if needed
+            if hasattr(handler_config, 'model_dump'):
+                return handler_config.model_dump()
+            elif hasattr(handler_config, 'dict'):
+                return handler_config.dict()
+            else:
+                return handler_config
+        elif isinstance(self._intent_system_config, dict):
+            return self._intent_system_config.get(config_attr)
+        
+        return None
+    
+
     async def _load_donations(self) -> None:
-        """Load JSON donations for all handlers."""
+        """Load JSON donations and other assets for all handlers."""
         try:
-            from pathlib import Path
+            # Get handler names from discovered classes
+            handler_names = list(self._handler_classes.keys())
             
-            # Discover handler files in the standard location
-            handler_dir = Path("irene/intents/handlers")
-            handler_paths = []
+            # Load all assets using unified asset loader
+            await self._asset_loader.load_all_assets(handler_names)
             
-            for handler_name in self._handler_classes.keys():
-                handler_file = handler_dir / f"{handler_name}.py"
-                if handler_file.exists():
-                    handler_paths.append(handler_file)
-                else:
-                    logger.warning(f"Handler file not found for {handler_name}: {handler_file}")
-            
-            # Load donations using donation loader
-            self._donations = await self._donation_loader.discover_and_load_donations(handler_paths)
+            # Get donations from the asset loader
+            self._donations = self._asset_loader.donations
             
             logger.info(f"Loaded {len(self._donations)} JSON donations for handlers: {list(self._donations.keys())}")
             
         except Exception as e:
-            logger.error(f"Failed to load JSON donations: {e}")
-            raise RuntimeError(f"Donation loading failed: {e}")
+            logger.error(f"Failed to load assets: {e}")
+            raise RuntimeError(f"Asset loading failed: {e}")
     
     async def _instantiate_handlers(self) -> None:
-        """Instantiate discovered handler classes."""
+        """Instantiate discovered handler classes with proper configuration injection."""
         for name, handler_class in self._handler_classes.items():
             try:
-                # Instantiate handler
-                handler_instance = handler_class()
+                # Phase 5: Check if handler needs configuration injection
+                handler_config = self._get_handler_config(name)
+                
+                # Configuration validation is handled by Pydantic models in CoreConfig.intent_system
+                
+                # Check if handler constructor accepts config parameter
+                import inspect
+                sig = inspect.signature(handler_class.__init__)
+                
+                if 'config' in sig.parameters and handler_config is not None:
+                    # Instantiate with configuration
+                    handler_instance = handler_class(config=handler_config)
+                    logger.debug(f"Instantiated intent handler '{name}' with configuration: {list(handler_config.keys()) if isinstance(handler_config, dict) else type(handler_config).__name__}")
+                else:
+                    # Instantiate without configuration
+                    handler_instance = handler_class()
+                    logger.debug(f"Instantiated intent handler: {name}")
+                
                 self._handler_instances[name] = handler_instance
-                logger.debug(f"Instantiated intent handler: {name}")
                 
             except Exception as e:
                 logger.error(f"Failed to instantiate intent handler {name}: {e}")
                 continue
     
     async def _initialize_handlers_with_donations(self) -> None:
-        """Initialize handlers with their corresponding JSON donations."""
+        """Initialize handlers with their corresponding JSON donations and asset loader."""
         for name, handler in self._handler_instances.items():
             try:
+                # Set asset loader on handler (all handlers get access to assets)
+                if hasattr(handler, 'set_asset_loader'):
+                    handler.set_asset_loader(self._asset_loader)
+                    logger.debug(f"Initialized handler {name} with asset loader")
+                else:
+                    logger.warning(f"Handler {name} does not support asset loader (no set_asset_loader method)")
+                
                 if name in self._donations:
                     # Set donation on handler
                     donation = self._donations[name]
@@ -158,7 +221,7 @@ class IntentHandlerManager:
                     raise RuntimeError(f"Missing donation for handler {name}")
                     
             except Exception as e:
-                logger.error(f"Failed to initialize handler {name} with donation: {e}")
+                logger.error(f"Failed to initialize handler {name} with assets: {e}")
                 raise
     
     # PHASE 5: Remove _initialize_parameter_extractor method - parameter extraction now integrated into NLU providers

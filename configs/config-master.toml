@@ -386,12 +386,24 @@ discovery_paths = ["irene.intents.handlers"]  # Entry-point discovery paths
 [intent_system.handlers.conversation]
 session_timeout = 1800             # Session timeout in seconds (30 minutes)
 max_sessions = 50                  # Maximum concurrent sessions
+max_context_length = 10            # Maximum conversation context length
+default_conversation_confidence = 0.6  # Default confidence threshold
 
 [intent_system.handlers.train_schedule]
 api_key = "${YANDEX_SCHEDULES_API_KEY}"  # Yandex Schedules API key
 from_station = "s9600681"          # Default departure station ID
 to_station = "s2000002"            # Default destination station ID
 max_results = 3                    # Maximum schedule results
+request_timeout = 10               # API request timeout in seconds
+
+[intent_system.handlers.timer]
+min_seconds = 1                    # Minimum timer duration in seconds
+max_seconds = 86400                # Maximum timer duration in seconds (24 hours)
+
+[intent_system.handlers.random_handler]
+default_max_number = 100           # Default maximum for random numbers
+max_range_size = 1000000           # Maximum allowed range size
+default_dice_sides = 6             # Default number of dice sides
 
 # ============================================================
 # WORKFLOWS - Processing Pipelines (Two-Level Configuration)

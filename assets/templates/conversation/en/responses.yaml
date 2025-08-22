@@ -1,0 +1,16 @@
+# English conversation response templates for ConversationIntentHandler
+# Phase 2: Extracted from hardcoded arrays in conversation.py
+
+start_greetings:
+  - "Let's talk! What would you like to chat about?"
+  - "Great! I'm ready for conversation. What shall we discuss?"
+  - "Alright, let's start a dialogue. What interests you?"
+  - "Wonderful! I'm listening."
+
+end_farewells:
+  - "Goodbye! It was nice talking."
+  - "Bye! Feel free to come back."
+  - "See you later! Have a good day."
+  - "All the best!"
+
+clear_response: "Alright, let's start the dialogue fresh. What shall we talk about?"
