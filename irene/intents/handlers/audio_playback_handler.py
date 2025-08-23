@@ -89,8 +89,8 @@ class AudioPlaybackIntentHandler(IntentHandler):
         audio_file = intent.entities.get("file", intent.entities.get("track", "default_audio"))
         source = intent.entities.get("source", "local")
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Use fire-and-forget action execution for audio playback
         playback_id = f"audio_{int(time.time() * 1000)}"
@@ -116,8 +116,8 @@ class AudioPlaybackIntentHandler(IntentHandler):
         
     async def _handle_stop_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle audio stop request with fire-and-forget action execution"""
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Use fire-and-forget action execution for stopping audio
         stop_id = f"audio_stop_{int(time.time() * 1000)}"
@@ -186,8 +186,8 @@ class AudioPlaybackIntentHandler(IntentHandler):
         if not provider_name:
             return self._create_error_result(intent, context, "Provider name not specified")
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         success = audio_component.set_default_provider(provider_name)
         
@@ -220,8 +220,8 @@ class AudioPlaybackIntentHandler(IntentHandler):
         
         info = audio_component.get_providers_info()
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         self.logger.info(f"Audio providers info requested")
         
@@ -248,19 +248,6 @@ class AudioPlaybackIntentHandler(IntentHandler):
                 return None
         
         return self._audio_component
-        
-    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
-        """Determine language from intent or context"""
-        # Check intent entities first
-        if "language" in intent.entities:
-            return intent.entities["language"]
-        
-        # Check if text contains Russian characters
-        if any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        
-        # Default to Russian
-        return "ru"
         
     def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
         """Get template from asset loader - raises fatal error if not available"""
@@ -291,7 +278,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
     
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
-        language = self._get_language(intent, context)
+        language = context.language or "ru"
         
         error_text = self._get_template("error_general", language, error=error)
         

@@ -136,11 +136,11 @@ class ConversationIntentHandler(IntentHandler):
             
             # Handle specific conversation actions
             if intent.action == "start":
-                return await self._handle_start_conversation(intent, session)
+                return await self._handle_start_conversation(intent, context, session)
             elif intent.action == "end":
-                return await self._handle_end_conversation(intent, session)
+                return await self._handle_end_conversation(intent, context, session)
             elif intent.action == "clear":
-                return await self._handle_clear_conversation(intent, session)
+                return await self._handle_clear_conversation(intent, context, session)
             elif intent.action == "reference":
                 return await self._handle_reference_query(intent, session)
             else:
@@ -237,21 +237,6 @@ class ConversationIntentHandler(IntentHandler):
         
         return template_content
     
-    def _detect_language(self, text: str, session_or_context) -> str:
-        """Detect language from text or context/session"""
-        # Check if text contains Russian characters
-        if any(char in text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        
-        # Check context metadata for language preference (if it's a ConversationContext)
-        if hasattr(session_or_context, 'metadata') and hasattr(session_or_context.metadata, 'get'):
-            language = session_or_context.metadata.get('language')
-            if language:
-                return language
-        
-        # Default to Russian if unclear
-        return "ru"
-    
     async def is_available(self) -> bool:
         """Check if LLM component is available for conversation"""
         if not self.llm_component:
@@ -274,13 +259,13 @@ class ConversationIntentHandler(IntentHandler):
             
         return self.sessions[session_id]
     
-    async def _handle_start_conversation(self, intent: Intent, session: ConversationSession) -> IntentResult:
+    async def _handle_start_conversation(self, intent: Intent, context: ConversationContext, session: ConversationSession) -> IntentResult:
         """Handle conversation start intent"""
         # Clear any existing history
         session.clear_history(keep_system=True)
         
-        # Determine language preference
-        language = self._detect_language(intent.raw_text, session)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Get greeting templates from asset loader
         greetings = self._get_template_data("start_greetings", language)
@@ -297,10 +282,10 @@ class ConversationIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_end_conversation(self, intent: Intent, session: ConversationSession) -> IntentResult:
+    async def _handle_end_conversation(self, intent: Intent, context: ConversationContext, session: ConversationSession) -> IntentResult:
         """Handle conversation end intent"""
-        # Determine language preference
-        language = self._detect_language(intent.raw_text, session)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Get farewell templates from asset loader
         farewells = self._get_template_data("end_farewells", language)
@@ -318,12 +303,12 @@ class ConversationIntentHandler(IntentHandler):
             metadata={"conversation_ended": True}
         )
     
-    async def _handle_clear_conversation(self, intent: Intent, session: ConversationSession) -> IntentResult:
+    async def _handle_clear_conversation(self, intent: Intent, context: ConversationContext, session: ConversationSession) -> IntentResult:
         """Handle conversation clear/reset intent"""
         session.clear_history(keep_system=True)
         
-        # Determine language preference
-        language = self._detect_language(intent.raw_text, session)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Get clear response template from asset loader
         response = self._get_template("clear_response", language)

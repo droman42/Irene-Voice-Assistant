@@ -77,25 +77,28 @@ class SystemIntentHandler(IntentHandler):
     async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Execute system intent"""
         try:
-            # Determine language preference
-            language = self._detect_language(intent.raw_text, context)
+            # Use language from context (detected by NLU)
+            language = context.language or "ru"
             
             if intent.action == "help" or intent.name == "system.help":
-                return await self._handle_help_request(intent, context, language)
+                return await self._handle_help_request(intent, context)
             elif intent.action == "status" or intent.name == "system.status":
-                return await self._handle_status_request(intent, context, language)
+                return await self._handle_status_request(intent, context)
             elif intent.action == "version" or intent.name == "system.version":
-                return await self._handle_version_request(intent, context, language)
+                return await self._handle_version_request(intent, context)
             elif intent.action == "info" or intent.name == "system.info":
-                return await self._handle_info_request(intent, context, language)
+                return await self._handle_info_request(intent, context)
+            elif intent.action == "language_switch" or intent.name == "system.language_switch":
+                return await self._handle_language_switch(intent, context)
             else:
                 # Default: provide general system information
-                return await self._handle_general_info(intent, context, language)
+                return await self._handle_general_info(intent, context)
                 
         except Exception as e:
             logger.error(f"System intent execution failed: {e}")
+            language = context.language or "ru"
             return IntentResult(
-                text="Извините, произошла ошибка при выполнении системной команды." if self._detect_language(intent.raw_text, context) == "ru" else "Sorry, there was an error executing the system command.",
+                text="Извините, произошла ошибка при выполнении системной команды." if language == "ru" else "Sorry, there was an error executing the system command.",
                 should_speak=True,
                 success=False,
                 error=str(e)
@@ -132,25 +135,11 @@ class SystemIntentHandler(IntentHandler):
                 f"Check assets/templates/system/{language}/{template_name}.md for correct placeholders."
             )
     
-    def _detect_language(self, text: str, context: ConversationContext) -> str:
-        """Detect language from text or context"""
-        text_lower = text.lower()
-        
-        english_indicators = ["help", "status", "version", "info", "system"]
-        russian_indicators = ["помощь", "справка", "статус", "версия", "система", "информация"]
-        
-        english_count = sum(1 for word in english_indicators if word in text_lower)
-        russian_count = sum(1 for word in russian_indicators if word in text_lower)
-        
-        # Check context metadata for language preference
-        if hasattr(context, 'metadata') and 'language' in context.metadata:
-            return context.metadata['language']
-        
-        # Default to Russian if unclear
-        return "en" if english_count > russian_count else "ru"
-    
-    async def _handle_help_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_help_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle help/assistance request"""
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
+        
         help_text = self._get_template("help", language)
         
         return IntentResult(
@@ -163,8 +152,11 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_status_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_status_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle system status request"""
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
+        
         uptime_seconds = time.time() - self.start_time
         uptime_hours = int(uptime_seconds // 3600)
         uptime_minutes = int((uptime_seconds % 3600) // 60)
@@ -195,8 +187,11 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_version_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_version_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle version information request"""
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
+        
         version = "13.0.0"  # TODO: Should come from config
         version_text = self._get_template("version", language, version=version)
         
@@ -210,8 +205,11 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_info_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_info_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle general information request"""
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
+        
         session_stats = self._get_session_stats(context)
         version = "13.0.0"  # TODO: Should come from config
         
@@ -233,8 +231,11 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_general_info(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_general_info(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle general system information request"""
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
+        
         version = "13.0.0"  # TODO: Should come from config
         info_text = self._get_template("general", language, version=version)
         
@@ -245,6 +246,48 @@ class SystemIntentHandler(IntentHandler):
                 "type": "general_info",
                 "language": language
             }
+        )
+    
+    async def _handle_language_switch(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle language switching requests.
+        
+        Phase 3: Language switching support implementation.
+        """
+        target_language = intent.entities.get('language', 'ru')
+        
+        # Validate language
+        if target_language not in ['ru', 'en']:
+            return IntentResult(
+                text="Поддерживаются только русский и английский языки." if context.language == 'ru' 
+                     else "Only Russian and English languages are supported.",
+                should_speak=True
+            )
+        
+        # Update context and preferences using context manager
+        try:
+            # Get context manager from core to update language preference
+            from ...core.engine import get_core
+            core = get_core()
+            if core and hasattr(core, 'context_manager'):
+                await core.context_manager.update_language_preference(context.session_id, target_language)
+            else:
+                # Fallback: update context directly
+                context.language = target_language
+                context.user_preferences['language'] = target_language
+        except Exception as e:
+            logger.warning(f"Could not access context manager for language update: {e}")
+            # Fallback: update context directly
+            context.language = target_language
+            context.user_preferences['language'] = target_language
+        
+        response = "Язык изменён на русский." if target_language == 'ru' else "Language changed to English."
+        
+        return IntentResult(
+            text=response,
+            should_speak=True,
+            metadata={'language_changed': target_language},
+            success=True
         )
     
     def _get_session_stats(self, context: ConversationContext) -> Dict[str, Any]:

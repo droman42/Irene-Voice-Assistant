@@ -85,8 +85,8 @@ class TextEnhancementIntentHandler(IntentHandler):
         # Extract text to enhance from command using LLM component helper method
         text_to_enhance = llm_component.extract_text_from_command(intent.text)
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         if text_to_enhance:
             try:
@@ -131,8 +131,8 @@ class TextEnhancementIntentHandler(IntentHandler):
         try:
             improved = await llm_component.enhance_text(text_to_improve, task="improve")
             
-            # Determine language
-            language = self._get_language(intent, context)
+            # Use language from context (detected by NLU)
+            language = context.language or "ru"
             
             response_text = self._get_template("improved_text", language, improved=improved)
             
@@ -173,8 +173,8 @@ class TextEnhancementIntentHandler(IntentHandler):
         try:
             corrected = await llm_component.enhance_text(text_to_correct, task="correct")
             
-            # Determine language
-            language = self._get_language(intent, context)
+            # Use language from context (detected by NLU)
+            language = context.language or "ru"
             
             response_text = self._get_template("corrected_text", language, corrected=corrected)
             
@@ -210,18 +210,7 @@ class TextEnhancementIntentHandler(IntentHandler):
         
         return self._llm_component
         
-    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
-        """Determine language from intent or context"""
-        # Check intent entities first
-        if "language" in intent.entities:
-            return intent.entities["language"]
-        
-        # Check if text contains Russian characters
-        if any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        
-        # Default to Russian
-        return "ru"
+
         
     def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
         """Get template from asset loader - raises fatal error if not available"""
@@ -252,7 +241,7 @@ class TextEnhancementIntentHandler(IntentHandler):
     
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
-        language = self._get_language(intent, context)
+        language = context.language or "ru"
         
         error_text = self._get_template("error_enhancement", language, error=error)
         

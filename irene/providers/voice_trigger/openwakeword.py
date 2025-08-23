@@ -328,7 +328,7 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """OpenWakeWord requires specific voice trigger libraries"""
-        return ["openwakeword>=0.6.0", "numpy>=1.21.0"]
+        return ["openwakeword>=0.6.0", "numpy>=1.21.0", "aiohttp>=3.8.0"]
         
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:

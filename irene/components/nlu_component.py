@@ -45,13 +45,17 @@ class ContextAwareNLUProcessor:
         Returns:
             Intent with context-enhanced entities and disambiguation
         """
-        # Phase 1: Standard NLU recognition
+        # 1. Detect language if not already set or if auto-detection enabled
+        if not context.language or self._should_redetect_language(context):
+            detected_language = await self._detect_language(text, context)
+            context.language = detected_language
+            self.logger.debug(f"Language detected/updated: {detected_language}")
+        
+        # 2. Continue with existing NLU processing
         intent = await self.nlu_component.recognize(text, context)
         
-        # Phase 2: Context-based entity resolution
+        # 3. Enhance intent with context (existing logic)
         resolved_entities = await self.entity_resolver.resolve_entities(intent, context)
-        
-        # Phase 3: Context-aware entity enhancement
         enhanced_intent = await self._enhance_with_context(intent, context, resolved_entities)
         
         return enhanced_intent
@@ -179,6 +183,129 @@ class ContextAwareNLUProcessor:
         # Return potentially enhanced intent (for now, return original)
         # In the future, this could return a different intent based on context
         return intent
+    
+    async def _detect_language(self, text: str, context: ConversationContext) -> str:
+        """
+        Detect language from text with context awareness.
+        
+        Priority order:
+        1. User preference from context.user_preferences
+        2. Previous conversation language (if confidence high)
+        3. Text-based detection
+        4. System default
+        """
+        # Get NLU configuration for language detection settings
+        nlu_config = getattr(self.nlu_component.core.config, 'nlu', None)
+        if not nlu_config:
+            # Fallback to defaults if no config
+            default_language = "ru"
+            supported_languages = ["ru", "en"]
+        else:
+            default_language = getattr(nlu_config, 'default_language', "ru")
+            supported_languages = getattr(nlu_config, 'supported_languages', ["ru", "en"])
+        
+        # Check user preferences
+        if context.user_preferences.get('language'):
+            user_lang = context.user_preferences['language']
+            if user_lang in supported_languages:
+                return user_lang
+        
+        # Check conversation history confidence
+        if (context.language and 
+            len(context.conversation_history) > 0 and
+            self._get_language_confidence(context) > 0.8):
+            return context.language
+        
+        # Perform text-based detection
+        detected_language = self._analyze_text_language(text)
+        
+        # Validate detected language is supported
+        if detected_language not in supported_languages:
+            self.logger.warning(f"Detected language '{detected_language}' not in supported languages {supported_languages}, using default")
+            return default_language
+            
+        return detected_language
+
+    def _analyze_text_language(self, text: str) -> str:
+        """Analyze text to detect language using multiple indicators."""
+        if not text or not text.strip():
+            return "ru"  # Default for empty text
+            
+        text_lower = text.lower()
+        
+        # Cyrillic character detection
+        cyrillic_chars = sum(1 for char in text if '\u0400' <= char <= '\u04FF')
+        cyrillic_ratio = cyrillic_chars / len(text) if text else 0
+        
+        # Common Russian words
+        russian_indicators = ['что', 'как', 'где', 'когда', 'почему', 'привет', 'спасибо', 'да', 'нет', 'время', 'сейчас']
+        russian_count = sum(1 for word in russian_indicators if word in text_lower)
+        
+        # Common English words  
+        english_indicators = ['what', 'how', 'where', 'when', 'why', 'hello', 'thanks', 'yes', 'no', 'time', 'now']
+        english_count = sum(1 for word in english_indicators if word in text_lower)
+        
+        # Decision logic
+        if cyrillic_ratio > 0.3 or russian_count > english_count:
+            return "ru"
+        elif english_count > 0:
+            return "en"
+        else:
+            return "ru"  # Default to Russian
+    
+    def _should_redetect_language(self, context: ConversationContext) -> bool:
+        """
+        Determine if language should be re-detected based on context and configuration.
+        """
+        # Get NLU configuration
+        nlu_config = getattr(self.nlu_component.core.config, 'nlu', None)
+        if not nlu_config:
+            return True  # Default to re-detection if no config
+        
+        # Check if auto-detection is enabled
+        auto_detect = getattr(nlu_config, 'auto_detect_language', True)
+        if not auto_detect:
+            return False
+        
+        # Re-detect if no language set
+        if not context.language:
+            return True
+        
+        # Re-detect if conversation history is short (less confident)
+        if len(context.conversation_history) < 3:
+            return True
+        
+        # Re-detect if language confidence is low
+        confidence = self._get_language_confidence(context)
+        threshold = getattr(nlu_config, 'language_detection_confidence_threshold', 0.8)
+        if confidence < threshold:
+            return True
+        
+        return False
+    
+    def _get_language_confidence(self, context: ConversationContext) -> float:
+        """
+        Calculate confidence in the current language detection based on conversation history.
+        """
+        if not context.language or not context.conversation_history:
+            return 0.0
+        
+        # Analyze recent conversation history for language consistency
+        recent_history = context.conversation_history[-5:]  # Last 5 interactions
+        consistent_detections = 0
+        
+        for entry in recent_history:
+            if hasattr(entry, 'text') and entry.text:
+                detected_lang = self._analyze_text_language(entry.text)
+                if detected_lang == context.language:
+                    consistent_detections += 1
+        
+        if not recent_history:
+            return 0.0
+        
+        # Return confidence as ratio of consistent detections
+        confidence = consistent_detections / len(recent_history)
+        return confidence
 
 
 class NLUComponent(Component, WebAPIPlugin):

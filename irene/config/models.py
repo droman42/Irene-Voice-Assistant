@@ -227,6 +227,13 @@ class NLUConfig(BaseModel):
     cache_recognition_results: bool = Field(default=False, description="Cache recognition results")
     cache_ttl_seconds: int = Field(default=300, description="Cache TTL in seconds")
     
+    # Language detection settings
+    auto_detect_language: bool = Field(default=True, description="Enable automatic language detection")
+    language_detection_confidence_threshold: float = Field(default=0.8, description="Language detection confidence threshold")
+    persist_language_preference: bool = Field(default=True, description="Persist language preference across conversation")
+    supported_languages: List[str] = Field(default_factory=lambda: ["ru", "en"], description="Supported languages")
+    default_language: str = Field(default="ru", description="Default language when detection fails")
+    
     providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=dict,
         description="NLU provider instance configurations"

@@ -30,12 +30,14 @@ class AssetLoaderConfig:
         self,
         validate_json_schema: bool = True,
         validate_method_existence: bool = True,
+        validate_spacy_patterns: bool = False,
         strict_mode: bool = False,
         default_language: str = "ru",
         fallback_language: str = "en"
     ):
         self.validate_json_schema = validate_json_schema
         self.validate_method_existence = validate_method_existence
+        self.validate_spacy_patterns = validate_spacy_patterns
         self.strict_mode = strict_mode
         self.default_language = default_language
         self.fallback_language = fallback_language

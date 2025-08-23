@@ -83,8 +83,8 @@ class SystemServiceIntentHandler(IntentHandler):
             return await self.execute_with_donation_routing(intent, context)
         except Exception as e:
             logger.error(f"System service intent execution failed: {e}")
-            # Determine language for error response
-            language = self._get_language(intent, context)
+            # Use language from context (detected by NLU) for error response
+            language = context.language or "ru"
             error_text = self._get_template("general_error", language)
             
             return IntentResult(
@@ -100,8 +100,8 @@ class SystemServiceIntentHandler(IntentHandler):
         self._status_count += 1
         self._last_heartbeat = datetime.now()
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Format response using external template
         status_text = self._get_template(
@@ -136,8 +136,8 @@ class SystemServiceIntentHandler(IntentHandler):
         self._status_count += 1
         self._last_heartbeat = datetime.now()
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Format response using external template
         stats_text = self._get_template(
@@ -172,8 +172,8 @@ class SystemServiceIntentHandler(IntentHandler):
         self._status_count += 1
         self._last_heartbeat = datetime.now()
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Calculate health metrics
         uptime_seconds = (datetime.now() - self._start_time).total_seconds()
@@ -235,20 +235,7 @@ class SystemServiceIntentHandler(IntentHandler):
                 plural_s = "s" if hours != 1 else ""
                 return self._get_template("uptime_hours", language, hours=hours, plural_s=plural_s)
             
-    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
-        """Determine language from intent or context"""
-        # Check intent entities first
-        if hasattr(intent, 'entities') and "language" in intent.entities:
-            return intent.entities["language"]
-        
-        # Check if text contains Russian characters
-        if hasattr(intent, 'raw_text') and any(char in intent.raw_text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        elif hasattr(intent, 'text') and any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        
-        # Default to Russian
-        return "ru"
+
     
     def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
         """Get template from asset loader - raises fatal error if not available"""

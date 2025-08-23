@@ -214,7 +214,7 @@ class IntentComponent(Component, WebAPIPlugin):
 
     def get_component_dependencies(self) -> List[str]:
         """Get list of required component dependencies."""
-        return ["nlu", "llm"]  # Intent system needs NLU for recognition and LLM for processing
+        return []  # Intent system is independent - NLU depends on it, not the other way around
     
     def get_service_dependencies(self) -> Dict[str, type]:
         """Get list of required service dependencies."""

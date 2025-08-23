@@ -85,8 +85,8 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         
         info = asr_component.get_providers_info()
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         self.logger.info(f"ASR providers info requested")
         
@@ -114,8 +114,8 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         if not provider_name:
             return self._create_error_result(intent, context, "Provider name not specified")
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         success = asr_component.set_default_provider(provider_name)
         
@@ -149,8 +149,8 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         
         success, message = await asr_component.switch_language(target_language)
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         self.logger.info(f"ASR language switch to {target_language} - success: {success}")
         
@@ -171,8 +171,8 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         # Extract quality setting from intent entities
         quality = intent.entities.get("quality", "high")
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # TODO: Implement quality configuration logic
         response_text = self._get_template("quality_not_implemented", language, quality=quality)
@@ -196,8 +196,8 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         # Extract microphone device from intent entities
         microphone = intent.entities.get("microphone", "default")
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # TODO: Implement microphone configuration logic
         response_text = self._get_template("microphone_not_implemented", language, microphone=microphone)
@@ -230,18 +230,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         
         return self._asr_component
         
-    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
-        """Determine language from intent or context"""
-        # Check intent entities first
-        if "language" in intent.entities:
-            return intent.entities["language"]
-        
-        # Check if text contains Russian characters
-        if any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        
-        # Default to Russian
-        return "ru"
+
         
     def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
         """Get template from asset loader - raises fatal error if not available"""
@@ -272,7 +261,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
     
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
-        language = self._get_language(intent, context)
+        language = context.language or "ru"
         
         error_text = self._get_template("error_configuration", language, error=error)
         

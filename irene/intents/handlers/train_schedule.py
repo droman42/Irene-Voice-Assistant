@@ -108,21 +108,6 @@ class TrainScheduleIntentHandler(IntentHandler):
             # Fallback to general train query
             return await self.handle_train_query(intent, context)
     
-    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
-        """Determine language from intent or context"""
-        # Check intent entities first
-        if hasattr(intent, 'entities') and "language" in intent.entities:
-            return intent.entities["language"]
-        
-        # Check if text contains Russian characters
-        if hasattr(intent, 'raw_text') and any(char in intent.raw_text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        elif hasattr(intent, 'text') and any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        
-        # Default to Russian
-        return "ru"
-        
     def _get_template(self, template_name: str, language: str = "ru", **format_args) -> str:
         """Get template from asset loader - raises fatal error if not available"""
         if not self.has_asset_loader():
@@ -155,7 +140,7 @@ class TrainScheduleIntentHandler(IntentHandler):
         try:
             # Check availability
             if not await self.is_available():
-                language = self._get_language(intent, context)
+                language = context.language or "ru"
                 if not REQUESTS_AVAILABLE:
                     error_text = self._get_template("missing_dependency", language)
                     return self._create_error_result(
@@ -176,8 +161,8 @@ class TrainScheduleIntentHandler(IntentHandler):
             # Extract time parameter if provided
             time_param = self.extract_entity(intent, "time", None)
             
-            # Detect language for response formatting
-            language = self._get_language(intent, context)
+            # Use language from context (detected by NLU)
+            language = context.language or "ru"
             
             # Get train schedule
             schedule_text = await self._get_train_schedule(from_station, to_station, language)
@@ -194,7 +179,7 @@ class TrainScheduleIntentHandler(IntentHandler):
                     }
                 )
             else:
-                language = self._get_language(intent, context)
+                language = context.language or "ru"
                 error_text = self._get_template("schedule_unavailable", language)
                 return self._create_error_result(
                     error_text,
@@ -203,7 +188,7 @@ class TrainScheduleIntentHandler(IntentHandler):
         
         except Exception as e:
             logger.exception(f"Error in train schedule handler: {e}")
-            language = self._get_language(intent, context)
+            language = context.language or "ru"
             error_text = self._get_template("execution_error", language)
             return self._create_error_result(
                 error_text,

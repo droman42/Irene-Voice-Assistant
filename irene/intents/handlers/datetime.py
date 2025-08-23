@@ -57,16 +57,16 @@ class DateTimeIntentHandler(IntentHandler):
     async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Execute datetime intent"""
         try:
-            # Determine language preference
-            language = self._detect_language(intent.raw_text, context)
+            # Use language from context (detected by NLU)
+            language = context.language or "ru"
             
             if intent.action == "current_date" or intent.name == "datetime.current_date":
-                return await self._handle_date_request(intent, context, language)
+                return await self._handle_date_request(intent, context)
             elif intent.action == "current_time" or intent.name == "datetime.current_time":
-                return await self._handle_time_request(intent, context, language)
+                return await self._handle_time_request(intent, context)
             else:
                 # Default: provide both date and time
-                return await self._handle_datetime_request(intent, context, language)
+                return await self._handle_datetime_request(intent, context)
                 
         except Exception as e:
             logger.error(f"DateTime intent execution failed: {e}")
@@ -101,31 +101,11 @@ class DateTimeIntentHandler(IntentHandler):
         
         return locale_data
     
-
-    
-    def _detect_language(self, text: str, context: ConversationContext) -> str:
-        """Detect language from text or context"""
-        text_lower = text.lower()
-        
-        # Get language detection indicators from localization data
-        ru_data = self._get_localization_data("ru")
-        en_data = self._get_localization_data("en")
-        
-        english_indicators = en_data.get("language_detection", {}).get("english_indicators", [])
-        russian_indicators = ru_data.get("language_detection", {}).get("russian_indicators", [])
-        
-        english_count = sum(1 for word in english_indicators if word in text_lower)
-        russian_count = sum(1 for word in russian_indicators if word in text_lower)
-        
-        # Check context metadata for language preference
-        if hasattr(context, 'metadata') and 'language' in context.metadata:
-            return context.metadata['language']
-        
-        # Default to Russian if unclear
-        return "en" if english_count > russian_count else "ru"
-    
-    async def _handle_date_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_date_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle current date request"""
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
+        
         now = datetime.now()
         locale_data = self._get_localization_data(language)
         
@@ -156,8 +136,11 @@ class DateTimeIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_time_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_time_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle current time request"""
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
+        
         now = datetime.now()
         locale_data = self._get_localization_data(language)
         
@@ -215,8 +198,11 @@ class DateTimeIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_datetime_request(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_datetime_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle combined date and time request"""
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
+        
         now = datetime.now()
         
         locale_data = self._get_localization_data(language)

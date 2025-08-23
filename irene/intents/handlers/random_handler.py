@@ -100,8 +100,8 @@ class RandomIntentHandler(IntentHandler):
         
     async def _handle_coin_flip(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle coin flip request"""
-        # Determine language from context or intent
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Add small delay to simulate async operation
         await asyncio.sleep(0.05)
@@ -119,8 +119,8 @@ class RandomIntentHandler(IntentHandler):
         
     async def _handle_dice_roll(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle dice roll request"""
-        # Determine language from context or intent
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Extract parameters from intent
         sides = intent.entities.get("sides", 6)
@@ -164,8 +164,8 @@ class RandomIntentHandler(IntentHandler):
         
     async def _handle_random_number(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle random number generation request"""
-        # Determine language from context or intent
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Extract parameters from intent (Phase 5: Use configured defaults)
         min_val = intent.entities.get("min", 1)
@@ -208,8 +208,8 @@ class RandomIntentHandler(IntentHandler):
         
     async def _handle_random_choice(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle random choice from options"""
-        # Determine language from context or intent
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Extract options from intent
         options = intent.entities.get("options", [])
@@ -396,15 +396,4 @@ class RandomIntentHandler(IntentHandler):
                 f"Check assets/templates/random/{language}/results.yaml for correct placeholders."
             )
     
-    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
-        """Determine language from intent or context"""
-        # Check intent entities first
-        if "language" in intent.entities:
-            return intent.entities["language"]
-        
-        # Check if text contains Russian characters
-        if any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        
-        # Default to Russian
-        return "ru"
+

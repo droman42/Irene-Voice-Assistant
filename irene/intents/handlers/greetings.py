@@ -78,16 +78,16 @@ class GreetingsIntentHandler(IntentHandler):
     async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Execute greeting intent"""
         try:
-            # Determine language preference (default to Russian)
-            language = self._detect_language(intent.raw_text, context)
+            # Use language from context (detected by NLU)
+            language = context.language or "ru"  # Fallback to Russian if not set
             
             if intent.action == "goodbye" or intent.name == "greeting.goodbye":
-                return await self._handle_farewell(intent, context, language)
+                return await self._handle_farewell(intent, context)
             elif intent.action == "welcome" or intent.name == "greeting.welcome":
-                return await self._handle_welcome(intent, context, language)
+                return await self._handle_welcome(intent, context)
             else:
                 # Default: handle hello greeting
-                return await self._handle_greeting(intent, context, language)
+                return await self._handle_greeting(intent, context)
                 
         except Exception as e:
             logger.error(f"Greeting intent execution failed: {e}")
@@ -159,26 +159,11 @@ class GreetingsIntentHandler(IntentHandler):
         
         return greeting
     
-    def _detect_language(self, text: str, context: ConversationContext) -> str:
-        """Detect language from text or context"""
-        # Simple language detection based on common words
-        text_lower = text.lower()
-        
-        english_indicators = ["hello", "hi", "good", "morning", "evening", "bye", "goodbye"]
-        russian_indicators = ["привет", "здравствуй", "добро", "пока", "до свидания", "утро", "день", "вечер"]
-        
-        english_count = sum(1 for word in english_indicators if word in text_lower)
-        russian_count = sum(1 for word in russian_indicators if word in text_lower)
-        
-        # Check context metadata for language preference
-        if hasattr(context, 'metadata') and 'language' in context.metadata:
-            return context.metadata['language']
-        
-        # Default to Russian if unclear
-        return "en" if english_count > russian_count else "ru"
-    
-    async def _handle_greeting(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_greeting(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle hello greeting intent"""
+        # Use language from context (already detected by NLU)
+        language = context.language or "ru"
+        
         greetings = self._get_template_data("greetings", language)
         greeting = random.choice(greetings)
         
@@ -197,8 +182,11 @@ class GreetingsIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_farewell(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_farewell(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle goodbye farewell intent"""
+        # Use language from context (already detected by NLU)
+        language = context.language or "ru"
+        
         farewells = self._get_template_data("farewells", language)
         farewell = random.choice(farewells)
         
@@ -212,8 +200,11 @@ class GreetingsIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_welcome(self, intent: Intent, context: ConversationContext, language: str) -> IntentResult:
+    async def _handle_welcome(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle welcome message intent"""
+        # Use language from context (already detected by NLU)
+        language = context.language or "ru"
+        
         welcome_messages = self._get_template_data("welcome_messages", language)
         welcome = random.choice(welcome_messages)
         

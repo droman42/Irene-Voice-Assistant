@@ -264,7 +264,7 @@ response = "LLM response would appear here"  # Default response text
 [voice_trigger]
 enabled = true                      # Enable voice trigger component
 default_provider = "openwakeword"   # Default provider: "openwakeword", "porcupine", "microwakeword"
-wake_words = ["irene", "jarvis"]    # Wake words to detect
+wake_words = ["jarvis", "alexa"]    # Wake words to detect - using supported OpenWakeWord models
 confidence_threshold = 0.8          # Detection confidence threshold (0.0-1.0)
 buffer_seconds = 1.0               # Audio buffer duration in seconds
 timeout_seconds = 5.0              # Detection timeout in seconds
@@ -272,7 +272,7 @@ timeout_seconds = 5.0              # Detection timeout in seconds
 # OpenWakeWord Provider (recommended, open source)
 [voice_trigger.providers.openwakeword]
 enabled = true                      # Enable OpenWakeWord provider
-inference_framework = "onnx"       # Framework: "onnx", "tflite"
+inference_framework = "tflite"     # Framework: "onnx", "tflite" - using tflite to match downloaded models
 vad_threshold = 0.5                # Voice activity detection threshold
 chunk_size = 1280                  # Audio chunk size (80ms at 16kHz)
 preload_models = false             # Preload AI models during provider initialization for faster startup
@@ -308,6 +308,13 @@ max_cascade_attempts = 4           # Maximum cascade attempts
 cascade_timeout_ms = 200           # Timeout per cascade attempt
 cache_recognition_results = false   # Cache recognition results
 cache_ttl_seconds = 300            # Cache TTL in seconds
+
+# Language Detection Configuration
+auto_detect_language = true         # Enable automatic language detection
+language_detection_confidence_threshold = 0.8  # Language detection confidence threshold
+persist_language_preference = true  # Persist language preference across conversation
+supported_languages = ["ru", "en"] # Supported languages
+default_language = "ru"            # Default language when detection fails
 
 # Hybrid Keyword Matcher Provider (fast, pattern-based)
 [nlu.providers.hybrid_keyword_matcher]

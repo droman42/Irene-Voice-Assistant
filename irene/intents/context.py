@@ -660,4 +660,20 @@ class ContextManager:
                         "domain_actions": domain_actions
                     }
         
-        return {"needs_clarification": False, "reason": "clear_priority"} 
+        return {"needs_clarification": False, "reason": "clear_priority"}
+    
+    async def update_language_preference(self, session_id: str, language: str):
+        """
+        Update user's language preference for future sessions.
+        
+        Phase 3: Language preference persistence implementation.
+        
+        Args:
+            session_id: Session identifier
+            language: Target language code (e.g., 'ru', 'en')
+        """
+        context = await self.get_context(session_id)
+        context.user_preferences['language'] = language
+        context.language = language
+        context.last_updated = time.time()
+        logger.info(f"Updated language preference for session {session_id}: {language}") 

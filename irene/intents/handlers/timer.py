@@ -309,9 +309,8 @@ class TimerIntentHandler(IntentHandler):
                             if timer['session_id'] == context.session_id]
             
             if not session_timers:
-                # Note: we don't have context.session_id here but we need language detection
-                # We'll use default language for stop commands
-                language = "ru"  # Default for stop commands
+                # Use language from context (detected by NLU)
+                language = context.language or "ru"
                 response_text = self._get_template("stop_no_timers", language)
                 return IntentResult(
                     text=response_text,
@@ -328,7 +327,7 @@ class TimerIntentHandler(IntentHandler):
                 session_id=context.session_id
             )
             
-            language = "ru"  # Default for stop commands
+            language = context.language or "ru"
             response_text = self._get_template("stop_all_timers", language, count=len(session_timers))
             return self.create_action_result(
                 response_text=response_text,
@@ -339,7 +338,7 @@ class TimerIntentHandler(IntentHandler):
             )
         
         # Not targeting timers domain
-        language = "ru"  # Default for stop commands
+        language = context.language or "ru"
         response_text = self._get_template("stop_not_timer_domain", language)
         return IntentResult(
             text=response_text,

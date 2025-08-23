@@ -83,8 +83,8 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         if not tts_component:
             return self._create_error_result(intent, context, "TTS component not available")
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Extract text and voice parameters from command
         text_to_speak, voice_name = self._extract_speech_parameters(intent.text)
@@ -128,8 +128,8 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         response = tts_component.get_providers_info()
         success = True
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         self.logger.info(f"List voices request - success: {success}")
         
@@ -155,8 +155,8 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         if not text_to_speak.strip():
             return self._create_error_result(intent, context, "No text to speak")
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Use fire-and-forget action execution for basic TTS
         synthesis_id = f"tts_basic_{int(time.time() * 1000)}"
@@ -187,8 +187,8 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         if not tts_component:
             return self._create_error_result(intent, context, "TTS component not available")
         
-        # Determine language
-        language = self._get_language(intent, context)
+        # Use language from context (detected by NLU)
+        language = context.language or "ru"
         
         # Parse provider name from text and switch
         provider_name = self._parse_tts_provider_name(intent.text)
@@ -281,23 +281,10 @@ class VoiceSynthesisIntentHandler(IntentHandler):
             )
         
         return provider_mappings
-
-    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
-        """Determine language from intent or context"""
-        # Check intent entities first
-        if "language" in intent.entities:
-            return intent.entities["language"]
-        
-        # Check if text contains Russian characters
-        if any(char in intent.text for char in "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"):
-            return "ru"
-        
-        # Default to Russian
-        return "ru"
         
     def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
-        language = self._get_language(intent, context)
+        language = context.language or "ru"
         error_text = self._get_template("synthesis_error", language, error=error)
         
         return IntentResult(
