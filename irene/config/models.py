@@ -268,6 +268,10 @@ class TextProcessorConfig(BaseModel):
         },
         description="Text normalizer configurations"
     )
+    providers: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Provider-specific configurations"
+    )
 
 
 # ============================================================

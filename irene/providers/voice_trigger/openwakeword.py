@@ -83,6 +83,9 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             
             from openwakeword import Model
             
+            # First, ensure required feature extraction models are available
+            await self._ensure_feature_models_available()
+            
             # Determine which models to load using asset management - unified pattern
             models_to_load = []
             for wake_word in self.wake_words:
@@ -143,6 +146,88 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             logger.debug(f"Asset manager download failed for {model_id}: {e}")
             # Return None to trigger OpenWakeWord's own fallback download mechanism
             return None
+    
+    async def _ensure_feature_models_available(self) -> None:
+        """
+        Ensure required OpenWakeWord feature extraction models are available.
+        
+        OpenWakeWord 0.6.0+ requires melspectrogram.tflite and embedding_model.tflite
+        but no longer includes them in the PyPI package. We download them via asset
+        manager and create the expected directory structure for OpenWakeWord.
+        """
+        try:
+            # Required feature models for OpenWakeWord 0.6.0+
+            required_models = ["melspectrogram", "embedding_model"]
+            
+            # Get the asset-managed models directory
+            models_dir = self.asset_manager.get_model_path("openwakeword", "").parent
+            
+            # Download each required feature model
+            for model_name in required_models:
+                logger.info(f"Ensuring OpenWakeWord feature model '{model_name}' is available")
+                try:
+                    model_path = await self.asset_manager.download_model("openwakeword", model_name)
+                    if model_path and model_path.exists():
+                        logger.info(f"Feature model '{model_name}' available at: {model_path}")
+                    else:
+                        logger.error(f"Failed to download required feature model '{model_name}'")
+                        raise RuntimeError(f"Missing required OpenWakeWord feature model: {model_name}")
+                except Exception as e:
+                    logger.error(f"Failed to ensure feature model '{model_name}': {e}")
+                    raise
+            
+            # Create the expected OpenWakeWord directory structure
+            await self._setup_openwakeword_model_directory(models_dir)
+            
+        except Exception as e:
+            logger.error(f"Failed to ensure OpenWakeWord feature models: {e}")
+            raise
+    
+    async def _setup_openwakeword_model_directory(self, models_dir: Path) -> None:
+        """
+        Setup the directory structure that OpenWakeWord expects.
+        
+        OpenWakeWord 0.6.0+ looks for models in specific locations. We create
+        symlinks from the expected OpenWakeWord package location to our asset-managed
+        models directory.
+        
+        Args:
+            models_dir: Path to our asset-managed openwakeword models directory
+        """
+        try:
+            import os
+            
+            # Get OpenWakeWord's expected models directory
+            openwakeword_pkg_path = Path(safe_import('openwakeword').__file__).parent
+            expected_models_dir = openwakeword_pkg_path / "resources" / "models"
+            
+            # Create the resources/models directory structure if it doesn't exist
+            expected_models_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Required feature models that need to be in the expected location
+            required_models = ["melspectrogram.tflite", "embedding_model.tflite"]
+            
+            for model_file in required_models:
+                source_path = models_dir / model_file
+                target_path = expected_models_dir / model_file
+                
+                if source_path.exists():
+                    # Remove existing file/symlink if it exists
+                    if target_path.exists() or target_path.is_symlink():
+                        target_path.unlink()
+                    
+                    # Create symlink from expected location to our asset-managed file
+                    target_path.symlink_to(source_path.absolute())
+                    logger.info(f"Created symlink: {target_path} -> {source_path}")
+                else:
+                    logger.error(f"Source model file not found: {source_path}")
+                    raise FileNotFoundError(f"Required model file missing: {source_path}")
+            
+            logger.info(f"OpenWakeWord model directory structure setup complete: {expected_models_dir}")
+            
+        except Exception as e:
+            logger.error(f"Failed to setup OpenWakeWord model directory: {e}")
+            raise
     
     async def detect_wake_word(self, audio_data: AudioData) -> WakeWordResult:
         """
@@ -319,9 +404,13 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
     def _get_default_model_urls(cls) -> Dict[str, str]:
         """OpenWakeWord model URLs"""
         return {
+            # Wake word models
             "alexa_v0.1": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/alexa_v0.1.tflite",
             "hey_jarvis_v0.1": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_jarvis_v0.1.tflite",
-            "hey_mycroft_v0.1": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_mycroft_v0.1.tflite"
+            "hey_mycroft_v0.1": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_mycroft_v0.1.tflite",
+            # Feature extraction models (required by OpenWakeWord 0.6.0+)
+            "melspectrogram": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/melspectrogram.tflite",
+            "embedding_model": "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/embedding_model.tflite"
         }
     
     # Build dependency methods (TODO #5 Phase 1)
