@@ -325,9 +325,9 @@ word_boundaries = true             # Require word boundaries
 
 # SpaCy NLU Provider (advanced linguistic analysis)
 [nlu.providers.spacy_nlu]
-enabled = false                     # Enable spaCy provider
-model_name = "en_core_web_sm"      # SpaCy model: "en_core_web_sm", "ru_core_news_sm"
-fallback_model = "en_core_web_sm"  # Fallback model if primary fails
+enabled = true                     # Enable spaCy provider
+model_name = "ru_core_news_sm"      # SpaCy model: "en_core_web_sm", "ru_core_news_sm"
+fallback_model = "en_core_web_sm"   # Fallback model if primary fails
 confidence_threshold = 0.6         # Provider-specific confidence threshold
 enable_ner = true                  # Enable named entity recognition
 enable_pos_tagging = true          # Enable part-of-speech tagging

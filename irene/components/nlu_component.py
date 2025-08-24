@@ -401,6 +401,11 @@ class NLUComponent(Component, WebAPIPlugin):
             if provider_config.get("enabled", False):
                 try:
                     provider = provider_class(provider_config)
+                    
+                    # Initialize provider properly (calls _do_initialize and sets up asset manager)
+                    if hasattr(provider, 'initialize'):
+                        await provider.initialize()
+                    
                     if hasattr(provider, 'is_available'):
                         if await provider.is_available():
                             self.providers[provider_name] = provider
@@ -555,6 +560,7 @@ class NLUComponent(Component, WebAPIPlugin):
             
             # Initialize each provider with donations
             failed_providers = []
+            providers_to_remove = []
             for provider_name, provider in self.providers.items():
                 if hasattr(provider, '_initialize_from_donations'):
                     try:
@@ -563,11 +569,15 @@ class NLUComponent(Component, WebAPIPlugin):
                     except Exception as e:
                         logger.error(f"Failed to initialize provider '{provider_name}' with donations: {e}")
                         failed_providers.append(provider_name)
-                        # Phase 4: Remove failed provider from active providers
-                        if provider_name in self.providers:
-                            del self.providers[provider_name]
+                        # Phase 4: Mark failed provider for removal (don't modify dict during iteration)
+                        providers_to_remove.append(provider_name)
                 else:
                     logger.warning(f"Provider '{provider_name}' does not support donation initialization")
+            
+            # Remove failed providers after iteration is complete
+            for provider_name in providers_to_remove:
+                if provider_name in self.providers:
+                    del self.providers[provider_name]
             
             # Phase 4: Warn if critical providers failed
             if failed_providers:

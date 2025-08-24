@@ -65,7 +65,7 @@ class SpaCyNLUProvider(NLUProvider):
         return "spacy_nlu"
     
     async def is_available(self) -> bool:
-        """Check if spaCy is available, models can be loaded, and patterns are loaded from JSON donations"""
+        """Check if spaCy is available and models can be loaded (patterns loaded separately during donation phase)"""
         try:
             spacy = safe_import('spacy')
             if spacy is None:
@@ -78,10 +78,8 @@ class SpaCyNLUProvider(NLUProvider):
                 else:
                     await self._initialize_spacy()
             
-            # Check that intent patterns and compiled artifacts are loaded
-            return (self.nlp is not None and 
-                   len(self.intent_patterns) > 0 and 
-                   len(self.pattern_docs) > 0)
+            # Only check if the model is loaded - patterns will be loaded during donation initialization
+            return self.nlp is not None
             
         except Exception as e:
             self._set_status(self.status.__class__.ERROR, f"spaCy NLU initialization failed: {e}")
@@ -148,6 +146,16 @@ class SpaCyNLUProvider(NLUProvider):
             spacy = safe_import('spacy')
             if spacy is None:
                 raise ImportError("spaCy not available")
+            
+            # Ensure asset manager is available
+            if not self.asset_manager:
+                try:
+                    from ...core.assets import get_asset_manager
+                    self.asset_manager = get_asset_manager()
+                    logger.info(f"Asset manager initialized: {self.asset_manager}")
+                except Exception as e:
+                    logger.error(f"Failed to initialize asset manager: {e}")
+                    self.asset_manager = None
             
             # Try to ensure model is available through asset manager
             if self.asset_manager:
@@ -274,8 +282,8 @@ class SpaCyNLUProvider(NLUProvider):
                     # Include parameter specs for cache invalidation
                     tuple(sorted([
                         (p.name, p.type.value if hasattr(p.type, 'value') else str(p.type), 
-                         p.required, p.default_value, p.pattern, p.min_value, p.max_value, 
-                         tuple(p.choices) if p.choices else None) 
+                         p.required, p.default_value or '', p.pattern or '', p.min_value or 0, p.max_value or 0, 
+                         tuple(p.choices) if p.choices else ()) 
                         for p in d.parameters
                     ])),
                     # Include advanced spaCy patterns
@@ -286,7 +294,9 @@ class SpaCyNLUProvider(NLUProvider):
                 donations_data.append(donation_data)
             
             # Create comprehensive hash including all components
-            donations_str = str(sorted(donations_data))
+            # Sort by intent name only to ensure consistent hash across runs
+            donations_data.sort(key=lambda x: x[0])  # Sort by intent name (first element)
+            donations_str = str(donations_data)
             self._donations_hash = hashlib.md5(donations_str.encode()).hexdigest()[:8]
             
             # Store telemetry data
@@ -434,7 +444,10 @@ class SpaCyNLUProvider(NLUProvider):
             
             # Cache artifacts if asset manager available
             if self.asset_manager:
+                logger.info("Attempting to cache spaCy artifacts...")
                 await self._cache_artifacts()
+            else:
+                logger.warning("Asset manager not available - cannot cache spaCy artifacts")
             
             logger.info(f"Successfully initialized spaCy artifacts for {len(self.pattern_docs)} intents")
             
@@ -601,7 +614,11 @@ class SpaCyNLUProvider(NLUProvider):
     
     async def _cache_artifacts(self) -> None:
         """Cache compiled spaCy artifacts to asset manager"""
-        if not self.asset_manager or not self._donations_hash:
+        if not self.asset_manager:
+            logger.warning("Cannot cache spaCy artifacts: asset manager not available")
+            return
+        if not self._donations_hash:
+            logger.warning("Cannot cache spaCy artifacts: donations hash not available")
             return
         
         try:
