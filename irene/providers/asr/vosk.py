@@ -79,8 +79,8 @@ class VoskASRProvider(ASRProvider):
     
     @classmethod
     def _get_default_extension(cls) -> str:
-        """Vosk models use zip format for distribution"""
-        return ".zip"
+        """Vosk models are extracted to directories, no file extension"""
+        return ""
     
     @classmethod
     def _get_default_directory(cls) -> str:
@@ -98,14 +98,46 @@ class VoskASRProvider(ASRProvider):
         return ["models", "runtime"]
     
     @classmethod
-    def _get_default_model_urls(cls) -> Dict[str, str]:
-        """Vosk ASR model URLs for different languages"""
+    def _get_default_model_urls(cls) -> Dict[str, Any]:
+        """Vosk ASR model URLs for different languages with proper model IDs and extraction info"""
         return {
-            "ru": "https://alphacephei.com/vosk/models/vosk-model-ru-0.42.zip",
-            "en": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
-            "de": "https://alphacephei.com/vosk/models/vosk-model-de-0.21.zip",
-            "es": "https://alphacephei.com/vosk/models/vosk-model-es-0.42.zip",
-            "fr": "https://alphacephei.com/vosk/models/vosk-model-fr-0.22.zip"
+            # Small models for better performance and download size
+            "ru_small": {
+                "url": "https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip",
+                "size": "45MB",
+                "extract": True
+            },
+            "en_us": {
+                "url": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
+                "size": "42MB", 
+                "extract": True
+            },
+            # Full-size models for higher accuracy (optional)
+            "ru": {
+                "url": "https://alphacephei.com/vosk/models/vosk-model-ru-0.42.zip",
+                "size": "1.8GB",
+                "extract": True
+            },
+            "en": {
+                "url": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip",
+                "size": "42MB",
+                "extract": True
+            },
+            "de": {
+                "url": "https://alphacephei.com/vosk/models/vosk-model-de-0.21.zip",
+                "size": "86MB",
+                "extract": True
+            },
+            "es": {
+                "url": "https://alphacephei.com/vosk/models/vosk-model-es-0.42.zip",
+                "size": "1.4GB",
+                "extract": True
+            },
+            "fr": {
+                "url": "https://alphacephei.com/vosk/models/vosk-model-fr-0.22.zip",
+                "size": "1.4GB",
+                "extract": True
+            }
         }
     
     async def transcribe_audio(self, audio_data: bytes, **kwargs) -> str:
@@ -210,10 +242,20 @@ class VoskASRProvider(ASRProvider):
         
         try:
             import vosk  # type: ignore
+            
+            # Find the actual model directory
+            actual_model_path = model_path
+            if model_path.is_dir():
+                # Look for subdirectory containing the model
+                subdirs = [p for p in model_path.iterdir() if p.is_dir()]
+                if len(subdirs) == 1:
+                    actual_model_path = subdirs[0]
+                    logger.debug(f"Found VOSK model in subdirectory: {actual_model_path}")
+            
             # Load model in thread to avoid blocking
-            model = await asyncio.to_thread(vosk.Model, str(model_path))  # type: ignore
+            model = await asyncio.to_thread(vosk.Model, str(actual_model_path))  # type: ignore
             self._models[language] = model
-            logger.info(f"Loaded VOSK model for {language}: {model_path}")
+            logger.info(f"Loaded VOSK model for {language}: {actual_model_path}")
         except Exception as e:
             logger.error(f"Failed to load VOSK model for {language}: {e}")
             raise

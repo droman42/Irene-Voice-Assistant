@@ -55,6 +55,7 @@ tts = [
     "pyttsx3>=2.90",
     "elevenlabs>=1.0.3",
     "httpx>=0.25.0",
+    "vosk-tts>=0.3.0", # VOSK TTS for high-quality Russian multi-speaker synthesis
 ]
 
 # Audio output components

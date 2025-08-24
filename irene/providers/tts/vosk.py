@@ -1,15 +1,15 @@
 """
-Vosk TTS Provider - Text-to-speech using Vosk backend
+VOSK TTS Provider - Text-to-speech using VOSK TTS backend
 
-Simplified provider implementation for Vosk-based TTS functionality.
-This is a placeholder implementation that can be enhanced with actual Vosk TTS features.
+Real VOSK TTS implementation using vosk-tts package and dedicated TTS models.
+Supports Russian multi-speaker synthesis with high quality offline operation.
 """
 
 import asyncio
 import logging
 import tempfile
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from .base import TTSProvider
 
@@ -18,43 +18,58 @@ logger = logging.getLogger(__name__)
 
 class VoskTTSProvider(TTSProvider):
     """
-    Vosk TTS provider using Vosk speech synthesis.
+    VOSK TTS Provider - Real text-to-speech using vosk-tts package
     
     Features:
-    - Vosk-based text-to-speech synthesis
-    - Multiple language support
+    - VOSK TTS-based speech synthesis (vosk-tts package)
+    - Russian multi-speaker support
     - Offline operation
-    - Configurable voice parameters
+    - High-quality neural synthesis
+    - Multiple voice selection
     """
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize VoskTTSProvider with configuration"""
         super().__init__(config)
         self._available = False
+        self._model = None
+        self._synth = None
         
         # Asset management integration - single source of truth
         from ...core.assets import get_asset_manager
         self.asset_manager = get_asset_manager()
         
-        # Use asset manager for model path - unified pattern
-        self.model_path = self.asset_manager.get_model_path("vosk", "tts", "vosk-tts")
+        # Use asset manager for model paths - unified pattern
+        asset_config = self.asset_manager._get_provider_asset_config("vosk_tts")
+        directory_name = asset_config.get("directory_name", "vosk_tts")
+        self.model_path = self.asset_manager.config.models_root / directory_name
             
         self.default_language = config.get("default_language", "ru")
         self.sample_rate = config.get("sample_rate", 22050)
         self.voice_speed = config.get("voice_speed", 1.0)
+        self.default_speaker_id = config.get("default_speaker_id", 0)
         
-        # Available languages
-        self._languages = ["ru", "en", "de", "fr"]
+        # Available languages (VOSK TTS currently supports Russian primarily)
+        self._languages = ["ru"]
         
-        # Try to import Vosk dependencies
+        # Available speakers for Russian model
+        self._speakers = {
+            0: "neutral",
+            1: "female_1", 
+            2: "female_2",
+            3: "male_1",
+            4: "male_2"
+        }
+        
+        # Try to import VOSK TTS dependencies
         try:
-            import vosk  # type: ignore
-            self._vosk = vosk
+            import vosk_tts  # type: ignore
+            self._vosk_tts = vosk_tts
             self._available = True
-            logger.info("Vosk TTS provider dependencies available")
+            logger.info("VOSK TTS provider dependencies available")
         except ImportError:
             self._available = False
-            logger.warning("Vosk TTS provider dependencies not available (vosk required)")
+            logger.warning("VOSK TTS provider dependencies not available (vosk-tts required)")
         
         # Initialize model on startup if requested
         preload_models = config.get("preload_models", False)
@@ -78,8 +93,8 @@ class VoskTTSProvider(TTSProvider):
     
     @classmethod
     def _get_default_extension(cls) -> str:
-        """Vosk TTS uses wav format for audio output"""
-        return ".wav"
+        """VOSK TTS models are extracted to directories, no file extension"""
+        return ""
     
     @classmethod
     def _get_default_directory(cls) -> str:
@@ -97,24 +112,28 @@ class VoskTTSProvider(TTSProvider):
         return ["models", "runtime"]
     
     @classmethod
-    def _get_default_model_urls(cls) -> Dict[str, str]:
-        """Vosk TTS model URLs"""
+    def _get_default_model_urls(cls) -> Dict[str, Any]:
+        """VOSK TTS model URLs and configuration"""
         return {
-            "ru": "https://alphacephei.com/vosk/models/vosk-model-ru-0.42.zip",
-            "en": "https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip"
+            "ru_multi": {
+                "url": "https://alphacephei.com/vosk/models/vosk-model-tts-ru-0.8-multi.zip",
+                "size": "500MB",
+                "extract": True,
+                "description": "Russian multi-speaker TTS model"
+            }
         }
     
     async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
-        """Convert text to speech and save to audio file using asset management"""
+        """Convert text to speech and save to audio file using VOSK TTS"""
         if not self._available:
-            raise RuntimeError("Vosk TTS provider not available")
+            raise RuntimeError("VOSK TTS provider not available")
             
-        # Ensure model is available
-        await self._ensure_model_available()
+        # Ensure model is loaded
+        await self._ensure_model_loaded()
             
         # Extract parameters
         language = kwargs.get('language', self.default_language)
-        sample_rate = kwargs.get('sample_rate', self.sample_rate)
+        speaker_id = kwargs.get('speaker_id', self.default_speaker_id)
         speed = kwargs.get('speed', self.voice_speed)
         
         # Validate language
@@ -122,52 +141,125 @@ class VoskTTSProvider(TTSProvider):
             logger.warning(f"Unknown language: {language}, using default: {self.default_language}")
             language = self.default_language
             
-        # Generate speech using Vosk TTS
-        try:
-            # Generate speech with specified parameters
-            await self._generate_speech_async(
-                text, output_path, language, sample_rate, speed
-            )
+        # Validate speaker_id
+        if speaker_id not in self._speakers:
+            logger.warning(f"Unknown speaker_id: {speaker_id}, using default: {self.default_speaker_id}")
+            speaker_id = self.default_speaker_id
             
-            logger.info(f"Vosk TTS speech generated: {output_path}")
+        # Generate speech using VOSK TTS
+        try:
+            await self._generate_speech_async(text, output_path, speaker_id, speed)
+            logger.info(f"VOSK TTS speech generated: {output_path} (speaker: {self._speakers[speaker_id]})")
             
         except Exception as e:
-            logger.error(f"Failed to generate Vosk TTS speech: {e}")
+            logger.error(f"Failed to generate VOSK TTS speech: {e}")
             raise RuntimeError(f"TTS generation failed: {e}")
+    
+    async def _ensure_model_loaded(self) -> None:
+        """Ensure VOSK TTS model is loaded into memory"""
+        if self._model is not None and self._synth is not None:
+            return
+            
+        # First ensure model is downloaded
+        await self._ensure_model_available()
+        
+        # Load the model
+        await self._load_model()
     
     async def _ensure_model_available(self) -> None:
         """Ensure VOSK TTS model is available, download if necessary"""
+        # Check if extracted model exists - look recursively for model files
         if self.model_path.exists():
-            return
+            # Look recursively for directories that contain VOSK TTS model files
+            for subdir in self.model_path.rglob("*"):
+                if subdir.is_dir() and (subdir / "model.onnx").exists():
+                    return  # Model already available
             
         logger.info("VOSK TTS model not found, attempting download...")
         
         try:
             # Get model info for logging
-            model_info = self.asset_manager.get_model_info("vosk", "tts")
+            model_info = self.asset_manager.get_model_info("vosk_tts", "ru_multi")
             if model_info:
                 logger.info(f"Downloading VOSK TTS model (size: {model_info.get('size', 'unknown')})")
             
             # Download using asset manager
-            downloaded_path = await self.asset_manager.download_model("vosk", "tts")
-            
-            # If downloaded to different location, update model path
-            if downloaded_path != self.model_path:
-                self.model_path = downloaded_path
+            downloaded_path = await self.asset_manager.download_model("vosk_tts", "ru_multi")
+            logger.info(f"VOSK TTS model downloaded to: {downloaded_path}")
                 
         except Exception as e:
             logger.warning(f"Asset manager download failed for VOSK TTS model: {e}")
             # Fallback: Provide helpful instructions for manual installation
             logger.error(f"VOSK TTS model not found at {self.model_path}")
-            logger.error(f"Please download the VOSK TTS model manually and place it at: {self.model_path}")
-            logger.error(f"Download from: https://alphacephei.com/vosk/models")
-            raise RuntimeError(f"VOSK TTS model not found: {self.model_path}. Please download manually from https://alphacephei.com/vosk/models")
+            logger.error(f"Please download the VOSK TTS model manually from: https://alphacephei.com/vosk/models")
+            logger.error(f"Extract vosk-model-tts-ru-0.8-multi.zip to: {self.model_path}")
+            raise RuntimeError(f"VOSK TTS model not found: {self.model_path}")
+    
+    async def _load_model(self) -> None:
+        """Load VOSK TTS model into memory"""
+        try:
+            logger.info("Loading VOSK TTS model...")
+            
+            # Find the extracted model directory with model.onnx file recursively
+            model_dir = None
+            if self.model_path.exists():
+                for subdir in self.model_path.rglob("*"):
+                    if subdir.is_dir() and (subdir / "model.onnx").exists():
+                        model_dir = subdir
+                        logger.debug(f"Found VOSK TTS model in: {model_dir}")
+                        break
+            
+            if not model_dir:
+                raise FileNotFoundError(f"VOSK TTS model directory with model.onnx not found in {self.model_path}")
+            
+            # Load model in thread to avoid blocking
+            self._model, self._synth = await asyncio.to_thread(self._load_model_sync, str(model_dir))
+            logger.info(f"VOSK TTS model loaded successfully: {model_dir}")
+            
+        except Exception as e:
+            logger.error(f"Failed to load VOSK TTS model: {e}")
+            raise
+    
+    def _load_model_sync(self, model_path: str):
+        """Load VOSK TTS model synchronously (called from thread)"""
+        try:
+            # Initialize VOSK TTS model and synthesizer
+            model = self._vosk_tts.Model(model_path)
+            synth = self._vosk_tts.Synth(model)
+            return model, synth
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize VOSK TTS model: {e}")
+    
+    async def _generate_speech_async(self, text: str, output_path: Path, 
+                                   speaker_id: int, speed: float) -> None:
+        """Generate speech asynchronously using VOSK TTS"""
+        await asyncio.to_thread(
+            self._generate_speech_sync, text, output_path, speaker_id, speed
+        )
+    
+    def _generate_speech_sync(self, text: str, output_path: Path,
+                            speaker_id: int, speed: float) -> None:
+        """Generate speech synchronously using VOSK TTS (called from thread)"""
+        if not self._synth:
+            raise RuntimeError("VOSK TTS synthesizer not loaded")
+            
+        try:
+            # Generate speech using VOSK TTS
+            # Note: Speed adjustment may need to be implemented at text preprocessing level
+            # as VOSK TTS might not support direct speed control
+            self._synth.synth(text, str(output_path), speaker_id=speaker_id)
+            
+            logger.debug(f"VOSK TTS synthesis completed: {output_path}")
+            
+        except Exception as e:
+            logger.error(f"VOSK TTS synthesis failed: {e}")
+            raise RuntimeError(f"VOSK TTS synthesis failed: {e}")
     
     async def warm_up(self) -> None:
         """Warm up by preloading the VOSK TTS model"""
         try:
             logger.info("Warming up VOSK TTS model...")
-            await self._ensure_model_available()
+            await self._ensure_model_loaded()
             logger.info("VOSK TTS model warmed up successfully")
         except Exception as e:
             logger.error(f"Failed to warm up VOSK TTS model: {e}")
@@ -182,35 +274,35 @@ class VoskTTSProvider(TTSProvider):
                 "options": self._languages,
                 "default": self.default_language
             },
-            "sample_rate": {
+            "speaker_id": {
                 "type": "integer",
-                "description": "Audio sample rate in Hz",
-                "options": [16000, 22050, 44100],
-                "default": self.sample_rate
+                "description": "Speaker voice ID",
+                "options": list(self._speakers.keys()),
+                "default": self.default_speaker_id
             },
             "speed": {
                 "type": "number",
-                "description": "Speech speed multiplier",
+                "description": "Speech speed multiplier (limited VOSK TTS support)",
                 "default": self.voice_speed,
-                "min": 0.5,
-                "max": 2.0
+                "min": 0.8,
+                "max": 1.2
             }
         }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Return provider capabilities information"""
         return {
-            "languages": ["ru-RU", "en-US", "de-DE", "fr-FR"],
-            "voices": ["vosk_default"],
+            "languages": ["ru-RU"],
+            "voices": list(self._speakers.values()),
             "formats": ["wav"],
             "features": [
                 "offline_synthesis",
-                "multilingual",
-                "configurable_speed",
-                "low_resource"
+                "multi_speaker",
+                "neural_synthesis",
+                "high_quality"
             ],
-            "quality": "medium",
-            "speed": "fast"
+            "quality": "high",
+            "speed": "medium"
         }
     
     def get_provider_name(self) -> str:
@@ -220,12 +312,12 @@ class VoskTTSProvider(TTSProvider):
     # Build dependency methods (TODO #5 Phase 1)
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
-        """Vosk TTS uses pyttsx3 for speech synthesis"""
-        return ["pyttsx3>=2.90"]
+        """VOSK TTS requires vosk-tts package"""
+        return ["vosk-tts>=0.3.0"]
         
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
-        """Platform-specific system packages for Vosk TTS"""
+        """Platform-specific system packages for VOSK TTS"""
         return {
             "linux.ubuntu": ["libffi-dev"],
             "linux.alpine": ["libffi-dev"],
@@ -235,7 +327,7 @@ class VoskTTSProvider(TTSProvider):
         
     @classmethod
     def get_platform_support(cls) -> List[str]:
-        """Vosk TTS supports all platforms"""
+        """VOSK TTS supports all platforms"""
         return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     async def validate_parameters(self, **kwargs) -> bool:
@@ -245,132 +337,15 @@ class VoskTTSProvider(TTSProvider):
                 if kwargs["language"] not in self._languages:
                     return False
                     
-            if "sample_rate" in kwargs:
-                valid_rates = [16000, 22050, 44100]
-                if kwargs["sample_rate"] not in valid_rates:
+            if "speaker_id" in kwargs:
+                if kwargs["speaker_id"] not in self._speakers:
                     return False
                     
             if "speed" in kwargs:
                 speed = float(kwargs["speed"])
-                if not (0.5 <= speed <= 2.0):
+                if not (0.8 <= speed <= 1.2):
                     return False
                     
             return True
         except (ValueError, TypeError):
             return False 
-
-    async def _generate_speech_async(self, text: str, output_path: Path, 
-                                   language: str, sample_rate: int, speed: float) -> None:
-        """Generate speech asynchronously using Vosk TTS"""
-        await asyncio.to_thread(
-            self._generate_speech_blocking, 
-            text, output_path, language, sample_rate, speed
-        )
-        
-    def _generate_speech_blocking(self, text: str, output_path: Path,
-                                language: str, sample_rate: int, speed: float) -> None:
-        """Generate speech in blocking mode (called from thread)"""
-        if not self._available:
-            raise RuntimeError("Vosk TTS provider not available")
-            
-        try:
-            # Note: This is a simplified implementation that simulates Vosk TTS
-            # In a real implementation, you would use the actual Vosk TTS library
-            # which might require additional dependencies
-            
-            # Method 1: Try using espeak/espeak-ng as a fallback TTS engine
-            self._generate_with_espeak(text, output_path, language, sample_rate, speed)
-            
-        except Exception as fallback_error:
-            logger.warning(f"Primary TTS failed, trying pyttsx3 fallback: {fallback_error}")
-            try:
-                # Method 2: Fallback to pyttsx3 for basic TTS functionality
-                self._generate_with_pyttsx3(text, output_path, language, sample_rate, speed)
-            except Exception as final_error:
-                logger.error(f"All TTS methods failed: {final_error}")
-                raise RuntimeError(f"TTS generation failed: {final_error}")
-                
-    def _generate_with_espeak(self, text: str, output_path: Path,
-                            language: str, sample_rate: int, speed: float) -> None:
-        """Generate speech using espeak/espeak-ng"""
-        import subprocess
-        import shutil
-        
-        # Check if espeak is available
-        espeak_cmd = None
-        for cmd in ['espeak-ng', 'espeak']:
-            if shutil.which(cmd):
-                espeak_cmd = cmd
-                break
-                
-        if not espeak_cmd:
-            raise RuntimeError("espeak/espeak-ng not found")
-        
-        # Map language codes
-        lang_map = {
-            'ru': 'ru',
-            'en': 'en',
-            'de': 'de',
-            'fr': 'fr',
-            'es': 'es'
-        }
-        espeak_lang = lang_map.get(language, 'en')
-        
-        # Calculate speed (espeak uses words per minute)
-        # Normal speed is around 175 wpm, adjust based on speed parameter
-        wpm = int(175 * speed)
-        
-        try:
-            # Generate speech using espeak
-            cmd = [
-                espeak_cmd,
-                '-v', espeak_lang,
-                '-s', str(wpm),
-                '-w', str(output_path),
-                text
-            ]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            logger.debug(f"Generated speech with espeak: {output_path}")
-            
-        except subprocess.CalledProcessError as e:
-            logger.error(f"espeak command failed: {e}")
-            raise RuntimeError(f"espeak TTS failed: {e}")
-            
-    def _generate_with_pyttsx3(self, text: str, output_path: Path,
-                             language: str, sample_rate: int, speed: float) -> None:
-        """Generate speech using pyttsx3 as fallback"""
-        try:
-            import pyttsx3  # type: ignore
-        except ImportError:
-            raise RuntimeError("pyttsx3 not available for fallback TTS")
-            
-        try:
-            # Initialize pyttsx3 engine
-            engine = pyttsx3.init()
-            
-            # Set properties
-            engine.setProperty('rate', int(200 * speed))  # Adjust speech rate
-            
-            # Set voice based on language
-            voices = engine.getProperty('voices')
-            if voices:
-                for voice in voices:
-                    if language in voice.id.lower() or language in voice.name.lower():
-                        engine.setProperty('voice', voice.id)
-                        break
-            
-            # Save to file
-            engine.save_to_file(text, str(output_path))
-            engine.runAndWait()
-            
-            logger.debug(f"Generated speech with pyttsx3: {output_path}")
-            
-        except Exception as e:
-            logger.error(f"pyttsx3 TTS failed: {e}")
-            raise RuntimeError(f"pyttsx3 TTS failed: {e}")
-        finally:
-            try:
-                engine.stop()
-            except:
-                pass 

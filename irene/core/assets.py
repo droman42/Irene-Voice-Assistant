@@ -473,7 +473,7 @@ class AssetManager:
             
             # Handle extraction if needed
             if model_info.get("extract", False):
-                await self._extract_archive(temp_path, model_path)
+                await self._extract_archive(temp_path, model_path, model_url)
                 temp_path.unlink()  # Remove downloaded archive
             else:
                 # Move to final location
@@ -506,7 +506,7 @@ class AssetManager:
                     async for chunk in response.content.iter_chunked(8192):
                         f.write(chunk)
     
-    async def _extract_archive(self, archive_path: Path, target_dir: Path) -> None:
+    async def _extract_archive(self, archive_path: Path, target_dir: Path, model_url: str = None) -> None:
         """Extract archive to target directory"""
         import zipfile
         import tarfile
@@ -514,14 +514,41 @@ class AssetManager:
         target_dir.mkdir(parents=True, exist_ok=True)
         
         def extract_sync():
-            if archive_path.suffix.lower() == '.zip':
+            # Try to detect format from URL first, then from file
+            archive_format = None
+            if model_url:
+                if model_url.endswith('.zip'):
+                    archive_format = 'zip'
+                elif any(model_url.endswith(ext) for ext in ['.tar', '.tar.gz', '.tgz']):
+                    archive_format = 'tar'
+            
+            # Fallback to file extension
+            if not archive_format:
+                if archive_path.suffix.lower() == '.zip':
+                    archive_format = 'zip'
+                elif archive_path.suffix.lower() in ['.tar', '.tar.gz', '.tgz']:
+                    archive_format = 'tar'
+            
+            # Try to detect by reading file header if still unknown
+            if not archive_format:
+                try:
+                    with open(archive_path, 'rb') as f:
+                        header = f.read(4)
+                        if header.startswith(b'PK'):  # ZIP file magic number
+                            archive_format = 'zip'
+                        elif header.startswith(b'\x1f\x8b'):  # GZIP magic number
+                            archive_format = 'tar'
+                except:
+                    pass
+            
+            if archive_format == 'zip':
                 with zipfile.ZipFile(archive_path, 'r') as zip_ref:
                     zip_ref.extractall(target_dir)
-            elif archive_path.suffix.lower() in ['.tar', '.tar.gz', '.tgz']:
+            elif archive_format == 'tar':
                 with tarfile.open(archive_path, 'r:*') as tar_ref:
                     tar_ref.extractall(target_dir)
             else:
-                raise ValueError(f"Unsupported archive format: {archive_path.suffix}")
+                raise ValueError(f"Unsupported archive format: {archive_path.suffix} (URL: {model_url})")
         
         await asyncio.to_thread(extract_sync)
     
@@ -538,10 +565,21 @@ class AssetManager:
             model_urls = asset_config.get("model_urls", {})
             
             if model_id in model_urls:
-                return {
-                    "url": model_urls[model_id],
-                    "size": "unknown"  # Could be enhanced with actual file sizes later
-                }
+                model_config = model_urls[model_id]
+                
+                # Handle both simple URL strings and complex config dictionaries
+                if isinstance(model_config, str):
+                    # Simple URL string format
+                    return {
+                        "url": model_config,
+                        "size": "unknown"
+                    }
+                elif isinstance(model_config, dict):
+                    # Complex config dictionary format
+                    return model_config
+                else:
+                    logger.warning(f"Invalid model config format for {provider}/{model_id}: {type(model_config)}")
+                    return {}
             
             # No hardcoded provider checks - if no URL configured, return empty
             # Providers will handle their own fallback logic

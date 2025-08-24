@@ -185,12 +185,12 @@ device = "default"                 # ALSA device name
 # ============================================================
 [asr]
 enabled = true                      # Enable ASR component
-default_provider = "whisper"        # Default provider: "whisper", "vosk", "google_cloud"
+default_provider = "vosk"        # Default provider: "whisper", "vosk", "google_cloud"
 fallback_providers = ["whisper"]    # Fallback providers in order
 
 # Whisper ASR Provider (OpenAI Whisper, recommended)
 [asr.providers.whisper]
-enabled = true                      # Enable Whisper provider
+enabled = false                    # Enable Whisper provider
 model_size = "base"                # Model size: "tiny", "base", "small", "medium", "large"
 device = "cpu"                     # Device: "cpu", "cuda"
 default_language = "ru"            # Language (null = auto-detect, "en", "ru", etc.)
@@ -200,7 +200,7 @@ preload_models = true              # Preload AI models during provider initializ
 
 # Vosk ASR Provider (offline, lighter models)
 [asr.providers.vosk]
-enabled = false                     # Enable Vosk provider
+enabled = true                     # Enable Vosk provider
 default_language = "ru"            # Default language: "ru", "en"
 sample_rate = 16000                # Audio sample rate
 confidence_threshold = 0.7         # Minimum confidence for recognition

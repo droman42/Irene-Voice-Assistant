@@ -76,6 +76,24 @@ class SileroV3TTSProvider(TTSProvider):
         
         # Available speakers
         self._speakers = ["xenia", "aidar", "baya", "kseniya", "eugene"]
+        
+        # Try to import dependencies
+        try:
+            import torch  # type: ignore
+            self._torch = torch
+            self._device = torch.device(self.torch_device)
+            self._available = True
+            logger.info("Silero v3 TTS provider dependencies available")
+        except ImportError:
+            self._available = False
+            logger.warning("Silero v3 TTS provider dependencies not available (torch required)")
+        
+        # Initialize model on startup if requested
+        preload_models = config.get("preload_models", False)
+        if preload_models and self._available:
+            # Schedule model loading for startup
+            import asyncio
+            asyncio.create_task(self.warm_up())
     
     @classmethod
     def _get_default_extension(cls) -> str:
@@ -106,24 +124,6 @@ class SileroV3TTSProvider(TTSProvider):
             "v3_de": "https://models.silero.ai/models/tts/de/v3_de.pt",
             "v3_es": "https://models.silero.ai/models/tts/es/v3_es.pt"
         }
-        
-        # Try to import dependencies
-        try:
-            import torch  # type: ignore
-            self._torch = torch
-            self._device = torch.device(self.torch_device)
-            self._available = True
-            logger.info("Silero v3 TTS provider dependencies available")
-        except ImportError:
-            self._available = False
-            logger.warning("Silero v3 TTS provider dependencies not available (torch required)")
-        
-        # Initialize model on startup if requested
-        preload_models = config.get("preload_models", False)
-        if preload_models and self._available:
-            # Schedule model loading for startup
-            import asyncio
-            asyncio.create_task(self.warm_up())
     
     async def is_available(self) -> bool:
         """Check if provider dependencies are available and functional"""

@@ -1147,6 +1147,7 @@ all = [
     { name = "tqdm" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "vosk" },
+    { name = "vosk-tts" },
     { name = "websockets" },
 ]
 api = [
@@ -1212,6 +1213,7 @@ tts = [
     { name = "elevenlabs" },
     { name = "httpx" },
     { name = "pyttsx3" },
+    { name = "vosk-tts" },
 ]
 voice = [
     { name = "aiohttp" },
@@ -1232,6 +1234,7 @@ voice = [
     { name = "tflite-runtime" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "vosk" },
+    { name = "vosk-tts" },
     { name = "websockets" },
 ]
 voice-trigger = [
@@ -1341,6 +1344,7 @@ requires-dist = [
     { name = "tqdm", marker = "extra == 'wake-word-training'", specifier = ">=4.64.0" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'web-api'", specifier = ">=0.20.0" },
     { name = "vosk", marker = "extra == 'audio-input'", specifier = ">=0.3.45" },
+    { name = "vosk-tts", marker = "extra == 'tts'", specifier = ">=0.3.0" },
     { name = "websockets", marker = "extra == 'web-api'", specifier = ">=11.0.0" },
 ]
 provides-extras = ["audio-input", "advanced-asr", "audio-input-enhanced", "audio-input-complete", "tts", "audio-output", "voice-trigger", "web-api", "cloud-asr", "llm", "nlu", "config-writing", "text-multilingual", "wake-word-training", "dev", "voice", "api", "headless", "all"]
@@ -7284,6 +7288,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a4/23/3130a69fa0bf4f5566a52e415c18cd854bf561547bb6505666a6eb1bb625/vosk-0.3.45-py3-none-manylinux2014_aarch64.whl", hash = "sha256:54efb47dd890e544e9e20f0316413acec7f8680d04ec095c6140ab4e70262704", size = 2368543 },
     { url = "https://files.pythonhosted.org/packages/fc/ca/83398cfcd557360a3d7b2d732aee1c5f6999f68618d1645f38d53e14c9ff/vosk-0.3.45-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:25e025093c4399d7278f543568ed8cc5460ac3a4bf48c23673ace1e25d26619f", size = 7173758 },
     { url = "https://files.pythonhosted.org/packages/c0/4c/deb0861f7da9696f8a255f1731bb73e9412cca29c4b3888a3fcb2a930a59/vosk-0.3.45-py3-none-win_amd64.whl", hash = "sha256:6994ddc68556c7e5730c3b6f6bad13320e3519b13ce3ed2aa25a86724e7c10ac", size = 13997596 },
+]
+
+[[package]]
+name = "vosk-tts"
+version = "0.3.61"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "onnxruntime" },
+    { name = "requests" },
+    { name = "tokenizers" },
+    { name = "tqdm" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/63/1bbf380da363422c14f6b613dc1ab0d50eae867785fde23c23c805d8606b/vosk_tts-0.3.61-py3-none-any.whl", hash = "sha256:7dfb17d933b9de65e0a87a215c70793892157cc35acbee9b67cc4e78f3bc40b5", size = 12306 },
 ]
 
 [[package]]
