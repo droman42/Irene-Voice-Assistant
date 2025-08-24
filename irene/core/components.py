@@ -303,7 +303,16 @@ class ComponentManager:
                 # Don't fail the entire system for coordination issues
                 logger.warning("Continuing with NLU fallback patterns")
         
-        # Future: Add other component coordination here as needed
+        # Inject component dependencies into intent handlers (Phase 3)
+        intent_component = self._components.get('intent_system')
+        if intent_component and hasattr(intent_component, 'post_initialize_handler_dependencies'):
+            try:
+                await intent_component.post_initialize_handler_dependencies(self)
+                logger.info("✅ Intent handler dependency injection completed")
+            except Exception as e:
+                logger.error(f"❌ Intent handler dependency injection failed: {e}")
+                # Don't fail the entire system for injection issues
+                logger.warning("Continuing with intent handlers in limited dependency mode")
         
         logger.info("Post-initialization coordination completed")
     

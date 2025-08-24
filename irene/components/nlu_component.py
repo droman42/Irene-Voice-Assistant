@@ -763,6 +763,11 @@ class NLUComponent(Component, WebAPIPlugin):
             # PHASE 4: Use new integrated method for recognition with parameter extraction
             intent = await provider.recognize_with_parameters(text, context)
             
+            # Check if provider returned an intent
+            if intent is None:
+                logger.debug(f"Provider {provider_name} returned no intent")
+                return None
+            
             # Get provider-specific confidence threshold
             provider_threshold = self._get_provider_confidence_threshold(provider_name)
             

@@ -14,3 +14,15 @@ end_farewells:
   - "All the best!"
 
 clear_response: "Alright, let's start the dialogue fresh. What shall we talk about?"
+
+# Fallback responses when LLM is unavailable
+fallback_no_llm_responses:
+  - "I couldn't understand your request '{original_text}'. Please try rephrasing or use more specific commands."
+  - "Sorry, I can't process '{original_text}'. Please try asking differently or use specific commands."
+  - "I don't understand what '{original_text}' means. Please rephrase your request more clearly."
+  - "Your request '{original_text}' is unclear to me. Please try using simpler or more specific phrases."
+
+fallback_help_suggestions:
+  - "You can ask about time, set a timer, request system information, or say hello."
+  - "Try commands like 'what time is it', 'set timer for 5 minutes', 'how are you', or 'help'."
+  - "Available commands: time, timer, greetings, system information, and others."

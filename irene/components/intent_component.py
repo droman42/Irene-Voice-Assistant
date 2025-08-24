@@ -77,8 +77,8 @@ class IntentComponent(Component, WebAPIPlugin):
         self.intent_registry = self.handler_manager.get_registry()
         self.intent_orchestrator = self.handler_manager.get_orchestrator()
         
-        # Inject component dependencies into handlers
-        await self._inject_handler_dependencies(core)
+        # NOTE: Component dependencies will be injected during post-initialization coordination
+        # This ensures all components are available before dependency injection
         
         # Validate initialization results
         await self._validate_initialization_results()
@@ -184,33 +184,59 @@ class IntentComponent(Component, WebAPIPlugin):
         
         logger.info("Intent component shutdown completed")
         
-    async def _inject_handler_dependencies(self, core) -> None:
-        """Inject component dependencies into intent handlers"""
+    # NOTE: This method has been replaced by post_initialize_handler_dependencies()
+    # which is called during post-initialization coordination to ensure proper timing
+    # 
+    # async def _inject_handler_dependencies(self, core) -> None:
+    #     """OLD METHOD - Inject component dependencies into intent handlers during initialization"""
+    #     # This method had timing issues because it ran during component initialization
+    #     # when other components (like LLM) might not be available yet.
+    #     # Replaced by post_initialize_handler_dependencies() for proper deferred injection.
+
+    async def post_initialize_handler_dependencies(self, component_manager) -> None:
+        """
+        Post-initialization method to inject component dependencies into intent handlers.
+        
+        This method is called during post-initialization coordination after all components
+        are fully initialized, ensuring proper dependency injection timing.
+        
+        Args:
+            component_manager: The component manager containing all initialized components
+        """
         try:
-            # Get the component manager to access other components
-            component_manager = getattr(core, 'component_manager', None)
-            if not component_manager:
-                logger.warning("Component manager not available for handler dependency injection")
-                return
-                
-            # Get available components
+            logger.info("Starting intent handler dependency injection (post-initialization)...")
+            
+            # Get available components - all should be initialized at this point
             components = component_manager.get_components()
             
             # Get all handler instances
             handlers = self.handler_manager.get_handlers()
             
+            injection_results = []
+            
             for handler_name, handler in handlers.items():
                 # Inject LLM component if handler needs it (specifically ConversationIntentHandler)
-                if handler_name == 'conversation' and 'llm' in components:
-                    handler.llm_component = components['llm']
-                    logger.debug(f"Injected LLM component into {handler_name} handler")
+                if handler_name == 'conversation':
+                    if 'llm' in components:
+                        handler.llm_component = components['llm']
+                        logger.info(f"✅ Injected LLM component into {handler_name} handler")
+                        injection_results.append(f"{handler_name}: LLM injected")
+                    else:
+                        handler.llm_component = None
+                        logger.warning(f"⚠️ LLM component not available - {handler_name} handler will operate in limited mode")
+                        injection_results.append(f"{handler_name}: LLM unavailable")
                 
-                # Add other component injections as needed
+                # Add other component injections as needed for future handlers
+                # Example:
                 # if handler_name == 'some_other_handler' and 'other_component' in components:
                 #     handler.other_component = components['other_component']
+                #     logger.info(f"✅ Injected other component into {handler_name} handler")
+            
+            logger.info(f"Intent handler dependency injection completed: {injection_results}")
                     
         except Exception as e:
-            logger.error(f"Failed to inject handler dependencies: {e}")
+            logger.error(f"Failed to inject intent handler dependencies during post-initialization: {e}")
+            # Don't re-raise - this is graceful degradation
 
     def get_component_dependencies(self) -> List[str]:
         """Get list of required component dependencies."""

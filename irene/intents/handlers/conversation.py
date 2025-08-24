@@ -129,9 +129,16 @@ class ConversationIntentHandler(IntentHandler):
         return False
     
     async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
-        """Execute conversation intent using LLM"""
+        """Execute conversation intent using LLM or fallback handling"""
         try:
-            # Get or create conversation session
+            # Check if this is a fallback scenario (when NLU failed to recognize intent)
+            is_fallback = intent.entities.get("_recognition_provider") == "fallback"
+            
+            # For fallback scenarios, use the fallback handler regardless of action
+            if is_fallback:
+                return await self._handle_fallback_without_llm(intent, context)
+            
+            # Get or create conversation session for normal conversation actions
             session = self._get_or_create_session(context.session_id, intent)
             
             # Handle specific conversation actions
@@ -359,6 +366,15 @@ class ConversationIntentHandler(IntentHandler):
     
     async def _handle_continue_conversation(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle ongoing conversation intent - donation-compatible method signature"""
+        
+        # Check if this is a fallback scenario (when NLU failed to recognize intent)
+        is_fallback = intent.entities.get("_recognition_provider") == "fallback"
+        
+        if is_fallback:
+            # Handle fallback scenario - works even without LLM
+            return await self._handle_fallback_without_llm(intent, context)
+        
+        # For normal conversation (not fallback), require LLM
         if not self.llm_component:
             return IntentResult(
                 text="Извините, диалоговый режим недоступен.",
@@ -402,7 +418,81 @@ class ConversationIntentHandler(IntentHandler):
                 success=False,
                 error=str(e)
             )
-    
+    async def _handle_fallback_without_llm(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle fallback scenario when NLU failed to recognize intent.
+        
+        This method works without LLM and provides helpful feedback to the user
+        about their unrecognized input, encouraging them to rephrase or use specific commands.
+        
+        Args:
+            intent: The fallback intent containing original user text
+            context: Conversation context with language information
+            
+        Returns:
+            IntentResult with helpful fallback response and suggestions
+        """
+        try:
+            # Use language from context (detected by NLU) or default to Russian
+            language = context.language or "ru"
+            
+            # Get the original text that couldn't be recognized
+            original_text = intent.raw_text or intent.entities.get("original_text", "")
+            
+            # Get fallback response templates
+            fallback_responses = self._get_template_data("fallback_no_llm_responses", language)
+            help_suggestions = self._get_template_data("fallback_help_suggestions", language)
+            
+            # Select random responses
+            import random
+            fallback_response = random.choice(fallback_responses)
+            help_suggestion = random.choice(help_suggestions)
+            
+            # Format the response with the original text
+            formatted_response = fallback_response.format(original_text=original_text)
+            
+            # Combine response with helpful suggestion
+            full_response = f"{formatted_response} {help_suggestion}"
+            
+            # Get cascade attempt information if available
+            cascade_attempts = intent.entities.get("_cascade_attempts", 0)
+            
+            logger.info(f"Handled fallback without LLM: original_text='{original_text}', "
+                       f"cascade_attempts={cascade_attempts}, language={language}")
+            
+            return IntentResult(
+                text=full_response,
+                should_speak=True,
+                success=True,  # This is successful fallback handling, not an error
+                metadata={
+                    "conversation_type": "fallback",
+                    "original_text": original_text,
+                    "cascade_attempts": cascade_attempts,
+                    "language": language,
+                    "recognition_provider": "fallback",
+                    "llm_required": False
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Fallback handling failed: {e}")
+            
+            # Final emergency fallback - hardcoded message
+            language = context.language or "ru"
+            if language == "en":
+                emergency_response = f"I couldn't understand '{intent.raw_text}'. Please try using simpler commands."
+            else:
+                emergency_response = f"Я не понимаю '{intent.raw_text}'. Попробуйте использовать более простые команды."
+            
+            return IntentResult(
+                text=emergency_response,
+                should_speak=True,
+                success=True,
+                metadata={
+                    "conversation_type": "emergency_fallback",
+                    "error": str(e)
+                }
+            )
 
     
     async def cleanup(self) -> None:
