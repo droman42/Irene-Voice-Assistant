@@ -151,13 +151,30 @@ Examples:
     
     async def _modify_config_for_runner(self, config: CoreConfig, args: argparse.Namespace) -> CoreConfig:
         """Modify configuration for WebAPI-specific needs"""
-        # Enable web API, optionally enable other components
-        config.components = ComponentConfig(
-            microphone=args.enable_microphone,  # Optional microphone in API mode
-            tts=args.enable_tts,               # Enable TTS for audio responses
-            audio_output=False,                # No direct audio output in API mode
-            web_api=True                       # Enable web API
-        )
+        # Enable web API service capability
+        config.system.web_api_enabled = True
+        
+        # Configure input sources for web API
+        config.inputs.web = True
+        if args.enable_microphone:
+            config.inputs.microphone = True
+            config.system.microphone_enabled = True
+        else:
+            config.inputs.microphone = False
+            config.system.microphone_enabled = False
+        
+        # Configure components (using correct v14 field names)
+        config.components.tts = args.enable_tts     # Enable TTS for audio responses
+        config.components.audio = False             # No direct audio output in API mode
+        config.components.intent_system = True      # Essential for processing requests
+        
+        # Enable text processing for web requests
+        config.components.text_processor = True
+        config.components.nlu = True
+        
+        # Enable ASR only if microphone is enabled
+        if args.enable_microphone:
+            config.components.asr = True
         
         config.debug = args.debug
         
@@ -167,11 +184,43 @@ Examples:
         """Validate WebAPI-specific configuration requirements"""
         errors = []
         
-        # WebAPI runner requires web API to be enabled
-        if not config.components.web_api:
-            errors.append("Web API component must be enabled for WebAPI runner (components.web_api = true)")
+        # WebAPI runner requires web API service to be enabled
+        if not config.system.web_api_enabled:
+            errors.append("Web API service must be enabled for WebAPI runner (system.web_api_enabled = true)")
+        
+        # Web input source should be enabled
+        if not config.inputs.web:
+            errors.append("Web input source must be enabled for WebAPI runner (inputs.web = true)")
+        
+        # Essential components must be enabled
+        if not config.components.intent_system:
+            errors.append("Intent system component must be enabled for WebAPI runner (components.intent_system = true)")
         
         return errors
+    
+    def _get_configuration_example(self) -> Optional[str]:
+        """Get example configuration for WebAPI runner"""
+        return """
+[system]
+web_api_enabled = true
+
+[inputs]
+web = true
+
+[components]
+intent_system = true
+text_processor = true
+nlu = true
+tts = true
+
+# Optional: Enable microphone support for web API
+# microphone_enabled = true
+# 
+# [inputs]
+# microphone = true
+# 
+# [components]
+# asr = true"""
     
     async def _post_core_setup(self, args: argparse.Namespace) -> None:
         """WebAPI-specific setup after core is started"""

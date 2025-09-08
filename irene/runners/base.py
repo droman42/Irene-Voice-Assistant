@@ -108,7 +108,7 @@ class BaseRunner(ABC):
     def _create_argument_parser(self) -> argparse.ArgumentParser:
         """Create argument parser with base options + runner-specific extensions"""
         parser = argparse.ArgumentParser(
-            description=f"Irene Voice Assistant v13 - {self.runner_config.description}",
+            description=f"Irene Voice Assistant v14 - {self.runner_config.description}",
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog=self._get_usage_examples()
         )
