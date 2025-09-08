@@ -183,6 +183,112 @@ async def get_default_audio_device() -> Optional[Dict[str, Any]]:
     return None
 
 
+async def get_audio_input_devices() -> List[Dict[str, Any]]:
+    """
+    Get list of available audio input devices asynchronously.
+    
+    Returns:
+        List of input device dictionaries with 'id', 'name', 'input_channels', etc.
+    """
+    devices = []
+    
+    try:
+        # Try sounddevice for comprehensive device info
+        import sounddevice as sd  # type: ignore
+        device_list = await asyncio.to_thread(sd.query_devices)
+        
+        for i, device in enumerate(device_list):
+            input_channels = device.get('max_input_channels', 0)
+            if input_channels > 0:  # Only include devices with input capability
+                devices.append({
+                    'id': i,
+                    'name': device['name'],
+                    'input_channels': input_channels,
+                    'output_channels': device.get('max_output_channels', 0),
+                    'sample_rate': device['default_samplerate'],
+                    'hostapi': device['hostapi'],
+                    'available': True
+                })
+                
+    except ImportError:
+        logger.debug("sounddevice not available for input device enumeration")
+        # Provide basic default input device info
+        devices.append({
+            'id': 0,
+            'name': 'Default Audio Input Device',
+            'input_channels': 1,
+            'output_channels': 0,
+            'sample_rate': 16000,
+            'hostapi': 0,
+            'available': True
+        })
+    except Exception as e:
+        logger.warning(f"Error getting audio input devices: {e}")
+        
+    return devices
+
+
+async def get_default_audio_input_device() -> Optional[Dict[str, Any]]:
+    """
+    Get the default audio input device suitable for microphone input.
+    
+    Returns:
+        Default input device dictionary or None if detection failed
+    """
+    try:
+        input_devices = await get_audio_input_devices()
+        if input_devices:
+            # Return the first available input device
+            return input_devices[0]
+    except Exception as e:
+        logger.warning(f"Error getting default audio input device: {e}")
+        
+    return None
+
+
+async def validate_audio_input_device(device_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Validate that a specific device ID exists and supports audio input.
+    
+    Args:
+        device_id: The device ID to validate
+        
+    Returns:
+        Device dictionary if valid, None if invalid
+    """
+    try:
+        import sounddevice as sd  # type: ignore
+        device_list = await asyncio.to_thread(sd.query_devices)
+        
+        if 0 <= device_id < len(device_list):
+            device = device_list[device_id]
+            input_channels = device.get('max_input_channels', 0)
+            
+            if input_channels > 0:
+                return {
+                    'id': device_id,
+                    'name': device['name'],
+                    'input_channels': input_channels,
+                    'output_channels': device.get('max_output_channels', 0),
+                    'sample_rate': device['default_samplerate'],
+                    'hostapi': device['hostapi'],
+                    'available': True
+                }
+            else:
+                logger.warning(f"Device {device_id} ({device['name']}) has no input channels")
+                return None
+        else:
+            logger.warning(f"Device ID {device_id} is out of range (0-{len(device_list)-1})")
+            return None
+            
+    except ImportError:
+        logger.warning("sounddevice not available for device validation")
+        return None
+    except Exception as e:
+        logger.warning(f"Error validating audio input device {device_id}: {e}")
+        return None
+
+
 def calculate_audio_buffer_size(sample_rate: int, duration_ms: float = 100.0) -> int:
     """
     Calculate optimal audio buffer size for given sample rate and duration.
@@ -396,6 +502,9 @@ __all__ = [
     'detect_sample_rate',
     'get_audio_devices',
     'get_default_audio_device', 
+    'get_audio_input_devices',
+    'get_default_audio_input_device',
+    'validate_audio_input_device',
     'calculate_audio_buffer_size',
     'AudioFormatConverter',
     'get_audio_info',

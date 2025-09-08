@@ -171,6 +171,9 @@ class InputManager:
                                 blocksize=mic_config.chunk_size
                             )
                         
+                        # Initialize microphone with the configured settings
+                        await mic_input.initialize()
+                        
                         await self.add_source("microphone", mic_input)
                         logger.info("Added microphone input source with V14 configuration")
                     else:

@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .base import InputSource, ComponentNotAvailable, InputData
 from ..intents.models import AudioData
-from ..utils.audio_helpers import get_default_audio_device, AudioFormatConverter
+from ..utils.audio_helpers import get_default_audio_input_device, validate_audio_input_device, AudioFormatConverter
 from ..utils.loader import safe_import
 
 logger = logging.getLogger(__name__)
@@ -61,17 +61,39 @@ class MicrophoneInput(InputSource):
             self._sd_available = False
     
     async def initialize(self):
-        """Initialize using existing audio infrastructure"""
-        # Device selection using audio_helpers.py
-        self.device = await get_default_audio_device()
-        if not self.device:
-            logger.warning("No specific audio input device found, using default")
+        """Initialize using existing audio infrastructure with proper device selection"""
+        # Device selection: Respect user configuration first
+        if self.device_id is not None:
+            # User specified a device ID - validate it exists and supports input
+            logger.info(f"Using user-specified audio device ID: {self.device_id}")
+            self.device = await validate_audio_input_device(self.device_id)
+            
+            if self.device:
+                logger.info(f"Validated user device {self.device_id}: {self.device['name']} "
+                           f"({self.device['input_channels']} input channels)")
+            else:
+                logger.error(f"User-specified device ID {self.device_id} is invalid or doesn't support audio input")
+                raise ComponentNotAvailable(f"Audio device {self.device_id} is not available for input")
+        else:
+            # No user config - find best available input device
+            logger.info("No device_id specified, searching for default audio input device")
+            self.device = await get_default_audio_input_device()
+            
+            if self.device:
+                logger.info(f"Using default audio input device {self.device['id']}: {self.device['name']} "
+                           f"({self.device['input_channels']} input channels)")
+                # Update device_id to match the found device
+                self.device_id = self.device['id']
+            else:
+                logger.warning("No audio input devices found, will attempt with default settings")
+                self.device = None
             
         # Format validation using audio_helpers.py  
         if not AudioFormatConverter.supports_format('wav'):
             logger.warning("WAV format not supported, audio quality may be reduced")
         
-        logger.info(f"Initialized microphone input with device: {self.device}")
+        logger.info(f"Initialized microphone input - Device ID: {self.device_id}, "
+                   f"Device: {self.device['name'] if self.device else 'default'}")
         
     def is_available(self) -> bool:
         """Check if audio capture is available"""
@@ -139,35 +161,55 @@ class MicrophoneInput(InputSource):
             return []
         
     async def start_listening(self) -> None:
-        """Initialize and start audio capture (NO VOSK loading)"""
+        """Initialize and start audio capture with proper device validation"""
         if not self.is_available():
             raise ComponentNotAvailable("Audio dependencies (sounddevice) not available")
             
         try:
             import sounddevice as sd  # type: ignore
             
-            # Audio device setup only - no VOSK model loading
+            # Validate device before attempting to use it
             if self.device_id is not None:
-                device_info = sd.query_devices(self.device_id, 'input')
-                if self.samplerate is None:
-                    self.samplerate = int(device_info['default_samplerate'])
+                try:
+                    device_info = sd.query_devices(self.device_id, 'input')
+                    
+                    # Check if device has input channels
+                    if device_info.get('max_input_channels', 0) == 0:
+                        raise ComponentNotAvailable(
+                            f"Device {self.device_id} ({device_info['name']}) has no input channels. "
+                            f"Cannot use for microphone input."
+                        )
+                    
+                    # Use device's default sample rate if not specified
+                    if self.samplerate is None:
+                        self.samplerate = int(device_info['default_samplerate'])
+                    
+                    logger.info(f"Validated audio input device {self.device_id}: {device_info['name']} "
+                               f"({device_info['max_input_channels']} input channels, "
+                               f"{device_info['default_samplerate']} Hz)")
+                               
+                except Exception as device_error:
+                    raise ComponentNotAvailable(
+                        f"Cannot access audio device {self.device_id}: {device_error}. "
+                        f"Check device ID and permissions."
+                    )
             
             # Initialize audio queue
             self._audio_queue = queue.Queue()
             
-            # Set up audio callback (unchanged)
+            # Set up audio callback
             def audio_callback(indata, frames, time, status):
                 """Audio callback for sounddevice"""
                 if status:
-                    logger.warning(f"Audio status: {status}")
+                    logger.warning(f"Audio stream status: {status}")
                 if self._listening and self._audio_queue:
                     self._audio_queue.put(bytes(indata))
             
-            # Create audio stream
+            # Create audio stream with validated device
             self._audio_stream = sd.RawInputStream(
                 samplerate=self.samplerate,
                 blocksize=self.blocksize,
-                device=self.device_id,
+                device=self.device_id,  # Will be None for default, or validated device ID
                 dtype='int16',
                 channels=1,
                 callback=audio_callback
@@ -177,9 +219,16 @@ class MicrophoneInput(InputSource):
             self._listening = True
             self._audio_stream.start()
             
-            logger.info(f"Audio capture started - Device: {self.device_id or 'default'}, "
-                       f"Sample rate: {self.samplerate} Hz")
+            device_name = self.device['name'] if self.device else 'system default'
+            logger.info(f"🎤 Audio capture started successfully")
+            logger.info(f"   Device: {device_name} (ID: {self.device_id or 'default'})")
+            logger.info(f"   Sample rate: {self.samplerate} Hz")
+            logger.info(f"   Channels: 1 (mono)")
+            logger.info(f"   Buffer size: {self.blocksize}")
             
+        except ComponentNotAvailable:
+            # Re-raise ComponentNotAvailable as-is
+            raise
         except Exception as e:
             logger.error(f"Failed to start audio capture: {e}")
             await self._cleanup()
