@@ -3,6 +3,7 @@ Web API Runner - FastAPI server for Irene
 
 Replaces legacy runva_webapi.py with modern async FastAPI architecture.
 Provides REST endpoints and WebSocket support for remote access.
+Now using BaseRunner for unified patterns.
 """
 
 import asyncio
@@ -11,7 +12,7 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import json
 
 from ..config.models import CoreConfig, ComponentConfig, LogLevel
@@ -19,110 +20,12 @@ from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
 from ..utils.loader import get_component_status
 from ..utils.logging import setup_logging
+from .base import BaseRunner, RunnerConfig, check_component_dependencies, print_dependency_status
 
 
 logger = logging.getLogger(__name__)
 
 
-def setup_webapi_argument_parser() -> argparse.ArgumentParser:
-    """Setup Web API specific argument parser"""
-    parser = argparse.ArgumentParser(
-        description="Irene Voice Assistant v13 - Web API Server Mode",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s                           # Start on default host:port
-  %(prog)s --host 0.0.0.0 --port 8080 # Custom host and port
-  %(prog)s --ssl-cert cert.pem       # Enable HTTPS
-        """
-    )
-    
-    # Configuration options
-    parser.add_argument(
-        "--config", "-c",
-        type=Path,
-        default=Path("config.toml"),
-        help="Configuration file path (default: config.toml)"
-    )
-    
-    # Server options
-    parser.add_argument(
-        "--host",
-        default="127.0.0.1",
-        help="Host to bind to (default: 127.0.0.1)"
-    )
-    parser.add_argument(
-        "--port", "-p",
-        type=int,
-        default=5003,
-        help="Port to bind to (default: 5003)"
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of worker processes (default: 1)"
-    )
-    
-    # SSL options
-    parser.add_argument(
-        "--ssl-cert",
-        type=Path,
-        help="SSL certificate file path"
-    )
-    parser.add_argument(
-        "--ssl-key",
-        type=Path,
-        help="SSL private key file path"
-    )
-    
-    # Development options
-    parser.add_argument(
-        "--reload",
-        action="store_true",
-        help="Enable auto-reload for development"
-    )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug mode"
-    )
-    
-    # CORS options
-    parser.add_argument(
-        "--cors-origins",
-        nargs="*",
-        default=["http://localhost:3000", "http://127.0.0.1:3000"],
-        help="Allowed CORS origins"
-    )
-    
-    # Logging options
-    parser.add_argument(
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default="INFO",
-        help="Logging level"
-    )
-    parser.add_argument(
-        "--quiet", "-q",
-        action="store_true",
-        help="Suppress startup messages"
-    )
-    
-    # Web component options
-    parser.add_argument(
-        "--enable-microphone",
-        action="store_true",
-        help="Enable microphone input for web API"
-    )
-    parser.add_argument(
-        "--enable-tts",
-        action="store_true",
-        default=True,
-        help="Enable TTS output (default: True)"
-    )
-    
-    return parser
 
 
 def check_webapi_dependencies() -> bool:
@@ -138,86 +41,150 @@ def check_webapi_dependencies() -> bool:
         return False
 
 
-class WebAPIRunner:
+class WebAPIRunner(BaseRunner):
     """
     Web API Server Runner
     
     Replaces legacy runva_webapi.py with modern FastAPI architecture.
     Provides REST endpoints and WebSocket for remote assistant access.
+    Now using BaseRunner for unified patterns.
     """
     
     def __init__(self):
-        self.core: Optional[AsyncVACore] = None
+        runner_config = RunnerConfig(
+            name="WebAPI",
+            description="Web API Server Mode",
+            requires_config_file=False,
+            supports_interactive=False,
+            required_dependencies=["fastapi", "uvicorn"]
+        )
+        super().__init__(runner_config)
         self.app = None
         self.web_input = None
-        self.web_output = None
         self._start_time = time.time()  # Track start time for uptime calculation
-        
-    async def run(self, args: Optional[list[str]] = None) -> int:
-        """Run Web API server mode"""
-        # Load environment variables from .env file first
-        from dotenv import load_dotenv
-        load_dotenv()
-        
-        # Parse arguments
-        parser = setup_webapi_argument_parser()
-        parsed_args = parser.parse_args(args)
-        
-        # Set up centralized logging to logs/irene.log
-        log_level = LogLevel(parsed_args.log_level)
-        setup_logging(
-            level=log_level,
-            log_file=Path("logs/irene.log"),
-            enable_console=True
+    
+    def _add_runner_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add WebAPI-specific command line arguments"""
+        # Server options
+        parser.add_argument(
+            "--host",
+            default="127.0.0.1",
+            help="Host to bind to (default: 127.0.0.1)"
+        )
+        parser.add_argument(
+            "--port", "-p",
+            type=int,
+            default=5003,
+            help="Port to bind to (default: 5003)"
+        )
+        parser.add_argument(
+            "--workers",
+            type=int,
+            default=1,
+            help="Number of worker processes (default: 1)"
         )
         
-        try:
-            # Check dependencies
-            if not check_webapi_dependencies():
-                return 1
-            
-            # Create assistant configuration (enable web API)
-            config = await self._create_webapi_config(parsed_args)
-            
-            # Create and start assistant
-            self.core = AsyncVACore(config)
-            
-            if not parsed_args.quiet:
-                print("🔧 Initializing Irene Web API...")
-            await self.core.start()
-            
-            # Initialize web components
-            await self._setup_web_components(parsed_args)
-            
-            # Create FastAPI app
-            self.app = await self._create_fastapi_app(parsed_args)
-            
-            # Start server
-            return await self._start_server(parsed_args)
-            
-        except Exception as e:
-            logger.error(f"Web API Runner error: {e}")
-            return 1
-        finally:
-            if self.core:
-                await self.core.stop()
+        # SSL options
+        parser.add_argument(
+            "--ssl-cert",
+            type=Path,
+            help="SSL certificate file path"
+        )
+        parser.add_argument(
+            "--ssl-key",
+            type=Path,
+            help="SSL private key file path"
+        )
+        
+        # Development options
+        parser.add_argument(
+            "--reload",
+            action="store_true",
+            help="Enable auto-reload for development"
+        )
+        
+        # CORS options
+        parser.add_argument(
+            "--cors-origins",
+            nargs="*",
+            default=["http://localhost:3000", "http://127.0.0.1:3000"],
+            help="Allowed CORS origins"
+        )
+        
+        # Web component options
+        parser.add_argument(
+            "--enable-microphone",
+            action="store_true",
+            help="Enable microphone input for web API"
+        )
+        parser.add_argument(
+            "--enable-tts",
+            action="store_true",
+            default=True,
+            help="Enable TTS output (default: True)"
+        )
     
-    async def _create_webapi_config(self, args) -> CoreConfig:
-        """Create configuration for Web API mode"""
+    def _get_usage_examples(self) -> str:
+        """Get usage examples for WebAPI runner"""
+        return """
+Examples:
+  %(prog)s                           # Start on default host:port
+  %(prog)s --host 0.0.0.0 --port 8080 # Custom host and port
+  %(prog)s --ssl-cert cert.pem       # Enable HTTPS
+        """
+    
+    async def _check_dependencies(self, args: argparse.Namespace) -> bool:
+        """Check WebAPI runner dependencies"""
+        if args.check_deps:
+            return check_webapi_dependencies()
+        
+        # For normal operation, check that FastAPI/uvicorn are available
+        try:
+            import fastapi  # type: ignore
+            import uvicorn  # type: ignore
+            return True
+        except ImportError:
+            if not args.quiet:
+                print("❌ Web API dependencies missing")
+                print("💡 Install with: uv add irene-voice-assistant[web-api]")
+            return False
+    
+    async def _modify_config_for_runner(self, config: CoreConfig, args: argparse.Namespace) -> CoreConfig:
+        """Modify configuration for WebAPI-specific needs"""
         # Enable web API, optionally enable other components
-        components = ComponentConfig(
+        config.components = ComponentConfig(
             microphone=args.enable_microphone,  # Optional microphone in API mode
             tts=args.enable_tts,               # Enable TTS for audio responses
             audio_output=False,                # No direct audio output in API mode
             web_api=True                       # Enable web API
         )
         
-        config = CoreConfig(
-            components=components,
-            debug=args.debug
-        )
+        config.debug = args.debug
         
         return config
+    
+    async def _validate_runner_specific_config(self, config: CoreConfig, args: argparse.Namespace) -> List[str]:
+        """Validate WebAPI-specific configuration requirements"""
+        errors = []
+        
+        # WebAPI runner requires web API to be enabled
+        if not config.components.web_api:
+            errors.append("Web API component must be enabled for WebAPI runner (components.web_api = true)")
+        
+        return errors
+    
+    async def _post_core_setup(self, args: argparse.Namespace) -> None:
+        """WebAPI-specific setup after core is started"""
+        # Initialize web components
+        await self._setup_web_components(args)
+        
+        # Create FastAPI app
+        self.app = await self._create_fastapi_app(args)
+    
+    async def _execute_runner_logic(self, args: argparse.Namespace) -> int:
+        """Execute WebAPI runner logic"""
+        # Start server
+        return await self._start_server(args)
     
     async def _setup_web_components(self, args) -> None:
         """Setup WebInput component (output handled via unified workflow)"""
@@ -225,7 +192,6 @@ class WebAPIRunner:
         
         # Create web input (output handled by workflow via HTTP responses)
         self.web_input = WebInput(host=args.host, port=args.port)
-        self.web_output = None  # Web output handled via HTTP responses, not separate component
         
         # Add to core managers
         if self.core:
@@ -314,18 +280,12 @@ class WebAPIRunner:
                     </div>
                     
                     <p><strong>API Documentation:</strong> <a href="/docs">/docs</a></p>
-                    <p><strong>WebSocket:</strong> /ws</p>
+                    <p><strong>Component WebSockets:</strong> /asr/stream, /voice_trigger/ws</p>
                     <p><strong>REST API:</strong> POST /command</p>
                 </div>
                 
                 <script>
-                    const ws = new WebSocket(`ws://${window.location.host}/ws`);
                     const messages = document.getElementById('messages');
-                    
-                    ws.onmessage = function(event) {
-                        const data = JSON.parse(event.data);
-                        addMessage(data.text || JSON.stringify(data), data.type || 'info');
-                    };
                     
                     function addMessage(text, type) {
                         const div = document.createElement('div');
@@ -335,11 +295,23 @@ class WebAPIRunner:
                         messages.scrollTop = messages.scrollHeight;
                     }
                     
-                    function sendCommand() {
+                    async function sendCommand() {
                         const input = document.getElementById('commandInput');
                         const command = input.value.trim();
                         if (command) {
-                            ws.send(JSON.stringify({type: 'command', command: command}));
+                            try {
+                                const response = await fetch('/command', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({command: command})
+                                });
+                                const result = await response.json();
+                                addMessage(result.response || result.error || 'Command processed', result.success ? 'info' : 'error');
+                            } catch (error) {
+                                addMessage('Error sending command: ' + error.message, 'error');
+                            }
                             input.value = '';
                         }
                     }
@@ -358,7 +330,7 @@ class WebAPIRunner:
         async def get_status():
             """Get assistant status and component information"""
             components = get_component_status()
-            web_clients = len(self.web_output._clients) if self.web_output else 0
+            web_clients = 0  # WebSocket clients now handled by individual components
             
             return StatusResponse(
                 status="running",
@@ -394,63 +366,6 @@ class WebAPIRunner:
                     success=False,
                     error=str(e)
                 )
-        
-        # Message history endpoint
-        @app.get("/history", response_model=HistoryResponse)
-        async def get_message_history(limit: int = 50):
-            """Get recent message history"""
-            if not self.web_output:
-                raise HTTPException(status_code=503, detail="Web output not available")
-                
-            messages = self.web_output.get_message_history(limit)
-            return HistoryResponse(
-                messages=messages,
-                total_count=len(messages)
-            )
-        
-        # Clear history endpoint
-        @app.post("/history/clear")
-        async def clear_message_history():
-            """Clear message history"""
-            if not self.web_output:
-                raise HTTPException(status_code=503, detail="Web output not available")
-                
-            await self.web_output.clear_history()
-            return {"message": "History cleared successfully"}
-        
-        # WebSocket endpoint
-        @app.websocket("/ws")
-        async def websocket_endpoint(websocket: WebSocket):
-            """WebSocket endpoint for real-time communication"""
-            await websocket.accept()
-            
-            # Add client to web output
-            if self.web_output:
-                await self.web_output.add_client(websocket)
-            
-            # Add connection to web input
-            if self.web_input:
-                await self.web_input.add_websocket_connection(websocket)
-            
-            try:
-                while True:
-                    # Receive message from client
-                    data = await websocket.receive_text()
-                    
-                    # Handle message through web input
-                    if self.web_input:
-                        await self.web_input.handle_websocket_message(websocket, data)
-                    
-            except WebSocketDisconnect:
-                logger.info("WebSocket client disconnected")
-            except Exception as e:
-                logger.error(f"WebSocket error: {e}")
-            finally:
-                # Remove client from components
-                if self.web_output:
-                    await self.web_output.remove_client(websocket)
-                if self.web_input:
-                    await self.web_input.remove_websocket_connection(websocket)
         
         # Health check endpoint
         @app.get("/health")
@@ -497,16 +412,6 @@ class WebAPIRunner:
             # Clean up web components
             if self.web_input:
                 await self.web_input.stop_listening()
-            
-            if self.web_output:
-                # Notify clients of shutdown
-                await self.web_output.send_system_message("Server shutting down", "shutdown")
-                # Disconnect all clients
-                for client in self.web_output._clients[:]:
-                    try:
-                        await client.close()
-                    except:
-                        pass
         
         return app
     
@@ -706,9 +611,8 @@ class WebAPIRunner:
                             "plugins": getattr(self.core.plugin_manager, 'plugin_count', 0)
                         }
                     
-                    # Add web client information  
-                    if self.web_output:
-                        status["web_clients"] = len(self.web_output._clients)
+                    # Web client information now handled by individual components
+                    status["web_clients"] = 0  # Component-specific WebSockets handle client tracking
                     
                     return status
                     
@@ -797,7 +701,7 @@ class WebAPIRunner:
                             "message": "Analytics manager not initialized",
                             "basic_metrics": {
                                 "uptime_seconds": uptime,
-                                "web_clients": len(self.web_output._clients) if self.web_output else 0,
+                                "web_clients": 0,  # Component-specific WebSockets handle client tracking
                                 "system_status": "running"
                             }
                         }
@@ -895,7 +799,7 @@ class WebAPIRunner:
                         "",
                         "# HELP irene_web_clients Current number of web clients",
                         "# TYPE irene_web_clients gauge",
-                        f"irene_web_clients {len(self.web_output._clients) if self.web_output else 0}",
+                        f"irene_web_clients 0",  # Component-specific WebSockets handle client tracking
                         ""
                     ]
                     
@@ -970,7 +874,7 @@ class WebAPIRunner:
             print(f"🌐 Starting Web API server at {protocol}://{args.host}:{args.port}")
             print(f"📚 API docs available at {protocol}://{args.host}:{args.port}/docs")
             print(f"🌍 Web interface at {protocol}://{args.host}:{args.port}")
-            print(f"🔌 WebSocket at ws://{args.host}:{args.port}/ws")
+            print(f"🔌 Component WebSockets: /asr/stream, /voice_trigger/ws")
             print("Press Ctrl+C to stop")
         
         try:

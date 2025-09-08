@@ -18,6 +18,7 @@ from .timers import AsyncTimerManager
 
 from .components import ComponentManager
 from .workflow_manager import WorkflowManager
+from .analytics import AnalyticsManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class AsyncVACore:
         self.input_manager = InputManager(self.component_manager, config.inputs)
         self.context_manager = ContextManager()
         self.timer_manager = AsyncTimerManager()
+        self.analytics_manager = AnalyticsManager()  # NEW: Analytics integration
 
         self.workflow_manager = WorkflowManager(self.component_manager, config)  # NEW: Unified workflow manager
         self._running = False
@@ -61,6 +63,9 @@ class AsyncVACore:
             
             # Initialize workflow manager with components
             await self.workflow_manager.initialize()
+            
+            # Initialize analytics manager
+            logger.info("Analytics manager initialized")
             
             # NOTE: Builtin plugin loading removed - functionality moved to intent handlers
             

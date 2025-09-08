@@ -1,0 +1,138 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - VOSK Speech Recognition Configuration
+# ============================================================
+# This configuration is specifically set up for the VOSK runner
+# Validates that all required components are properly configured
+
+name = "Irene"
+version = "14.0.0"
+debug = false
+log_level = "INFO"
+
+# ============================================================
+# SYSTEM CAPABILITIES - Hardware & Services
+# ============================================================
+[system]
+microphone_enabled = true      # REQUIRED: Hardware capability for VOSK
+audio_playback_enabled = true  # Enable audio output for responses
+web_api_enabled = false        # VOSK runner doesn't need web API
+web_port = 8000
+metrics_enabled = false
+metrics_port = 9090
+
+# ============================================================
+# INPUT SOURCES - Data Entry Points
+# ============================================================
+[inputs]
+microphone = true              # REQUIRED: Microphone input source for VOSK
+web = false                    # VOSK runner uses microphone only
+cli = false                    # VOSK runner uses microphone only
+default_input = "microphone"   # REQUIRED: Default to microphone
+
+# Microphone Input Configuration
+[inputs.microphone_config]
+enabled = true                 # REQUIRED: Enable microphone input
+# device_id = null             # Uncomment to specify audio device (null = default device)
+sample_rate = 16000           # Audio sample rate (Hz) - matches VOSK provider
+channels = 1                  # 1 = mono (required for VOSK)
+chunk_size = 1024             # Audio buffer size
+
+# Web Input Configuration (disabled for VOSK runner)
+[inputs.web_config]
+enabled = false
+
+# CLI Input Configuration (disabled for VOSK runner)
+[inputs.cli_config]
+enabled = false
+
+# ============================================================
+# COMPONENT CONFIGURATIONS - Provider Management
+# ============================================================
+[components]
+tts = true                     # Enable TTS for responses
+asr = true                     # REQUIRED: ASR component for VOSK
+audio = true                   # Enable audio playback
+llm = false                    # Optional: Enable for smart responses
+voice_trigger = false          # Optional: Wake word detection
+nlu = true                     # Enable natural language understanding
+text_processor = true          # Enable text processing
+intent_system = true           # Enable intent handling
+
+# ============================================================
+# ASR (AUTOMATIC SPEECH RECOGNITION) COMPONENT CONFIGURATION
+# ============================================================
+[asr]
+enabled = true                 # REQUIRED: Enable ASR component
+default_provider = "vosk"      # REQUIRED: VOSK must be default provider
+fallback_providers = []        # No fallbacks for VOSK runner
+
+# Vosk ASR Provider (REQUIRED for VOSK runner)
+[asr.providers.vosk]
+enabled = true                 # REQUIRED: Enable VOSK provider
+default_language = "ru"        # Default language: "ru", "en"
+sample_rate = 16000           # Audio sample rate (matches microphone config)
+confidence_threshold = 0.7    # Minimum confidence for recognition
+preload_models = true         # Preload AI models during startup
+
+# Other ASR providers (disabled for VOSK runner)
+[asr.providers.whisper]
+enabled = false
+
+[asr.providers.google_cloud]
+enabled = false
+
+# ============================================================
+# TTS (TEXT-TO-SPEECH) COMPONENT CONFIGURATION
+# ============================================================
+[tts]
+enabled = true
+default_provider = "console"   # Use console for testing
+fallback_providers = ["console"]
+
+[tts.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+prefix = "Irene: "
+
+# ============================================================
+# AUDIO COMPONENT CONFIGURATION
+# ============================================================
+[audio]
+enabled = true
+default_provider = "console"   # Use console for testing
+fallback_providers = ["console"]
+concurrent_playback = false
+
+[audio.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+
+# ============================================================
+# NLU COMPONENT CONFIGURATION
+# ============================================================
+[nlu]
+enabled = true
+default_provider = "hybrid_keyword_matcher"
+fallback_providers = ["hybrid_keyword_matcher"]
+
+[nlu.providers.hybrid_keyword_matcher]
+enabled = true
+
+# ============================================================
+# TEXT PROCESSOR COMPONENT CONFIGURATION
+# ============================================================
+[text_processor]
+enabled = true
+default_provider = "general_text_processor"
+fallback_providers = ["general_text_processor"]
+
+[text_processor.providers.general_text_processor]
+enabled = true
+
+# ============================================================
+# INTENT SYSTEM CONFIGURATION
+# ============================================================
+[intent_system]
+enabled = true
