@@ -898,4 +898,8 @@ def run_webapi() -> int:
         return 0
     except Exception as e:
         logger.error(f"Failed to start Web API runner: {e}")
-        return 1 
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(run_webapi()) 
