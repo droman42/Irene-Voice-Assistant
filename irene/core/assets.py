@@ -95,16 +95,9 @@ class AssetManager:
         
         if provider_class and hasattr(provider_class, 'get_asset_config'):
             try:
-                # First try to get class-level defaults using the EntryPointMetadata interface
-                # This avoids circular dependency issues during asset manager initialization
-                from .metadata import EntryPointMetadata
-                if issubclass(provider_class, EntryPointMetadata):
-                    asset_config = EntryPointMetadata.get_asset_config.__func__(provider_class)
-                    logger.debug(f"Loaded class-level asset config for provider '{provider}': {asset_config}")
-                else:
-                    # If not using EntryPointMetadata, try direct class method call
-                    asset_config = provider_class.get_asset_config()
-                    logger.debug(f"Using direct class method for provider '{provider}': {asset_config}")
+                # Always call the provider's actual get_asset_config method to respect overrides
+                asset_config = provider_class.get_asset_config()
+                logger.debug(f"Loaded asset config for provider '{provider}': {asset_config}")
             except Exception as e:
                 logger.warning(f"Failed to get class-level asset config for provider '{provider}': {e}")
                 # Fallback to generic defaults if class method fails
@@ -553,9 +546,25 @@ class AssetManager:
         await asyncio.to_thread(extract_sync)
     
     def model_exists(self, provider: str, model_id: str) -> bool:
-        """Check if model exists locally"""
+        """Check if model exists - supports both file-based and package-based models"""
+        # Check if this provider uses Python packages for models
+        asset_config = self._get_provider_asset_config(provider)
+        uses_packages = asset_config.get("uses_python_packages", False)
+        
+        if uses_packages:
+            return self._python_package_installed(model_id)
+        
+        # Default file-based check for other providers
         model_path = self.get_model_path(provider, model_id)
         return model_path.exists()
+    
+    def _python_package_installed(self, package_name: str) -> bool:
+        """Check if a Python package is installed and importable"""
+        try:
+            __import__(package_name)
+            return True
+        except ImportError:
+            return False
     
     def get_model_info(self, provider: str, model_id: str) -> Dict[str, Any]:
         """Get model information from provider configuration (replaces model_registry)"""

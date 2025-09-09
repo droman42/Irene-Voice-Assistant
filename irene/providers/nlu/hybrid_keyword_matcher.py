@@ -115,14 +115,29 @@ class HybridKeywordMatcherProvider(NLUProvider):
         return True  # Hybrid keyword matcher has no hard dependencies
     
     async def _do_initialize(self) -> None:
-        """Initialize hybrid keyword matcher - JSON donations required"""
-        if not self.exact_patterns and not self.fuzzy_keywords:
-            raise RuntimeError("HybridKeywordMatcherProvider requires JSON donations for pattern initialization. "
-                             "Call _initialize_from_donations() first.")
-        
-        # Try to import rapidfuzz for fuzzy matching
+        """Initialize hybrid keyword matcher - donations NOT required for basic init"""
+        # Initialize rapidfuzz if enabled
         if self.fuzzy_enabled:
             await self._initialize_rapidfuzz()
+        
+        # Set up empty pattern containers (will be filled during donation loading)
+        # This allows the provider to survive basic initialization phase
+        if not hasattr(self, 'exact_patterns') or self.exact_patterns is None:
+            self.exact_patterns = {}
+        if not hasattr(self, 'flexible_patterns') or self.flexible_patterns is None:
+            self.flexible_patterns = {}
+        if not hasattr(self, 'partial_patterns') or self.partial_patterns is None:
+            self.partial_patterns = {}
+        if not hasattr(self, 'fuzzy_keywords') or self.fuzzy_keywords is None:
+            self.fuzzy_keywords = {}
+        if not hasattr(self, 'fuzzy_keywords_lc') or self.fuzzy_keywords_lc is None:
+            self.fuzzy_keywords_lc = {}
+        if not hasattr(self, 'global_keyword_map') or self.global_keyword_map is None:
+            self.global_keyword_map = {}
+        if not hasattr(self, 'parameter_specs') or self.parameter_specs is None:
+            self.parameter_specs = {}
+        
+        logger.info("HybridKeywordMatcher basic initialization completed (patterns will be loaded from donations)")  
     
     async def _initialize_rapidfuzz(self):
         """Initialize rapidfuzz for fuzzy matching if available"""
@@ -146,6 +161,11 @@ class HybridKeywordMatcherProvider(NLUProvider):
         """
         try:
             logger.info(f"Initializing HybridKeywordMatcher with {len(keyword_donations)} donations")
+            
+            # Handle case where no donations are provided
+            if not keyword_donations:
+                logger.warning("No donations provided - HybridKeywordMatcher will have no patterns")
+                return
             
             # Clear existing data (Phase 3)
             self.exact_patterns = {}
@@ -323,9 +343,20 @@ class HybridKeywordMatcherProvider(NLUProvider):
         Hybrid recognition: patterns first, then fuzzy matching.
         
         Implements the keyword-first strategy with performance tracking.
+        Gracefully handles missing patterns.
         """
         start_time = time.perf_counter()
         self.stats['total_recognitions'] += 1
+        
+        # Graceful degradation if no patterns loaded yet
+        if not self.exact_patterns and not self.fuzzy_keywords:
+            logger.debug("No patterns loaded - returning unknown intent")
+            return Intent(
+                name="unknown", 
+                entities={},
+                confidence=0.0,
+                raw_text=text
+            )
         
         # Skip fuzzy matching for very long texts (performance)
         use_fuzzy = self.fuzzy_enabled and len(text) <= self.max_text_length_for_fuzzy

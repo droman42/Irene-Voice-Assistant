@@ -57,8 +57,8 @@ default_input = "microphone"       # Default input: "microphone", "web", "cli"
 # Microphone Input Configuration
 [inputs.microphone_config]
 enabled = true                      # Enable microphone input processing
-# device_id = 0                    # Audio device ID (uncomment and set integer for specific device)
-sample_rate = 16000                # Audio sample rate: 8000, 16000, 22050, 44100, 48000
+device_id = 7                      # Audio device ID (uncomment and set integer for specific device)
+sample_rate = 44100                # Audio sample rate: 8000, 16000, 22050, 44100, 48000
 channels = 1                       # Audio channels: 1 (mono), 2 (stereo)
 chunk_size = 1024                  # Audio buffer chunk size for processing
 
@@ -83,7 +83,7 @@ tts = true                         # Text-to-speech component
 asr = true                         # Automatic speech recognition component
 audio = true                       # Audio playback component
 llm = true                         # Large language model component (optional)
-voice_trigger = true               # Wake word detection component
+voice_trigger = false              # Wake word detection component
 nlu = true                         # Natural language understanding component
 text_processor = true              # Text processing pipeline component
 intent_system = true               # Intent handling component (essential)
@@ -202,7 +202,7 @@ preload_models = true              # Preload AI models during provider initializ
 [asr.providers.vosk]
 enabled = true                     # Enable Vosk provider
 default_language = "ru"            # Default language: "ru", "en"
-sample_rate = 16000                # Audio sample rate
+sample_rate = 44100                # Audio sample rate
 confidence_threshold = 0.7         # Minimum confidence for recognition
 preload_models = true              # Preload AI models during provider initialization for faster startup
 
@@ -262,7 +262,7 @@ response = "LLM response would appear here"  # Default response text
 # VOICE TRIGGER (WAKE WORD) COMPONENT CONFIGURATION
 # ============================================================
 [voice_trigger]
-enabled = true                      # Enable voice trigger component
+enabled = false                      # Enable voice trigger component
 default_provider = "openwakeword"   # Default provider: "openwakeword", "porcupine", "microwakeword"
 wake_words = ["jarvis", "alexa"]    # Wake words to detect - using supported OpenWakeWord models
 confidence_threshold = 0.8          # Detection confidence threshold (0.0-1.0)
@@ -271,7 +271,7 @@ timeout_seconds = 5.0              # Detection timeout in seconds
 
 # OpenWakeWord Provider (recommended, open source)
 [voice_trigger.providers.openwakeword]
-enabled = true                      # Enable OpenWakeWord provider
+enabled = false                      # Enable OpenWakeWord provider
 inference_framework = "tflite"     # Framework: "onnx", "tflite" - using tflite to match downloaded models
 vad_threshold = 0.5                # Voice activity detection threshold
 chunk_size = 1280                  # Audio chunk size (80ms at 16kHz)

@@ -161,9 +161,9 @@ class SpaCyNLUProvider(NLUProvider):
             if self.asset_manager:
                 try:
                     model_path = await self.asset_manager.ensure_model_available(
-                        provider_name="spacy",
+                        provider_name="spacy_nlu",
                         model_name=self.model_name,
-                        asset_config=self.get_asset_config()
+                        asset_config=self.__class__.get_asset_config()
                     )
                     
                     if model_path:
@@ -196,9 +196,9 @@ class SpaCyNLUProvider(NLUProvider):
                     if self.asset_manager:
                         try:
                             fallback_path = await self.asset_manager.ensure_model_available(
-                                provider_name="spacy",
+                                provider_name="spacy_nlu",
                                 model_name=self.fallback_model,
-                                asset_config=self.get_asset_config()
+                                asset_config=self.__class__.get_asset_config()
                             )
                             
                             if fallback_path:
@@ -1218,6 +1218,27 @@ class SpaCyNLUProvider(NLUProvider):
             "en_core_web_md": "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl",
             "en_core_web_lg": "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.0/en_core_web_lg-3.7.0-py3-none-any.whl"
         }
+    
+    @classmethod
+    def get_asset_config(cls) -> Dict[str, Any]:
+        """
+        Get asset configuration with spaCy-specific enhancements.
+        
+        Adds uses_python_packages flag to indicate spaCy models are Python packages.
+        """
+        # Get base configuration from parent class methods
+        config = {
+            "file_extension": cls._get_default_extension(),
+            "directory_name": cls._get_default_directory(),
+            "credential_patterns": cls._get_default_credentials(),
+            "cache_types": cls._get_default_cache_types(),
+            "model_urls": cls._get_default_model_urls()
+        }
+        
+        # Add spaCy-specific configuration
+        config["uses_python_packages"] = True
+        
+        return config
     
     # Build dependency methods (TODO #5 Phase 1)
     @classmethod
