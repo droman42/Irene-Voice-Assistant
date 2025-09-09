@@ -123,7 +123,22 @@ Examples:
     
     async def _modify_config_for_runner(self, config: CoreConfig, args: argparse.Namespace) -> CoreConfig:
         """Modify configuration for VOSK-specific needs"""
-        # VOSK runner doesn't modify config - it validates existing config
+        # Force-enable microphone input and required components for VOSK operation
+        config.inputs.microphone = True
+        config.system.microphone_enabled = True
+        
+        # Ensure ASR component is enabled
+        config.components.asr = True
+        
+        # Enable required components for voice processing
+        config.components.audio = True  # For potential TTS responses
+        config.components.intent_system = True  # For processing recognized speech
+        config.components.text_processor = True  # For text processing pipeline
+        config.components.nlu = True  # For natural language understanding
+        
+        # Set microphone as the default input for VOSK mode
+        config.inputs.default_input = "microphone"
+        
         return config
     
     async def _validate_runner_specific_config(self, config: CoreConfig, args: argparse.Namespace) -> List[str]:
@@ -182,6 +197,21 @@ preload_models = true"""
     
     async def _post_core_setup(self, args: argparse.Namespace) -> None:
         """VOSK-specific setup after core is started"""
+        # Ensure microphone input is started (guaranteed activation)
+        if self.core and self.core.input_manager:
+            # Check if microphone source exists and start it if not already active
+            if "microphone" in self.core.input_manager._sources:
+                if "microphone" not in self.core.input_manager._active_sources:
+                    success = await self.core.input_manager.start_source("microphone")
+                    if success:
+                        logger.info("✅ Explicitly started microphone input for VOSK")
+                    else:
+                        logger.warning("⚠️ Failed to start microphone input - check hardware/permissions")
+                else:
+                    logger.info("✅ Microphone input already active")
+            else:
+                logger.error("❌ Microphone input source not available - check configuration and hardware")
+        
         if not args.quiet:
             print("🎤 VOSK speech recognition active")
             print("   Microphone input → VOSK ASR → Intent processing")

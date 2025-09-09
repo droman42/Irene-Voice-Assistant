@@ -197,6 +197,43 @@ class InputManager:
         except Exception as e:
             logger.error(f"Error discovering input sources: {e}")
         
+        # Auto-start input sources based on configuration and deployment context
+        await self._auto_start_configured_sources()
+    
+    async def _auto_start_configured_sources(self) -> None:
+        """Automatically start input sources based on configuration and deployment context"""
+        try:
+            # Determine which sources should auto-start based on configuration
+            sources_to_start = []
+            
+            # Start microphone if it's the default input or explicitly enabled
+            if (self.input_config and 
+                (self.input_config.default_input == "microphone" or 
+                 self.input_config.microphone) and 
+                "microphone" in self._sources):
+                sources_to_start.append("microphone")
+            
+            # Start CLI if it's the default input or enabled 
+            if (self.input_config and 
+                (self.input_config.default_input == "cli" or 
+                 self.input_config.cli) and 
+                "cli" in self._sources):
+                sources_to_start.append("cli")
+                
+            # Note: Web input is typically started explicitly by WebAPIRunner
+            # so we don't auto-start it here to avoid conflicts
+            
+            # Start the identified sources
+            for source_name in sources_to_start:
+                success = await self.start_source(source_name)
+                if success:
+                    logger.info(f"Auto-started input source: {source_name}")
+                else:
+                    logger.warning(f"Failed to auto-start input source: {source_name}")
+                    
+        except Exception as e:
+            logger.error(f"Error auto-starting input sources: {e}")
+    
     async def add_source(self, name: str, source: InputSource) -> None:
         """Add an input source"""
         if not source.is_available():

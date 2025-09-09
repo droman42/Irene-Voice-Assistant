@@ -33,7 +33,7 @@ default_input = "microphone"   # REQUIRED: Default to microphone
 [inputs.microphone_config]
 enabled = true                 # REQUIRED: Enable microphone input
 # device_id = null             # Uncomment to specify audio device (null = default device)
-sample_rate = 16000           # Audio sample rate (Hz) - matches VOSK provider
+sample_rate = 48000           # Use hardware native sample rate (will be resampled to 16kHz for VOSK)
 channels = 1                  # 1 = mono (required for VOSK)
 chunk_size = 1024             # Audio buffer size
 
