@@ -80,6 +80,27 @@ class ASRProvider(ProviderBase):
         """
         pass
     
+    @abstractmethod
+    def get_preferred_sample_rates(self) -> List[int]:
+        """Return list of preferred sample rates in order of preference (Phase 3)
+        
+        Returns:
+            List of sample rates in Hz, ordered by preference (best first)
+        """
+        pass
+    
+    @abstractmethod
+    def supports_sample_rate(self, rate: int) -> bool:
+        """Check if this provider supports a specific sample rate (Phase 3)
+        
+        Args:
+            rate: Sample rate in Hz to check
+            
+        Returns:
+            True if the sample rate is supported, False otherwise
+        """
+        pass
+    
     async def set_language(self, language: str) -> None:
         """Set the recognition language (optional override)
         

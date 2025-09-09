@@ -2,7 +2,7 @@
 Configuration Validation System - Comprehensive configuration validation
 
 This module provides comprehensive validation for the Irene Voice Assistant
-configuration system, implementing the validation requirements from Phase 4.
+configuration system, implementing the validation requirements from Phase 5.
 
 Features:
 - System architecture validation
@@ -11,6 +11,7 @@ Features:
 - Workflow dependency validation
 - Asset accessibility validation
 - Environment variable validation
+- Phase 5: Audio configuration validation with fatal error conditions
 """
 
 import logging
@@ -628,3 +629,336 @@ def print_validation_results(summary: ValidationSummary, verbose: bool = False) 
 
 # Import os for file permission checks
 import os
+
+
+# ============================================================
+# PHASE 5: AUDIO CONFIGURATION VALIDATION
+# ============================================================
+
+class ConfigurationError(Exception):
+    """Fatal configuration error that prevents startup"""
+    pass
+
+
+class FatalConfigurationError(ConfigurationError):
+    """Fatal configuration error that requires immediate shutdown"""
+    pass
+
+
+@dataclass
+class AudioConfig:
+    """Audio configuration container for resolution logic"""
+    sample_rate: Optional[int] = None
+    channels: int = 1
+    allow_resampling: bool = True
+    resample_quality: str = "medium"
+    explicit: bool = False  # Whether values were explicitly set by user
+
+
+class AudioConfigurationValidator:
+    """
+    Phase 5 audio configuration validator with fatal error conditions
+    
+    Implements the complete Phase 5 validation workflow:
+    - FATAL ERROR VALIDATION: Configuration contradictions cause immediate startup failure
+    - Provider Requirement Conflicts: Hard stop if provider requirements contradict config
+    - Missing Provider Defaults: Auto-resolve using provider defaults when config is unspecified
+    - Cross-component Compatibility: Ensure microphone, ASR, and voice trigger configurations are consistent
+    """
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+    
+    def validate_startup_configuration(self, config: CoreConfig, providers: Dict[str, Any] = None) -> ValidationSummary:
+        """
+        Perform startup validation with fatal error detection
+        
+        Args:
+            config: Complete system configuration
+            providers: Available providers for validation (optional)
+            
+        Returns:
+            ValidationSummary with fatal errors marked
+            
+        Raises:
+            FatalConfigurationError: If configuration has fatal errors
+        """
+        results = []
+        
+        # Extract audio configurations
+        microphone_config = self._extract_microphone_config(config)
+        asr_config = self._extract_asr_config(config)
+        voice_trigger_config = self._extract_voice_trigger_config(config)
+        
+        # Validate individual component configurations
+        results.extend(self._validate_individual_configs(microphone_config, asr_config, voice_trigger_config))
+        
+        # Cross-component compatibility validation
+        results.extend(self._validate_cross_component_compatibility(microphone_config, asr_config, voice_trigger_config))
+        
+        # Provider requirement validation (if providers available)
+        if providers:
+            results.extend(self._validate_provider_requirements(asr_config, voice_trigger_config, providers))
+        
+        # Create summary
+        summary = ValidationSummary(results)
+        summary._calculate_counts()
+        
+        # Check for fatal errors
+        fatal_errors = [r for r in results if r.level == ValidationLevel.ERROR]
+        if fatal_errors:
+            error_messages = [r.message for r in fatal_errors]
+            raise FatalConfigurationError(
+                f"Fatal configuration errors detected:\n" + "\n".join(f"- {msg}" for msg in error_messages)
+            )
+        
+        return summary
+    
+    def resolve_audio_config(self, component_config: Dict[str, Any], provider = None) -> AudioConfig:
+        """
+        Resolve audio configuration using Phase 5 priority order:
+        1. Explicit Configuration: User-defined values are AUTHORITATIVE
+        2. Provider Defaults: Used only when configuration is missing/unspecified
+        3. System Defaults: Fallback when both config and provider defaults are unavailable
+        
+        Args:
+            component_config: Component configuration dict
+            provider: Provider instance with Phase 3 methods (optional)
+            
+        Returns:
+            Resolved AudioConfig
+            
+        Raises:
+            FatalConfigurationError: If configuration cannot be resolved
+        """
+        resolved = AudioConfig()
+        
+        # Extract explicit configuration
+        resolved.sample_rate = component_config.get('sample_rate')
+        resolved.channels = component_config.get('channels', 1)
+        resolved.allow_resampling = component_config.get('allow_resampling', True)
+        resolved.resample_quality = component_config.get('resample_quality', 'medium')
+        resolved.explicit = resolved.sample_rate is not None
+        
+        if resolved.sample_rate:
+            # Configuration is explicit and authoritative
+            if provider and hasattr(provider, 'supports_sample_rate'):
+                if provider.supports_sample_rate(resolved.sample_rate):
+                    return resolved
+                elif resolved.allow_resampling:
+                    # Will resample from provider's default
+                    self.logger.info(f"Configuration specifies {resolved.sample_rate}Hz, will resample from provider default")
+                    return resolved
+                else:
+                    raise FatalConfigurationError(
+                        f"Rate mismatch: {resolved.sample_rate}Hz not supported by provider and resampling disabled"
+                    )
+            return resolved
+        else:
+            # Use provider defaults if available
+            if provider:
+                try:
+                    if hasattr(provider, 'get_default_sample_rate'):
+                        resolved.sample_rate = provider.get_default_sample_rate()
+                    if hasattr(provider, 'get_default_channels'):
+                        resolved.channels = provider.get_default_channels()
+                        
+                    self.logger.info(f"Using provider defaults: {resolved.sample_rate}Hz, {resolved.channels} channels")
+                    return resolved
+                except Exception as e:
+                    self.logger.warning(f"Could not get provider defaults: {e}")
+            
+            # System defaults fallback
+            if not resolved.sample_rate:
+                resolved.sample_rate = 16000  # Most common default
+                self.logger.info("Using system default sample rate: 16000Hz")
+            
+            return resolved
+    
+    def _extract_microphone_config(self, config: CoreConfig) -> Dict[str, Any]:
+        """Extract microphone configuration"""
+        if hasattr(config, 'inputs') and hasattr(config.inputs, 'microphone_config'):
+            mic_config = config.inputs.microphone_config
+            if hasattr(mic_config, 'model_dump'):
+                return mic_config.model_dump()
+            elif hasattr(mic_config, 'dict'):
+                return mic_config.dict()
+        return {}
+    
+    def _extract_asr_config(self, config: CoreConfig) -> Dict[str, Any]:
+        """Extract ASR configuration"""
+        if hasattr(config, 'asr'):
+            asr_config = config.asr
+            if hasattr(asr_config, 'model_dump'):
+                return asr_config.model_dump()
+            elif hasattr(asr_config, 'dict'):
+                return asr_config.dict()
+        return {}
+    
+    def _extract_voice_trigger_config(self, config: CoreConfig) -> Dict[str, Any]:
+        """Extract voice trigger configuration"""
+        if hasattr(config, 'voice_trigger'):
+            vt_config = config.voice_trigger
+            if hasattr(vt_config, 'model_dump'):
+                return vt_config.model_dump()
+            elif hasattr(vt_config, 'dict'):
+                return vt_config.dict()
+        return {}
+    
+    def _validate_individual_configs(self, mic_config: Dict[str, Any], asr_config: Dict[str, Any], 
+                                   vt_config: Dict[str, Any]) -> List[ValidationResult]:
+        """Validate individual component configurations"""
+        results = []
+        
+        # Validate sample rates
+        for component_name, component_config in [("microphone", mic_config), ("asr", asr_config), ("voice_trigger", vt_config)]:
+            sample_rate = component_config.get('sample_rate')
+            if sample_rate and (sample_rate < 8000 or sample_rate > 192000):
+                results.append(ValidationResult(
+                    level=ValidationLevel.ERROR,
+                    category="audio_config",
+                    message=f"{component_name}: Invalid sample rate {sample_rate}Hz (must be 8000-192000Hz)",
+                    component=component_name,
+                    suggestion="Use a sample rate between 8000 and 192000 Hz"
+                ))
+            
+            # Validate channels
+            channels = component_config.get('channels')
+            if channels and (channels < 1 or channels > 8):
+                results.append(ValidationResult(
+                    level=ValidationLevel.ERROR,
+                    category="audio_config",
+                    message=f"{component_name}: Invalid channel count {channels} (must be 1-8)",
+                    component=component_name,
+                    suggestion="Use between 1 and 8 audio channels"
+                ))
+        
+        return results
+    
+    def _validate_cross_component_compatibility(self, mic_config: Dict[str, Any], asr_config: Dict[str, Any], 
+                                              vt_config: Dict[str, Any]) -> List[ValidationResult]:
+        """Validate cross-component compatibility"""
+        results = []
+        
+        # Use Phase 2 validation function
+        try:
+            from ..utils.audio_helpers import validate_cross_component_compatibility
+            
+            compatibility = validate_cross_component_compatibility(mic_config, asr_config, vt_config)
+            
+            # Convert to ValidationResult format
+            for error in compatibility['errors']:
+                results.append(ValidationResult(
+                    level=ValidationLevel.ERROR,
+                    category="cross_component",
+                    message=error,
+                    suggestion="Enable resampling or align sample rates across components"
+                ))
+            
+            for warning in compatibility['warnings']:
+                results.append(ValidationResult(
+                    level=ValidationLevel.WARNING,
+                    category="cross_component", 
+                    message=warning,
+                    suggestion="Consider standardizing sample rates for optimal performance"
+                ))
+                
+        except ImportError:
+            results.append(ValidationResult(
+                level=ValidationLevel.WARNING,
+                category="validation",
+                message="Phase 2 audio validation not available",
+                suggestion="Ensure audio_helpers module is properly installed"
+            ))
+        
+        return results
+    
+    def _validate_provider_requirements(self, asr_config: Dict[str, Any], vt_config: Dict[str, Any], 
+                                      providers: Dict[str, Any]) -> List[ValidationResult]:
+        """Validate provider requirements against configuration"""
+        results = []
+        
+        # Validate ASR providers
+        asr_providers = providers.get('asr', {})
+        for provider_name, provider in asr_providers.items():
+            try:
+                if hasattr(provider, 'supports_sample_rate'):
+                    asr_sample_rate = asr_config.get('sample_rate', 16000)
+                    if not provider.supports_sample_rate(asr_sample_rate):
+                        allow_resampling = asr_config.get('allow_resampling', True)
+                        if not allow_resampling:
+                            results.append(ValidationResult(
+                                level=ValidationLevel.ERROR,
+                                category="provider_requirements",
+                                message=f"ASR provider {provider_name} doesn't support {asr_sample_rate}Hz and resampling is disabled",
+                                component="asr",
+                                suggestion="Enable resampling or use a compatible sample rate"
+                            ))
+                        else:
+                            results.append(ValidationResult(
+                                level=ValidationLevel.INFO,
+                                category="provider_requirements",
+                                message=f"ASR provider {provider_name} will use resampling for {asr_sample_rate}Hz",
+                                component="asr"
+                            ))
+            except Exception as e:
+                results.append(ValidationResult(
+                    level=ValidationLevel.WARNING,
+                    category="provider_validation",
+                    message=f"Could not validate ASR provider {provider_name}: {e}",
+                    component="asr"
+                ))
+        
+        # Validate voice trigger providers
+        vt_providers = providers.get('voice_trigger', {})
+        for provider_name, provider in vt_providers.items():
+            try:
+                if hasattr(provider, 'get_supported_sample_rates'):
+                    vt_sample_rate = vt_config.get('sample_rate', 16000)
+                    supported_rates = provider.get_supported_sample_rates()
+                    if vt_sample_rate not in supported_rates:
+                        supports_resampling = getattr(provider, 'supports_resampling', lambda: True)()
+                        allow_resampling = vt_config.get('allow_resampling', True)
+                        
+                        if not supports_resampling and not allow_resampling:
+                            results.append(ValidationResult(
+                                level=ValidationLevel.ERROR,
+                                category="provider_requirements",
+                                message=f"Voice trigger provider {provider_name} requires {supported_rates} but configured for {vt_sample_rate}Hz",
+                                component="voice_trigger",
+                                suggestion="Use a supported sample rate or enable resampling"
+                            ))
+                        else:
+                            results.append(ValidationResult(
+                                level=ValidationLevel.INFO,
+                                category="provider_requirements",
+                                message=f"Voice trigger provider {provider_name} will handle {vt_sample_rate}Hz via resampling",
+                                component="voice_trigger"
+                            ))
+            except Exception as e:
+                results.append(ValidationResult(
+                    level=ValidationLevel.WARNING,
+                    category="provider_validation",
+                    message=f"Could not validate voice trigger provider {provider_name}: {e}",
+                    component="voice_trigger"
+                ))
+        
+        return results
+
+
+def validate_startup_audio_configuration(config: CoreConfig, providers: Dict[str, Any] = None) -> ValidationSummary:
+    """
+    Convenience function for startup audio configuration validation
+    
+    Args:
+        config: System configuration
+        providers: Available providers (optional)
+        
+    Returns:
+        ValidationSummary
+        
+    Raises:
+        FatalConfigurationError: If configuration has fatal errors
+    """
+    validator = AudioConfigurationValidator()
+    return validator.validate_startup_configuration(config, providers)

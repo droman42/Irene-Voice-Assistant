@@ -358,6 +358,28 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
             }
         }
     
+    def get_supported_sample_rates(self) -> List[int]:
+        """Get list of supported sample rates for OpenWakeWord (Phase 3)."""
+        # OpenWakeWord typically works best at 16kHz
+        # but can handle other rates with some preprocessing
+        return [16000, 8000, 22050, 44100]
+    
+    def get_default_sample_rate(self) -> int:
+        """Get default sample rate for OpenWakeWord (Phase 3)."""
+        # OpenWakeWord models are trained primarily for 16kHz
+        return 16000
+    
+    def supports_resampling(self) -> bool:
+        """Check if OpenWakeWord supports automatic resampling (Phase 3)."""
+        # OpenWakeWord can work with different sample rates through preprocessing
+        # but performs best with native 16kHz audio
+        return True
+    
+    def get_default_channels(self) -> int:
+        """Get default number of channels for OpenWakeWord (Phase 3)."""
+        # OpenWakeWord works with mono audio
+        return 1
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Get OpenWakeWord provider capabilities."""
         capabilities = super().get_capabilities()

@@ -62,6 +62,46 @@ class VoiceTriggerProvider(ProviderBase):
         """
         pass
     
+    @abstractmethod
+    def get_supported_sample_rates(self) -> List[int]:
+        """
+        Get list of supported sample rates (Phase 3).
+        
+        Returns:
+            List of supported sample rates in Hz
+        """
+        pass
+    
+    @abstractmethod
+    def get_default_sample_rate(self) -> int:
+        """
+        Get default/optimal sample rate for this provider (Phase 3).
+        
+        Returns:
+            Default sample rate in Hz
+        """
+        pass
+    
+    @abstractmethod
+    def supports_resampling(self) -> bool:
+        """
+        Check if this provider supports automatic resampling (Phase 3).
+        
+        Returns:
+            True if provider can handle resampling internally
+        """
+        pass
+    
+    @abstractmethod
+    def get_default_channels(self) -> int:
+        """
+        Get default number of audio channels for this provider (Phase 3).
+        
+        Returns:
+            Default number of channels (1 for mono, 2 for stereo)
+        """
+        pass
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """
         Get provider capabilities and metadata.

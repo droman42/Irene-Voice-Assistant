@@ -272,6 +272,19 @@ class GoogleCloudASRProvider(ASRProvider):
         """Return list of supported audio formats"""
         return ["wav", "flac", "mp3", "ogg", "amr", "webm"]
     
+    def get_preferred_sample_rates(self) -> List[int]:
+        """Return list of preferred sample rates for Google Cloud (Phase 3)"""
+        # Google Cloud performs best at specific sample rates
+        # 16kHz is optimal for telephony, 44.1/48kHz for high quality
+        return [16000, 48000, 44100, 22050, 8000]
+    
+    def supports_sample_rate(self, rate: int) -> bool:
+        """Check if Google Cloud supports specific sample rate (Phase 3)"""
+        # Google Cloud Speech API supports specific sample rates
+        # Must match exactly what's configured in sample_rate_hertz parameter
+        supported_rates = [8000, 16000, 22050, 44100, 48000]
+        return rate in supported_rates
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Return Google Cloud provider capabilities"""
         return {

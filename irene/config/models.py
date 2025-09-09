@@ -60,26 +60,37 @@ class SystemConfig(BaseModel):
 # ============================================================
 
 class MicrophoneInputConfig(BaseModel):
-    """Microphone input configuration"""
+    """Microphone input configuration with Phase 5 audio enhancements"""
     enabled: bool = Field(default=True, description="Enable microphone input")
     device_id: Optional[int] = Field(default=None, description="Audio device ID (None = default)")
     sample_rate: int = Field(default=16000, description="Audio sample rate in Hz")
     channels: int = Field(default=1, description="Number of audio channels")
     chunk_size: int = Field(default=1024, description="Audio buffer chunk size")
     
+    # Phase 5: Global audio configuration enhancements
+    auto_resample: bool = Field(default=True, description="Enable/disable resampling globally")
+    resample_quality: str = Field(default="medium", description="Global resampling quality (fast/medium/high/best)")
+    
     @field_validator('sample_rate')
     @classmethod
     def validate_sample_rate(cls, v):
-        valid_rates = [8000, 16000, 22050, 44100, 48000]
-        if v not in valid_rates:
-            raise ValueError(f"sample_rate must be one of: {valid_rates}")
+        # Phase 5: Expanded sample rate range
+        if v < 8000 or v > 192000:
+            raise ValueError("Sample rate must be between 8000 and 192000 Hz")
         return v
     
     @field_validator('channels')
     @classmethod
     def validate_channels(cls, v):
-        if v not in [1, 2]:
-            raise ValueError("channels must be 1 (mono) or 2 (stereo)")
+        if v < 1 or v > 8:
+            raise ValueError("Channels must be between 1 and 8")
+        return v
+    
+    @field_validator('resample_quality')
+    @classmethod
+    def validate_resample_quality(cls, v):
+        if v not in ['fast', 'medium', 'high', 'best']:
+            raise ValueError("Resample quality must be one of: fast, medium, high, best")
         return v
     
     @field_validator('chunk_size')
@@ -170,14 +181,42 @@ class AudioConfig(BaseModel):
 
 
 class ASRConfig(BaseModel):
-    """ASR component configuration"""
+    """ASR component configuration with Phase 5 audio enhancements"""
     enabled: bool = Field(default=False, description="Enable ASR component")
     default_provider: Optional[str] = Field(default=None, description="Default ASR provider")
     fallback_providers: List[str] = Field(default_factory=list, description="Fallback providers in order")
+    
+    # Phase 5: Audio configuration enhancements
+    sample_rate: Optional[int] = Field(default=16000, description="AUTHORITATIVE: Audio sample rate in Hz (overrides provider preferences)")
+    channels: int = Field(default=1, description="AUTHORITATIVE: Number of audio channels")
+    allow_resampling: bool = Field(default=True, description="Enable resampling for this component")
+    resample_quality: str = Field(default="high", description="Component-specific quality setting (fast/medium/high/best)")
+    
     providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=dict,
         description="Provider-specific configurations"
     )
+    
+    @field_validator('sample_rate')
+    @classmethod
+    def validate_sample_rate(cls, v):
+        if v is not None and (v < 8000 or v > 192000):
+            raise ValueError("Sample rate must be between 8000 and 192000 Hz")
+        return v
+    
+    @field_validator('channels')
+    @classmethod
+    def validate_channels(cls, v):
+        if v < 1 or v > 8:
+            raise ValueError("Channels must be between 1 and 8")
+        return v
+    
+    @field_validator('resample_quality')
+    @classmethod
+    def validate_resample_quality(cls, v):
+        if v not in ['fast', 'medium', 'high', 'best']:
+            raise ValueError("Resample quality must be one of: fast, medium, high, best")
+        return v
 
 
 class LLMConfig(BaseModel):
@@ -192,7 +231,7 @@ class LLMConfig(BaseModel):
 
 
 class VoiceTriggerConfig(BaseModel):
-    """Voice trigger / wake word component configuration"""
+    """Voice trigger / wake word component configuration with Phase 5 audio enhancements"""
     enabled: bool = Field(default=False, description="Enable voice trigger component")
     default_provider: Optional[str] = Field(default=None, description="Default voice trigger provider")
     wake_words: List[str] = Field(
@@ -202,10 +241,39 @@ class VoiceTriggerConfig(BaseModel):
     confidence_threshold: float = Field(default=0.8, description="Detection confidence threshold")
     buffer_seconds: float = Field(default=1.0, description="Audio buffer duration in seconds")
     timeout_seconds: float = Field(default=5.0, description="Detection timeout in seconds")
+    
+    # Phase 5: Audio configuration enhancements
+    sample_rate: Optional[int] = Field(default=16000, description="AUTHORITATIVE: Audio sample rate in Hz (overrides provider preferences)")
+    channels: int = Field(default=1, description="AUTHORITATIVE: Number of audio channels")
+    allow_resampling: bool = Field(default=True, description="Enable resampling for voice triggers")
+    resample_quality: str = Field(default="fast", description="Optimized for low-latency real-time processing (fast/medium/high/best)")
+    strict_validation: bool = Field(default=True, description="Fatal error on provider conflicts")
+    
     providers: Dict[str, Dict[str, Any]] = Field(
         default_factory=dict,
         description="Provider-specific configurations"
     )
+    
+    @field_validator('sample_rate')
+    @classmethod
+    def validate_sample_rate(cls, v):
+        if v is not None and (v < 8000 or v > 192000):
+            raise ValueError("Sample rate must be between 8000 and 192000 Hz")
+        return v
+    
+    @field_validator('channels')
+    @classmethod
+    def validate_channels(cls, v):
+        if v < 1 or v > 8:
+            raise ValueError("Channels must be between 1 and 8")
+        return v
+    
+    @field_validator('resample_quality')
+    @classmethod
+    def validate_resample_quality(cls, v):
+        if v not in ['fast', 'medium', 'high', 'best']:
+            raise ValueError("Resample quality must be one of: fast, medium, high, best")
+        return v
 
 
 class NLUConfig(BaseModel):

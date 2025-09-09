@@ -58,9 +58,11 @@ default_input = "microphone"       # Default input: "microphone", "web", "cli"
 [inputs.microphone_config]
 enabled = true                      # Enable microphone input processing
 device_id = 7                      # Audio device ID (uncomment and set integer for specific device)
-sample_rate = 44100                # Audio sample rate: 8000, 16000, 22050, 44100, 48000
+sample_rate = 44100                # Audio sample rate: 8000, 16000, 22050, 44100, 48000 (hardware-dependent)
 channels = 1                       # Audio channels: 1 (mono), 2 (stereo)
 chunk_size = 1024                  # Audio buffer chunk size for processing
+auto_resample = true               # Enable automatic resampling for component compatibility
+resample_quality = "medium"        # Resampling quality: "fast", "medium", "high", "best"
 
 # Web Input Configuration
 [inputs.web_config]
@@ -185,8 +187,13 @@ device = "default"                 # ALSA device name
 # ============================================================
 [asr]
 enabled = true                      # Enable ASR component
-default_provider = "vosk"        # Default provider: "whisper", "vosk", "google_cloud"
-fallback_providers = ["whisper"]    # Fallback providers in order
+default_provider = "vosk"          # Default provider: "whisper", "vosk", "google_cloud"
+fallback_providers = ["whisper"]   # Fallback providers in order
+sample_rate = 16000                # AUTHORITATIVE: Component sample rate (overrides provider preferences)
+channels = 1                       # AUTHORITATIVE: Number of audio channels (1=mono, 2=stereo)
+allow_resampling = true            # Enable automatic resampling when rates don't match
+resample_quality = "high"          # Resampling quality for ASR: "fast", "medium", "high", "best"
+strict_validation = true           # Fatal error on provider configuration conflicts
 
 # Whisper ASR Provider (OpenAI Whisper, recommended)
 [asr.providers.whisper]
@@ -202,7 +209,7 @@ preload_models = true              # Preload AI models during provider initializ
 [asr.providers.vosk]
 enabled = true                     # Enable Vosk provider
 default_language = "ru"            # Default language: "ru", "en"
-sample_rate = 44100                # Audio sample rate
+sample_rate = 16000                # Audio sample rate (must match ASR component configuration)
 confidence_threshold = 0.7         # Minimum confidence for recognition
 preload_models = true              # Preload AI models during provider initialization for faster startup
 
@@ -268,6 +275,11 @@ wake_words = ["jarvis", "alexa"]    # Wake words to detect - using supported Ope
 confidence_threshold = 0.8          # Detection confidence threshold (0.0-1.0)
 buffer_seconds = 1.0               # Audio buffer duration in seconds
 timeout_seconds = 5.0              # Detection timeout in seconds
+sample_rate = 16000                # AUTHORITATIVE: Component sample rate (configuration takes precedence)
+channels = 1                       # AUTHORITATIVE: Number of audio channels (1=mono, 2=stereo)  
+allow_resampling = true            # Enable resampling for voice triggers (with optimized algorithms)
+resample_quality = "fast"          # Resampling quality optimized for low-latency: "fast", "medium", "high"
+strict_validation = true           # Fatal error on provider requirement conflicts
 
 # OpenWakeWord Provider (recommended, open source)
 [voice_trigger.providers.openwakeword]
@@ -464,11 +476,33 @@ audio_enabled = true               # Enable audio playback stage (requires compo
 # Audio processing configuration
 buffer_size_ms = 100.0             # Audio buffer size in milliseconds
 sample_rate = 16000                # Audio sample rate for processing
+channels = 1                       # Number of audio channels for processing
+validate_audio_compatibility = true # Validate cross-component audio compatibility at startup
+
+# NOTE: Audio flow with automatic resampling:
+# - Microphone: Hardware-dependent sample rate (e.g., 44100 Hz)
+# - Processing: Components use optimized rates (ASR=16000 Hz, Voice Trigger=16000 Hz)  
+# - Resampling: Automatic conversion between microphone input and processing components
+# - TTS/Audio: Output-only components can use different rates as needed
 
 # Request context defaults
 default_source = "voice"           # Default request source
 default_language = "ru"            # Default processing language
 session_timeout_minutes = 30       # Session timeout for context
+
+# Audio compatibility and validation
+[workflows.unified_voice_assistant.audio_validation]
+enabled = true                     # Enable startup audio compatibility validation
+fatal_on_conflicts = true         # Fatal error when configuration contradicts provider requirements  
+auto_resolve_defaults = true      # Use provider defaults when configuration is unspecified
+log_resolution_details = true     # Log audio configuration resolution process
+
+# Global resampling defaults (can be overridden per component)
+[workflows.unified_voice_assistant.resampling]
+default_quality = "medium"        # Default resampling quality: "fast", "medium", "high", "best"
+cache_conversions = true          # Cache resampling conversions for performance
+max_cache_size_mb = 50            # Maximum resampling cache size in megabytes
+performance_monitoring = true     # Monitor resampling performance and latency
 
 # ============================================================
 # ASSET MANAGEMENT - Comprehensive Configuration
@@ -532,6 +566,8 @@ concurrent_downloads = 2           # Maximum concurrent model downloads
 # - Enable microphone: system.microphone_enabled=true, inputs.microphone=true
 # - Configure providers with API keys
 # - Enable model preloading for faster response: preload_models=true for key providers
+# - Audio config: Set consistent sample_rate across microphone/asr/voice_trigger (e.g., 16000)
+# - Enable resampling: allow_resampling=true with appropriate quality levels per component
 
 # API-ONLY PROFILE (text processing only):
 # - Disable voice components: tts=false, audio=false, asr=false, voice_trigger=false
@@ -551,6 +587,8 @@ concurrent_downloads = 2           # Maximum concurrent model downloads
 # - Reduce concurrency: max_concurrent_commands=3
 # - Disable model preloading: preload_models=false for all providers
 # - Reduce cache sizes: assets.max_cache_size_mb=256
+# - Audio optimization: Use "fast" resampling quality, reduce resampling cache size
+# - Disable performance monitoring: workflows.unified_voice_assistant.resampling.performance_monitoring=false
 
 # ============================================================
 # END OF MASTER CONFIGURATION

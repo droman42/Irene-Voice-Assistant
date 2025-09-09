@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.asr import ASRPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
+from ..intents.models import AudioData
 
 
 # Import ASR provider base class and dynamic loader
@@ -85,6 +86,15 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         
         # Dynamic provider discovery from entry-points (replaces hardcoded classes)
         self._provider_classes: Dict[str, type] = {}
+        
+        # Phase 5: Runtime monitoring
+        self._resampling_metrics = {
+            'total_resampling_operations': 0,
+            'total_resampling_time_ms': 0.0,
+            'resampling_failures': 0,
+            'provider_fallbacks': 0,
+            'configuration_warnings': 0
+        }
         
     async def initialize(self, core) -> None:
         """Initialize ASR providers from configuration"""
@@ -165,6 +175,172 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         except Exception as e:
             logger.error(f"Failed to initialize Universal ASR Plugin: {e}")
     
+    # Workflow-compatible interface for AudioData objects
+    async def process_audio(self, audio_data: AudioData, **kwargs) -> str:
+        """
+        Process AudioData with intelligent sample rate handling (Phase 4 enhancement)
+        
+        This method implements the complete Phase 4 workflow:
+        1. Extract provider requirements
+        2. Check sample rate compatibility  
+        3. Auto-resample if needed and supported
+        4. Call transcribe_audio with converted data
+        5. Handle fallback providers on rate mismatch
+        
+        Args:
+            audio_data: AudioData object containing audio bytes and metadata
+            **kwargs: Additional provider-specific parameters
+            
+        Returns:
+            Transcribed text
+        """
+        provider_name = kwargs.get("provider", self.default_provider)
+        
+        if provider_name not in self.providers:
+            raise ValueError(f"ASR provider '{provider_name}' not available")
+        
+        provider = self.providers[provider_name]
+        
+        # Phase 4 Step 1: Extract provider requirements
+        try:
+            preferred_rates = provider.get_preferred_sample_rates()
+            supports_rate = provider.supports_sample_rate(audio_data.sample_rate)
+            
+            logger.debug(f"ASR provider {provider_name} preferred rates: {preferred_rates}")
+            logger.debug(f"Current audio rate {audio_data.sample_rate}Hz supported: {supports_rate}")
+        except Exception as e:
+            logger.warning(f"Could not get provider requirements for {provider_name}: {e}")
+            # Fallback to simple extraction for older providers
+            audio_bytes = audio_data.data
+            return await self.transcribe_audio(audio_bytes, **kwargs)
+        
+        # Phase 4 Step 2: Check sample rate compatibility
+        if supports_rate:
+            # Direct compatibility - use audio as-is
+            logger.debug(f"Direct compatibility: {audio_data.sample_rate}Hz supported by {provider_name}")
+            audio_bytes = audio_data.data
+            return await self.transcribe_audio(audio_bytes, **kwargs)
+        
+        # Phase 4 Step 3: Auto-resample if needed and supported
+        if hasattr(self, 'core') and self.core:
+            asr_config = getattr(self.core.config, 'asr', {})
+            if hasattr(asr_config, 'model_dump'):
+                asr_config = asr_config.model_dump()
+            elif hasattr(asr_config, 'dict'):
+                asr_config = asr_config.dict()
+            
+            allow_resampling = asr_config.get('allow_resampling', True)
+            
+            if allow_resampling and preferred_rates:
+                # Attempt resampling to preferred rate
+                target_rate = preferred_rates[0]  # Use most preferred rate
+                logger.info(f"Resampling audio from {audio_data.sample_rate}Hz to {target_rate}Hz for {provider_name}")
+                
+                try:
+                    # Use Phase 2 AudioProcessor for resampling
+                    from ..utils.audio_helpers import AudioProcessor, ConversionMethod
+                    
+                    # Phase 6: Get optimal conversion method for ASR (quality-optimized)
+                    conversion_method = AudioProcessor.get_optimal_conversion_path(
+                        audio_data.sample_rate, target_rate, use_case="asr"
+                    )
+                    
+                    # Phase 5: Track resampling metrics
+                    import time
+                    start_time = time.time()
+                    
+                    try:
+                        # Resample the audio data
+                        resampled_audio = await AudioProcessor.resample_audio_data(
+                            audio_data, target_rate, conversion_method
+                        )
+                        
+                        # Update metrics
+                        resampling_time = (time.time() - start_time) * 1000
+                        self._resampling_metrics['total_resampling_operations'] += 1
+                        self._resampling_metrics['total_resampling_time_ms'] += resampling_time
+                        
+                        logger.debug(f"Successfully resampled audio to {target_rate}Hz using {conversion_method.value} in {resampling_time:.1f}ms")
+                        
+                        # Phase 4 Step 4: Call transcribe_audio with converted data
+                        return await self.transcribe_audio(resampled_audio.data, **kwargs)
+                        
+                    except Exception as resampling_error:
+                        # Update failure metrics
+                        self._resampling_metrics['resampling_failures'] += 1
+                        raise resampling_error
+                    
+                except Exception as e:
+                    logger.error(f"Resampling failed for {provider_name}: {e}")
+                    # Continue to fallback handling
+        
+        # Phase 4 Step 5: Handle fallback providers on rate mismatch
+        return await self._handle_sample_rate_mismatch(audio_data, provider, **kwargs)
+    
+    async def _handle_sample_rate_mismatch(self, audio_data: AudioData, provider, **kwargs) -> str:
+        """
+        Handle sample rate mismatch by attempting resampling or fallback providers (Phase 4)
+        
+        Args:
+            audio_data: Original AudioData with incompatible sample rate
+            provider: Primary provider that doesn't support the sample rate
+            **kwargs: Additional parameters
+            
+        Returns:
+            Transcribed text from fallback strategy
+        """
+        provider_name = provider.get_provider_name()
+        logger.warning(f"Sample rate mismatch: {audio_data.sample_rate}Hz not supported by {provider_name}")
+        
+        # Try other available providers that might support this sample rate
+        for fallback_name, fallback_provider in self.providers.items():
+            if fallback_name == provider_name:
+                continue  # Skip the failing provider
+                
+            try:
+                if fallback_provider.supports_sample_rate(audio_data.sample_rate):
+                    logger.info(f"Using fallback provider {fallback_name} for {audio_data.sample_rate}Hz audio")
+                    
+                    # Phase 5: Track provider fallback
+                    self._resampling_metrics['provider_fallbacks'] += 1
+                    
+                    # Temporarily switch provider and recurse
+                    kwargs_copy = kwargs.copy()
+                    kwargs_copy["provider"] = fallback_name
+                    return await self.process_audio(audio_data, **kwargs_copy)
+                    
+            except Exception as e:
+                logger.warning(f"Fallback provider {fallback_name} failed: {e}")
+                continue
+        
+        # If no fallback providers work, try force resampling to a common rate
+        logger.warning(f"No compatible providers found for {audio_data.sample_rate}Hz, force resampling to 16kHz")
+        
+        try:
+            from ..utils.audio_helpers import AudioProcessor, ConversionMethod
+            
+            # Force resample to 16kHz (most common rate)
+            target_rate = 16000
+            conversion_method = AudioProcessor.get_optimal_conversion_path(
+                audio_data.sample_rate, target_rate, use_case="asr"
+            )
+            
+            resampled_audio = await AudioProcessor.resample_audio_data(
+                audio_data, target_rate, conversion_method
+            )
+            
+            logger.info(f"Force resampled to {target_rate}Hz, retrying with original provider")
+            
+            # Try original provider again with resampled audio
+            return await self.transcribe_audio(resampled_audio.data, **kwargs)
+            
+        except Exception as e:
+            logger.error(f"Force resampling failed: {e}")
+            
+            # Last resort: try with original audio data anyway
+            logger.warning(f"Using original audio data despite rate mismatch - quality may be degraded")
+            return await self.transcribe_audio(audio_data.data, **kwargs)
+    
     # Primary ASR interface - used by input sources
     async def transcribe_audio(self, audio_data: bytes, **kwargs) -> str:
         """
@@ -199,6 +375,29 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     def get_providers_info(self) -> str:
         """Implementation of abstract method - Get ASR providers information"""
         return self._get_providers_info()
+    
+    def get_runtime_metrics(self) -> Dict[str, Any]:
+        """Get Phase 5 runtime monitoring metrics enhanced with Phase 6 cache statistics"""
+        avg_resampling_time = 0.0
+        if self._resampling_metrics['total_resampling_operations'] > 0:
+            avg_resampling_time = (
+                self._resampling_metrics['total_resampling_time_ms'] / 
+                self._resampling_metrics['total_resampling_operations']
+            )
+        
+        # Phase 6: Include cache performance metrics
+        from ..utils.audio_helpers import AudioProcessor
+        cache_stats = AudioProcessor.get_cache_stats()
+        
+        return {
+            **self._resampling_metrics,
+            'average_resampling_time_ms': avg_resampling_time,
+            'resampling_success_rate': (
+                (self._resampling_metrics['total_resampling_operations'] - self._resampling_metrics['resampling_failures']) /
+                max(1, self._resampling_metrics['total_resampling_operations'])
+            ),
+            'cache_statistics': cache_stats
+        }
     
     def parse_provider_name_from_text(self, text: str) -> Optional[str]:
         """Override base method with ASR-specific aliases and logic"""

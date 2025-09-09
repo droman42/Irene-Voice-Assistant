@@ -269,6 +269,19 @@ class WhisperASRProvider(ASRProvider):
         """Return list of supported audio formats"""
         return ["wav", "mp3", "m4a", "flac", "ogg", "wma", "aac"]
     
+    def get_preferred_sample_rates(self) -> List[int]:
+        """Return list of preferred sample rates for Whisper (Phase 3)"""
+        # Whisper is very flexible with sample rates due to its preprocessing
+        # It internally resamples to 16kHz, so any rate works well
+        return [16000, 44100, 48000, 22050, 8000]
+    
+    def supports_sample_rate(self, rate: int) -> bool:
+        """Check if Whisper supports specific sample rate (Phase 3)"""
+        # Whisper has excellent flexibility - it can handle almost any sample rate
+        # because it preprocesses and resamples internally to 16kHz
+        # Allow any reasonable sample rate between 8kHz and 96kHz
+        return 8000 <= rate <= 96000
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Return Whisper provider capabilities"""
         return {

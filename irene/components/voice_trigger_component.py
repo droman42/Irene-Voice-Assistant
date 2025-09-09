@@ -41,6 +41,18 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         # Dynamic provider discovery from entry-points (replaces hardcoded classes)
         self._provider_classes: Dict[str, type] = {}
         
+        # Phase 5: Runtime monitoring
+        self._resampling_metrics = {
+            'total_resampling_operations': 0,
+            'total_resampling_time_ms': 0.0,
+            'resampling_failures': 0,
+            'provider_fallbacks': 0,
+            'configuration_warnings': 0,
+            'detection_operations': 0,
+            'detection_successes': 0,
+            'detection_failures': 0
+        }
+        
     @property
     def name(self) -> str:
         return "voice_trigger"
@@ -197,10 +209,31 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         self.active = len(self.providers) > 0
         logger.info(f"Voice trigger component initialized with {enabled_count} providers. Default: {self.default_provider}")
         return self.active
+    
+    async def process_audio(self, audio_data: AudioData) -> WakeWordResult:
+        """
+        Process audio for workflow compatibility (Phase 1 bridge method)
+        
+        This is a bridge method that calls the existing detect method
+        to maintain compatibility with workflow expectations.
+        
+        Args:
+            audio_data: Audio data to analyze
+            
+        Returns:
+            WakeWordResult with detection information
+        """
+        return await self.detect(audio_data)
         
     async def detect(self, audio_data: AudioData) -> WakeWordResult:
         """
-        Detect wake words in audio data.
+        Detect wake words with intelligent sample rate handling (Phase 4 enhancement)
+        
+        This method implements the Phase 4 workflow:
+        1. Check if resampling is needed based on configuration
+        2. Apply efficient resampling if sample rates don't match
+        3. Call provider detect_wake_word with correct format
+        4. Handle provider fallbacks on configuration conflicts
         
         Args:
             audio_data: Audio data to analyze
@@ -216,24 +249,183 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         if not provider:
             logger.warning("No voice trigger provider available")
             return WakeWordResult(detected=False, confidence=0.0)
-            
+        
+        # Phase 4 Step 1: Check if resampling is needed based on configuration
         try:
-            return await provider.detect_wake_word(audio_data)
+            supported_rates = provider.get_supported_sample_rates()
+            default_rate = provider.get_default_sample_rate()
+            supports_resampling = provider.supports_resampling()
+            
+            logger.debug(f"Voice trigger provider {provider.get_provider_name()} supported rates: {supported_rates}")
+            logger.debug(f"Current audio rate: {audio_data.sample_rate}Hz, provider default: {default_rate}Hz")
+            logger.debug(f"Provider supports resampling: {supports_resampling}")
+        except Exception as e:
+            logger.warning(f"Could not get provider requirements for {provider.get_provider_name()}: {e}")
+            # Fallback to simple detection for older providers
+            try:
+                # Phase 5: Track detection operations
+                self._resampling_metrics['detection_operations'] += 1
+                result = await provider.detect_wake_word(audio_data)
+                
+                # Track successful detection
+                if result.detected:
+                    self._resampling_metrics['detection_successes'] += 1
+                    
+                return result
+            except Exception as detection_error:
+                logger.error(f"Voice trigger detection error: {detection_error}")
+                self._resampling_metrics['detection_failures'] += 1
+                return await self._detect_with_fallback(audio_data, provider.get_provider_name())
+        
+        # Phase 4 Step 2: Apply efficient resampling if sample rates don't match
+        processed_audio = audio_data
+        
+        if audio_data.sample_rate not in supported_rates:
+            # Check if provider supports resampling or if we should handle it
+            if supports_resampling:
+                logger.debug(f"Provider {provider.get_provider_name()} will handle resampling internally")
+                # Provider will handle resampling internally - use original audio
+            else:
+                # We need to resample the audio externally
+                logger.info(f"Resampling audio from {audio_data.sample_rate}Hz to {default_rate}Hz for voice trigger")
+                
+                try:
+                    # Get voice trigger configuration for resampling settings
+                    voice_trigger_config = {}
+                    if hasattr(self, 'core') and self.core:
+                        vt_config = getattr(self.core.config, 'voice_trigger', {})
+                        if hasattr(vt_config, 'model_dump'):
+                            voice_trigger_config = vt_config.model_dump()
+                        elif hasattr(vt_config, 'dict'):
+                            voice_trigger_config = vt_config.dict()
+                    
+                    allow_resampling = voice_trigger_config.get('allow_resampling', True)
+                    resample_quality = voice_trigger_config.get('resample_quality', 'fast')  # Fast for real-time
+                    
+                    if allow_resampling:
+                        # Use Phase 2 AudioProcessor for resampling
+                        from ..utils.audio_helpers import AudioProcessor, ConversionMethod
+                        
+                        # Phase 6: Get optimal conversion method for voice trigger (latency-optimized)
+                        conversion_method = AudioProcessor.get_optimal_conversion_path(
+                            audio_data.sample_rate, default_rate, use_case="voice_trigger"
+                        )
+                        
+                        # For voice trigger, prefer faster methods to reduce latency
+                        if resample_quality == 'fast':
+                            conversion_method = ConversionMethod.LINEAR
+                        
+                        # Phase 5: Track resampling metrics
+                        import time
+                        start_time = time.time()
+                        
+                        try:
+                            # Resample the audio data
+                            processed_audio = await AudioProcessor.resample_audio_data(
+                                audio_data, default_rate, conversion_method
+                            )
+                            
+                            # Update metrics
+                            resampling_time = (time.time() - start_time) * 1000
+                            self._resampling_metrics['total_resampling_operations'] += 1
+                            self._resampling_metrics['total_resampling_time_ms'] += resampling_time
+                            
+                            logger.debug(f"Successfully resampled audio to {default_rate}Hz using {conversion_method.value} in {resampling_time:.1f}ms")
+                            
+                        except Exception as resampling_error:
+                            # Update failure metrics
+                            self._resampling_metrics['resampling_failures'] += 1
+                            logger.error(f"Resampling failed for voice trigger: {resampling_error}")
+                            raise resampling_error
+                    else:
+                        logger.warning(f"Resampling disabled but required for {provider.get_provider_name()}")
+                        # Continue with original audio - let provider handle the mismatch
+                        
+                except Exception as e:
+                    logger.error(f"Resampling failed for voice trigger: {e}")
+                    # Continue with original audio and let provider handle the mismatch
+        
+        # Phase 4 Step 3: Call provider detect_wake_word with correct format
+        try:
+            # Phase 5: Track detection operations
+            self._resampling_metrics['detection_operations'] += 1
+            result = await provider.detect_wake_word(processed_audio)
+            
+            # Track successful detection
+            if result.detected:
+                self._resampling_metrics['detection_successes'] += 1
+                
+            return result
         except Exception as e:
             logger.error(f"Voice trigger detection error with {provider.get_provider_name()}: {e}")
-            # Try fallback providers
+            self._resampling_metrics['detection_failures'] += 1
+            # Phase 4 Step 4: Handle provider fallbacks on configuration conflicts
             return await self._detect_with_fallback(audio_data, provider.get_provider_name())
     
     async def _detect_with_fallback(self, audio_data: AudioData, failed_provider: str) -> WakeWordResult:
-        """Attempt detection with fallback providers."""
+        """
+        Attempt detection with fallback providers with sample rate intelligence (Phase 4 enhancement)
+        """
         for fallback in self.fallback_providers:
             if fallback != failed_provider and fallback in self.providers:
                 try:
+                    fallback_provider = self.providers[fallback]
                     logger.info(f"Trying fallback voice trigger provider: {fallback}")
-                    result = await self.providers[fallback].detect_wake_word(audio_data)
-                    return result
+                    
+                    # Check if fallback provider supports the current sample rate
+                    try:
+                        supported_rates = fallback_provider.get_supported_sample_rates()
+                        if audio_data.sample_rate in supported_rates:
+                            logger.debug(f"Fallback provider {fallback} supports {audio_data.sample_rate}Hz")
+                            result = await fallback_provider.detect_wake_word(audio_data)
+                            return result
+                        else:
+                            # Try resampling for fallback provider
+                            default_rate = fallback_provider.get_default_sample_rate()
+                            supports_resampling = fallback_provider.supports_resampling()
+                            
+                            if supports_resampling:
+                                logger.debug(f"Fallback provider {fallback} will handle resampling internally")
+                                result = await fallback_provider.detect_wake_word(audio_data)
+                                return result
+                            else:
+                                # External resampling for fallback
+                                logger.info(f"Resampling for fallback provider {fallback}: {audio_data.sample_rate}Hz -> {default_rate}Hz")
+                                
+                                from ..utils.audio_helpers import AudioProcessor, ConversionMethod
+                                
+                                # Phase 5: Track fallback resampling metrics  
+                                import time
+                                start_time = time.time()
+                                
+                                try:
+                                    # Use fast resampling for fallback scenarios
+                                    resampled_audio = await AudioProcessor.resample_audio_data(
+                                        audio_data, default_rate, ConversionMethod.LINEAR
+                                    )
+                                    
+                                    # Update metrics
+                                    resampling_time = (time.time() - start_time) * 1000
+                                    self._resampling_metrics['total_resampling_operations'] += 1
+                                    self._resampling_metrics['total_resampling_time_ms'] += resampling_time
+                                    self._resampling_metrics['provider_fallbacks'] += 1
+                                    
+                                except Exception as resampling_error:
+                                    self._resampling_metrics['resampling_failures'] += 1
+                                    raise resampling_error
+                                
+                                result = await fallback_provider.detect_wake_word(resampled_audio)
+                                return result
+                                
+                    except Exception as provider_error:
+                        logger.warning(f"Could not get provider requirements for fallback {fallback}: {provider_error}")
+                        # Try anyway with original audio
+                        result = await fallback_provider.detect_wake_word(audio_data)
+                        return result
+                        
                 except Exception as e:
                     logger.warning(f"Fallback provider {fallback} also failed: {e}")
+                    continue
         
         logger.error("All voice trigger providers failed")
         return WakeWordResult(detected=False, confidence=0.0)
@@ -262,6 +454,36 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         info_lines.append(f"Активные слова: {', '.join(self.wake_words)}")
         
         return "\n".join(info_lines)
+    
+    def get_runtime_metrics(self) -> Dict[str, Any]:
+        """Get Phase 5 runtime monitoring metrics"""
+        avg_resampling_time = 0.0
+        if self._resampling_metrics['total_resampling_operations'] > 0:
+            avg_resampling_time = (
+                self._resampling_metrics['total_resampling_time_ms'] / 
+                self._resampling_metrics['total_resampling_operations']
+            )
+        
+        detection_success_rate = 0.0
+        if self._resampling_metrics['detection_operations'] > 0:
+            detection_success_rate = (
+                self._resampling_metrics['detection_successes'] / 
+                self._resampling_metrics['detection_operations']
+            )
+        
+        resampling_success_rate = 0.0
+        if self._resampling_metrics['total_resampling_operations'] > 0:
+            resampling_success_rate = (
+                (self._resampling_metrics['total_resampling_operations'] - self._resampling_metrics['resampling_failures']) /
+                self._resampling_metrics['total_resampling_operations']
+            )
+        
+        return {
+            **self._resampling_metrics,
+            'average_resampling_time_ms': avg_resampling_time,
+            'resampling_success_rate': resampling_success_rate,
+            'detection_success_rate': detection_success_rate
+        }
     
     def get_wake_words(self) -> List[str]:
         """Get current wake words."""

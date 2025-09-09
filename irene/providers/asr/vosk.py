@@ -343,6 +343,18 @@ class VoskASRProvider(ASRProvider):
         """Return list of supported audio formats"""
         return ["wav", "raw", "pcm"]
     
+    def get_preferred_sample_rates(self) -> List[int]:
+        """Return list of preferred sample rates for VOSK (Phase 3)"""
+        # VOSK performs best at 16kHz and 8kHz, supports others with some quality loss
+        return [16000, 8000, 22050, 44100, 48000]
+    
+    def supports_sample_rate(self, rate: int) -> bool:
+        """Check if VOSK supports specific sample rate (Phase 3)"""
+        # VOSK can work with various sample rates through its internal resampling
+        # But models are typically trained for specific rates
+        supported_rates = [8000, 16000, 22050, 44100, 48000]
+        return rate in supported_rates
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Return VOSK provider capabilities"""
         return {

@@ -400,6 +400,28 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
             }
         }
     
+    def get_supported_sample_rates(self) -> List[int]:
+        """Get list of supported sample rates for microWakeWord (Phase 3)."""
+        # microWakeWord is specifically designed for 16kHz audio
+        # The micro_speech preprocessor expects 16kHz input
+        return [16000]
+    
+    def get_default_sample_rate(self) -> int:
+        """Get default sample rate for microWakeWord (Phase 3)."""
+        # microWakeWord is optimized for 16kHz audio processing
+        return 16000
+    
+    def supports_resampling(self) -> bool:
+        """Check if microWakeWord supports automatic resampling (Phase 3)."""
+        # microWakeWord requires exactly 16kHz - resampling should be handled externally
+        # The micro_speech preprocessor is very specific about sample rate requirements
+        return False
+    
+    def get_default_channels(self) -> int:
+        """Get default number of channels for microWakeWord (Phase 3)."""
+        # microWakeWord processes mono audio only
+        return 1
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Get microWakeWord provider capabilities."""
         capabilities = super().get_capabilities()
