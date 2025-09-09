@@ -63,6 +63,9 @@ class VoskRunner(BaseRunner):
     """
     VOSK Speech Recognition Runner - Thin Wrapper
     
+    This runner ALWAYS uses microphone input only, regardless of config file settings.
+    It overrides any input configuration to ensure only microphone input is enabled.
+    
     Validates TOML configuration for VOSK setup and delegates to the
     existing ASR component + VOSK provider system. Uses asset management
     for model downloads and component system for speech processing.
@@ -72,7 +75,7 @@ class VoskRunner(BaseRunner):
     def __init__(self):
         runner_config = RunnerConfig(
             name="VOSK",
-            description="VOSK Speech Recognition Mode",
+            description="VOSK Speech Recognition Mode (microphone input only)",
             requires_config_file=True,
             supports_interactive=False,
             required_dependencies=["vosk", "sounddevice"]
@@ -92,10 +95,12 @@ class VoskRunner(BaseRunner):
         """Get usage examples for VOSK runner"""
         return """
 Examples:
-  %(prog)s                           # Use configuration from config.toml
-  %(prog)s --config my-config.toml   # Use specific configuration file
+  %(prog)s                           # Use configuration from config.toml (microphone input only)
+  %(prog)s --config my-config.toml   # Use specific configuration file (microphone input only)
   %(prog)s --list-devices            # List available audio devices
   %(prog)s --check-deps              # Check VOSK dependencies
+
+Note: VOSK runner always uses microphone input only, regardless of config file settings.
         """
     
     async def _check_dependencies(self, args: argparse.Namespace) -> bool:
@@ -123,11 +128,17 @@ Examples:
     
     async def _modify_config_for_runner(self, config: CoreConfig, args: argparse.Namespace) -> CoreConfig:
         """Modify configuration for VOSK-specific needs"""
-        # Force-enable microphone input and required components for VOSK operation
+        # VOSK Runner ALWAYS forces microphone-only input configuration
+        # This overrides any input configuration from the config file
         config.inputs.microphone = True
+        config.inputs.web = False
+        config.inputs.cli = False
+        config.inputs.default_input = "microphone"
+        
+        # Enable microphone system capability
         config.system.microphone_enabled = True
         
-        # Ensure ASR component is enabled
+        # Ensure ASR component is enabled for VOSK operation
         config.components.asr = True
         
         # Enable required components for voice processing
@@ -135,9 +146,6 @@ Examples:
         config.components.intent_system = True  # For processing recognized speech
         config.components.text_processor = True  # For text processing pipeline
         config.components.nlu = True  # For natural language understanding
-        
-        # Set microphone as the default input for VOSK mode
-        config.inputs.default_input = "microphone"
         
         return config
     
@@ -193,7 +201,10 @@ default_provider = "vosk"
 [asr.providers.vosk]
 enabled = true
 default_language = "ru"
-preload_models = true"""
+preload_models = true
+
+# Note: VOSK runner always uses microphone input only.
+# Other input configurations will be overridden."""
     
     async def _post_core_setup(self, args: argparse.Namespace) -> None:
         """VOSK-specific setup after core is started"""
@@ -213,8 +224,9 @@ preload_models = true"""
                 logger.error("❌ Microphone input source not available - check configuration and hardware")
         
         if not args.quiet:
-            print("🎤 VOSK speech recognition active")
+            print("🎤 VOSK speech recognition active (microphone input only)")
             print("   Microphone input → VOSK ASR → Intent processing")
+            print("💻 Input mode: Microphone only (other inputs disabled)")
             print("   Press Ctrl+C to stop")
             print("=" * 60)
     

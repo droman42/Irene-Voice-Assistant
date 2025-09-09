@@ -45,6 +45,9 @@ class WebAPIRunner(BaseRunner):
     """
     Web API Server Runner
     
+    This runner ALWAYS uses web input only, regardless of config file settings.
+    It overrides any input configuration to ensure only web input is enabled.
+    
     Replaces legacy runva_webapi.py with modern FastAPI architecture.
     Provides REST endpoints and WebSocket for remote assistant access.
     Now using BaseRunner for unified patterns.
@@ -53,7 +56,7 @@ class WebAPIRunner(BaseRunner):
     def __init__(self):
         runner_config = RunnerConfig(
             name="WebAPI",
-            description="Web API Server Mode",
+            description="Web API Server Mode (web input only)",
             requires_config_file=False,
             supports_interactive=False,
             required_dependencies=["fastapi", "uvicorn"]
@@ -113,11 +116,6 @@ class WebAPIRunner(BaseRunner):
         
         # Web component options
         parser.add_argument(
-            "--enable-microphone",
-            action="store_true",
-            help="Enable microphone input for web API"
-        )
-        parser.add_argument(
             "--enable-tts",
             action="store_true",
             default=True,
@@ -128,9 +126,13 @@ class WebAPIRunner(BaseRunner):
         """Get usage examples for WebAPI runner"""
         return """
 Examples:
-  %(prog)s                           # Start on default host:port
-  %(prog)s --host 0.0.0.0 --port 8080 # Custom host and port
-  %(prog)s --ssl-cert cert.pem       # Enable HTTPS
+  %(prog)s                           # Start on default host:port (web input only)
+  %(prog)s --host 0.0.0.0 --port 8080 # Custom host and port (web input only)
+  %(prog)s --ssl-cert cert.pem       # Enable HTTPS (web input only)
+  %(prog)s --enable-tts              # Enable TTS for audio responses
+  %(prog)s --cors-origins "*"        # Allow all CORS origins
+
+Note: WebAPI runner always uses web input only, regardless of config file settings.
         """
     
     async def _check_dependencies(self, args: argparse.Namespace) -> bool:
@@ -154,27 +156,26 @@ Examples:
         # Enable web API service capability
         config.system.web_api_enabled = True
         
-        # Configure input sources for web API
+        # WebAPI Runner ALWAYS forces web-only input configuration
+        # This overrides any input configuration from the config file
+        config.inputs.microphone = False
         config.inputs.web = True
-        if args.enable_microphone:
-            config.inputs.microphone = True
-            config.system.microphone_enabled = True
-        else:
-            config.inputs.microphone = False
-            config.system.microphone_enabled = False
+        config.inputs.cli = False
+        config.inputs.default_input = "web"
+        
+        # Override microphone enablement regardless of --enable-microphone flag
+        # WebAPI should only use web input, not direct microphone access
+        config.system.microphone_enabled = False
         
         # Configure components (using correct v14 field names)
         config.components.tts = args.enable_tts     # Enable TTS for audio responses
         config.components.audio = False             # No direct audio output in API mode
         config.components.intent_system = True      # Essential for processing requests
+        config.components.asr = False               # No direct ASR in web-only mode
         
         # Enable text processing for web requests
         config.components.text_processor = True
         config.components.nlu = True
-        
-        # Enable ASR only if microphone is enabled
-        if args.enable_microphone:
-            config.components.asr = True
         
         config.debug = args.debug
         
@@ -213,14 +214,8 @@ text_processor = true
 nlu = true
 tts = true
 
-# Optional: Enable microphone support for web API
-# microphone_enabled = true
-# 
-# [inputs]
-# microphone = true
-# 
-# [components]
-# asr = true"""
+# Note: WebAPI runner always uses web input only.
+# Other input configurations will be overridden."""
     
     async def _post_core_setup(self, args: argparse.Namespace) -> None:
         """WebAPI-specific setup after core is started"""
@@ -920,10 +915,11 @@ tts = true
         
         if not args.quiet:
             protocol = "https" if ssl_config else "http"
-            print(f"🌐 Starting Web API server at {protocol}://{args.host}:{args.port}")
+            print(f"🌐 Starting Web API server at {protocol}://{args.host}:{args.port} (web input only)")
             print(f"📚 API docs available at {protocol}://{args.host}:{args.port}/docs")
             print(f"🌍 Web interface at {protocol}://{args.host}:{args.port}")
             print(f"🔌 Component WebSockets: /asr/stream, /voice_trigger/ws")
+            print("💻 Input mode: Web only (other inputs disabled)")
             print("Press Ctrl+C to stop")
         
         try:

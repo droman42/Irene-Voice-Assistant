@@ -115,6 +115,9 @@ class CLIRunner(BaseRunner, InteractiveRunnerMixin):
     """
     CLI Runner class - Provides command line interface for Irene.
     
+    This runner ALWAYS uses CLI input only, regardless of config file settings.
+    It overrides any input configuration to ensure only CLI input is enabled.
+    
     Now using BaseRunner for unified patterns and InteractiveRunnerMixin
     for interactive mode support.
     """
@@ -122,7 +125,7 @@ class CLIRunner(BaseRunner, InteractiveRunnerMixin):
     def __init__(self):
         runner_config = RunnerConfig(
             name="CLI",
-            description="Command line interface for Irene",
+            description="Command line interface for Irene (CLI input only)",
             requires_config_file=False,
             supports_interactive=True,
             required_dependencies=["core"]
@@ -189,12 +192,16 @@ class CLIRunner(BaseRunner, InteractiveRunnerMixin):
         """Get usage examples for CLI runner"""
         return """
 Examples:
-  %(prog)s                           # Start with default config
-  %(prog)s --config config.toml      # Use specific config file
+  %(prog)s                           # Start with default config (CLI input only)
+  %(prog)s --config config.toml      # Use specific config file (CLI input only)
   %(prog)s --headless                # Run in headless mode
   %(prog)s --api-only                # Run as API server only
   %(prog)s --check-deps              # Check component dependencies
   %(prog)s --voice                   # Full voice assistant mode
+  %(prog)s -e "hello"                # Execute single command and exit
+  %(prog)s -i                        # Force interactive mode
+
+Note: CLI runner always uses CLI input only, regardless of config file settings.
         """
     
     async def _check_dependencies(self, args: argparse.Namespace) -> bool:
@@ -227,11 +234,6 @@ Examples:
             config.system.microphone_enabled = False
             config.system.audio_playback_enabled = False
             config.system.web_api_enabled = False
-            # Update input sources
-            config.inputs.microphone = False
-            config.inputs.web = False
-            config.inputs.cli = True
-            config.inputs.default_input = "cli"
         elif args.api_only:
             # API-only: text processing only, no voice components
             config.components = ComponentConfig(
@@ -242,11 +244,6 @@ Examples:
             config.system.microphone_enabled = False
             config.system.audio_playback_enabled = False
             config.system.web_api_enabled = True
-            # Update input sources
-            config.inputs.microphone = False
-            config.inputs.web = True
-            config.inputs.cli = True
-            config.inputs.default_input = "web"
         elif args.voice:
             # Voice: full voice assistant with all components
             config.components = ComponentConfig(
@@ -257,11 +254,13 @@ Examples:
             config.system.microphone_enabled = True
             config.system.audio_playback_enabled = True
             config.system.web_api_enabled = True
-            # Update input sources
-            config.inputs.microphone = True
-            config.inputs.web = True
-            config.inputs.cli = True
-            config.inputs.default_input = "microphone"
+        
+        # CLI Runner ALWAYS forces CLI-only input configuration
+        # This overrides any input configuration from the config file
+        config.inputs.microphone = False
+        config.inputs.web = False
+        config.inputs.cli = True
+        config.inputs.default_input = "cli"
         
         # Apply other command line overrides
         if args.data_dir:
@@ -290,7 +289,7 @@ Examples:
         
         if not args.quiet:
             profile = self.core.component_manager.get_deployment_profile()
-            print(f"🚀 Irene started successfully in {profile} mode")
+            print(f"🚀 Irene started successfully in {profile} mode (CLI input only)")
             
             # Show available components
             component_info = self.core.component_manager.get_component_info()
@@ -301,6 +300,8 @@ Examples:
                 print(f"📦 Active components: {', '.join(active_components)}")
             else:
                 print("📦 Running in minimal mode (no optional components)")
+            
+            print("💻 Input mode: CLI only (other inputs disabled)")
     
     async def _execute_runner_logic(self, args: argparse.Namespace) -> int:
         """Execute CLI runner logic"""
