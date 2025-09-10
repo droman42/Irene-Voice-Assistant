@@ -66,32 +66,20 @@ class ProviderBase(EntryPointMetadata, ABC):
         else:
             self.logger.debug(f"Provider status changed to {status.value}")
     
-    def get_asset_config(self) -> Dict[str, Any]:
+    @classmethod
+    def get_asset_config(cls) -> Dict[str, Any]:
         """
-        Get asset configuration with TOML overrides and intelligent defaults.
+        Get asset configuration with intelligent defaults.
         
         This method implements the configuration-driven asset management pattern
-        by combining provider class defaults with TOML configuration overrides.
+        by using provider class defaults. TOML configuration overrides are handled
+        by the asset manager when it calls this method.
         
         Returns:
             Dictionary containing complete asset configuration
         """
-        # Get intelligent defaults from class methods
-        defaults = super().get_asset_config()
-        
-        # Get TOML configuration overrides if available
-        asset_section = self.config.get("assets", {})
-        
-        # Merge defaults with TOML overrides
-        result = {
-            "file_extension": asset_section.get("file_extension", defaults["file_extension"]),
-            "directory_name": asset_section.get("directory_name", defaults["directory_name"]),
-            "credential_patterns": asset_section.get("credential_patterns", defaults["credential_patterns"]),
-            "cache_types": asset_section.get("cache_types", defaults["cache_types"]),
-            "model_urls": asset_section.get("model_urls", defaults["model_urls"])
-        }
-        
-        return result
+        # Get intelligent defaults from class methods (defined in EntryPointMetadata)
+        return super().get_asset_config()
             
     @abstractmethod
     async def is_available(self) -> bool:

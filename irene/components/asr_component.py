@@ -207,78 +207,132 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         
         provider = self.providers[provider_name]
         
-        # Phase 4 Step 1: Extract provider requirements
-        try:
-            preferred_rates = provider.get_preferred_sample_rates()
-            supports_rate = provider.supports_sample_rate(audio_data.sample_rate)
-            
-            logger.debug(f"ASR provider {provider_name} preferred rates: {preferred_rates}")
-            logger.debug(f"Current audio rate {audio_data.sample_rate}Hz supported: {supports_rate}")
-        except Exception as e:
-            logger.warning(f"Could not get provider requirements for {provider_name}: {e}")
-            # Fallback to simple extraction for older providers
-            audio_bytes = audio_data.data
-            return await self.transcribe_audio(audio_bytes, **kwargs)
-        
-        # Phase 4 Step 2: Check sample rate compatibility
-        if supports_rate:
-            # Direct compatibility - use audio as-is
-            logger.debug(f"Direct compatibility: {audio_data.sample_rate}Hz supported by {provider_name}")
-            audio_bytes = audio_data.data
-            return await self.transcribe_audio(audio_bytes, **kwargs)
-        
-        # Phase 4 Step 3: Auto-resample if needed and supported
+        # Phase 4 Step 1: Get ASR configuration (AUTHORITATIVE per fix_vosk.md)
+        asr_config = {}
         if hasattr(self, 'core') and self.core:
-            asr_config = getattr(self.core.config, 'asr', {})
-            if hasattr(asr_config, 'model_dump'):
-                asr_config = asr_config.model_dump()
-            elif hasattr(asr_config, 'dict'):
-                asr_config = asr_config.dict()
+            config_obj = getattr(self.core.config, 'asr', {})
+            if hasattr(config_obj, 'model_dump'):
+                asr_config = config_obj.model_dump()
+            elif hasattr(config_obj, 'dict'):
+                asr_config = config_obj.dict()
+            elif isinstance(config_obj, dict):
+                asr_config = config_obj
+        
+        # Phase 4 Step 2: Check configuration authority (per fix_vosk.md Section 5.3)
+        config_sample_rate = asr_config.get('sample_rate')
+        allow_resampling = asr_config.get('allow_resampling', True)
+        resample_quality = asr_config.get('resample_quality', 'high')
+        
+        logger.debug(f"ASR configuration: sample_rate={config_sample_rate}, allow_resampling={allow_resampling}")
+        logger.debug(f"Current audio rate: {audio_data.sample_rate}Hz")
+        
+        # Phase 4 Step 3: Apply configuration authority logic
+        if config_sample_rate and config_sample_rate != audio_data.sample_rate:
+            # Configuration is AUTHORITATIVE - must resample to config rate regardless of provider capabilities
+            logger.info(f"Configuration requires {config_sample_rate}Hz, resampling from {audio_data.sample_rate}Hz (configuration authority)")
             
-            allow_resampling = asr_config.get('allow_resampling', True)
+            if not allow_resampling:
+                logger.error(f"Configuration requires {config_sample_rate}Hz but allow_resampling=false")
+                return await self._handle_sample_rate_mismatch(audio_data, provider, **kwargs)
             
-            if allow_resampling and preferred_rates:
-                # Attempt resampling to preferred rate
-                target_rate = preferred_rates[0]  # Use most preferred rate
-                logger.info(f"Resampling audio from {audio_data.sample_rate}Hz to {target_rate}Hz for {provider_name}")
+            try:
+                # Use Phase 2 AudioProcessor for resampling
+                from ..utils.audio_helpers import AudioProcessor, ConversionMethod
+                
+                # Phase 6: Get optimal conversion method for ASR (quality-optimized)
+                conversion_method = AudioProcessor.get_optimal_conversion_path(
+                    audio_data.sample_rate, config_sample_rate, use_case="asr"
+                )
+                
+                # Phase 5: Track resampling metrics
+                import time
+                start_time = time.time()
                 
                 try:
+                    # Resample the audio data to configuration-required rate
+                    resampled_audio = await AudioProcessor.resample_audio_data(
+                        audio_data, config_sample_rate, conversion_method
+                    )
+                    
+                    # Update metrics
+                    resampling_time = (time.time() - start_time) * 1000
+                    self._resampling_metrics['total_resampling_operations'] += 1
+                    self._resampling_metrics['total_resampling_time_ms'] += resampling_time
+                    
+                    logger.debug(f"Successfully resampled audio to {config_sample_rate}Hz using {conversion_method.value} in {resampling_time:.1f}ms")
+                    
+                    # Phase 4 Step 4: Call transcribe_audio with configuration-compliant data
+                    return await self.transcribe_audio(resampled_audio.data, **kwargs)
+                    
+                except Exception as resampling_error:
+                    # Update failure metrics
+                    self._resampling_metrics['resampling_failures'] += 1
+                    logger.error(f"Configuration-required resampling failed: {resampling_error}")
+                    raise resampling_error
+                
+            except Exception as e:
+                logger.error(f"Configuration authority resampling failed for {provider_name}: {e}")
+                # Continue to fallback handling
+        
+        elif config_sample_rate and config_sample_rate == audio_data.sample_rate:
+            # Configuration matches input rate - use as-is
+            logger.debug(f"Configuration authority: {audio_data.sample_rate}Hz matches required {config_sample_rate}Hz")
+            audio_bytes = audio_data.data
+            return await self.transcribe_audio(audio_bytes, **kwargs)
+            
+        else:
+            # No configuration override - use provider preferences (fallback to old behavior)
+            logger.debug(f"No configuration sample_rate specified, using provider preferences for {provider_name}")
+            
+            try:
+                preferred_rates = provider.get_preferred_sample_rates()
+                supports_rate = provider.supports_sample_rate(audio_data.sample_rate)
+                
+                logger.debug(f"ASR provider {provider_name} preferred rates: {preferred_rates}")
+                logger.debug(f"Current audio rate {audio_data.sample_rate}Hz supported: {supports_rate}")
+                
+                if supports_rate:
+                    # Direct compatibility - use audio as-is
+                    logger.debug(f"Direct compatibility: {audio_data.sample_rate}Hz supported by {provider_name}")
+                    audio_bytes = audio_data.data
+                    return await self.transcribe_audio(audio_bytes, **kwargs)
+                elif allow_resampling and preferred_rates:
+                    # Attempt resampling to preferred rate
+                    target_rate = preferred_rates[0]  # Use most preferred rate
+                    logger.info(f"Resampling audio from {audio_data.sample_rate}Hz to {target_rate}Hz for {provider_name}")
+                    
                     # Use Phase 2 AudioProcessor for resampling
                     from ..utils.audio_helpers import AudioProcessor, ConversionMethod
                     
-                    # Phase 6: Get optimal conversion method for ASR (quality-optimized)
                     conversion_method = AudioProcessor.get_optimal_conversion_path(
                         audio_data.sample_rate, target_rate, use_case="asr"
                     )
                     
-                    # Phase 5: Track resampling metrics
                     import time
                     start_time = time.time()
                     
                     try:
-                        # Resample the audio data
                         resampled_audio = await AudioProcessor.resample_audio_data(
                             audio_data, target_rate, conversion_method
                         )
                         
-                        # Update metrics
                         resampling_time = (time.time() - start_time) * 1000
                         self._resampling_metrics['total_resampling_operations'] += 1
                         self._resampling_metrics['total_resampling_time_ms'] += resampling_time
                         
                         logger.debug(f"Successfully resampled audio to {target_rate}Hz using {conversion_method.value} in {resampling_time:.1f}ms")
                         
-                        # Phase 4 Step 4: Call transcribe_audio with converted data
                         return await self.transcribe_audio(resampled_audio.data, **kwargs)
                         
                     except Exception as resampling_error:
-                        # Update failure metrics
                         self._resampling_metrics['resampling_failures'] += 1
                         raise resampling_error
-                    
-                except Exception as e:
-                    logger.error(f"Resampling failed for {provider_name}: {e}")
-                    # Continue to fallback handling
+                        
+            except Exception as e:
+                logger.warning(f"Could not get provider requirements for {provider_name}: {e}")
+                # Fallback to simple extraction for older providers
+                audio_bytes = audio_data.data
+                return await self.transcribe_audio(audio_bytes, **kwargs)
         
         # Phase 4 Step 5: Handle fallback providers on rate mismatch
         return await self._handle_sample_rate_mismatch(audio_data, provider, **kwargs)

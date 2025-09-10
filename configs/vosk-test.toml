@@ -65,6 +65,10 @@ intent_system = true           # Enable intent handling
 enabled = true                 # REQUIRED: Enable ASR component
 default_provider = "vosk"      # REQUIRED: VOSK must be default provider
 fallback_providers = []        # No fallbacks for VOSK runner
+sample_rate = 16000           # AUTHORITATIVE: Component sample rate (overrides provider preferences)
+channels = 1                  # AUTHORITATIVE: Number of audio channels (1=mono, 2=stereo)
+allow_resampling = true       # Enable automatic resampling when rates don't match
+resample_quality = "high"     # Resampling quality for ASR: "fast", "medium", "high", "best"
 
 # Vosk ASR Provider (REQUIRED for VOSK runner)
 [asr.providers.vosk]
@@ -136,3 +140,14 @@ enabled = true
 # ============================================================
 [intent_system]
 enabled = true
+
+# ============================================================
+# VOICE TRIGGER (WAKE WORD) COMPONENT CONFIGURATION
+# ============================================================
+[voice_trigger]
+enabled = false                # Disabled for VOSK test, but configuration provided for completeness
+default_provider = "openwakeword"  # Default provider when enabled
+sample_rate = 16000           # AUTHORITATIVE: Component sample rate (configuration takes precedence)
+channels = 1                  # AUTHORITATIVE: Number of audio channels (1=mono, 2=stereo)
+allow_resampling = true       # Enable resampling for voice triggers (with optimized algorithms)
+resample_quality = "fast"     # Resampling quality optimized for low-latency: "fast", "medium", "high"
