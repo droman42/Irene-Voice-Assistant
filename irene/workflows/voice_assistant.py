@@ -426,11 +426,11 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
     
     @property
     def temp_audio_dir(self) -> Path:
-        """Get temp audio directory from injected configuration"""
+        """Get temp audio directory from asset configuration"""
         config = self.get_component('config')
         if not config:
             raise ConfigValidationError("Configuration not available in workflow")
-        return Path(config.storage.temp_audio_dir)
+        return Path(config.assets.temp_audio_dir)
     
     # Build dependency methods
     @classmethod

@@ -622,9 +622,21 @@ class AssetManager:
                 logger.info(f"Model already available: {model_path}")
                 return model_path
             
-            # Special handling for spaCy models
-            if provider_name == "spacy":
-                return await self._ensure_spacy_model_available(model_name)
+            # Check if this provider uses Python packages instead of file downloads
+            uses_packages = asset_config.get("uses_python_packages", False)
+            if uses_packages:
+                # For package-based models (like SpaCy), just verify they're installed
+                if self._python_package_installed(model_name):
+                    logger.info(f"Package-based model verified: {model_name}")
+                    # Return a symbolic path for compatibility
+                    model_path = self.get_model_path(provider_name, model_name)
+                    model_path.parent.mkdir(parents=True, exist_ok=True)
+                    marker_file = model_path.parent / f"{model_name}.verified"
+                    marker_file.touch()
+                    return marker_file
+                else:
+                    logger.error(f"Package-based model not installed: {model_name} (install via pyproject.toml dependencies)")
+                    return None
             
             # For other providers, attempt download through registry
             try:
@@ -639,49 +651,6 @@ class AssetManager:
             logger.error(f"Failed to ensure model availability {provider_name}/{model_name}: {e}")
             return None
     
-    async def _ensure_spacy_model_available(self, model_name: str) -> Optional[Path]:
-        """
-        Ensure spaCy model is available using spaCy's download mechanism.
-        
-        spaCy models are installed as Python packages, not downloaded as files.
-        This method uses spaCy's built-in download system.
-        
-        Args:
-            model_name: spaCy model name (e.g., "ru_core_news_sm")
-            
-        Returns:
-            Path to model package location, or None if installation failed
-        """
-        try:
-            import subprocess
-            import sys
-            
-            logger.info(f"Installing spaCy model: {model_name}")
-            
-            # Use spaCy's download command
-            cmd = [sys.executable, "-m", "spacy", "download", model_name]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                logger.info(f"Successfully installed spaCy model: {model_name}")
-                
-                # Return a symbolic path - spaCy models are installed as packages
-                # The actual model will be loaded via spacy.load(model_name)
-                model_path = self.get_model_path("spacy", model_name)
-                model_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                # Create a marker file to indicate the model is installed
-                marker_file = model_path.parent / f"{model_name}.installed"
-                marker_file.touch()
-                
-                return marker_file
-            else:
-                logger.error(f"Failed to install spaCy model {model_name}: {result.stderr}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error installing spaCy model {model_name}: {e}")
-            return None
 
 
 # Global asset manager instance (lazy-loaded)

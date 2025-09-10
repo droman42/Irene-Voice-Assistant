@@ -20,7 +20,7 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 from pydantic import ValidationError
 
-from irene.config.models import CoreConfig, ComponentConfig, StorageConfig
+from irene.config.models import CoreConfig, ComponentConfig, AssetConfig
 from irene.config.manager import ConfigValidationError
 from irene.workflows.voice_assistant import UnifiedVoiceAssistantWorkflow
 from irene.workflows.base import RequestContext
@@ -90,33 +90,34 @@ class TestConfigurationValidation:
         assert config.components.tts is False
         assert config.components.audio_output is False
     
-    def test_storage_config_creates_temp_directory(self):
-        """Test that StorageConfig creates temp_audio_dir"""
+    def test_asset_config_creates_temp_directory(self):
+        """Test that AssetConfig creates temp_audio_dir"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            test_audio_dir = Path(temp_dir) / "test_audio"
+            test_assets_root = Path(temp_dir) / "assets"
             
-            config = StorageConfig(
-                temp_audio_dir=test_audio_dir,
+            config = AssetConfig(
+                assets_root=test_assets_root,
                 auto_create_dirs=True
             )
             
             # Directory should be created
-            assert test_audio_dir.exists()
-            assert test_audio_dir.is_dir()
+            assert config.temp_audio_dir.exists()
+            assert config.temp_audio_dir.is_dir()
+            assert config.temp_audio_dir == test_assets_root / "temp" / "audio"
     
-    def test_storage_config_validates_permissions(self):
-        """Test that StorageConfig validates directory permissions"""
+    def test_asset_config_validates_permissions(self):
+        """Test that AssetConfig validates directory permissions"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            test_audio_dir = Path(temp_dir) / "test_audio"
+            test_assets_root = Path(temp_dir) / "assets"
             
             # Should succeed with writable directory
-            config = StorageConfig(
-                temp_audio_dir=test_audio_dir,
+            config = AssetConfig(
+                assets_root=test_assets_root,
                 auto_create_dirs=True
             )
             
             # Verify we can write to the directory
-            test_file = test_audio_dir / "test.txt"
+            test_file = config.temp_audio_dir / "test.txt"
             test_file.write_text("test")
             assert test_file.read_text() == "test"
 
@@ -226,7 +227,7 @@ class TestTTSAudioIntegration:
     def mock_config(self, temp_audio_dir):
         """Create mock configuration"""
         mock_config = Mock()
-        mock_config.storage.temp_audio_dir = temp_audio_dir
+        mock_config.assets.temp_audio_dir = temp_audio_dir
         return mock_config
     
     @pytest.fixture
@@ -416,7 +417,7 @@ class TestErrorConditionHandling:
     def workflow_with_failing_components(self, temp_audio_dir):
         """Create workflow with components that can be made to fail"""
         mock_config = Mock()
-        mock_config.storage.temp_audio_dir = temp_audio_dir
+        mock_config.assets.temp_audio_dir = temp_audio_dir
         
         mock_tts = MockTTSProvider({})
         mock_audio = MockAudioProvider({})
@@ -435,7 +436,7 @@ class TestErrorConditionHandling:
     async def test_missing_tts_component_graceful_handling(self, temp_audio_dir):
         """Test graceful handling when TTS component is missing"""
         mock_config = Mock()
-        mock_config.storage.temp_audio_dir = temp_audio_dir
+        mock_config.assets.temp_audio_dir = temp_audio_dir
         
         workflow = UnifiedVoiceAssistantWorkflow()
         workflow.components = {}
@@ -457,7 +458,7 @@ class TestErrorConditionHandling:
     async def test_missing_audio_component_graceful_handling(self, temp_audio_dir):
         """Test graceful handling when Audio component is missing"""
         mock_config = Mock()
-        mock_config.storage.temp_audio_dir = temp_audio_dir
+        mock_config.assets.temp_audio_dir = temp_audio_dir
         
         workflow = UnifiedVoiceAssistantWorkflow()
         workflow.components = {}
@@ -528,7 +529,7 @@ class TestTempFileCleanupVerification:
     def workflow_with_cleanup_tracking(self, temp_audio_dir):
         """Create workflow that tracks cleanup operations"""
         mock_config = Mock()
-        mock_config.storage.temp_audio_dir = temp_audio_dir
+        mock_config.assets.temp_audio_dir = temp_audio_dir
         
         workflow = UnifiedVoiceAssistantWorkflow()
         workflow.components = {}

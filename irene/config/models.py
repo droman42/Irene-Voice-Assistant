@@ -671,6 +671,14 @@ class AssetConfig(BaseModel):
     def credentials_root(self) -> Path:
         return self.assets_root / "credentials"
     
+    @property
+    def temp_root(self) -> Path:
+        return self.assets_root / "temp"
+    
+    @property
+    def temp_audio_dir(self) -> Path:
+        return self.temp_root / "audio"
+    
     def model_post_init(self, __context):
         """Create directories after initialization if auto_create_dirs is True"""
         if self.auto_create_dirs:
@@ -682,7 +690,9 @@ class AssetConfig(BaseModel):
             self.assets_root,
             self.models_root,
             self.cache_root,
-            self.credentials_root
+            self.credentials_root,
+            self.temp_root,
+            self.temp_audio_dir
         ]
         
         for directory in directories:

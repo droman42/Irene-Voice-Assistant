@@ -167,9 +167,9 @@ class SpaCyNLUProvider(NLUProvider):
                     )
                     
                     if model_path:
-                        logger.info(f"Asset manager ensured spaCy model: {self.model_name} -> {model_path}")
-                        # For spaCy models, the asset manager handles installation
-                        # We don't need to install wheel files manually
+                        logger.info(f"Asset manager verified spaCy model: {self.model_name} -> {model_path}")
+                        # For spaCy models, the asset manager only verifies installation
+                        # Models are pre-installed via pyproject.toml dependencies
                     else:
                         logger.warning(f"Asset manager could not ensure model: {self.model_name}")
                         
@@ -202,9 +202,9 @@ class SpaCyNLUProvider(NLUProvider):
                             )
                             
                             if fallback_path:
-                                logger.info(f"Asset manager ensured fallback spaCy model: {self.fallback_model} -> {fallback_path}")
+                                logger.info(f"Asset manager verified fallback spaCy model: {self.fallback_model} -> {fallback_path}")
                             else:
-                                logger.warning(f"Asset manager could not ensure fallback model: {self.fallback_model}")
+                                logger.warning(f"Asset manager could not verify fallback model: {self.fallback_model}")
                         except Exception as e:
                             logger.warning(f"Asset manager failed to provide fallback model {self.fallback_model}: {e}")
                     
@@ -232,24 +232,6 @@ class SpaCyNLUProvider(NLUProvider):
             self.nlp = None
             raise
     
-    async def _install_spacy_model(self, model_path: str):
-        """Install spaCy model from wheel file using pip"""
-        import subprocess
-        import sys
-        
-        try:
-            logger.info(f"Installing spaCy model from: {model_path}")
-            cmd = [sys.executable, "-m", "pip", "install", model_path, "--no-deps", "--force-reinstall"]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to install spaCy model: {result.stderr}")
-            
-            logger.info(f"Successfully installed spaCy model: {model_path}")
-            
-        except Exception as e:
-            logger.error(f"Error installing spaCy model {model_path}: {e}")
-            raise
     
     async def _initialize_from_donations(self, keyword_donations: List[KeywordDonation]) -> None:
         """
@@ -1202,43 +1184,24 @@ class SpaCyNLUProvider(NLUProvider):
         """spaCy NLU doesn't need credentials"""
         return []
     
-    @classmethod
-    def _get_default_cache_types(cls) -> List[str]:
-        """spaCy NLU uses models and runtime cache"""
-        return ["models", "runtime"]
-    
-    @classmethod
-    def _get_default_model_urls(cls) -> Dict[str, str]:
-        """spaCy NLU model URLs - updated for asset management integration"""
-        return {
-            "ru_core_news_sm": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl",
-            "ru_core_news_md": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl",
-            "ru_core_news_lg": "https://github.com/explosion/spacy-models/releases/download/ru_core_news_lg-3.7.0/ru_core_news_lg-3.7.0-py3-none-any.whl",
-            "en_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl",
-            "en_core_web_md": "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl",
-            "en_core_web_lg": "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.0/en_core_web_lg-3.7.0-py3-none-any.whl"
-        }
     
     @classmethod
     def get_asset_config(cls) -> Dict[str, Any]:
         """
-        Get asset configuration with spaCy-specific enhancements.
+        Asset configuration for spaCy models.
         
-        Adds uses_python_packages flag to indicate spaCy models are Python packages.
+        spaCy models are installed as Python packages via pyproject.toml dependencies.
+        The asset manager only verifies package availability, does not download models.
         """
-        # Get base configuration from parent class methods
-        config = {
-            "file_extension": cls._get_default_extension(),
-            "directory_name": cls._get_default_directory(),
-            "credential_patterns": cls._get_default_credentials(),
-            "cache_types": cls._get_default_cache_types(),
-            "model_urls": cls._get_default_model_urls()
+        return {
+            "uses_python_packages": True,  # Key flag: models are Python packages, not files
+            "directory_name": "spacy",
+            "cache_types": ["runtime"],  # Only runtime cache, no model downloads
+            "credential_patterns": [],  # No API credentials needed for spaCy models
+            "package_dependencies": [
+                "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl"
+            ]  # Reference for documentation only - actual installation via pyproject.toml
         }
-        
-        # Add spaCy-specific configuration
-        config["uses_python_packages"] = True
-        
-        return config
     
     # Build dependency methods (TODO #5 Phase 1)
     @classmethod
