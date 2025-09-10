@@ -223,6 +223,9 @@ preload_models = true
             else:
                 logger.error("❌ Microphone input source not available - check configuration and hardware")
         
+        # CRITICAL FIX: Start audio workflow for VOSK processing
+        await self._start_vosk_audio_workflow()
+        
         if not args.quiet:
             print("🎤 VOSK speech recognition active (microphone input only)")
             print("   Microphone input → VOSK ASR → Intent processing")
@@ -230,11 +233,66 @@ preload_models = true
             print("   Press Ctrl+C to stop")
             print("=" * 60)
     
+    async def _start_vosk_audio_workflow(self) -> None:
+        """
+        Start audio workflow for VOSK processing with intelligent wake word handling.
+        
+        This method fixes the core issue where audio gets stuck in wake word detection
+        when voice_trigger component is disabled. It automatically sets skip_wake_word=True
+        when voice_trigger is not available, ensuring audio flows directly to ASR.
+        """
+        if not self.core or not self.core.workflow_manager:
+            logger.error("❌ Core or workflow manager not available for VOSK audio processing")
+            return
+            
+        # Check if voice_trigger component is available and enabled
+        voice_trigger_available = False
+        if self.core.component_manager:
+            voice_trigger_component = self.core.component_manager.get_component('voice_trigger')
+            voice_trigger_available = voice_trigger_component is not None
+            
+        # CRITICAL FIX: Automatically skip wake word detection if voice_trigger is disabled
+        # This prevents the audio processing from getting stuck in the wake word waiting loop
+        skip_wake_word = not voice_trigger_available
+        
+        logger.info(f"🔧 VOSK audio workflow configuration:")
+        logger.info(f"   Voice trigger available: {voice_trigger_available}")
+        logger.info(f"   Skip wake word detection: {skip_wake_word}")
+        logger.info(f"   Audio flow: Microphone → {'Direct ASR' if skip_wake_word else 'Voice Trigger → ASR'}")
+        
+        try:
+            # Get microphone input source
+            mic_input = self.core.input_manager._sources.get("microphone")
+            if not mic_input:
+                logger.error("❌ Microphone input source not found for VOSK workflow")
+                return
+            
+            # Get audio stream from microphone input
+            audio_stream = self.core.workflow_manager._get_audio_stream(mic_input)
+            
+            # Start audio processing through workflow manager with intelligent skip_wake_word setting
+            async for result in self.core.workflow_manager.process_audio_stream(
+                audio_stream=audio_stream,
+                session_id="vosk_session",
+                skip_wake_word=skip_wake_word,  # Key fix: bypass wake word when voice_trigger disabled
+                wants_audio=True,
+                client_context={"source": "vosk_runner", "runner": "vosk"}
+            ):
+                # Process results as they come in
+                if result.text and result.text.strip():
+                    logger.info(f"✅ VOSK processed: '{result.text}'")
+                    if result.action_metadata:
+                        logger.debug(f"📋 Action metadata: {result.action_metadata}")
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to start VOSK audio workflow: {e}")
+            raise
+    
     async def _execute_runner_logic(self, args: argparse.Namespace) -> int:
         """Execute VOSK runner logic"""
         try:
-            # Keep the system running - microphone input handles audio capture
-            # and the ASR component + VOSK provider handle speech recognition
+            # The audio workflow is already running in _start_vosk_audio_workflow()
+            # Just keep the system running while processing audio
             while self.core and self.core.is_running:
                 await asyncio.sleep(1.0)
             return 0
