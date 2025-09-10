@@ -145,35 +145,51 @@ class VoskASRProvider(ASRProvider):
         language = kwargs.get("language", self.default_language)
         confidence_threshold = kwargs.get("confidence_threshold", self.confidence_threshold)
         
+        # Debug logging for VOSK processing
+        logger.info(f"🗣️ VOSK transcribe_audio called: {len(audio_data)} bytes, "
+                   f"language={language}, confidence_threshold={confidence_threshold}")
+        
         try:
             # Load model for language if not already loaded
             if language not in self._models:
+                logger.info(f"🔄 Loading VOSK model for language: {language}")
                 await self._load_model(language)
             
             # Get or create recognizer for this language
             if language not in self._recognizers:
+                logger.info(f"🔄 Creating VOSK recognizer for language: {language}")
                 await self._create_recognizer(language)
             
             recognizer = self._recognizers[language]
             
             # Process audio with VOSK
+            logger.debug(f"🔄 Processing audio with VOSK recognizer...")
             if recognizer.AcceptWaveform(audio_data):
                 result = json.loads(recognizer.Result())
                 text = result.get("text", "")
                 confidence = result.get("confidence", 0.0)
                 
+                logger.info(f"✅ VOSK full result: text='{text}', confidence={confidence}")
+                
                 if confidence >= confidence_threshold:
+                    logger.info(f"✅ VOSK transcription successful: '{text}'")
                     return text.strip()
+                else:
+                    logger.debug(f"📉 VOSK confidence too low: {confidence} < {confidence_threshold}")
             else:
                 # Check partial result for streaming scenarios
                 partial_result = json.loads(recognizer.PartialResult())
                 partial_text = partial_result.get("partial", "")
+                logger.debug(f"📝 VOSK partial result: '{partial_text}'")
+                
                 if partial_text.strip():
+                    logger.info(f"✅ VOSK partial transcription: '{partial_text}'")
                     return partial_text.strip()
         
         except Exception as e:
-            logger.error(f"VOSK transcription error: {e}")
+            logger.error(f"❌ VOSK transcription error: {e}")
         
+        logger.debug("📭 VOSK returning empty result")
         return ""
     
     async def transcribe_stream(self, audio_stream: AsyncIterator[bytes]) -> AsyncIterator[str]:

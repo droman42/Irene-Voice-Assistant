@@ -7,6 +7,7 @@ supporting both voice assistant mode (with wake words) and continuous mode.
 
 import asyncio
 import logging
+import time
 from typing import Dict, Any, Optional, AsyncIterator, List
 from enum import Enum
 
@@ -562,26 +563,31 @@ class WorkflowManager:
         """
         Convert input source to audio stream.
         
-        Note: This assumes the input source has been updated to provide AudioData.
-        For Phase 2, we may need to adapt existing sources.
+        Handles both legacy text input sources and modern AudioData sources.
+        Microphone input now provides AudioData objects directly.
         """
-        # TODO: This will need to be implemented based on how the microphone
-        # input source is updated in the next phases. For now, this is a placeholder.
-        
-        # The microphone input should be updated to yield AudioData objects
-        # instead of text commands after Phase 1 fixes are applied.
-        
-        # Placeholder implementation:
         async for data in input_source.listen():
-            # This will need to be updated when microphone input
-            # is fixed to provide AudioData instead of text
-            if isinstance(data, str):
-                # Legacy text input - convert to AudioData if needed
-                # This is temporary until microphone input is fully updated
+            # Handle different input data types
+            if isinstance(data, AudioData):
+                # Modern AudioData from microphone input - pass through directly
+                yield data
+            elif hasattr(data, 'data') and hasattr(data, 'timestamp'):
+                # InputData that contains audio data - convert to AudioData
+                yield AudioData(
+                    data=data.data,
+                    timestamp=getattr(data, 'timestamp', time.time()),
+                    sample_rate=getattr(data, 'sample_rate', 16000),
+                    channels=getattr(data, 'channels', 1),
+                    format=getattr(data, 'format', 'pcm16')
+                )
+            elif isinstance(data, str):
+                # Legacy text input - skip (not audio data)
+                logger.debug(f"Skipping text input in audio stream: {data[:50]}...")
                 continue
             else:
-                # Proper AudioData from updated input source
-                yield data
+                # Unknown data type - log warning but continue
+                logger.warning(f"Unknown input data type in audio stream: {type(data)}")
+                continue
     
     async def stop_current_workflow(self) -> None:
         """Stop the currently active workflow"""

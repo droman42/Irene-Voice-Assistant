@@ -289,8 +289,19 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         """
         audio_buffer = []
         wake_word_detected = context.skip_wake_word  # If skipping, assume already "detected"
+        audio_chunk_count = 0  # Debug counter
+        
+        self.logger.info(f"🎙️ Starting audio pipeline processing - skip_wake_word={context.skip_wake_word}")
         
         async for audio_data in audio_stream:
+            audio_chunk_count += 1
+            
+            # Enhanced debugging for audio flow
+            if audio_chunk_count == 1:
+                self.logger.info(f"🎤 First audio chunk received: {len(audio_data.data)} bytes, "
+                               f"sample_rate={audio_data.sample_rate}, channels={audio_data.channels}")
+            elif audio_chunk_count % 50 == 0:  # Log every 50th chunk to avoid spam
+                self.logger.debug(f"🎤 Audio chunk #{audio_chunk_count}: {len(audio_data.data)} bytes")
             audio_buffer.append(audio_data)
             
             # Stage 1: Voice Trigger Detection (conditional)
@@ -310,12 +321,15 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             if self.asr:
                 # Process buffered audio through ASR
                 if audio_buffer:
+                    self.logger.debug(f"🔄 Processing {len(audio_buffer)} buffered audio chunks through ASR")
                     combined_audio = await self._combine_audio_buffer(audio_buffer)
                     audio_buffer = []
                     
+                    self.logger.debug(f"🔄 Sending {len(combined_audio.data)} bytes to ASR component")
                     asr_result = await self.asr.process_audio(combined_audio)
+                    
                     if asr_result and asr_result.strip():
-                        self.logger.debug(f"ASR result: {asr_result}")
+                        self.logger.info(f"✅ ASR result: '{asr_result}'")
                         
                         # Process through unified pipeline
                         result = await self._process_pipeline(
@@ -334,6 +348,10 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
                         
                         # Reset for next interaction
                         wake_word_detected = context.skip_wake_word
+                    else:
+                        self.logger.debug("📭 ASR returned empty result from buffered audio")
+            else:
+                self.logger.warning("❌ ASR component not available for audio processing")
     
     async def _create_conversation_context(self, context: RequestContext) -> ConversationContext:
         """Create or retrieve conversation context from context manager"""

@@ -196,7 +196,13 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         """
         provider_name = kwargs.get("provider", self.default_provider)
         
+        # Debug logging for audio data reception
+        logger.info(f"🎧 ASR received audio data: {len(audio_data.data)} bytes, "
+                   f"sample_rate={audio_data.sample_rate}, channels={audio_data.channels}, "
+                   f"format={audio_data.format}, provider={provider_name}")
+        
         if provider_name not in self.providers:
+            logger.error(f"❌ ASR provider '{provider_name}' not available. Available: {list(self.providers.keys())}")
             raise ValueError(f"ASR provider '{provider_name}' not available")
         
         provider = self.providers[provider_name]
