@@ -101,6 +101,20 @@ enabled = true
 stages = ['asr_output', 'tts_input', 'command_input', 'general']
 
 
+# ============================================================
+# VAD CONFIGURATION - Voice Activity Detection
+# ============================================================
+[vad]
+enabled = true                # Enable VAD to solve 23ms chunk problem
+energy_threshold = 0.01       # RMS energy threshold for voice detection
+sensitivity = 0.5             # Detection sensitivity multiplier
+voice_duration_ms = 100       # Minimum voice duration in milliseconds
+silence_duration_ms = 200     # Minimum silence duration to end voice segment
+max_segment_duration_s = 10   # Maximum voice segment duration in seconds
+use_zero_crossing_rate = true # Enable Zero Crossing Rate analysis
+adaptive_threshold = false    # Disable for consistent minimal setup
+
+
 
 # ============================================================
 # WORKFLOWS - Processing Pipelines
@@ -108,6 +122,9 @@ stages = ['asr_output', 'tts_input', 'command_input', 'general']
 [workflows]
 enabled = ['unified_voice_assistant']
 default = "unified_voice_assistant"
+
+[workflows.unified_voice_assistant]
+enable_vad_processing = true  # Enable VAD processing to solve chunk problem
 
 # ============================================================
 # ASSET MANAGEMENT - Environment-Driven

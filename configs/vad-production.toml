@@ -1,0 +1,175 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - VAD Production Configuration
+# ============================================================
+# This configuration is optimized for production deployment
+# with VAD enabled for optimal speech processing performance
+
+name = "Irene"
+version = "14.0.0"
+debug = false                 # Production mode
+log_level = "INFO"            # Standard logging for production
+
+# ============================================================
+# SYSTEM CAPABILITIES - Hardware & Services
+# ============================================================
+[system]
+microphone_enabled = true
+audio_playback_enabled = true
+web_api_enabled = true        # Enable web API for production
+web_port = 8000
+metrics_enabled = true        # Enable metrics for monitoring
+metrics_port = 9090
+
+# ============================================================
+# INPUT SOURCES - Data Entry Points
+# ============================================================
+[inputs]
+microphone = true
+web = true                    # Enable web input for production
+cli = false
+default_input = "microphone"
+
+[inputs.microphone_config]
+enabled = true
+sample_rate = 16000
+channels = 1
+chunk_size = 2048             # Larger chunk size for production efficiency
+
+[inputs.web_config]
+enabled = true
+
+# ============================================================
+# COMPONENT CONFIGURATIONS
+# ============================================================
+[components]
+tts = true
+asr = true
+audio = true
+llm = true                    # Enable LLM for production features
+voice_trigger = true          # Enable voice trigger for production
+nlu = true
+text_processor = true
+intent_system = true
+vad = true                    # Enable VAD component
+
+# ============================================================
+# VAD CONFIGURATION - Production Optimized
+# ============================================================
+[vad]
+enabled = true
+energy_threshold = 0.012      # Balanced threshold for production
+sensitivity = 0.5             # Balanced sensitivity
+voice_duration_ms = 120       # Stable voice detection
+silence_duration_ms = 250     # Stable silence detection
+max_segment_duration_s = 12   # Longer segments for natural speech
+use_zero_crossing_rate = true # Enable for accuracy
+adaptive_threshold = true     # Enable for varied environments
+noise_percentile = 15         # Standard noise floor estimation
+voice_multiplier = 3.0        # Balanced voice threshold
+
+# Production performance settings
+processing_timeout_ms = 40    # Balanced timeout for production
+buffer_size_frames = 120      # Stable buffer size
+
+# ============================================================
+# ASR CONFIGURATION
+# ============================================================
+[asr]
+enabled = true
+default_provider = "vosk"
+sample_rate = 16000
+channels = 1
+allow_resampling = true
+resample_quality = "high"     # High quality for production
+
+[asr.providers.vosk]
+enabled = true
+default_language = "ru"       # Russian for production
+sample_rate = 16000
+confidence_threshold = 0.75   # Higher confidence for production
+preload_models = true
+
+# ============================================================
+# VOICE TRIGGER CONFIGURATION
+# ============================================================
+[voice_trigger]
+enabled = true
+default_provider = "openwakeword"
+sample_rate = 16000
+channels = 1
+allow_resampling = true
+resample_quality = "medium"   # Balanced for production
+
+# ============================================================
+# TTS & AUDIO CONFIGURATION
+# ============================================================
+[tts]
+enabled = true
+default_provider = "openai"   # Production TTS provider
+
+[tts.providers.openai]
+enabled = true
+model = "tts-1"
+voice = "nova"
+
+[audio]
+enabled = true
+default_provider = "audioplayer"  # Production audio provider
+
+[audio.providers.audioplayer]
+enabled = true
+
+# ============================================================
+# LLM CONFIGURATION
+# ============================================================
+[llm]
+enabled = true
+default_provider = "openai"
+
+[llm.providers.openai]
+enabled = true
+model = "gpt-4"
+max_tokens = 1000
+temperature = 0.7
+
+# ============================================================
+# NLU & TEXT PROCESSING
+# ============================================================
+[nlu]
+enabled = true
+default_provider = "hybrid_keyword_matcher"
+confidence_threshold = 0.8    # Higher confidence for production
+
+[nlu.providers.hybrid_keyword_matcher]
+enabled = true
+
+[text_processor]
+enabled = true
+default_provider = "general_text_processor"
+
+[text_processor.providers.general_text_processor]
+enabled = true
+
+# ============================================================
+# INTENT SYSTEM
+# ============================================================
+[intent_system]
+enabled = true
+
+# ============================================================
+# WORKFLOW CONFIGURATION - Production VAD
+# ============================================================
+[workflows]
+enabled = ["unified_voice_assistant"]
+default = "unified_voice_assistant"
+
+[workflows.unified_voice_assistant]
+voice_trigger_enabled = true  # Enable for production voice assistant
+asr_enabled = true
+text_processing_enabled = true
+nlu_enabled = true
+intent_execution_enabled = true
+llm_enabled = true
+tts_enabled = true
+audio_enabled = true
+enable_vad_processing = true  # REQUIRED: Enable VAD for production

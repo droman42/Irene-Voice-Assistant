@@ -1103,6 +1103,222 @@ class AudioFormatConverter:
             return False
 
 
+# Voice Activity Detection utility functions
+
+def calculate_audio_energy(audio_data: 'AudioData') -> float:
+    """
+    Calculate RMS energy like ESP32 VAD.
+    
+    This function provides RMS energy calculation for voice activity detection
+    that's compatible with the ESP32 firmware VAD implementation.
+    
+    Args:
+        audio_data: AudioData object containing audio frame
+        
+    Returns:
+        Normalized RMS energy (0.0-1.0)
+    """
+    try:
+        import numpy as np  # type: ignore
+        
+        # Convert bytes to numpy array (assuming 16-bit PCM)
+        audio_array = np.frombuffer(audio_data.data, dtype=np.int16)
+        
+        if len(audio_array) == 0:
+            return 0.0
+        
+        # Calculate RMS energy (same method as ESP32)
+        sum_squares = np.sum(audio_array.astype(np.float64) ** 2)
+        rms = np.sqrt(sum_squares / len(audio_array))
+        
+        # Normalize to 0.0-1.0 range
+        normalized_energy = rms / 32768.0
+        
+        return min(1.0, normalized_energy)
+        
+    except ImportError:
+        logger.warning("numpy not available for energy calculation")
+        return 0.0
+    except Exception as e:
+        logger.warning(f"Error calculating audio energy: {e}")
+        return 0.0
+
+
+def calculate_zero_crossing_rate(audio_data: 'AudioData') -> float:
+    """
+    Calculate ZCR for speech detection.
+    
+    Zero Crossing Rate is useful for distinguishing between voiced/unvoiced speech
+    and can improve VAD accuracy when combined with energy analysis.
+    
+    Args:
+        audio_data: AudioData object containing audio frame
+        
+    Returns:
+        Zero crossing rate as ratio (0.0-1.0)
+    """
+    try:
+        import numpy as np  # type: ignore
+        
+        # Convert bytes to numpy array (assuming 16-bit PCM)
+        audio_array = np.frombuffer(audio_data.data, dtype=np.int16)
+        
+        if len(audio_array) <= 1:
+            return 0.0
+        
+        # Calculate zero crossings
+        zero_crossings = np.sum(np.diff(np.sign(audio_array)) != 0)
+        
+        # Normalize by frame length
+        zcr = zero_crossings / (len(audio_array) - 1)
+        
+        return zcr
+        
+    except ImportError:
+        logger.warning("numpy not available for ZCR calculation")
+        return 0.0
+    except Exception as e:
+        logger.warning(f"Error calculating ZCR: {e}")
+        return 0.0
+
+
+def detect_voice_activity_simple(audio_data: 'AudioData', threshold: float = 0.01) -> bool:
+    """
+    Simple voice activity detection for quick integration.
+    
+    Energy-based voice activity detection without state management.
+    This is a lightweight wrapper around the main VAD functionality.
+    
+    Args:
+        audio_data: AudioData object containing audio frame
+        threshold: RMS energy threshold for voice detection (0.0-1.0)
+        
+    Returns:
+        True if voice activity detected, False otherwise
+    """
+    energy = calculate_audio_energy(audio_data)
+    return energy > threshold
+
+
+def validate_vad_configuration(vad_config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validate VAD configuration parameters.
+    
+    Args:
+        vad_config: VAD configuration dictionary
+        
+    Returns:
+        Validation result with any errors or warnings
+    """
+    result = {
+        'valid': True,
+        'warnings': [],
+        'errors': [],
+        'normalized_config': {}
+    }
+    
+    # Validate threshold
+    threshold = vad_config.get('threshold', 0.01)
+    if not 0.0 <= threshold <= 1.0:
+        result['errors'].append(f"VAD threshold {threshold} must be between 0.0 and 1.0")
+        result['valid'] = False
+    else:
+        result['normalized_config']['threshold'] = threshold
+    
+    # Validate sensitivity
+    sensitivity = vad_config.get('sensitivity', 0.5)
+    if not 0.1 <= sensitivity <= 2.0:
+        result['errors'].append(f"VAD sensitivity {sensitivity} must be between 0.1 and 2.0")
+        result['valid'] = False
+    else:
+        result['normalized_config']['sensitivity'] = sensitivity
+    
+    # Validate frame requirements
+    voice_frames = vad_config.get('voice_frames_required', 2)
+    if not isinstance(voice_frames, int) or voice_frames < 1:
+        result['errors'].append(f"voice_frames_required {voice_frames} must be a positive integer")
+        result['valid'] = False
+    else:
+        result['normalized_config']['voice_frames_required'] = voice_frames
+    
+    silence_frames = vad_config.get('silence_frames_required', 5)
+    if not isinstance(silence_frames, int) or silence_frames < 1:
+        result['errors'].append(f"silence_frames_required {silence_frames} must be a positive integer")
+        result['valid'] = False
+    else:
+        result['normalized_config']['silence_frames_required'] = silence_frames
+    
+    # Validate optional features
+    max_segment_duration = vad_config.get('max_segment_duration_s', 10)
+    if not isinstance(max_segment_duration, (int, float)) or max_segment_duration <= 0:
+        result['warnings'].append(f"max_segment_duration_s {max_segment_duration} should be a positive number")
+        result['normalized_config']['max_segment_duration_s'] = 10
+    else:
+        result['normalized_config']['max_segment_duration_s'] = max_segment_duration
+    
+    # Check for conflicting settings
+    if voice_frames > silence_frames:
+        result['warnings'].append(
+            f"voice_frames_required ({voice_frames}) > silence_frames_required ({silence_frames}) "
+            "may cause detection instability"
+        )
+    
+    return result
+
+
+def estimate_optimal_vad_threshold(audio_samples: list['AudioData'], 
+                                 noise_percentile: int = 15,
+                                 voice_multiplier: float = 3.0) -> float:
+    """
+    Estimate optimal VAD threshold from audio samples.
+    
+    Analyzes a collection of audio samples to determine appropriate
+    VAD threshold based on background noise characteristics.
+    
+    Args:
+        audio_samples: List of AudioData samples (should include silence periods)
+        noise_percentile: Percentile to use for noise floor estimation
+        voice_multiplier: Multiplier above noise floor for voice threshold
+        
+    Returns:
+        Suggested VAD threshold value
+    """
+    if not audio_samples:
+        logger.warning("No audio samples provided for threshold estimation")
+        return 0.01  # Default threshold
+    
+    try:
+        # Calculate energy for all samples
+        energies = [calculate_audio_energy(sample) for sample in audio_samples]
+        
+        # Remove zero energies
+        energies = [e for e in energies if e > 0]
+        
+        if not energies:
+            logger.warning("All audio samples have zero energy")
+            return 0.01
+        
+        # Calculate noise floor (low percentile)
+        sorted_energies = sorted(energies)
+        noise_index = (len(sorted_energies) * noise_percentile) // 100
+        noise_floor = sorted_energies[noise_index]
+        
+        # Calculate suggested threshold
+        suggested_threshold = noise_floor * voice_multiplier
+        
+        # Clamp to reasonable range
+        suggested_threshold = max(0.001, min(0.1, suggested_threshold))
+        
+        logger.info(f"VAD threshold estimation: noise_floor={noise_floor:.4f}, "
+                   f"suggested_threshold={suggested_threshold:.4f}")
+        
+        return suggested_threshold
+        
+    except Exception as e:
+        logger.warning(f"Error estimating VAD threshold: {e}")
+        return 0.01
+
+
 # Utility functions for common audio operations
 
 def get_audio_info(file_path: Union[str, Path]) -> Dict[str, Any]:
@@ -1206,6 +1422,13 @@ __all__ = [
     'detect_sample_rate_from_audio_data',
     'validate_cross_component_compatibility',
     'validate_startup_audio_configuration',
+    
+    # Phase 1 VAD Exports - Voice Activity Detection
+    'calculate_audio_energy',
+    'calculate_zero_crossing_rate',
+    'detect_voice_activity_simple',
+    'validate_vad_configuration',
+    'estimate_optimal_vad_threshold',
     
     # Existing Exports
     'validate_audio_file',

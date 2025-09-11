@@ -1,0 +1,161 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - VAD Development Configuration
+# ============================================================
+# This configuration is optimized for VAD development and testing
+# with enhanced logging and debugging features
+
+name = "Irene"
+version = "14.0.0"
+debug = true                  # Enable debug mode for development
+log_level = "DEBUG"           # Detailed logging for VAD development
+
+# ============================================================
+# SYSTEM CAPABILITIES - Hardware & Services
+# ============================================================
+[system]
+microphone_enabled = true
+audio_playback_enabled = true
+web_api_enabled = false
+web_port = 8000
+metrics_enabled = true        # Enable metrics for performance monitoring
+metrics_port = 9090
+
+# ============================================================
+# INPUT SOURCES - Data Entry Points
+# ============================================================
+[inputs]
+microphone = true
+web = false
+cli = false
+default_input = "microphone"
+
+[inputs.microphone_config]
+enabled = true
+sample_rate = 16000           # Standard sample rate for development
+channels = 1
+chunk_size = 1024
+
+# ============================================================
+# COMPONENT CONFIGURATIONS
+# ============================================================
+[components]
+tts = true
+asr = true
+audio = true
+llm = false                   # Disabled for focused VAD testing
+voice_trigger = true          # Enabled for complete testing
+nlu = true
+text_processor = true
+intent_system = true
+vad = true                    # Enable VAD component
+
+# ============================================================
+# VAD CONFIGURATION - Development Optimized
+# ============================================================
+[vad]
+enabled = true
+energy_threshold = 0.008      # Lower threshold for sensitive detection
+sensitivity = 0.6             # Higher sensitivity for development
+voice_duration_ms = 80        # Shorter for responsive testing
+silence_duration_ms = 150     # Shorter for quick iteration
+max_segment_duration_s = 8    # Shorter segments for testing
+use_zero_crossing_rate = true # Enable for better accuracy
+adaptive_threshold = true     # Enable for varied test environments
+noise_percentile = 10         # Lower percentile for quieter environments
+voice_multiplier = 2.5        # Lower multiplier for sensitivity
+
+# Performance tuning for development
+processing_timeout_ms = 30    # Faster timeout for development
+buffer_size_frames = 80       # Smaller buffer for testing
+
+# ============================================================
+# ASR CONFIGURATION
+# ============================================================
+[asr]
+enabled = true
+default_provider = "vosk"
+sample_rate = 16000
+channels = 1
+allow_resampling = true
+resample_quality = "medium"   # Balance quality/speed for development
+
+[asr.providers.vosk]
+enabled = true
+default_language = "en"       # English for development
+sample_rate = 16000
+confidence_threshold = 0.6    # Lower threshold for testing
+preload_models = true
+
+# ============================================================
+# VOICE TRIGGER CONFIGURATION
+# ============================================================
+[voice_trigger]
+enabled = true                # Enable for complete testing
+default_provider = "openwakeword"
+sample_rate = 16000
+channels = 1
+allow_resampling = true
+resample_quality = "fast"
+
+# ============================================================
+# TTS & AUDIO CONFIGURATION
+# ============================================================
+[tts]
+enabled = true
+default_provider = "console"
+
+[tts.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+prefix = "[VAD-DEV] Irene: "
+
+[audio]
+enabled = true
+default_provider = "console"
+
+[audio.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+
+# ============================================================
+# NLU & TEXT PROCESSING
+# ============================================================
+[nlu]
+enabled = true
+default_provider = "hybrid_keyword_matcher"
+
+[nlu.providers.hybrid_keyword_matcher]
+enabled = true
+
+[text_processor]
+enabled = true
+default_provider = "general_text_processor"
+
+[text_processor.providers.general_text_processor]
+enabled = true
+
+# ============================================================
+# INTENT SYSTEM
+# ============================================================
+[intent_system]
+enabled = true
+
+# ============================================================
+# WORKFLOW CONFIGURATION - VAD Development
+# ============================================================
+[workflows]
+enabled = ["unified_voice_assistant"]
+default = "unified_voice_assistant"
+
+[workflows.unified_voice_assistant]
+voice_trigger_enabled = true  # Enable for complete VAD testing
+asr_enabled = true
+text_processing_enabled = true
+nlu_enabled = true
+intent_execution_enabled = true
+llm_enabled = false
+tts_enabled = true
+audio_enabled = true
+enable_vad_processing = true  # Core VAD feature enabled

@@ -422,7 +422,29 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
             raise HTTPException(404, f"ASR provider '{provider_name}' not available")
         
         provider = self.providers[provider_name]
-        return await provider.transcribe_audio(audio_data, language=language, **kwargs)
+        
+        # Start timing for performance metrics
+        start_time = time.time()
+        
+        # Perform transcription
+        result = await provider.transcribe_audio(audio_data, language=language, **kwargs)
+        
+        # Calculate processing time
+        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        
+        # Log ASR result with info level
+        if result and result.strip():
+            logger.info(f"🎯 ASR transcription successful: '{result}' "
+                       f"(provider: {provider_name}, language: {language}, "
+                       f"processing_time: {processing_time:.1f}ms, "
+                       f"audio_size: {len(audio_data)} bytes)")
+        else:
+            logger.info(f"📭 ASR transcription empty "
+                       f"(provider: {provider_name}, language: {language}, "
+                       f"processing_time: {processing_time:.1f}ms, "
+                       f"audio_size: {len(audio_data)} bytes)")
+        
+        return result
     
     # Public methods for intent handler delegation
     def set_default_provider(self, provider_name: str) -> bool:

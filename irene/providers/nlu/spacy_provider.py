@@ -1110,7 +1110,7 @@ class SpaCyNLUProvider(NLUProvider):
                 if spacy:
                     self.matcher = spacy.matcher.Matcher(self.nlp.vocab)
             
-            if not self.matcher:
+            if self.matcher is None:
                 logger.warning(f"Cannot validate token patterns for '{donation.intent}' - matcher not available")
                 return
             

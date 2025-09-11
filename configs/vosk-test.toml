@@ -151,3 +151,34 @@ sample_rate = 16000           # AUTHORITATIVE: Component sample rate (configurat
 channels = 1                  # AUTHORITATIVE: Number of audio channels (1=mono, 2=stereo)
 allow_resampling = true       # Enable resampling for voice triggers (with optimized algorithms)
 resample_quality = "fast"     # Resampling quality optimized for low-latency: "fast", "medium", "high"
+
+# ============================================================
+# VAD (VOICE ACTIVITY DETECTION) COMPONENT CONFIGURATION
+# ============================================================
+[vad]
+enabled = true                # REQUIRED: Enable VAD to solve 23ms chunk problem
+energy_threshold = 0.01       # RMS energy threshold for voice detection (0.0-1.0)
+sensitivity = 0.5             # Detection sensitivity multiplier (0.1-2.0)
+voice_duration_ms = 100       # Minimum voice duration in milliseconds
+silence_duration_ms = 200     # Minimum silence duration to end voice segment
+max_segment_duration_s = 10   # Maximum voice segment duration in seconds
+use_zero_crossing_rate = true # Enable Zero Crossing Rate analysis for better accuracy
+adaptive_threshold = false    # Disable for consistent testing (enable for noisy environments)
+
+# ============================================================
+# WORKFLOW CONFIGURATION - Enable VAD Processing
+# ============================================================
+[workflows]
+enabled = ["unified_voice_assistant"]
+default = "unified_voice_assistant"
+
+[workflows.unified_voice_assistant]
+voice_trigger_enabled = false  # Disabled for VOSK testing (skip wake word)
+asr_enabled = true             # REQUIRED: Enable ASR for speech recognition
+text_processing_enabled = true # Enable text processing
+nlu_enabled = true             # Enable natural language understanding
+intent_execution_enabled = true # Enable intent execution
+llm_enabled = false            # Optional: Disable for simpler testing
+tts_enabled = true             # Enable text-to-speech responses
+audio_enabled = true           # Enable audio playback
+enable_vad_processing = true   # REQUIRED: Enable VAD processing to solve chunk problem

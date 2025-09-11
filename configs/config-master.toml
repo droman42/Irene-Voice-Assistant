@@ -57,10 +57,11 @@ default_input = "microphone"       # Default input: "microphone", "web", "cli"
 # Microphone Input Configuration
 [inputs.microphone_config]
 enabled = true                      # Enable microphone input processing
-device_id = 7                      # Audio device ID (uncomment and set integer for specific device)
+device_id = 7                      # Audio device ID (DICOTA 4K USB Audio - working device)
 sample_rate = 44100                # Audio sample rate: 8000, 16000, 22050, 44100, 48000 (hardware-dependent)
-channels = 1                       # Audio channels: 1 (mono), 2 (stereo)
-chunk_size = 1024                  # Audio buffer chunk size for processing
+channels = 2                       # Audio channels: 1 (mono), 2 (stereo)
+chunk_size = 4096                  # Increased audio buffer chunk size to prevent overflow (was 1024)
+buffer_queue_size = 50             # Audio buffer queue size for handling processing delays
 auto_resample = true               # Enable automatic resampling for component compatibility
 resample_quality = "medium"        # Resampling quality: "fast", "medium", "high", "best"
 
@@ -446,6 +447,27 @@ allow_restart = false              # Allow system restart commands
 info_detail_level = "basic"        # Level of system info to provide (basic/detailed)
 
 # ============================================================
+# VAD (VOICE ACTIVITY DETECTION) COMPONENT CONFIGURATION
+# ============================================================
+[vad]
+enabled = true                     # Enable VAD processing to solve 23ms chunk problem
+energy_threshold = 0.015           # Lower threshold for noisy environment testing (0.0-1.0)
+sensitivity = 1.0                  # Higher sensitivity for speech detection in noise (0.1-2.0)
+voice_duration_ms = 200            # Minimum duration to distinguish speech from noise bursts (10-1000)
+silence_duration_ms = 800          # Moderate silence duration for natural speech pauses (50-2000)
+max_segment_duration_s = 8         # Reduced maximum voice segment duration in seconds (1-60)
+use_zero_crossing_rate = true      # Enable ZCR to distinguish speech from machinery noise
+adaptive_threshold = true          # Enable adaptive threshold to adjust to background noise
+noise_percentile = 30              # Higher percentile for noisy environments (1-50)
+voice_multiplier = 3.5             # Moderate multiplier above noise floor (1.0-10.0)
+processing_timeout_ms = 50         # Maximum processing time per frame in milliseconds (1-100)
+buffer_size_frames = 300           # Increased maximum frames to buffer in voice segments (10-200)
+
+# Frame-based configuration (internal implementation)
+voice_frames_required = 8          # More voice frames required to confirm speech vs noise (1-10)
+silence_frames_required = 30       # More consecutive silence frames to confirm voice end (1-20)
+
+# ============================================================
 # WORKFLOWS - Processing Pipelines (Two-Level Configuration)
 # ============================================================
 # Two-level hierarchy:
@@ -478,6 +500,7 @@ buffer_size_ms = 100.0             # Audio buffer size in milliseconds
 sample_rate = 16000                # Audio sample rate for processing
 channels = 1                       # Number of audio channels for processing
 validate_audio_compatibility = true # Validate cross-component audio compatibility at startup
+enable_vad_processing = true       # Enable Voice Activity Detection processing for audio pipeline
 
 # NOTE: Audio flow with automatic resampling:
 # - Microphone: Hardware-dependent sample rate (e.g., 44100 Hz)

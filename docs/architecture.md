@@ -28,10 +28,12 @@
 5. **Динамическая загрузка провайдеров**: Entry-points архитектура устраняет хардкод и улучшает производительность
 6. **Унифицированный Workflow**: Один универсальный workflow для всех сценариев
 
-### Полный pipeline обработки (v13.0.0):
+### Полный pipeline обработки (v14.0.0):
 ```
-Audio → Voice Trigger → ASR → Text Processing → Intent Recognition → Intent Execution → TTS → Audio Output
+Audio → VAD Processing → Voice Trigger → ASR → Text Processing → Intent Recognition → Intent Execution → TTS → Audio Output
 ```
+
+**NEW v14.0.0**: Добавлена универсальная система Voice Activity Detection (VAD) для решения проблемы обработки мелких аудио фрагментов и повышения качества распознавания речи.
 
 ### Архитектурные улучшения на основе TODO:
 1. **✅ Устранение хардкода** (TODO #1): Полная замена хардкод-загрузки на entry-points систему
@@ -350,7 +352,60 @@ silero_v4 = "irene.providers.tts.silero_v4:SileroV4TTSProvider"
 - **Селективная загрузка**: Только нужные нормализаторы
 - **Ресурсная эффективность**: TTS процессор загружается по требованию
 
-### 2.5 NLU Component (Планируемые улучшения TODO #4, #5)
+### 2.5 VAD Component (Voice Activity Detection) - NEW v14.0.0
+
+**Расположение**: `irene/utils/vad.py`, `irene/workflows/audio_processor.py`
+
+**Назначение**: Универсальная система обнаружения голосовой активности для решения проблемы мелких аудио фрагментов.
+
+**Проблема, которую решает:**
+- VOSK получал 23ms аудио сегменты (742 байта при 16kHz) вместо осмысленных речевых фрагментов
+- Отсутствие распознавания речи из-за слишком коротких фрагментов
+- Неэффективная обработка - каждый аудио chunk обрабатывался отдельно, включая тишину
+
+**Архитектура VAD:**
+
+```python
+# Универсальная архитектура VAD
+class UniversalAudioProcessor:
+    """
+    Универсальный обработчик аудио с VAD, работающий одинаково 
+    в обоих режимах voice trigger:
+    - С Voice Trigger: VAD → Wake Word Detection → VAD → ASR
+    - Без Voice Trigger: VAD → Direct ASR Processing
+    """
+    
+class SimpleVAD:
+    """Энергетический VAD с гистерезисом"""
+    def process_frame(self, audio_data: AudioData) -> VADResult
+    
+class AdvancedVAD(SimpleVAD):
+    """Продвинутый VAD с ZCR анализом и адаптивными порогами"""
+```
+
+**Конфигурация VAD:**
+
+```toml
+[vad]
+enabled = true                # Включен по умолчанию с v14.0.0
+energy_threshold = 0.01       # Порог RMS энергии для детекции голоса
+sensitivity = 0.5             # Множитель чувствительности
+voice_duration_ms = 100       # Минимальная длительность голоса
+silence_duration_ms = 200     # Минимальная тишина для завершения сегмента
+max_segment_duration_s = 10   # Максимальная длительность сегмента
+use_zero_crossing_rate = true # Анализ Zero Crossing Rate
+adaptive_threshold = false    # Адаптивная настройка порогов
+```
+
+**Преимущества VAD архитектуры:**
+- **Решает проблему 23ms chunks**: VOSK теперь получает осмысленные речевые сегменты
+- **Универсальность**: Одинаковая логика для режимов с/без voice trigger
+- **Эффективность**: Автоматический пропуск периодов тишины
+- **Естественные границы**: Автоматическое определение начала/конца речи
+- **Реальное время**: 16+ раз быстрее реального времени
+- **Производительность**: Средняя обработка 0.08ms на chunk
+
+### 2.6 NLU Component (Планируемые улучшения TODO #4, #5)
 
 **Расположение**: `irene/components/nlu_component.py`
 

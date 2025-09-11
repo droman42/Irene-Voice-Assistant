@@ -66,6 +66,7 @@ class MicrophoneInputConfig(BaseModel):
     sample_rate: int = Field(default=16000, description="Audio sample rate in Hz")
     channels: int = Field(default=1, description="Number of audio channels")
     chunk_size: int = Field(default=1024, description="Audio buffer chunk size")
+    buffer_queue_size: int = Field(default=50, description="Audio buffer queue size for handling processing delays")
     
     # Phase 5: Global audio configuration enhancements
     auto_resample: bool = Field(default=True, description="Enable/disable resampling globally")
@@ -98,6 +99,13 @@ class MicrophoneInputConfig(BaseModel):
     def validate_chunk_size(cls, v):
         if v <= 0 or v > 8192:
             raise ValueError("chunk_size must be between 1 and 8192")
+        return v
+    
+    @field_validator('buffer_queue_size')
+    @classmethod
+    def validate_buffer_queue_size(cls, v):
+        if v <= 0 or v > 200:
+            raise ValueError("buffer_queue_size must be between 1 and 200")
         return v
 
 
@@ -151,6 +159,7 @@ class ComponentConfig(BaseModel):
     nlu: bool = Field(default=False, description="Enable natural language understanding component")
     text_processor: bool = Field(default=False, description="Enable text processing pipeline component")
     intent_system: bool = Field(default=True, description="Enable intent handling component (essential)")
+    vad: bool = Field(default=False, description="Enable voice activity detection for audio processing")
 
 
 # ============================================================
@@ -345,6 +354,52 @@ class TextProcessorConfig(BaseModel):
 # ============================================================
 # INTENT HANDLER CONFIGURATIONS (Phase 1)
 # ============================================================
+
+class VADConfig(BaseModel):
+    """Voice Activity Detection configuration"""
+    enabled: bool = Field(default=True, description="Enable VAD processing")
+    
+    # Core VAD parameters (Phase 4 specification)
+    energy_threshold: float = Field(default=0.01, description="RMS energy threshold for voice detection", ge=0.0, le=1.0)
+    sensitivity: float = Field(default=0.5, description="Detection sensitivity multiplier", ge=0.1, le=2.0)
+    voice_duration_ms: int = Field(default=100, description="Minimum voice duration in milliseconds", ge=10, le=1000)
+    silence_duration_ms: int = Field(default=200, description="Minimum silence duration to end voice segment in milliseconds", ge=50, le=2000)
+    max_segment_duration_s: int = Field(default=10, description="Maximum voice segment duration in seconds", ge=1, le=60)
+    
+    # Frame-based configuration (internal implementation)
+    voice_frames_required: int = Field(default=2, description="Consecutive voice frames to confirm voice onset", ge=1)
+    silence_frames_required: int = Field(default=5, description="Consecutive silence frames to confirm voice end", ge=1)
+    
+    # Advanced features
+    use_zero_crossing_rate: bool = Field(default=True, description="Enable Zero Crossing Rate analysis")
+    adaptive_threshold: bool = Field(default=False, description="Enable adaptive threshold adjustment")
+    noise_percentile: int = Field(default=15, description="Percentile for noise floor estimation", ge=1, le=50)
+    voice_multiplier: float = Field(default=3.0, description="Multiplier above noise floor for voice threshold", ge=1.0, le=10.0)
+    
+    # Performance configuration
+    processing_timeout_ms: int = Field(default=50, description="Maximum processing time per frame in milliseconds", ge=1)
+    buffer_size_frames: int = Field(default=100, description="Maximum frames to buffer in voice segments", ge=10)
+    
+    # Backward compatibility alias for threshold
+    @property
+    def threshold(self) -> float:
+        """Alias for energy_threshold for backward compatibility"""
+        return self.energy_threshold
+    
+    @field_validator('energy_threshold')
+    @classmethod
+    def validate_energy_threshold(cls, v):
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("VAD energy threshold must be between 0.0 and 1.0")
+        return v
+    
+    @field_validator('sensitivity')
+    @classmethod
+    def validate_sensitivity(cls, v):
+        if not 0.1 <= v <= 2.0:
+            raise ValueError("VAD sensitivity must be between 0.1 and 2.0")
+        return v
+
 
 class ConversationHandlerConfig(BaseModel):
     """Configuration for conversation intent handler"""
@@ -721,6 +776,9 @@ class UnifiedVoiceAssistantWorkflowConfig(BaseModel):
     llm_enabled: bool = Field(default=True, description="Enable LLM processing stage")
     tts_enabled: bool = Field(default=True, description="Enable TTS output stage")
     audio_enabled: bool = Field(default=True, description="Enable audio playback stage")
+    
+    # VAD processing configuration
+    enable_vad_processing: bool = Field(default=True, description="Enable Voice Activity Detection processing for audio pipeline")
 
 
 class WorkflowConfig(BaseModel):
@@ -993,6 +1051,7 @@ class CoreConfig(BaseSettings):
     nlu: NLUConfig = Field(default_factory=NLUConfig, description="NLU component configuration")
     text_processor: TextProcessorConfig = Field(default_factory=TextProcessorConfig, description="Text processor component configuration")
     intent_system: IntentSystemConfig = Field(default_factory=IntentSystemConfig, description="Intent system component configuration")
+    vad: VADConfig = Field(default_factory=VADConfig, description="Voice Activity Detection component configuration")
     
     # Language and locale
     language: str = Field(default="en-US", description="Primary language")

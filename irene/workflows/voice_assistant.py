@@ -12,11 +12,13 @@ Supports all three entry points with stage skipping:
 
 import asyncio
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import AsyncIterator, Optional, Dict, Any, List
 
 from .base import Workflow, RequestContext
+from .audio_processor import AudioProcessorInterface, VoiceSegment
 from ..intents.models import AudioData, ConversationContext, Intent, IntentResult, WakeWordResult
 from ..utils.audio_helpers import test_audio_playback_capability, calculate_audio_buffer_size
 from ..utils.loader import safe_import
@@ -57,6 +59,9 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         self.audio = None
         self.context_manager = None
         self.buffer_size = None
+        
+        # VAD processing components (always enabled)
+        self.audio_processor_interface = None
         
         # Pipeline stage flags - will be configured from config in initialize()
         self._voice_trigger_enabled = False
@@ -104,7 +109,8 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             self.logger.info(f"Pipeline stages configured: voice_trigger={self._voice_trigger_enabled}, "
                            f"asr={self._asr_enabled}, text_processing={self._text_processing_enabled}, "
                            f"nlu={self._nlu_enabled}, intent_execution={self._intent_execution_enabled}, "
-                           f"llm={self._llm_enabled}, tts={self._tts_enabled}, audio={self._audio_enabled}")
+                           f"llm={self._llm_enabled}, tts={self._tts_enabled}, audio={self._audio_enabled}, "
+                           f"vad_processing=enabled")
         else:
             self.logger.error("No workflow configuration provided - pipeline stages remain disabled")
             raise ValueError("UnifiedVoiceAssistantWorkflow requires configuration for pipeline stages")
@@ -145,6 +151,25 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         self.tts = self.components.get('tts')  # Optional - for audio output
         self.audio = self.components.get('audio')  # Optional - for audio output
         self.context_manager = self.components['context_manager']  # Required
+        
+        # Initialize VAD processor interface (required for all audio processing)
+        try:
+            # Get VAD configuration from injected config component
+            config = self.get_component('config')
+            if not config:
+                raise ConfigValidationError("Configuration not available in workflow")
+            
+            vad_config = config.vad if hasattr(config, 'vad') else None
+            if vad_config and vad_config.enabled:
+                self.audio_processor_interface = AudioProcessorInterface(vad_config)
+                self.logger.info(f"VAD audio processor initialized: threshold={vad_config.energy_threshold}, "
+                               f"sensitivity={vad_config.sensitivity}")
+            else:
+                self.logger.error("VAD configuration missing or disabled. VAD processing is required for audio workflows.")
+                raise ConfigValidationError("VAD configuration is required for audio processing")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize VAD processor: {e}")
+            raise
         
         self.logger.info("UnifiedVoiceAssistantWorkflow initialized successfully")
         self.initialized = True
@@ -217,13 +242,41 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             # Create conversation context
             conversation_context = await self._create_conversation_context(context)
             
-            # Process audio stream through pipeline
+            # Use VAD-enabled audio processing pipeline (now the default)
+            if not self.audio_processor_interface:
+                raise RuntimeError("Audio processor interface not available. VAD processing is required.")
+            
+            self.logger.info("🔄 Using VAD-enabled audio processing pipeline")
+            self.logger.info(f"📊 VAD Configuration: threshold={self.audio_processor_interface.processor.config.energy_threshold}, "
+                           f"sensitivity={self.audio_processor_interface.processor.config.sensitivity}, "
+                           f"max_segment_duration={self.audio_processor_interface.processor.config.max_segment_duration_s}s")
+            
+            pipeline_start_time = time.time()
+            result_count = 0
+            
             async for result in self._process_audio_pipeline(
                 audio_stream=audio_stream,
                 context=context,
                 conversation_context=conversation_context
             ):
+                result_count += 1
                 yield result
+            
+            pipeline_duration = time.time() - pipeline_start_time
+            self.logger.info(f"📊 VAD Pipeline Performance: {result_count} results, "
+                           f"{pipeline_duration:.2f}s total duration")
+            
+            # Log VAD metrics for performance monitoring
+            if self.audio_processor_interface:
+                metrics = self.audio_processor_interface.get_metrics()
+                state = self.audio_processor_interface.get_state()
+                self.logger.info(f"📊 Final VAD Metrics: "
+                               f"chunks_processed={metrics.total_chunks_processed}, "
+                               f"voice_segments={metrics.voice_segments_detected}, "
+                               f"silence_skipped={metrics.silence_chunks_skipped}, "
+                               f"avg_processing_time={metrics.average_processing_time_ms:.2f}ms, "
+                               f"buffer_overflows={metrics.buffer_overflow_count}, "
+                               f"timeouts={metrics.timeout_events}")
                 
         except Exception as e:
             self.logger.error(f"Audio processing error: {e}")
@@ -278,80 +331,111 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         
         return result
     
+    
     async def _process_audio_pipeline(self, audio_stream: AsyncIterator[AudioData], 
-                                    context: RequestContext, conversation_context: ConversationContext) -> AsyncIterator[IntentResult]:
+                                     context: RequestContext, conversation_context: ConversationContext) -> AsyncIterator[IntentResult]:
         """
-        Process audio stream through conditional pipeline stages
+        VAD-enabled audio processing pipeline
         
-        Pipeline stages based on context.skip_wake_word:
-        - False (Voice): Audio → Voice Trigger → ASR → Text Processing → NLU → Intent → Response
-        - True (WebAPI): Audio → ASR → Text Processing → NLU → Intent → Response
+        This method implements the universal VAD design that works identically
+        in both voice trigger modes by accumulating voice segments before processing.
+        
+        Pipeline: Audio Stream → VAD Filter → Voice Segments → Mode-Specific Processing
         """
-        audio_buffer = []
+        self.logger.info(f"🎙️ Starting VAD-enabled audio pipeline - skip_wake_word={context.skip_wake_word}")
+        
         wake_word_detected = context.skip_wake_word  # If skipping, assume already "detected"
-        audio_chunk_count = 0  # Debug counter
+        voice_segment_count = 0
         
-        self.logger.info(f"🎙️ Starting audio pipeline processing - skip_wake_word={context.skip_wake_word}")
+        # Voice segment handler for the audio processor interface
+        async def voice_segment_handler(voice_segment: VoiceSegment, ctx):
+            """Handle completed voice segments from VAD processor"""
+            nonlocal voice_segment_count
+            voice_segment_count += 1
+            
+            self.logger.info(f"🎯 Voice segment #{voice_segment_count} received: "
+                           f"{voice_segment.chunk_count} chunks, {voice_segment.total_duration_ms:.1f}ms, "
+                           f"{len(voice_segment.combined_audio.data)} bytes")
         
-        async for audio_data in audio_stream:
-            audio_chunk_count += 1
-            
-            # Enhanced debugging for audio flow
-            if audio_chunk_count == 1:
-                self.logger.info(f"🎤 First audio chunk received: {len(audio_data.data)} bytes, "
-                               f"sample_rate={audio_data.sample_rate}, channels={audio_data.channels}")
-            elif audio_chunk_count % 50 == 0:  # Log every 50th chunk to avoid spam
-                self.logger.debug(f"🎤 Audio chunk #{audio_chunk_count}: {len(audio_data.data)} bytes")
-            audio_buffer.append(audio_data)
-            
-            # Stage 1: Voice Trigger Detection (conditional)
-            if not wake_word_detected and self.voice_trigger:
-                wake_result = await self.voice_trigger.process_audio(audio_data)
-                if wake_result.detected:
-                    self.logger.debug("Wake word detected, starting ASR processing")
-                    wake_word_detected = True
-                    audio_buffer = []  # Clear buffer, start fresh for ASR
-                continue
-            
-            # If no wake word detected yet, continue buffering
-            if not wake_word_detected:
-                continue
-            
-            # Stage 2: ASR (Automatic Speech Recognition)
-            if self.asr:
-                # Process buffered audio through ASR
-                if audio_buffer:
-                    self.logger.debug(f"🔄 Processing {len(audio_buffer)} buffered audio chunks through ASR")
-                    combined_audio = await self._combine_audio_buffer(audio_buffer)
-                    audio_buffer = []
-                    
-                    self.logger.debug(f"🔄 Sending {len(combined_audio.data)} bytes to ASR component")
-                    asr_result = await self.asr.process_audio(combined_audio)
-                    
-                    if asr_result and asr_result.strip():
-                        self.logger.info(f"✅ ASR result: '{asr_result}'")
+        try:
+            # Process audio stream through VAD interface
+            async for voice_segment in self.audio_processor_interface.process_audio_pipeline(
+                audio_stream, context, voice_segment_handler
+            ):
+                # Process voice segment according to current mode
+                result = await self.audio_processor_interface.process_voice_segment_for_mode(
+                    voice_segment, context, self.asr, self.voice_trigger, wake_word_detected
+                )
+                
+                # Handle different result types
+                if result['type'] == 'asr_result':
+                    asr_text = result['result']
+                    if asr_text and asr_text.strip():
+                        self.logger.info(f"✅ VAD-ASR result: '{asr_text}'")
                         
                         # Process through unified pipeline
-                        result = await self._process_pipeline(
-                            input_data=asr_result,
+                        pipeline_result = await self._process_pipeline(
+                            input_data=asr_text,
                             context=context,
-                            conversation_context=conversation_context,
-                            skip_wake_word=True,  # Already processed
-                            skip_asr=True        # Already processed
+                            conversation_context=conversation_context
                         )
                         
-                        # Handle TTS if requested
-                        if context.wants_audio and result.should_speak:
-                            await self._handle_tts_output(result, context)
+                        yield pipeline_result
                         
-                        yield result
-                        
-                        # Reset for next interaction
-                        wake_word_detected = context.skip_wake_word
+                        # Reset wake word state for next interaction
+                        if result['mode'] == 'command_after_wake':
+                            wake_word_detected = False
                     else:
-                        self.logger.debug("📭 ASR returned empty result from buffered audio")
-            else:
-                self.logger.warning("❌ ASR component not available for audio processing")
+                        self.logger.debug("📭 VAD-ASR returned empty result")
+                        
+                elif result['type'] == 'wake_word_result':
+                    wake_result = result['result']
+                    if wake_result.get('detected', False):
+                        self.logger.info(f"✅ VAD-Wake word detected: {wake_result.get('wake_word', 'unknown')}")
+                        wake_word_detected = True
+                    else:
+                        self.logger.debug("🔍 VAD-Wake word not detected in segment")
+                        
+                elif result['type'] == 'error':
+                    self.logger.error(f"❌ VAD processing error: {result['error']}")
+                    
+        except Exception as e:
+            self.logger.error(f"❌ VAD audio pipeline error: {e}")
+            
+        # Log final metrics
+        if self.audio_processor_interface:
+            metrics = self.audio_processor_interface.get_metrics()
+            self.logger.info(f"📊 VAD Pipeline completed: {voice_segment_count} voice segments, "
+                           f"{metrics.total_chunks_processed} chunks processed, "
+                           f"{metrics.silence_chunks_skipped} silence chunks skipped, "
+                           f"avg processing time: {metrics.average_processing_time_ms:.2f}ms")
+    
+    
+    async def _process_voice_segment(self, voice_segment: VoiceSegment, context: RequestContext) -> Optional[str]:
+        """
+        Mode-agnostic voice segment processing
+        
+        This method handles voice segments according to the universal VAD design:
+        - Mode A (skip_wake_word=False): Wake word detection first, then ASR
+        - Mode B (skip_wake_word=True): Direct ASR processing
+        """
+        if not self.audio_processor_interface:
+            self.logger.error("Audio processor interface not available for voice segment processing")
+            return None
+            
+        # Use the audio processor interface for mode-specific processing
+        result = await self.audio_processor_interface.process_voice_segment_for_mode(
+            voice_segment, context, self.asr, self.voice_trigger, context.skip_wake_word
+        )
+        
+        if result['type'] == 'asr_result':
+            return result['result']
+        elif result['type'] == 'wake_word_result':
+            # Wake word results don't produce text
+            return None
+        else:
+            self.logger.error(f"Voice segment processing error: {result.get('error', 'Unknown error')}")
+            return None
     
     async def _create_conversation_context(self, context: RequestContext) -> ConversationContext:
         """Create or retrieve conversation context from context manager"""

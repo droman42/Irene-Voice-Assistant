@@ -1,0 +1,194 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - VAD Testing Configuration
+# ============================================================
+# This configuration is for automated testing of VAD functionality
+# with various scenarios and edge cases
+
+name = "Irene"
+version = "14.0.0"
+debug = true
+log_level = "DEBUG"
+
+# ============================================================
+# SYSTEM CAPABILITIES - Testing Mode
+# ============================================================
+[system]
+microphone_enabled = true
+audio_playback_enabled = true
+web_api_enabled = false       # Disabled for focused testing
+web_port = 8000
+metrics_enabled = true        # Required for performance testing
+metrics_port = 9090
+
+# ============================================================
+# INPUT SOURCES - Testing Setup
+# ============================================================
+[inputs]
+microphone = true
+web = false
+cli = false
+default_input = "microphone"
+
+[inputs.microphone_config]
+enabled = true
+sample_rate = 16000
+channels = 1
+chunk_size = 512              # Small chunks for testing responsiveness
+
+# ============================================================
+# COMPONENT CONFIGURATIONS - Testing Focus
+# ============================================================
+[components]
+tts = true
+asr = true
+audio = true
+llm = false                   # Disabled for focused VAD testing
+voice_trigger = false         # Variable for different test scenarios
+nlu = true
+text_processor = true
+intent_system = true
+vad = true                    # Core component under test
+
+# ============================================================
+# VAD CONFIGURATION - Testing Scenarios
+# ============================================================
+[vad]
+enabled = true
+energy_threshold = 0.01       # Standard threshold for testing
+sensitivity = 0.5             # Balanced sensitivity
+voice_duration_ms = 100       # Standard voice duration
+silence_duration_ms = 200     # Standard silence duration
+max_segment_duration_s = 5    # Shorter for testing
+use_zero_crossing_rate = true # Test advanced features
+adaptive_threshold = false    # Disabled for consistent testing
+noise_percentile = 15
+voice_multiplier = 3.0
+
+# Testing performance settings
+processing_timeout_ms = 25    # Aggressive timeout for testing
+buffer_size_frames = 50       # Small buffer for testing edge cases
+
+# ============================================================
+# ASR CONFIGURATION - Testing Setup
+# ============================================================
+[asr]
+enabled = true
+default_provider = "vosk"
+sample_rate = 16000
+channels = 1
+allow_resampling = true
+resample_quality = "fast"     # Fast for testing
+
+[asr.providers.vosk]
+enabled = true
+default_language = "en"       # English for consistent testing
+sample_rate = 16000
+confidence_threshold = 0.5    # Lower threshold for testing
+preload_models = true
+
+# ============================================================
+# VOICE TRIGGER CONFIGURATION - Testing Scenarios
+# ============================================================
+[voice_trigger]
+enabled = false               # Default disabled (can be overridden in tests)
+default_provider = "openwakeword"
+sample_rate = 16000
+channels = 1
+allow_resampling = true
+resample_quality = "fast"
+
+# ============================================================
+# TTS & AUDIO CONFIGURATION - Testing Mode
+# ============================================================
+[tts]
+enabled = true
+default_provider = "console"  # Console for testing
+
+[tts.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+prefix = "[VAD-TEST] "
+
+[audio]
+enabled = true
+default_provider = "console"
+
+[audio.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+
+# ============================================================
+# NLU & TEXT PROCESSING - Testing Mode
+# ============================================================
+[nlu]
+enabled = true
+default_provider = "hybrid_keyword_matcher"
+
+[nlu.providers.hybrid_keyword_matcher]
+enabled = true
+
+[text_processor]
+enabled = true
+default_provider = "general_text_processor"
+
+[text_processor.providers.general_text_processor]
+enabled = true
+
+# ============================================================
+# INTENT SYSTEM - Testing Mode
+# ============================================================
+[intent_system]
+enabled = true
+
+# ============================================================
+# WORKFLOW CONFIGURATION - VAD Testing
+# ============================================================
+[workflows]
+enabled = ["unified_voice_assistant"]
+default = "unified_voice_assistant"
+
+[workflows.unified_voice_assistant]
+voice_trigger_enabled = false # Default for testing (Scenario B)
+asr_enabled = true
+text_processing_enabled = true
+nlu_enabled = true
+intent_execution_enabled = true
+llm_enabled = false           # Disabled for focused testing
+tts_enabled = true
+audio_enabled = true
+enable_vad_processing = true  # Core feature under test
+
+# ============================================================
+# TESTING SCENARIOS CONFIGURATION
+# ============================================================
+[testing]
+# This section can be used by test scripts to configure different scenarios
+
+# Scenario A: Voice trigger enabled
+[testing.scenario_a]
+voice_trigger_enabled = true
+vad_energy_threshold = 0.015  # Higher for wake word accuracy
+vad_voice_duration_ms = 150   # Longer for wake words
+vad_silence_duration_ms = 300 # Longer for command boundaries
+
+# Scenario B: VOSK runner (no voice trigger)
+[testing.scenario_b]
+voice_trigger_enabled = false
+vad_energy_threshold = 0.01   # Lower for sensitivity
+vad_voice_duration_ms = 100   # Shorter for responsiveness
+vad_silence_duration_ms = 200 # Shorter for quick processing
+
+# Performance testing
+[testing.performance]
+vad_energy_threshold = 0.008  # Sensitive detection
+vad_processing_timeout_ms = 20 # Aggressive timeout
+vad_buffer_size_frames = 30    # Small buffer
+
+# Edge case testing
+[testing.edge_cases]
+vad_energy_threshold = 0.005  # Very sensitive
+vad_voice_duration_ms = 50    # Very short
+vad_silence_duration_ms = 100 # Very short
+vad_adaptive_threshold = true # Enable adaptation

@@ -35,17 +35,19 @@ class MicrophoneInput(InputSource):
     - Uses existing audio infrastructure for device management
     """
     
-    def __init__(self, device_id: Optional[int] = None, samplerate: int = 16000, blocksize: int = 8000):
+    def __init__(self, device_id: Optional[int] = None, samplerate: int = 16000, blocksize: int = 8000, buffer_queue_size: int = 50):
         """Initialize microphone input using existing audio infrastructure
         
         Args:
             device_id: Audio device ID (None for default)
             samplerate: Audio sample rate in Hz  
             blocksize: Audio block size for processing
+            buffer_queue_size: Maximum size of the audio buffer queue
         """
         self.device_id = device_id
         self.samplerate = samplerate
         self.blocksize = blocksize
+        self.buffer_queue_size = buffer_queue_size
         self.device = None  # Will be set during initialization
         self._listening = False
         self._audio_queue = None
@@ -109,6 +111,7 @@ class MicrophoneInput(InputSource):
             "device_id": self.device_id,
             "samplerate": self.samplerate,
             "blocksize": self.blocksize,
+            "buffer_queue_size": self.buffer_queue_size,
             "sounddevice_available": self._sd_available,
             "device": self.device
         }
@@ -121,6 +124,8 @@ class MicrophoneInput(InputSource):
             self.samplerate = settings["samplerate"]
         if "blocksize" in settings:
             self.blocksize = settings["blocksize"]
+        if "buffer_queue_size" in settings:
+            self.buffer_queue_size = settings["buffer_queue_size"]
             
     async def test_input(self) -> bool:
         """Test microphone functionality"""
@@ -194,16 +199,26 @@ class MicrophoneInput(InputSource):
                         f"Check device ID and permissions."
                     )
             
-            # Initialize audio queue
-            self._audio_queue = queue.Queue()
+            # Initialize audio queue with limited size to prevent memory issues
+            self._audio_queue = queue.Queue(maxsize=self.buffer_queue_size)
             
-            # Set up audio callback
+            # Set up audio callback with buffer management
             def audio_callback(indata, frames, time, status):
-                """Audio callback for sounddevice"""
+                """Audio callback for sounddevice with overflow protection"""
                 if status:
                     logger.warning(f"Audio stream status: {status}")
                 if self._listening and self._audio_queue:
-                    self._audio_queue.put(bytes(indata))
+                    try:
+                        # Non-blocking put to prevent callback blocking
+                        self._audio_queue.put_nowait(bytes(indata))
+                    except queue.Full:
+                        # Buffer is full - drop oldest data and add new
+                        try:
+                            self._audio_queue.get_nowait()  # Remove oldest
+                            self._audio_queue.put_nowait(bytes(indata))  # Add new
+                            logger.debug("Audio buffer full, dropped oldest chunk")
+                        except queue.Empty:
+                            pass  # Race condition, ignore
             
             # Create audio stream with validated device
             self._audio_stream = sd.RawInputStream(

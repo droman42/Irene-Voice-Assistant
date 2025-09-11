@@ -168,7 +168,8 @@ class InputManager:
                             await mic_input.configure_input(
                                 device_id=mic_config.device_id,
                                 samplerate=mic_config.sample_rate,
-                                blocksize=mic_config.chunk_size
+                                blocksize=mic_config.chunk_size,
+                                buffer_queue_size=getattr(mic_config, 'buffer_queue_size', 50)
                             )
                         
                         # Initialize microphone with the configured settings
