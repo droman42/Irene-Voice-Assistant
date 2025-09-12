@@ -434,10 +434,11 @@ async def validate_audio_input_device(device_id: int) -> Optional[Dict[str, Any]
     """
     try:
         import sounddevice as sd  # type: ignore
-        device_list = await asyncio.to_thread(sd.query_devices)
         
-        if 0 <= device_id < len(device_list):
-            device = device_list[device_id]
+        # Try to query the specific device directly first
+        # This handles device aliases like "default" (12) that may not be in the enumerated list
+        try:
+            device = await asyncio.to_thread(sd.query_devices, device_id, 'input')
             input_channels = device.get('max_input_channels', 0)
             
             if input_channels > 0:
@@ -453,9 +454,33 @@ async def validate_audio_input_device(device_id: int) -> Optional[Dict[str, Any]
             else:
                 logger.warning(f"Device {device_id} ({device['name']}) has no input channels")
                 return None
-        else:
-            logger.warning(f"Device ID {device_id} is out of range (0-{len(device_list)-1})")
-            return None
+                
+        except Exception as direct_query_error:
+            # If direct query fails, fall back to enumerating all devices
+            logger.debug(f"Direct device query failed for device {device_id}: {direct_query_error}")
+            
+            device_list = await asyncio.to_thread(sd.query_devices)
+            
+            if 0 <= device_id < len(device_list):
+                device = device_list[device_id]
+                input_channels = device.get('max_input_channels', 0)
+                
+                if input_channels > 0:
+                    return {
+                        'id': device_id,
+                        'name': device['name'],
+                        'input_channels': input_channels,
+                        'output_channels': device.get('max_output_channels', 0),
+                        'sample_rate': device['default_samplerate'],
+                        'hostapi': device['hostapi'],
+                        'available': True
+                    }
+                else:
+                    logger.warning(f"Device {device_id} ({device['name']}) has no input channels")
+                    return None
+            else:
+                logger.warning(f"Device ID {device_id} is out of range (0-{len(device_list)-1}) and not a valid device alias")
+                return None
             
     except ImportError:
         logger.warning("sounddevice not available for device validation")
