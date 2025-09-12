@@ -191,6 +191,9 @@ irene-build-analyze = "irene.tools.build_analyzer:main"
 irene-dependency-validate = "irene.tools.dependency_validator:main"
 irene-intent-validate = "irene.tools.intent_validator:main"
 
+# Audio and VAD testing tools
+irene-vad-recording-test = "irene.tools.vad_recording_test:cli_main"
+
 # Main runners
 irene-cli = "irene.runners.cli:run_cli"
 irene-webapi = "irene.runners.webapi_runner:run_webapi"
