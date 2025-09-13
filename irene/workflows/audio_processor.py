@@ -67,14 +67,15 @@ class VoiceSegment:
             from irene.utils.vad import _apply_dynamic_range_compression
             import numpy as np
             
-            # Convert audio data to numpy array
-            audio_array = np.frombuffer(self.combined_audio.data, dtype=np.int16).astype(np.float32)
+            # Convert audio data to numpy array and normalize to [-1.0, 1.0] range
+            audio_int16 = np.frombuffer(self.combined_audio.data, dtype=np.int16)
+            audio_array = audio_int16.astype(np.float32) / 32767.0  # Normalize to [-1.0, 1.0]
             
-            # Apply dynamic range compression
+            # Apply dynamic range compression (now works with proper normalized range)
             normalized_array = _apply_dynamic_range_compression(audio_array, target_rms)
             
-            # Convert back to int16 and bytes
-            normalized_int16 = (normalized_array * 32767).astype(np.int16)
+            # Convert back to int16 range and bytes (no double scaling!)
+            normalized_int16 = (normalized_array * 32767.0).astype(np.int16)
             normalized_bytes = normalized_int16.tobytes()
             
             # Create new AudioData with normalized audio
@@ -275,6 +276,10 @@ class UniversalAudioProcessor:
         # Voice segment buffering
         self.voice_buffer: List[AudioData] = []
         self.voice_segment_start_time: Optional[float] = None
+        
+        # Pre-buffering to capture audio before VAD triggers (prevents missing speech onset)
+        self.pre_buffer: List[AudioData] = []
+        self.pre_buffer_size = 4  # Keep 4 frames before VAD trigger (~100ms) for better speech onset capture
         self.voice_segment_start_timestamp: Optional[float] = None
         
         # Timeout and buffer management
@@ -341,6 +346,11 @@ class UniversalAudioProcessor:
         start_time = time.time()
         
         try:
+            # Maintain pre-buffer for capturing audio before VAD triggers
+            self.pre_buffer.append(audio_data)
+            if len(self.pre_buffer) > self.pre_buffer_size:
+                self.pre_buffer.pop(0)  # Remove oldest frame
+            
             # Perform VAD on the audio chunk
             vad_result = self.vad_engine.process_frame(audio_data)
             
@@ -437,19 +447,23 @@ class UniversalAudioProcessor:
     
     async def _handle_voice_onset(self, audio_data: AudioData, vad_result: VADResult):
         """
-        Handle voice onset - start new voice segment.
+        Handle voice onset - start new voice segment with pre-buffered audio.
         
         Args:
             audio_data: Audio data chunk
             vad_result: VAD detection result
         """
-        # Start new voice segment
-        self.voice_buffer = [audio_data]
+        # Start new voice segment with pre-buffered audio to capture speech onset
+        self.voice_buffer = self.pre_buffer.copy()  # Include pre-buffered frames
+        if audio_data not in self.voice_buffer:  # Avoid duplicate if current frame already in pre-buffer
+            self.voice_buffer.append(audio_data)
+        
         self.voice_segment_start_time = time.time()
         self.voice_segment_start_timestamp = audio_data.timestamp
         
         logger.debug(f"Voice onset detected: energy={vad_result.energy_level:.4f}, "
-                    f"confidence={vad_result.confidence:.3f}")
+                    f"confidence={vad_result.confidence:.3f}, "
+                    f"pre-buffered {len(self.pre_buffer)} frames")
     
     async def _handle_voice_active(self, audio_data: AudioData, vad_result: VADResult):
         """

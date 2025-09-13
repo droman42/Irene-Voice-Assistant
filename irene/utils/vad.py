@@ -117,45 +117,46 @@ def _apply_dynamic_range_compression(audio_array: np.ndarray, target_rms: float 
     while preserving speech characteristics important for recognition.
     
     Args:
-        audio_array: Input audio as numpy array
-        target_rms: Target RMS level (0.1-0.2 is optimal for VOSK)
+        audio_array: Input audio as normalized numpy array (range [-1.0, 1.0])
+        target_rms: Target RMS level (0.05-0.3 is optimal for VOSK)
         
     Returns:
-        Volume-normalized audio array with preserved speech characteristics
+        Volume-normalized audio array with preserved speech characteristics (range [-1.0, 1.0])
     """
     if len(audio_array) == 0:
         return audio_array
     
-    # Calculate current RMS
+    # Calculate current RMS (input should be in [-1.0, 1.0] range)
     current_rms = np.sqrt(np.mean(np.square(audio_array)))
     
-    if current_rms < 1e-6:  # Avoid division by zero
+    if current_rms < 1e-6:  # Avoid division by zero (very quiet audio)
         return audio_array
     
-    # Calculate scaling factor
+    # Check if this is mostly noise vs actual speech
+    # Speech has more dynamic variation than white noise
+    signal_variation = np.std(audio_array)
+    variation_ratio = signal_variation / (current_rms + 1e-6)
+    
+    # If variation is too low, it's likely noise - don't amplify
+    # Updated thresholds for normalized audio range [-1.0, 1.0]
+    if variation_ratio < 0.3 or current_rms < 0.01:  # Very low variation or very quiet = likely noise
+        return audio_array  # Return original without amplification
+    
+    # Calculate scaling factor for actual speech
     scaling_factor = target_rms / current_rms
     
-    # More conservative limiting to preserve speech quality
-    max_scaling = 2.0  # Reduced from 3.0 - don't over-amplify
-    min_scaling = 0.3  # Increased from 0.1 - don't over-attenuate
+    # Conservative scaling to avoid over-amplification of noise
+    max_scaling = 2.0  # Allow reasonable amplification for quiet speech
+    min_scaling = 0.3  # Don't attenuate too much
     scaling_factor = np.clip(scaling_factor, min_scaling, max_scaling)
     
     # Apply scaling
     normalized_audio = audio_array * scaling_factor
     
-    # Gentler soft clipping that preserves more speech characteristics
-    # Use a more gradual compression curve for speech
-    compression_threshold = 0.7  # Start compression at 70% of max
-    compressed_audio = np.where(
-        np.abs(normalized_audio) > compression_threshold,
-        np.sign(normalized_audio) * (
-            compression_threshold + 
-            (1.0 - compression_threshold) * np.tanh((np.abs(normalized_audio) - compression_threshold) / (1.0 - compression_threshold))
-        ),
-        normalized_audio
-    )
+    # Soft clipping to prevent overflow while preserving audio quality
+    clipped_audio = np.clip(normalized_audio, -1.0, 1.0)
     
-    return compressed_audio
+    return clipped_audio
 
 
 def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[VADPerformanceCache] = None) -> tuple[float, bool]:

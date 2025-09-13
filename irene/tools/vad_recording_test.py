@@ -107,16 +107,24 @@ class VADRecordingTester:
             logger.info(f"   Chunks: {voice_segment.chunk_count}")
             logger.info(f"   Size: {len(voice_segment.combined_audio.data)} bytes")
             
-            # Create normalized version for ASR (prevents clipping)
-            normalized_segment = voice_segment.normalize_for_asr(target_rms=0.08)
+            # Create normalized version for ASR (only if enabled in config)
             normalized_filename = self.output_dir / f"segment_{self.segment_count:02d}_normalized_44100hz.wav"
-            await self._save_wav_file(normalized_segment.combined_audio, normalized_filename)
             
+            if getattr(self.config.vad, 'normalize_for_asr', False):
+                normalized_segment = voice_segment.normalize_for_asr(target_rms=getattr(self.config.vad, 'asr_target_rms', 0.15))
+                audio_for_resampling = normalized_segment.combined_audio
+                logger.info(f"💾 Audio normalized for ASR (target RMS: {getattr(self.config.vad, 'asr_target_rms', 0.15)})")
+            else:
+                # Use original audio if normalization is disabled
+                audio_for_resampling = voice_segment.combined_audio
+                logger.info(f"💾 Normalization disabled - using original audio")
+            
+            # Save the audio that will be used for ASR (normalized or original)
+            await self._save_wav_file(audio_for_resampling, normalized_filename)
             logger.info(f"💾 Saved normalized audio: {normalized_filename}")
-            logger.info(f"   Normalized for ASR to prevent clipping")
             
             # Resample to 16kHz (what ASR receives)
-            resampled_audio = await self._resample_to_16khz(normalized_segment.combined_audio)
+            resampled_audio = await self._resample_to_16khz(audio_for_resampling)
             resampled_filename = self.output_dir / f"segment_{self.segment_count:02d}_asr_ready_16khz.wav"
             await self._save_wav_file(resampled_audio, resampled_filename)
             
