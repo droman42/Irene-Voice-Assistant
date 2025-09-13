@@ -465,7 +465,8 @@ buffer_size_frames = 300           # Maximum frames to buffer in voice segments 
 
 # Audio normalization for ASR (prevents clipping when VAD triggers on loud audio)
 normalize_for_asr = true           # Enable audio normalization before sending to ASR
-asr_target_rms = 0.08              # Target RMS level for ASR audio normalization (0.01-0.3)
+asr_target_rms = 0.15              # Target RMS level for ASR audio normalization - increased for better VOSK recognition (0.01-0.3)
+enable_fallback_to_original = true # Try original audio if normalized version fails recognition
 
 # Frame-based configuration (internal implementation)
 voice_frames_required = 2          # Require 2 consecutive frames to reduce single-frame false positives (1-10)

@@ -108,19 +108,20 @@ def _preprocess_audio_for_vad(audio_array: np.ndarray) -> np.ndarray:
     return pre_emphasized
 
 
-def _apply_dynamic_range_compression(audio_array: np.ndarray, target_rms: float = 0.1) -> np.ndarray:
+def _apply_dynamic_range_compression(audio_array: np.ndarray, target_rms: float = 0.15) -> np.ndarray:
     """
-    Apply dynamic range compression to prevent ASR clipping after VAD trigger.
+    Apply speech-aware dynamic range compression to prevent ASR clipping after VAD trigger.
     
     This addresses the issue where VAD requires high volume to trigger,
-    but then ASR gets clipped audio. We normalize the audio to a target RMS level.
+    but then ASR gets clipped audio. We normalize the audio to a target RMS level
+    while preserving speech characteristics important for recognition.
     
     Args:
         audio_array: Input audio as numpy array
-        target_rms: Target RMS level (0.05-0.2 is good for ASR)
+        target_rms: Target RMS level (0.1-0.2 is optimal for VOSK)
         
     Returns:
-        Volume-normalized audio array
+        Volume-normalized audio array with preserved speech characteristics
     """
     if len(audio_array) == 0:
         return audio_array
@@ -134,18 +135,27 @@ def _apply_dynamic_range_compression(audio_array: np.ndarray, target_rms: float 
     # Calculate scaling factor
     scaling_factor = target_rms / current_rms
     
-    # Apply soft limiting to prevent over-amplification
-    max_scaling = 3.0  # Don't amplify more than 3x
-    min_scaling = 0.1  # Don't attenuate more than 10x
+    # More conservative limiting to preserve speech quality
+    max_scaling = 2.0  # Reduced from 3.0 - don't over-amplify
+    min_scaling = 0.3  # Increased from 0.1 - don't over-attenuate
     scaling_factor = np.clip(scaling_factor, min_scaling, max_scaling)
     
     # Apply scaling
     normalized_audio = audio_array * scaling_factor
     
-    # Soft clipping to prevent hard clipping
-    normalized_audio = np.tanh(normalized_audio * 0.8) / 0.8
+    # Gentler soft clipping that preserves more speech characteristics
+    # Use a more gradual compression curve for speech
+    compression_threshold = 0.7  # Start compression at 70% of max
+    compressed_audio = np.where(
+        np.abs(normalized_audio) > compression_threshold,
+        np.sign(normalized_audio) * (
+            compression_threshold + 
+            (1.0 - compression_threshold) * np.tanh((np.abs(normalized_audio) - compression_threshold) / (1.0 - compression_threshold))
+        ),
+        normalized_audio
+    )
     
-    return normalized_audio
+    return compressed_audio
 
 
 def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[VADPerformanceCache] = None) -> tuple[float, bool]:

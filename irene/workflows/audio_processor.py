@@ -828,22 +828,36 @@ class AudioProcessorInterface:
             
             if asr_component:
                 try:
-                    # Normalize audio for ASR to prevent clipping (if enabled)
+                    # Try normalized audio first (if enabled), with fallback to original
+                    asr_result = ""
+                    audio_processing_method = "original"
+                    
                     if getattr(self.vad_config, 'normalize_for_asr', True):
-                        target_rms = getattr(self.vad_config, 'asr_target_rms', 0.08)
+                        target_rms = getattr(self.vad_config, 'asr_target_rms', 0.15)
                         normalized_segment = voice_segment.normalize_for_asr(target_rms=target_rms)
                         audio_for_asr = normalized_segment.combined_audio
                         logger.debug(f"Audio normalized for ASR (target RMS: {target_rms})")
+                        
+                        # Try normalized audio first
+                        asr_result = await asr_component.process_audio(audio_for_asr)
+                        audio_processing_method = "normalized"
+                        
+                        # Fallback to original audio if normalization produced empty result
+                        if (not asr_result or not asr_result.strip()) and getattr(self.vad_config, 'enable_fallback_to_original', True):
+                            logger.debug("Normalized audio produced empty result, trying original audio")
+                            asr_result = await asr_component.process_audio(combined_audio)
+                            audio_processing_method = "fallback_original"
                     else:
-                        audio_for_asr = combined_audio
                         logger.debug("Audio normalization disabled, using original audio")
+                        asr_result = await asr_component.process_audio(combined_audio)
                     
-                    asr_result = await asr_component.process_audio(audio_for_asr)
+                    logger.debug(f"ASR processing method: {audio_processing_method}")
                     return {
                         'type': 'asr_result',
                         'result': asr_result,
                         'voice_segment': voice_segment,
-                        'mode': 'direct_asr'
+                        'mode': 'direct_asr',
+                        'audio_processing_method': audio_processing_method
                     }
                 except Exception as e:
                     logger.error(f"ASR processing failed: {e}")
@@ -897,22 +911,36 @@ class AudioProcessorInterface:
                 
                 if asr_component:
                     try:
-                        # Normalize audio for ASR to prevent clipping (if enabled)
+                        # Try normalized audio first (if enabled), with fallback to original
+                        asr_result = ""
+                        audio_processing_method = "original"
+                        
                         if getattr(self.vad_config, 'normalize_for_asr', True):
-                            target_rms = getattr(self.vad_config, 'asr_target_rms', 0.08)
+                            target_rms = getattr(self.vad_config, 'asr_target_rms', 0.15)
                             normalized_segment = voice_segment.normalize_for_asr(target_rms=target_rms)
                             audio_for_asr = normalized_segment.combined_audio
                             logger.debug(f"Audio normalized for ASR (target RMS: {target_rms})")
+                            
+                            # Try normalized audio first
+                            asr_result = await asr_component.process_audio(audio_for_asr)
+                            audio_processing_method = "normalized"
+                            
+                            # Fallback to original audio if normalization produced empty result
+                            if (not asr_result or not asr_result.strip()) and getattr(self.vad_config, 'enable_fallback_to_original', True):
+                                logger.debug("Normalized audio produced empty result, trying original audio")
+                                asr_result = await asr_component.process_audio(combined_audio)
+                                audio_processing_method = "fallback_original"
                         else:
-                            audio_for_asr = combined_audio
                             logger.debug("Audio normalization disabled, using original audio")
+                            asr_result = await asr_component.process_audio(combined_audio)
                         
-                        asr_result = await asr_component.process_audio(audio_for_asr)
+                        logger.debug(f"ASR processing method: {audio_processing_method}")
                         return {
                             'type': 'asr_result',
                             'result': asr_result,
                             'voice_segment': voice_segment,
-                            'mode': 'command_after_wake'
+                            'mode': 'command_after_wake',
+                            'audio_processing_method': audio_processing_method
                         }
                     except Exception as e:
                         logger.error(f"ASR processing failed: {e}")

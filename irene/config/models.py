@@ -382,7 +382,8 @@ class VADConfig(BaseModel):
     
     # Audio normalization for ASR
     normalize_for_asr: bool = Field(default=True, description="Enable audio normalization before sending to ASR to prevent clipping")
-    asr_target_rms: float = Field(default=0.08, description="Target RMS level for ASR audio normalization", ge=0.01, le=0.3)
+    asr_target_rms: float = Field(default=0.15, description="Target RMS level for ASR audio normalization", ge=0.01, le=0.3)
+    enable_fallback_to_original: bool = Field(default=True, description="Try original audio if normalized version fails recognition")
     
     # Backward compatibility alias for threshold
     @property

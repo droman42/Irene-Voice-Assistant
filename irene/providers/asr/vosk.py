@@ -150,6 +150,9 @@ class VoskASRProvider(ASRProvider):
                    f"language={language}, confidence_threshold={confidence_threshold}")
         
         recognizer = None  # Initialize for cleanup in finally block
+        text = ""  # Initialize for reset logic
+        partial_text = ""  # Initialize for reset logic
+        had_error = False  # Track if we had an error
         
         try:
             # Load model for language if not already loaded
@@ -190,15 +193,21 @@ class VoskASRProvider(ASRProvider):
         
         except Exception as e:
             logger.error(f"❌ VOSK transcription error: {e}")
+            had_error = True
         
         finally:
-            # CRITICAL FIX: Reset recognizer state to prevent contamination between utterances
-            if recognizer is not None:
+            # OPTIMIZED RESET: Only reset recognizer state after successful recognition or errors
+            # Don't reset on empty results as they might be due to audio processing issues
+            should_reset = text.strip() or partial_text.strip() or had_error
+            if recognizer is not None and should_reset:
                 try:
                     recognizer.Reset()
-                    logger.debug(f"🔄 VOSK recognizer state reset for clean next utterance")
+                    reset_reason = "successful" if (text.strip() or partial_text.strip()) else "failed"
+                    logger.debug(f"🔄 VOSK recognizer state reset after {reset_reason} recognition")
                 except Exception as reset_error:
                     logger.warning(f"Failed to reset VOSK recognizer: {reset_error}")
+            elif recognizer is not None:
+                logger.debug("🔄 VOSK recognizer state preserved (empty result, may be audio processing issue)")
         
         logger.debug("📭 VOSK returning empty result")
         return ""
