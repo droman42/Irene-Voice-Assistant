@@ -67,6 +67,47 @@ def _calculate_rms_energy_cached(data_hash: int, data_length: int) -> float:
     pass
 
 
+def _preprocess_audio_for_vad(audio_array: np.ndarray) -> np.ndarray:
+    """
+    Apply basic audio preprocessing for better VAD performance on low-quality microphones.
+    
+    Preprocessing steps:
+    1. DC removal (subtract mean)
+    2. Simple high-pass filter (first-order difference)
+    3. Optional pre-emphasis
+    
+    Args:
+        audio_array: Input audio as numpy array (float32)
+        
+    Returns:
+        Preprocessed audio array
+    """
+    if len(audio_array) == 0:
+        return audio_array
+    
+    # Step 1: DC removal - subtract mean to remove DC bias
+    dc_removed = audio_array - np.mean(audio_array)
+    
+    # Step 2: Simple high-pass filter using first-order difference
+    # This removes low-frequency rumble and improves SNR
+    if len(dc_removed) > 1:
+        # First-order difference approximates high-pass filter
+        high_passed = np.diff(dc_removed, prepend=dc_removed[0])
+    else:
+        high_passed = dc_removed
+    
+    # Step 3: Optional pre-emphasis (0.97 coefficient is standard)
+    # This balances the frequency spectrum and improves speech detection
+    if len(high_passed) > 1:
+        pre_emphasis_coeff = 0.97
+        pre_emphasized = np.copy(high_passed)
+        pre_emphasized[1:] = high_passed[1:] - pre_emphasis_coeff * high_passed[:-1]
+    else:
+        pre_emphasized = high_passed
+    
+    return pre_emphasized
+
+
 def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[VADPerformanceCache] = None) -> tuple[float, bool]:
     """
     Optimized RMS energy calculation with caching and efficient numpy operations.
@@ -108,9 +149,12 @@ def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[VADPerform
         if len(audio_array) == 0:
             return 0.0, cache_hit
         
+        # Apply audio preprocessing for better VAD performance
+        preprocessed_audio = _preprocess_audio_for_vad(audio_array)
+        
         # Optimized RMS calculation using numpy vectorization
         # Use float32 for better performance on most systems
-        rms = np.sqrt(np.mean(np.square(audio_array)))
+        rms = np.sqrt(np.mean(np.square(preprocessed_audio)))
         
         # Normalize to 0.0-1.0 range
         normalized_energy = min(1.0, rms / 32768.0)
@@ -165,9 +209,12 @@ def calculate_zcr_optimized(audio_data: bytes, cache: Optional[VADPerformanceCac
         if len(audio_array) <= 1:
             return 0.0, cache_hit
         
+        # Apply same preprocessing as energy calculation for consistency
+        preprocessed_audio = _preprocess_audio_for_vad(audio_array)
+        
         # Optimized ZCR calculation using numpy vectorization
         # Use efficient sign changes detection
-        sign_changes = np.diff(np.sign(audio_array))
+        sign_changes = np.diff(np.sign(preprocessed_audio))
         zero_crossings = np.count_nonzero(sign_changes)
         
         # Normalize by frame length
@@ -247,8 +294,10 @@ class SimpleVAD:
         if len(self._energy_history) > self._max_history_length:
             self._energy_history.pop(0)
         
-        # Apply sensitivity adjustment
-        adjusted_threshold = self.threshold * (2.0 - self.sensitivity)
+        # Apply sensitivity adjustment (higher sensitivity = lower threshold = more sensitive)
+        # Clamp sensitivity to reasonable range and invert the relationship
+        clamped_sensitivity = max(0.1, min(3.0, self.sensitivity))
+        adjusted_threshold = self.threshold / clamped_sensitivity
         
         # Basic energy-based detection
         raw_detection = energy_level > adjusted_threshold
@@ -362,6 +411,37 @@ class SimpleVAD:
         adaptive_threshold = max(self.threshold, noise_level * 3.0)
         
         return min(1.0, adaptive_threshold)
+    
+    def calibrate_threshold(self, audio_samples: List['AudioData']) -> bool:
+        """
+        Calibrate VAD threshold using audio samples.
+        
+        Args:
+            audio_samples: List of AudioData samples for calibration
+            
+        Returns:
+            True if calibration was successful, False otherwise
+        """
+        try:
+            from irene.utils.audio_helpers import estimate_optimal_vad_threshold
+            
+            # Estimate optimal threshold (use default parameters for SimpleVAD)
+            optimal_threshold = estimate_optimal_vad_threshold(
+                audio_samples,
+                noise_percentile=15,  # Default noise percentile
+                voice_multiplier=3.0  # Default voice multiplier
+            )
+            
+            # Update threshold
+            old_threshold = self.threshold
+            self.threshold = optimal_threshold
+            
+            logger.info(f"VAD threshold calibrated: {old_threshold:.4f} -> {optimal_threshold:.4f}")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"VAD threshold calibration failed: {e}")
+            return False
 
 
 def detect_voice_activity(audio_data: AudioData, threshold: float = 0.01) -> bool:
@@ -445,7 +525,8 @@ class AdvancedVAD(SimpleVAD):
     def __init__(self, threshold: float = 0.01, sensitivity: float = 0.5,
                  voice_frames_required: int = 2, silence_frames_required: int = 5,
                  use_zcr: bool = True, use_spectral_features: bool = False,
-                 enable_caching: bool = True):
+                 enable_caching: bool = True, noise_percentile: int = 15,
+                 voice_multiplier: float = 3.0):
         """
         Initialize advanced VAD with additional features and Phase 5 optimizations.
         
@@ -457,11 +538,17 @@ class AdvancedVAD(SimpleVAD):
             use_zcr: Enable Zero Crossing Rate analysis
             use_spectral_features: Enable spectral feature analysis (future)
             enable_caching: Enable performance caching (Phase 5 optimization)
+            noise_percentile: Percentile for noise floor estimation (1-50)
+            voice_multiplier: Multiplier above noise floor for voice threshold (1.0-10.0)
         """
         super().__init__(threshold, sensitivity, voice_frames_required, silence_frames_required, enable_caching)
         
         self.use_zcr = use_zcr
         self.use_spectral_features = use_spectral_features
+        
+        # Store config parameters for adaptive thresholding
+        self.noise_percentile = max(1, min(50, noise_percentile))
+        self.voice_multiplier = max(1.0, min(10.0, voice_multiplier))
         
         # ZCR state
         self._zcr_threshold = 0.1  # Typical ZCR threshold for speech
@@ -469,6 +556,8 @@ class AdvancedVAD(SimpleVAD):
         # Adaptive threshold state
         self._noise_estimate = 0.0
         self._adaptation_rate = 0.01
+        self._energy_history_for_noise = []  # Rolling buffer for noise estimation
+        self._max_noise_history = 100  # Keep last 100 frames for noise estimation
         
         # Phase 5: Multi-frame smoothing for stability
         self._smoothing_window_size = 5  # Number of frames for smoothing
@@ -497,11 +586,13 @@ class AdvancedVAD(SimpleVAD):
         # Update noise estimate for adaptive threshold
         self._update_noise_estimate(energy_level)
         
-        # Calculate adaptive threshold
-        adaptive_threshold = max(self.threshold, self._noise_estimate * 3.0)
+        # Calculate adaptive threshold using proper noise floor estimation
+        adaptive_threshold = self._calculate_adaptive_threshold(energy_level)
         
-        # Apply sensitivity
-        adjusted_threshold = adaptive_threshold * (2.0 - self.sensitivity)
+        # Apply sensitivity (higher sensitivity = lower threshold = more sensitive)
+        # Clamp sensitivity to reasonable range and invert the relationship
+        clamped_sensitivity = max(0.1, min(3.0, self.sensitivity))
+        adjusted_threshold = adaptive_threshold / clamped_sensitivity
         
         # Basic energy detection
         energy_detection = energy_level > adjusted_threshold
@@ -514,10 +605,17 @@ class AdvancedVAD(SimpleVAD):
                 audio_data.data,
                 self.performance_cache
             )
-            zcr_detection = zcr_value > self._zcr_threshold
+            # Use ZCR range check instead of hard threshold
+            # Speech typically has ZCR in range 0.02-0.25, with voiced sounds lower
+            zcr_min = 0.02  # Minimum ZCR for speech (excludes pure tones)
+            zcr_max = 0.25  # Maximum ZCR for speech (excludes pure noise)
+            zcr_in_speech_range = zcr_min <= zcr_value <= zcr_max
             
-            # Combine energy and ZCR (AND logic for more precision)
-            combined_detection = energy_detection and zcr_detection
+            # Use OR logic: either strong energy OR (moderate energy + good ZCR)
+            strong_energy = energy_level > adjusted_threshold * 1.5
+            moderate_energy_with_zcr = (energy_level > adjusted_threshold * 0.7) and zcr_in_speech_range
+            
+            combined_detection = strong_energy or moderate_energy_with_zcr
         else:
             combined_detection = energy_detection
         
@@ -544,10 +642,34 @@ class AdvancedVAD(SimpleVAD):
         )
     
     def _update_noise_estimate(self, current_energy: float):
-        """Update background noise estimate using exponential smoothing."""
-        if not self._current_state:  # Only update during silence
-            self._noise_estimate = (1 - self._adaptation_rate) * self._noise_estimate + \
-                                 self._adaptation_rate * current_energy
+        """Update background noise estimate using rolling buffer and percentile calculation."""
+        # Always collect energy samples for noise estimation
+        self._energy_history_for_noise.append(current_energy)
+        
+        # Maintain rolling buffer size
+        if len(self._energy_history_for_noise) > self._max_noise_history:
+            self._energy_history_for_noise.pop(0)
+        
+        # Update noise estimate using percentile-based approach
+        if len(self._energy_history_for_noise) >= 10:  # Need minimum samples
+            sorted_energies = sorted(self._energy_history_for_noise)
+            noise_index = (len(sorted_energies) * self.noise_percentile) // 100
+            self._noise_estimate = sorted_energies[noise_index]
+    
+    def _calculate_adaptive_threshold(self, current_energy: float) -> float:
+        """Calculate adaptive threshold using config parameters."""
+        # Use base threshold if we don't have enough noise history
+        if len(self._energy_history_for_noise) < 10:
+            return self.threshold
+        
+        # Calculate threshold as noise floor * voice multiplier
+        noise_based_threshold = self._noise_estimate * self.voice_multiplier
+        
+        # Use the higher of base threshold or noise-based threshold
+        adaptive_threshold = max(self.threshold, noise_based_threshold)
+        
+        # Clamp to reasonable range
+        return max(0.0001, min(0.1, adaptive_threshold))
     
     def _calculate_enhanced_confidence(self, energy: float, threshold: float) -> float:
         """Calculate enhanced confidence with multiple factors."""
@@ -560,6 +682,37 @@ class AdvancedVAD(SimpleVAD):
         # Future: Add spectral confidence when implemented
         
         return energy_confidence
+    
+    def calibrate_threshold(self, audio_samples: List['AudioData']) -> bool:
+        """
+        Calibrate VAD threshold using audio samples.
+        
+        Args:
+            audio_samples: List of AudioData samples for calibration
+            
+        Returns:
+            True if calibration was successful, False otherwise
+        """
+        try:
+            from irene.utils.audio_helpers import estimate_optimal_vad_threshold
+            
+            # Estimate optimal threshold
+            optimal_threshold = estimate_optimal_vad_threshold(
+                audio_samples,
+                noise_percentile=self.noise_percentile,
+                voice_multiplier=self.voice_multiplier
+            )
+            
+            # Update threshold
+            old_threshold = self.threshold
+            self.threshold = optimal_threshold
+            
+            logger.info(f"VAD threshold calibrated: {old_threshold:.4f} -> {optimal_threshold:.4f}")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"VAD threshold calibration failed: {e}")
+            return False
     
     def _apply_multi_frame_smoothing(self, detection: bool, energy: float, zcr: float) -> bool:
         """

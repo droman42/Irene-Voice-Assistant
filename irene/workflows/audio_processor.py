@@ -205,7 +205,9 @@ class UniversalAudioProcessor:
                 sensitivity=vad_config.sensitivity,
                 voice_frames_required=vad_config.voice_frames_required,
                 silence_frames_required=vad_config.silence_frames_required,
-                use_zcr=vad_config.use_zero_crossing_rate
+                use_zcr=vad_config.use_zero_crossing_rate,
+                noise_percentile=vad_config.noise_percentile,
+                voice_multiplier=vad_config.voice_multiplier
             )
         else:
             self.vad_engine = SimpleVAD(
@@ -246,6 +248,27 @@ class UniversalAudioProcessor:
             callback: Async function to call when voice segment is complete
         """
         self.voice_segment_callback = callback
+    
+    async def calibrate_vad_threshold(self, calibration_audio: List[AudioData]) -> bool:
+        """
+        Calibrate VAD threshold using provided audio samples.
+        
+        Args:
+            calibration_audio: List of AudioData samples for calibration
+            
+        Returns:
+            True if calibration was successful, False otherwise
+        """
+        try:
+            success = self.vad_engine.calibrate_threshold(calibration_audio)
+            if success:
+                logger.info("VAD threshold calibration completed successfully")
+            else:
+                logger.warning("VAD threshold calibration failed")
+            return success
+        except Exception as e:
+            logger.error(f"Error during VAD calibration: {e}")
+            return False
     
     async def process_audio_chunk(self, audio_data: AudioData) -> Optional[VoiceSegment]:
         """
