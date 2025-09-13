@@ -94,10 +94,11 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         
         # Use fire-and-forget action execution for TTS generation
         synthesis_id = f"tts_{int(time.time() * 1000)}"  # Unique ID based on timestamp
-        action_metadata = await self.execute_fire_and_forget_action(
+        action_metadata = await self.execute_fire_and_forget_with_context(
             self._synthesize_speech_action,
             action_name=synthesis_id,
             domain="voice_synthesis",
+            context=context,
             text_to_speak=text_to_speak,
             voice_name=voice_name,
             language=language,
@@ -160,10 +161,11 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         
         # Use fire-and-forget action execution for basic TTS
         synthesis_id = f"tts_basic_{int(time.time() * 1000)}"
-        action_metadata = await self.execute_fire_and_forget_action(
+        action_metadata = await self.execute_fire_and_forget_with_context(
             self._synthesize_speech_action,
             action_name=synthesis_id,
             domain="voice_synthesis",
+            context=context,
             text_to_speak=text_to_speak,
             voice_name=None,  # Use default voice
             language=language,

@@ -199,10 +199,11 @@ class TimerIntentHandler(IntentHandler):
             timer_id = f"timer_{self.timer_counter}"
             
             # Use fire-and-forget action execution for timer creation
-            action_metadata = await self.execute_fire_and_forget_action(
+            action_metadata = await self.execute_fire_and_forget_with_context(
                 self._create_timer_action,
                 action_name=timer_id,
                 domain="timers",
+                context=context,
                 duration_seconds=duration_seconds,
                 message=message,
                 session_id=context.session_id,
@@ -254,10 +255,11 @@ class TimerIntentHandler(IntentHandler):
                 )
             
             # Use fire-and-forget action for cancelling multiple timers
-            action_metadata = await self.execute_fire_and_forget_action(
+            action_metadata = await self.execute_fire_and_forget_with_context(
                 self._cancel_multiple_timers_action,
                 action_name="cancel_all_timers",
                 domain="timers",
+                context=context,
                 session_timers=session_timers,
                 session_id=context.session_id
             )
@@ -282,10 +284,11 @@ class TimerIntentHandler(IntentHandler):
                 success=False
             )
         
-        action_metadata = await self.execute_fire_and_forget_action(
+        action_metadata = await self.execute_fire_and_forget_with_context(
             self._cancel_single_timer_action,
             action_name=f"cancel_{timer_id}",
             domain="timers",
+            context=context,
             timer_id=timer_id
         )
         
@@ -319,10 +322,11 @@ class TimerIntentHandler(IntentHandler):
                 )
             
             # Cancel all active timers for this session
-            action_metadata = await self.execute_fire_and_forget_action(
+            action_metadata = await self.execute_fire_and_forget_with_context(
                 self._cancel_multiple_timers_action,
                 action_name="stop_all_timers",
                 domain="timers",
+                context=context,
                 session_timers=session_timers,
                 session_id=context.session_id
             )
@@ -527,13 +531,16 @@ class TimerIntentHandler(IntentHandler):
             try:
                 await asyncio.sleep(duration_seconds)
                 # Fire-and-forget completion notification
+                # Note: Using low-level method here since we don't have context in callback
+                # but we do have context_manager and session_id available
                 await self.execute_fire_and_forget_action(
                     self._timer_completion_notification,
                     action_name=f"{timer_id}_completion",
                     domain="timers",
+                    context_manager=self.context_manager,
+                    session_id=session_id,
                     timer_id=timer_id,
-                    message=message,
-                    session_id=session_id
+                    message=message
                 )
                 await self._timer_completed(timer_id)
             except asyncio.CancelledError:

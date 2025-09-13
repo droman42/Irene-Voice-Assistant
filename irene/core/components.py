@@ -314,6 +314,15 @@ class ComponentManager:
                 # Don't fail the entire system for injection issues
                 logger.warning("Continuing with intent handlers in limited dependency mode")
         
+        # Inject context manager into intent handlers for fire-and-forget action tracking
+        if intent_component and hasattr(intent_component, 'set_context_manager') and hasattr(self, 'context_manager'):
+            try:
+                intent_component.set_context_manager(self.context_manager)
+                logger.info("✅ Context manager injected into intent handlers for fire-and-forget tracking")
+            except Exception as e:
+                logger.error(f"❌ Context manager injection failed: {e}")
+                logger.warning("Continuing without fire-and-forget context tracking")
+        
         logger.info("Post-initialization coordination completed")
     
     async def _inject_component_dependencies(self, component: Component) -> None:

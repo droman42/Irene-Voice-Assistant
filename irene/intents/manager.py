@@ -122,6 +122,15 @@ class IntentHandlerManager:
         self._initialized = True
         logger.info(f"IntentHandlerManager initialized with {len(self._handler_instances)} handlers and donation support")
     
+    def set_context_manager(self, context_manager: Any) -> None:
+        """Set the context manager on all registered handlers for fire-and-forget action tracking."""
+        for handler_name, handler in self._handler_instances.items():
+            if hasattr(handler, 'set_context_manager'):
+                handler.set_context_manager(context_manager)
+                logger.debug(f"Set context manager on handler: {handler_name}")
+            else:
+                logger.warning(f"Handler {handler_name} does not support context manager injection")
+    
     def _get_handler_config(self, handler_name: str) -> Optional[Dict[str, Any]]:
         """
         Get configuration for a specific handler.

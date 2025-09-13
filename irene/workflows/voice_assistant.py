@@ -452,9 +452,9 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
     async def _process_action_metadata(self, action_metadata: Dict[str, Any], 
                                      conversation_context: ConversationContext):
         """Process action metadata and update conversation context"""
-        if 'active_action' in action_metadata:
-            active_action = action_metadata['active_action']
-            for domain, action_info in active_action.items():
+        if 'active_actions' in action_metadata:
+            active_actions = action_metadata['active_actions']
+            for domain, action_info in active_actions.items():
                 conversation_context.add_active_action(domain, action_info)
         
         # Additional action metadata processing can be added here
