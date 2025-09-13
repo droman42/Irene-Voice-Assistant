@@ -108,6 +108,46 @@ def _preprocess_audio_for_vad(audio_array: np.ndarray) -> np.ndarray:
     return pre_emphasized
 
 
+def _apply_dynamic_range_compression(audio_array: np.ndarray, target_rms: float = 0.1) -> np.ndarray:
+    """
+    Apply dynamic range compression to prevent ASR clipping after VAD trigger.
+    
+    This addresses the issue where VAD requires high volume to trigger,
+    but then ASR gets clipped audio. We normalize the audio to a target RMS level.
+    
+    Args:
+        audio_array: Input audio as numpy array
+        target_rms: Target RMS level (0.05-0.2 is good for ASR)
+        
+    Returns:
+        Volume-normalized audio array
+    """
+    if len(audio_array) == 0:
+        return audio_array
+    
+    # Calculate current RMS
+    current_rms = np.sqrt(np.mean(np.square(audio_array)))
+    
+    if current_rms < 1e-6:  # Avoid division by zero
+        return audio_array
+    
+    # Calculate scaling factor
+    scaling_factor = target_rms / current_rms
+    
+    # Apply soft limiting to prevent over-amplification
+    max_scaling = 3.0  # Don't amplify more than 3x
+    min_scaling = 0.1  # Don't attenuate more than 10x
+    scaling_factor = np.clip(scaling_factor, min_scaling, max_scaling)
+    
+    # Apply scaling
+    normalized_audio = audio_array * scaling_factor
+    
+    # Soft clipping to prevent hard clipping
+    normalized_audio = np.tanh(normalized_audio * 0.8) / 0.8
+    
+    return normalized_audio
+
+
 def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[VADPerformanceCache] = None) -> tuple[float, bool]:
     """
     Optimized RMS energy calculation with caching and efficient numpy operations.
@@ -605,17 +645,19 @@ class AdvancedVAD(SimpleVAD):
                 audio_data.data,
                 self.performance_cache
             )
-            # Use ZCR range check instead of hard threshold
-            # Speech typically has ZCR in range 0.02-0.25, with voiced sounds lower
-            zcr_min = 0.02  # Minimum ZCR for speech (excludes pure tones)
-            zcr_max = 0.25  # Maximum ZCR for speech (excludes pure noise)
+            # Use ZCR range check optimized for Russian phonemes
+            # Russian vowels (а, о, у, и, э, ы) have very low ZCR (0.01-0.05)
+            # Russian consonants (к, т, п, с, ш, щ) have higher ZCR (0.1-0.3)
+            zcr_min = 0.01  # Lower minimum for Russian vowels
+            zcr_max = 0.35  # Higher maximum for Russian fricatives (ш, щ, с)
             zcr_in_speech_range = zcr_min <= zcr_value <= zcr_max
             
-            # Use OR logic: either strong energy OR (moderate energy + good ZCR)
-            strong_energy = energy_level > adjusted_threshold * 1.5
-            moderate_energy_with_zcr = (energy_level > adjusted_threshold * 0.7) and zcr_in_speech_range
+            # More permissive logic for Russian speech patterns
+            strong_energy = energy_level > adjusted_threshold * 1.2  # Reduced from 1.5
+            moderate_energy_with_zcr = (energy_level > adjusted_threshold * 0.5) and zcr_in_speech_range  # Reduced from 0.7
+            weak_energy_vowels = (energy_level > adjusted_threshold * 0.3) and (zcr_value <= 0.08)  # Special case for Russian vowels
             
-            combined_detection = strong_energy or moderate_energy_with_zcr
+            combined_detection = strong_energy or moderate_energy_with_zcr or weak_energy_vowels
         else:
             combined_detection = energy_detection
         

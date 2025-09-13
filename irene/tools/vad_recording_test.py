@@ -107,12 +107,20 @@ class VADRecordingTester:
             logger.info(f"   Chunks: {voice_segment.chunk_count}")
             logger.info(f"   Size: {len(voice_segment.combined_audio.data)} bytes")
             
+            # Create normalized version for ASR (prevents clipping)
+            normalized_segment = voice_segment.normalize_for_asr(target_rms=0.08)
+            normalized_filename = self.output_dir / f"segment_{self.segment_count:02d}_normalized_44100hz.wav"
+            await self._save_wav_file(normalized_segment.combined_audio, normalized_filename)
+            
+            logger.info(f"💾 Saved normalized audio: {normalized_filename}")
+            logger.info(f"   Normalized for ASR to prevent clipping")
+            
             # Resample to 16kHz (what ASR receives)
-            resampled_audio = await self._resample_to_16khz(voice_segment.combined_audio)
-            resampled_filename = self.output_dir / f"segment_{self.segment_count:02d}_resampled_16khz.wav"
+            resampled_audio = await self._resample_to_16khz(normalized_segment.combined_audio)
+            resampled_filename = self.output_dir / f"segment_{self.segment_count:02d}_asr_ready_16khz.wav"
             await self._save_wav_file(resampled_audio, resampled_filename)
             
-            logger.info(f"💾 Saved resampled audio: {resampled_filename}")
+            logger.info(f"💾 Saved ASR-ready audio: {resampled_filename}")
             logger.info(f"   Size after resampling: {len(resampled_audio.data)} bytes")
             
             # Mark that we have completed a recording
@@ -313,8 +321,10 @@ async def main():
             if summary['segments_recorded'] > 0:
                 print(f"\n📁 Check the '{summary['output_directory']}' folder for:")
                 print("  - *_original_44100hz.wav (raw microphone input)")
-                print("  - *_resampled_16khz.wav (what ASR receives)")
+                print("  - *_normalized_44100hz.wav (volume normalized to prevent ASR clipping)")
+                print("  - *_asr_ready_16khz.wav (final audio sent to ASR)")
                 print("\n🎧 Play these files to hear exactly what the system recorded!")
+                print("📊 Compare original vs normalized to see volume adjustment")
             else:
                 print("\n⚠️  No voice segments detected!")
                 print("Possible issues:")

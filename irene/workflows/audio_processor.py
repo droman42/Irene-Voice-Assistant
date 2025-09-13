@@ -47,6 +47,61 @@ class VoiceSegment:
     def duration_seconds(self) -> float:
         """Get duration in seconds"""
         return self.total_duration_ms / 1000.0
+    
+    def normalize_for_asr(self, target_rms: float = 0.1) -> 'VoiceSegment':
+        """
+        Create a copy of this voice segment with normalized audio for ASR processing.
+        
+        This prevents ASR clipping when VAD was triggered by loud audio.
+        
+        Args:
+            target_rms: Target RMS level for ASR (0.05-0.2 recommended)
+            
+        Returns:
+            New VoiceSegment with normalized audio
+        """
+        if not self.combined_audio:
+            return self
+        
+        try:
+            from irene.utils.vad import _apply_dynamic_range_compression
+            import numpy as np
+            
+            # Convert audio data to numpy array
+            audio_array = np.frombuffer(self.combined_audio.data, dtype=np.int16).astype(np.float32)
+            
+            # Apply dynamic range compression
+            normalized_array = _apply_dynamic_range_compression(audio_array, target_rms)
+            
+            # Convert back to int16 and bytes
+            normalized_int16 = (normalized_array * 32767).astype(np.int16)
+            normalized_bytes = normalized_int16.tobytes()
+            
+            # Create new AudioData with normalized audio
+            from irene.intents.models import AudioData
+            normalized_audio = AudioData(
+                data=normalized_bytes,
+                sample_rate=self.combined_audio.sample_rate,
+                channels=self.combined_audio.channels,
+                timestamp=self.combined_audio.timestamp
+            )
+            
+            # Create new VoiceSegment with normalized audio
+            normalized_segment = VoiceSegment(
+                audio_chunks=self.audio_chunks,  # Keep original chunks
+                start_timestamp=self.start_timestamp,
+                end_timestamp=self.end_timestamp,
+                total_duration_ms=self.total_duration_ms,
+                chunk_count=self.chunk_count,
+                combined_audio=normalized_audio,
+                metadata={**self.metadata, 'normalized_for_asr': True, 'target_rms': target_rms}
+            )
+            
+            return normalized_segment
+            
+        except Exception as e:
+            logger.warning(f"Failed to normalize audio for ASR: {e}")
+            return self
 
 
 @dataclass
@@ -711,6 +766,7 @@ class AudioProcessorInterface:
             vad_config: VAD configuration object
         """
         self.processor = UniversalAudioProcessor(vad_config)
+        self.vad_config = vad_config  # Store config for normalization settings
         
     async def process_audio_pipeline(self, 
                                    audio_stream: AsyncIterator[AudioData],
@@ -772,7 +828,17 @@ class AudioProcessorInterface:
             
             if asr_component:
                 try:
-                    asr_result = await asr_component.process_audio(combined_audio)
+                    # Normalize audio for ASR to prevent clipping (if enabled)
+                    if getattr(self.vad_config, 'normalize_for_asr', True):
+                        target_rms = getattr(self.vad_config, 'asr_target_rms', 0.08)
+                        normalized_segment = voice_segment.normalize_for_asr(target_rms=target_rms)
+                        audio_for_asr = normalized_segment.combined_audio
+                        logger.debug(f"Audio normalized for ASR (target RMS: {target_rms})")
+                    else:
+                        audio_for_asr = combined_audio
+                        logger.debug("Audio normalization disabled, using original audio")
+                    
+                    asr_result = await asr_component.process_audio(audio_for_asr)
                     return {
                         'type': 'asr_result',
                         'result': asr_result,
@@ -827,7 +893,17 @@ class AudioProcessorInterface:
                 
                 if asr_component:
                     try:
-                        asr_result = await asr_component.process_audio(combined_audio)
+                        # Normalize audio for ASR to prevent clipping (if enabled)
+                        if getattr(self.vad_config, 'normalize_for_asr', True):
+                            target_rms = getattr(self.vad_config, 'asr_target_rms', 0.08)
+                            normalized_segment = voice_segment.normalize_for_asr(target_rms=target_rms)
+                            audio_for_asr = normalized_segment.combined_audio
+                            logger.debug(f"Audio normalized for ASR (target RMS: {target_rms})")
+                        else:
+                            audio_for_asr = combined_audio
+                            logger.debug("Audio normalization disabled, using original audio")
+                        
+                        asr_result = await asr_component.process_audio(audio_for_asr)
                         return {
                             'type': 'asr_result',
                             'result': asr_result,

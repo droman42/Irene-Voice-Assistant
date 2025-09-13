@@ -380,6 +380,10 @@ class VADConfig(BaseModel):
     processing_timeout_ms: int = Field(default=50, description="Maximum processing time per frame in milliseconds", ge=1)
     buffer_size_frames: int = Field(default=100, description="Maximum frames to buffer in voice segments", ge=10)
     
+    # Audio normalization for ASR
+    normalize_for_asr: bool = Field(default=True, description="Enable audio normalization before sending to ASR to prevent clipping")
+    asr_target_rms: float = Field(default=0.08, description="Target RMS level for ASR audio normalization", ge=0.01, le=0.3)
+    
     # Backward compatibility alias for threshold
     @property
     def threshold(self) -> float:
