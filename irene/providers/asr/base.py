@@ -113,6 +113,26 @@ class ASRProvider(ProviderBase):
         """
         pass
     
+    def reset(self, language: str = None) -> bool:
+        """Reset provider state to prevent contamination between utterances
+        
+        This method should clear any internal state that might persist between
+        transcription calls, ensuring clean processing for each new utterance.
+        
+        Args:
+            language: Language code to reset (None = reset all languages)
+            
+        Returns:
+            True if reset was successful, False otherwise
+            
+        Note:
+            Default implementation does nothing and returns True. Override this
+            method if your provider maintains internal state that needs clearing.
+            This is particularly important for providers like VOSK that cache
+            recognizer instances with persistent internal state.
+        """
+        return True
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Return provider capabilities (optional override)
         

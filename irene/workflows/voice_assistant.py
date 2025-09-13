@@ -387,6 +387,10 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
                             wake_word_detected = False
                     else:
                         self.logger.debug("📭 VAD-ASR returned empty result")
+                        # Reset ASR provider state after empty result to ensure clean state
+                        if self.asr and hasattr(self.asr, 'reset_provider_state'):
+                            self.asr.reset_provider_state()
+                            self.logger.debug("Reset ASR provider state after empty result")
                         
                 elif result['type'] == 'wake_word_result':
                     wake_result = result['result']

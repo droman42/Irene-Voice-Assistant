@@ -149,6 +149,8 @@ class VoskASRProvider(ASRProvider):
         logger.info(f"🗣️ VOSK transcribe_audio called: {len(audio_data)} bytes, "
                    f"language={language}, confidence_threshold={confidence_threshold}")
         
+        recognizer = None  # Initialize for cleanup in finally block
+        
         try:
             # Load model for language if not already loaded
             if language not in self._models:
@@ -189,11 +191,25 @@ class VoskASRProvider(ASRProvider):
         except Exception as e:
             logger.error(f"❌ VOSK transcription error: {e}")
         
+        finally:
+            # CRITICAL FIX: Reset recognizer state to prevent contamination between utterances
+            if recognizer is not None:
+                try:
+                    recognizer.Reset()
+                    logger.debug(f"🔄 VOSK recognizer state reset for clean next utterance")
+                except Exception as reset_error:
+                    logger.warning(f"Failed to reset VOSK recognizer: {reset_error}")
+        
         logger.debug("📭 VOSK returning empty result")
         return ""
     
     async def transcribe_stream(self, audio_stream: AsyncIterator[bytes]) -> AsyncIterator[str]:
-        """Transcribe streaming audio using VOSK"""
+        """
+        Transcribe streaming audio using VOSK
+        
+        Note: For streaming, recognizer state is maintained across chunks.
+        Use reset_recognizer() method to manually reset state between sessions.
+        """
         language = self.default_language
         
         # Load model and create recognizer
@@ -211,6 +227,7 @@ class VoskASRProvider(ASRProvider):
                     text = result.get("text", "")
                     if text.strip():
                         yield text.strip()
+                        # Note: No reset here as streaming expects continuous audio
                 else:
                     # Yield partial results for real-time feedback
                     partial_result = json.loads(recognizer.PartialResult())
@@ -219,6 +236,49 @@ class VoskASRProvider(ASRProvider):
                         yield f"[partial] {partial_text.strip()}"
             except Exception as e:
                 logger.error(f"VOSK streaming error: {e}")
+    
+    def reset(self, language: str = None) -> bool:
+        """
+        Reset VOSK recognizer state for specified language or all languages.
+        
+        Overrides the base ASRProvider.reset() method to provide VOSK-specific
+        state clearing functionality. This method clears internal recognizer
+        state to prevent contamination between utterances.
+        
+        Args:
+            language: Language code to reset (None = reset all recognizers)
+            
+        Returns:
+            True if reset was successful, False otherwise
+        """
+        try:
+            if language is None:
+                # Reset all recognizers
+                reset_count = 0
+                for lang, recognizer in self._recognizers.items():
+                    try:
+                        recognizer.Reset()
+                        reset_count += 1
+                        logger.debug(f"Reset VOSK recognizer for language: {lang}")
+                    except Exception as e:
+                        logger.warning(f"Failed to reset VOSK recognizer for {lang}: {e}")
+                
+                logger.info(f"Reset {reset_count}/{len(self._recognizers)} VOSK recognizers")
+                return reset_count > 0
+                
+            else:
+                # Reset specific language recognizer
+                if language in self._recognizers:
+                    self._recognizers[language].Reset()
+                    logger.debug(f"Reset VOSK recognizer for language: {language}")
+                    return True
+                else:
+                    logger.warning(f"No VOSK recognizer found for language: {language}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Error resetting VOSK recognizer(s): {e}")
+            return False
     
     async def _load_model(self, language: str) -> None:
         """Load VOSK model for specified language using asset management"""

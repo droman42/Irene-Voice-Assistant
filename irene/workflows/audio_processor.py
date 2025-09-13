@@ -847,6 +847,10 @@ class AudioProcessorInterface:
                     }
                 except Exception as e:
                     logger.error(f"ASR processing failed: {e}")
+                    # Reset ASR provider state after processing failure
+                    if asr_component and hasattr(asr_component, 'reset_provider_state'):
+                        asr_component.reset_provider_state()
+                        logger.debug("Reset ASR provider state after processing failure")
                     return {
                         'type': 'error',
                         'error': str(e),
@@ -912,6 +916,10 @@ class AudioProcessorInterface:
                         }
                     except Exception as e:
                         logger.error(f"ASR processing failed: {e}")
+                        # Reset ASR provider state after processing failure
+                        if asr_component and hasattr(asr_component, 'reset_provider_state'):
+                            asr_component.reset_provider_state()
+                            logger.debug("Reset ASR provider state after command processing failure")
                         return {
                             'type': 'error',
                             'error': str(e),

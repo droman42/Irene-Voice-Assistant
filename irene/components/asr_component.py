@@ -268,6 +268,8 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                     # Update failure metrics
                     self._resampling_metrics['resampling_failures'] += 1
                     logger.error(f"Configuration-required resampling failed: {resampling_error}")
+                    # Reset provider state after resampling failure to ensure clean state
+                    self.reset_provider_state(provider_name)
                     raise resampling_error
                 
             except Exception as e:
@@ -326,6 +328,8 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                         
                     except Exception as resampling_error:
                         self._resampling_metrics['resampling_failures'] += 1
+                        # Reset provider state after resampling failure
+                        self.reset_provider_state(provider_name)
                         raise resampling_error
                         
             except Exception as e:
@@ -496,6 +500,62 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         # TODO: Implement language switching logic
         return False, "Переключение языка пока не реализовано"
     
+    def reset_provider_state(self, provider_name: str = None, language: str = None) -> bool:
+        """
+        Reset ASR provider state to prevent contamination between utterances.
+        
+        This method calls the reset() method on the specified provider(s) to clear
+        any internal state that might persist between transcription calls.
+        
+        Args:
+            provider_name: Provider to reset (None = reset all providers)
+            language: Language to reset (None = reset all languages)
+            
+        Returns:
+            True if at least one reset was successful, False otherwise
+        """
+        success_count = 0
+        total_attempts = 0
+        
+        try:
+            if provider_name is None:
+                # Reset all providers
+                for name, provider in self.providers.items():
+                    total_attempts += 1
+                    try:
+                        if provider.reset(language):
+                            success_count += 1
+                            logger.debug(f"Reset ASR provider state: {name}")
+                        else:
+                            logger.warning(f"Failed to reset ASR provider state: {name}")
+                    except Exception as e:
+                        logger.warning(f"Error resetting ASR provider {name}: {e}")
+                
+                if total_attempts > 0:
+                    logger.info(f"Reset {success_count}/{total_attempts} ASR providers")
+                    
+            else:
+                # Reset specific provider
+                if provider_name in self.providers:
+                    total_attempts = 1
+                    try:
+                        if self.providers[provider_name].reset(language):
+                            success_count = 1
+                            logger.debug(f"Reset ASR provider state: {provider_name}")
+                        else:
+                            logger.warning(f"Failed to reset ASR provider state: {provider_name}")
+                    except Exception as e:
+                        logger.warning(f"Error resetting ASR provider {provider_name}: {e}")
+                else:
+                    logger.warning(f"ASR provider not found: {provider_name}")
+                    return False
+            
+            return success_count > 0
+            
+        except Exception as e:
+            logger.error(f"Error in reset_provider_state: {e}")
+            return False
+    
     def _get_providers_info(self) -> str:
         """Get formatted information about available providers"""
         if not self.providers:
@@ -588,6 +648,10 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
             """WebSocket endpoint for real-time ASR - NEW CAPABILITY!"""
             await websocket.accept()
             
+            # Reset all ASR provider states for clean session start
+            self.reset_provider_state()
+            logger.debug("Reset ASR provider states for new WebSocket session")
+            
             try:
                 while True:
                     # Receive audio chunk
@@ -619,6 +683,11 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                                 }
                                 await websocket.send_text(json.dumps(response))
                         except Exception as e:
+                            # Reset provider state after transcription error
+                            provider_name = message.get("provider", self.default_provider)
+                            self.reset_provider_state(provider_name)
+                            logger.debug(f"Reset ASR provider {provider_name} after WebSocket transcription error")
+                            
                             error_response = {
                                 "type": "error",
                                 "error": str(e),
@@ -628,8 +697,14 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                             
             except WebSocketDisconnect:
                 logger.info("ASR WebSocket client disconnected")
+                # Reset provider states on disconnect for clean state
+                self.reset_provider_state()
+                logger.debug("Reset ASR provider states after WebSocket disconnect")
             except Exception as e:
                 logger.error(f"ASR WebSocket error: {e}")
+                # Reset provider states after WebSocket error
+                self.reset_provider_state()
+                logger.debug("Reset ASR provider states after WebSocket error")
         
         @router.get("/providers")
         async def list_asr_providers():
@@ -660,6 +735,24 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                 return {"success": True, "default_provider": self.default_provider}
             else:
                 raise HTTPException(404, f"Provider '{provider}' not available")
+        
+        @router.post("/reset")
+        async def reset_asr_state(provider: Optional[str] = None, language: Optional[str] = None):
+            """Reset ASR provider state to clear internal buffers and prevent contamination"""
+            try:
+                success = self.reset_provider_state(provider, language)
+                if success:
+                    return {
+                        "success": True,
+                        "message": f"Reset ASR state for provider: {provider or 'all'}, language: {language or 'all'}"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": "Failed to reset ASR state"
+                    }
+            except Exception as e:
+                raise HTTPException(500, f"Error resetting ASR state: {str(e)}")
         
         return router 
     
