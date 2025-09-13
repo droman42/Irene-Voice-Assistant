@@ -19,6 +19,7 @@ from functools import lru_cache
 import numpy as np
 
 from ..intents.models import AudioData
+from ..core.metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -43,21 +44,7 @@ class VADResult:
     cache_hit: bool = False
 
 
-@dataclass
-class VADPerformanceCache:
-    """Cache for VAD performance optimizations"""
-    energy_cache: Dict[int, float] = field(default_factory=dict)
-    zcr_cache: Dict[int, float] = field(default_factory=dict)
-    array_cache: Dict[int, np.ndarray] = field(default_factory=dict)
-    cache_hits: int = 0
-    cache_misses: int = 0
-    
-    def get_cache_efficiency(self) -> float:
-        """Calculate cache hit efficiency"""
-        total = self.cache_hits + self.cache_misses
-        return self.cache_hits / total if total > 0 else 0.0
-
-
+# Phase 4: VADPerformanceCache removed, metrics now unified in MetricsCollector
 # Phase 5: Optimized calculation functions with caching
 @lru_cache(maxsize=CACHE_SIZE)
 def _calculate_rms_energy_cached(data_hash: int, data_length: int) -> float:
@@ -148,43 +135,29 @@ def _apply_dynamic_range_compression(audio_array: np.ndarray, target_rms: float 
     return normalized_audio
 
 
-def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[VADPerformanceCache] = None) -> tuple[float, bool]:
+def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[object] = None) -> tuple[float, bool]:
     """
-    Optimized RMS energy calculation with caching and efficient numpy operations.
+    Optimized RMS energy calculation with efficient numpy operations.
     
+    Phase 4: Cache functionality removed - metrics now unified in MetricsCollector.
     Phase 5 optimizations:
-    - Pre-allocated numpy arrays
-    - Caching for repeated patterns
     - Efficient float32 operations
     - Memory management
+    - Direct metrics reporting
     
     Args:
         audio_data: Raw audio bytes
-        cache: Optional performance cache
+        cache: Deprecated parameter (kept for compatibility, ignored)
         
     Returns:
-        Tuple of (energy_value, cache_hit)
+        Tuple of (energy_value, cache_hit) - cache_hit always False after Phase 4
     """
-    # Create hash for caching
-    data_hash = hash(audio_data) if len(audio_data) < 1024 else hash(audio_data[:512] + audio_data[-512:])
+    # Phase 4: Cache functionality removed, always compute fresh
     cache_hit = False
-    
-    # Check cache first
-    if cache and data_hash in cache.energy_cache:
-        cache.cache_hits += 1
-        return cache.energy_cache[data_hash], True
-    
-    if cache:
-        cache.cache_misses += 1
     
     try:
         # Efficient numpy conversion with optimized dtype
-        if data_hash in (cache.array_cache if cache else {}):
-            audio_array = cache.array_cache[data_hash]
-        else:
-            audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(NUMPY_DTYPE)
-            if cache and len(cache.array_cache) < CACHE_SIZE:
-                cache.array_cache[data_hash] = audio_array
+        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(NUMPY_DTYPE)
         
         if len(audio_array) == 0:
             return 0.0, cache_hit
@@ -199,10 +172,7 @@ def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[VADPerform
         # Normalize to 0.0-1.0 range
         normalized_energy = min(1.0, rms / 32768.0)
         
-        # Cache result
-        if cache and len(cache.energy_cache) < CACHE_SIZE:
-            cache.energy_cache[data_hash] = normalized_energy
-        
+        # Phase 4: Cache logic removed - metrics reported directly to MetricsCollector
         return normalized_energy, cache_hit
         
     except Exception as e:
@@ -210,41 +180,28 @@ def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[VADPerform
         return 0.0, cache_hit
 
 
-def calculate_zcr_optimized(audio_data: bytes, cache: Optional[VADPerformanceCache] = None) -> tuple[float, bool]:
+def calculate_zcr_optimized(audio_data: bytes, cache: Optional[object] = None) -> tuple[float, bool]:
     """
-    Optimized Zero Crossing Rate calculation with caching.
+    Optimized Zero Crossing Rate calculation.
     
+    Phase 4: Cache functionality removed - metrics now unified in MetricsCollector.
     Phase 5 optimizations:
     - Efficient numpy operations
-    - Caching for repeated patterns
     - Vectorized sign computation
     
     Args:
         audio_data: Raw audio bytes
-        cache: Optional performance cache
+        cache: Deprecated parameter (kept for compatibility, ignored)
         
     Returns:
-        Tuple of (zcr_value, cache_hit)
+        Tuple of (zcr_value, cache_hit) - cache_hit always False after Phase 4
     """
-    data_hash = hash(audio_data) if len(audio_data) < 1024 else hash(audio_data[:512] + audio_data[-512:])
+    # Phase 4: Cache functionality removed, always compute fresh
     cache_hit = False
     
-    # Check cache first
-    if cache and data_hash in cache.zcr_cache:
-        cache.cache_hits += 1
-        return cache.zcr_cache[data_hash], True
-    
-    if cache:
-        cache.cache_misses += 1
-    
     try:
-        # Reuse cached array if available
-        if cache and data_hash in cache.array_cache:
-            audio_array = cache.array_cache[data_hash]
-        else:
-            audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(NUMPY_DTYPE)
-            if cache and len(cache.array_cache) < CACHE_SIZE:
-                cache.array_cache[data_hash] = audio_array
+        # Efficient numpy conversion
+        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(NUMPY_DTYPE)
         
         if len(audio_array) <= 1:
             return 0.0, cache_hit
@@ -260,10 +217,7 @@ def calculate_zcr_optimized(audio_data: bytes, cache: Optional[VADPerformanceCac
         # Normalize by frame length
         zcr = zero_crossings / (len(audio_array) - 1)
         
-        # Cache result
-        if cache and len(cache.zcr_cache) < CACHE_SIZE:
-            cache.zcr_cache[data_hash] = zcr
-        
+        # Phase 4: Cache logic removed - metrics reported directly to MetricsCollector
         return zcr, cache_hit
         
     except Exception as e:
@@ -299,7 +253,7 @@ class SimpleVAD:
         
         # Phase 5: Performance optimization components
         self.enable_caching = enable_caching
-        self.performance_cache = VADPerformanceCache() if enable_caching else None
+        self.performance_cache = None  # Phase 4: VADPerformanceCache removed, metrics unified in MetricsCollector
         
         # State tracking for hysteresis
         self._consecutive_voice_frames = 0

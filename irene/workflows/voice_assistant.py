@@ -19,6 +19,7 @@ from typing import AsyncIterator, Optional, Dict, Any, List
 
 from .base import Workflow, RequestContext
 from .audio_processor import AudioProcessorInterface, VoiceSegment
+from ..core.metrics import get_metrics_collector
 from ..intents.models import AudioData, ConversationContext, Intent, IntentResult, WakeWordResult
 from ..utils.audio_helpers import test_audio_playback_capability, calculate_audio_buffer_size
 from ..utils.loader import safe_import
@@ -58,6 +59,7 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         self.tts = None
         self.audio = None
         self.context_manager = None
+        self.metrics_collector = get_metrics_collector()  # Phase 2: Intent analytics integration
         self.buffer_size = None
         
         # VAD processing components (always enabled)
@@ -312,7 +314,17 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         
         # Stage 2: NLU (Natural Language Understanding)
         self.logger.debug("Stage: NLU")
+        recognition_start_time = time.time()
         intent = await self.nlu.process(processed_text, conversation_context)
+        
+        # Phase 2: Record intent recognition metrics
+        recognition_time = time.time() - recognition_start_time
+        self.metrics_collector.record_intent_recognition(
+            intent_name=intent.name,
+            confidence=intent.confidence,
+            processing_time=recognition_time,
+            session_id=conversation_context.session_id
+        )
         
         # Stage 3: Intent Execution
         self.logger.debug(f"Stage: Intent Execution - {intent.name}")

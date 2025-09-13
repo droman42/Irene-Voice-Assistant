@@ -57,6 +57,28 @@ class IntentHandler(EntryPointMetadata, ABC):
         else:
             self._metrics_collector = metrics_collector
     
+    # Phase 2: Intent analytics helper methods
+    def record_intent_recognition(self, intent_name: str, confidence: float, processing_time: float, session_id: Optional[str] = None) -> None:
+        """Record intent recognition metrics through unified metrics collector"""
+        if self._metrics_collector:
+            self._metrics_collector.record_intent_recognition(intent_name, confidence, processing_time, session_id)
+    
+    def record_intent_execution(self, intent_name: str, success: bool, execution_time: float, 
+                               error: Optional[str] = None, session_id: Optional[str] = None) -> None:
+        """Record intent execution metrics through unified metrics collector"""
+        if self._metrics_collector:
+            self._metrics_collector.record_intent_execution(intent_name, success, execution_time, error, session_id)
+    
+    def record_session_start(self, session_id: str) -> None:
+        """Record conversation session start through unified metrics collector"""
+        if self._metrics_collector:
+            self._metrics_collector.record_session_start(session_id)
+    
+    def record_session_end(self, session_id: str, user_satisfaction: Optional[float] = None) -> None:
+        """Record conversation session end through unified metrics collector"""
+        if self._metrics_collector:
+            self._metrics_collector.record_session_end(session_id, user_satisfaction)
+    
     def set_action_debugger(self, action_debugger: Optional[ActionDebugger] = None) -> None:
         """Set the action debugger for development tools (Phase 3.4)"""
         if action_debugger is None:

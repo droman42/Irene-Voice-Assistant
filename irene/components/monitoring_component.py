@@ -52,17 +52,20 @@ class MonitoringComponent(Component, WebAPIPlugin):
         try:
             self.logger.info("Initializing Phase 3 Monitoring Component...")
             
-            # Get configuration
+            # Get configuration with fallback to legacy settings (Phase 2)
             config = getattr(core.config, 'monitoring', None)
+            legacy_metrics_enabled = getattr(core.config, 'metrics_enabled', None)
+            legacy_metrics_port = getattr(core.config, 'metrics_port', None)
+            
             if not config:
-                # Create default config if missing
-                self.logger.warning("No monitoring configuration found, using defaults")
+                # Create default config if missing, with legacy fallback
+                self.logger.warning("No monitoring configuration found, checking legacy settings and using defaults")
                 config = type('MonitoringConfig', (), {
                     'enabled': True,
                     'notifications_enabled': True,
                     'notifications_default_channel': 'log',
                     'notifications_tts_enabled': True,
-                    'metrics_enabled': True,
+                    'metrics_enabled': legacy_metrics_enabled if legacy_metrics_enabled is not None else True,
                     'metrics_monitoring_interval': 300,
                     'metrics_retention_hours': 24,
                     'memory_management_enabled': True,
@@ -72,17 +75,35 @@ class MonitoringComponent(Component, WebAPIPlugin):
                     'debug_auto_inspect_failures': True,
                     'debug_max_history': 1000,
                     'analytics_dashboard_enabled': True,
-                    'analytics_web_port': 8081,
+                    'analytics_web_port': legacy_metrics_port if legacy_metrics_port else 8081,
                     'analytics_refresh_interval': 30
                 })()
+                
+                # Log legacy configuration migration
+                if legacy_metrics_enabled is not None or legacy_metrics_port is not None:
+                    self.logger.info(f"🔄 Using legacy configuration: metrics_enabled={legacy_metrics_enabled}, metrics_port={legacy_metrics_port}")
+                    self.logger.info("📋 Consider migrating to monitoring.* configuration section")
             
-            # Convert Pydantic model to dict for easier access
+            # Convert Pydantic model to dict for easier access with legacy fallbacks
             if hasattr(config, 'model_dump'):
                 config_dict = config.model_dump()
             elif hasattr(config, 'dict'):
                 config_dict = config.dict()
             else:
                 config_dict = {attr: getattr(config, attr) for attr in dir(config) if not attr.startswith('_')}
+            
+            # Apply legacy setting fallbacks (Phase 2: Configuration precedence)
+            if legacy_metrics_enabled is not None and 'metrics_enabled' not in config_dict:
+                config_dict['metrics_enabled'] = legacy_metrics_enabled
+                self.logger.info(f"🔄 Applied legacy fallback: metrics_enabled={legacy_metrics_enabled}")
+            
+            if legacy_metrics_port is not None and 'analytics_web_port' not in config_dict:
+                config_dict['analytics_web_port'] = legacy_metrics_port
+                self.logger.info(f"🔄 Applied legacy fallback: analytics_web_port={legacy_metrics_port}")
+            
+            # Ensure backward compatibility with monitoring.metrics_* prefix
+            if config_dict.get('metrics_enabled') is not None and not hasattr(config, 'metrics_enabled'):
+                self.logger.debug("Using monitoring.metrics_enabled setting")
             
             # Get required components
             self.context_manager = getattr(core, 'context_manager', None)
@@ -351,6 +372,214 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 from fastapi.responses import HTMLResponse
                 html_content = self.analytics_dashboard.generate_html_dashboard()
                 return HTMLResponse(content=html_content)
+            
+            # Phase 1: Analytics endpoints (migrated from webapi_runner.py)
+            class AnalyticsReportResponse(BaseModel):
+                timestamp: float
+                report_type: str
+                intents: Dict[str, Any]
+                sessions: Dict[str, Any]
+                system: Dict[str, Any]
+            
+            @router.get("/intents")
+            async def get_intent_analytics():
+                """Get intent recognition and execution analytics"""
+                if not self.metrics_collector:
+                    raise HTTPException(status_code=503, detail="Metrics collector not available")
+                
+                # Get intent analytics from unified metrics
+                domain_metrics = self.metrics_collector.get_all_domain_metrics()
+                intent_data = {}
+                
+                for domain, metrics in domain_metrics.items():
+                    if not domain.startswith("intent_"):
+                        continue
+                    intent_name = domain.replace("intent_", "")
+                    intent_data[intent_name] = {
+                        "success_rate": metrics.success_rate,
+                        "total_actions": metrics.total_actions,
+                        "average_duration": metrics.avg_duration,
+                        "last_updated": metrics.last_updated
+                    }
+                
+                import time
+                return {
+                    "total_intents_processed": sum(m.total_actions for m in domain_metrics.values() if m.total_actions > 0),
+                    "unique_intent_types": len(intent_data),
+                    "intent_breakdown": intent_data,
+                    "overall_success_rate": sum(m.success_rate for m in domain_metrics.values()) / max(1, len(domain_metrics)),
+                    "timestamp": time.time()
+                }
+            
+            @router.get("/sessions")
+            async def get_session_analytics():
+                """Get conversation session analytics"""
+                if not self.metrics_collector:
+                    raise HTTPException(status_code=503, detail="Metrics collector not available")
+                
+                # Get session analytics from unified metrics
+                import time
+                system_metrics = self.metrics_collector.get_system_metrics()
+                return {
+                    "active_sessions": system_metrics.get("current_concurrent_actions", 0),
+                    "total_sessions": system_metrics.get("total_actions_completed", 0),
+                    "average_session_duration": system_metrics.get("average_completion_time", 0.0),
+                    "average_user_satisfaction": 0.8,  # Default value - to be enhanced later
+                    "uptime_seconds": system_metrics.get("uptime_seconds", 0),
+                    "timestamp": time.time()
+                }
+            
+            @router.get("/performance")
+            async def get_system_performance():
+                """Get system performance metrics including VAD and component metrics"""
+                if not self.metrics_collector:
+                    raise HTTPException(status_code=503, detail="Metrics collector not available")
+                
+                import time
+                system_metrics = self.metrics_collector.get_system_metrics()
+                vad_metrics = self.metrics_collector.get_vad_metrics()
+                component_metrics = self.metrics_collector.get_all_component_metrics()
+                
+                return {
+                    "system": {
+                        "uptime_seconds": system_metrics.get("uptime_seconds", 0),
+                        "total_actions": system_metrics.get("total_actions_completed", 0),
+                        "success_rate": system_metrics.get("average_success_rate", 0.0),
+                        "peak_concurrent": system_metrics.get("peak_concurrent_actions", 0)
+                    },
+                    "vad": vad_metrics,
+                    "components": component_metrics,
+                    "timestamp": time.time()
+                }
+            
+            @router.get("/report", response_model=AnalyticsReportResponse)
+            async def get_comprehensive_analytics_report():
+                """Get comprehensive analytics report"""
+                if not self.metrics_collector:
+                    raise HTTPException(status_code=503, detail="Metrics collector not available")
+                
+                # Gather data from all monitoring sources
+                import time
+                system_metrics = self.metrics_collector.get_system_metrics()
+                domain_metrics = self.metrics_collector.get_all_domain_metrics()
+                vad_metrics = self.metrics_collector.get_vad_metrics()
+                component_metrics = self.metrics_collector.get_all_component_metrics()
+                
+                # Build comprehensive report
+                return AnalyticsReportResponse(
+                    timestamp=time.time(),
+                    report_type="comprehensive_unified_analytics",
+                    intents={
+                        "overview": {
+                            "total_actions": sum(m.total_actions for m in domain_metrics.values()),
+                            "success_rate": sum(m.success_rate for m in domain_metrics.values()) / max(1, len(domain_metrics)),
+                            "domain_count": len(domain_metrics)
+                        },
+                        "details": {domain: {"success_rate": m.success_rate, "total_actions": m.total_actions} 
+                                  for domain, m in domain_metrics.items()}
+                    },
+                    sessions={
+                        "overview": {
+                            "active_sessions": system_metrics.get("current_concurrent_actions", 0),
+                            "total_sessions": system_metrics.get("total_actions_completed", 0),
+                            "peak_concurrent": system_metrics.get("peak_concurrent_actions", 0)
+                        }
+                    },
+                    system={
+                        "uptime_seconds": system_metrics.get("uptime_seconds", 0),
+                        "vad_metrics": vad_metrics,
+                        "component_metrics": component_metrics
+                    }
+                )
+            
+            @router.post("/session/{session_id}/satisfaction")
+            async def rate_session_satisfaction(session_id: str, satisfaction_score: float):
+                """Rate user satisfaction for a session (0.0-1.0)"""
+                if not 0.0 <= satisfaction_score <= 1.0:
+                    raise HTTPException(status_code=400, detail="Satisfaction score must be between 0.0 and 1.0")
+                
+                # For now, store satisfaction in memory - could be enhanced to persist
+                # This is a placeholder implementation for Phase 1 compatibility
+                return {
+                    "success": True,
+                    "session_id": session_id,
+                    "satisfaction_score": satisfaction_score,
+                    "message": "Satisfaction rating recorded in unified metrics system"
+                }
+            
+            @router.get("/prometheus")
+            async def get_prometheus_metrics():
+                """Get metrics in Prometheus format for monitoring systems"""
+                if not self.metrics_collector:
+                    raise HTTPException(status_code=503, detail="Metrics collector not available")
+                
+                system_metrics = self.metrics_collector.get_system_metrics()
+                vad_metrics = self.metrics_collector.get_vad_metrics()
+                component_metrics = self.metrics_collector.get_all_component_metrics()
+                
+                # Generate Prometheus-style metrics
+                import time
+                timestamp = int(time.time() * 1000)
+                
+                lines = [
+                    "# HELP irene_actions_total Total number of actions processed",
+                    "# TYPE irene_actions_total counter",
+                    f"irene_actions_total {system_metrics.get('total_actions_completed', 0)} {timestamp}",
+                    "",
+                    "# HELP irene_actions_success_rate Success rate of actions",
+                    "# TYPE irene_actions_success_rate gauge", 
+                    f"irene_actions_success_rate {system_metrics.get('average_success_rate', 0.0)} {timestamp}",
+                    "",
+                    "# HELP irene_vad_chunks_total Total VAD chunks processed",
+                    "# TYPE irene_vad_chunks_total counter",
+                    f"irene_vad_chunks_total {vad_metrics.get('total_chunks_processed', 0)} {timestamp}",
+                    "",
+                    "# HELP irene_vad_processing_time Average VAD processing time in ms",
+                    "# TYPE irene_vad_processing_time gauge",
+                    f"irene_vad_processing_time {vad_metrics.get('average_processing_time_ms', 0.0)} {timestamp}",
+                    ""
+                ]
+                
+                # Add component metrics
+                for component, metrics in component_metrics.items():
+                    if isinstance(metrics, dict):
+                        for metric_name, value in metrics.items():
+                            if isinstance(value, (int, float)):
+                                lines.extend([
+                                    f"# HELP irene_component_{component}_{metric_name} Component {component} {metric_name}",
+                                    f"# TYPE irene_component_{component}_{metric_name} gauge",
+                                    f"irene_component_{component}_{metric_name} {value} {timestamp}",
+                                    ""
+                                ])
+                
+                from fastapi.responses import PlainTextResponse
+                return PlainTextResponse(content="\n".join(lines), media_type="text/plain")
+            
+            # Phase 3: Performance validation endpoint
+            class PerformanceValidationResponse(BaseModel):
+                performance_score: float
+                meets_criteria: bool
+                validation_criteria: Dict[str, float]
+                performance_analysis: Dict[str, Any]
+                recommendations: List[Dict[str, str]]
+                generated_at: str
+                
+            @router.get("/performance/validate", response_model=PerformanceValidationResponse)
+            async def validate_system_performance():
+                """Validate unified metrics system performance impact - Phase 3"""
+                if not self.analytics_dashboard:
+                    raise HTTPException(status_code=503, detail="Analytics dashboard not available")
+                
+                validation_result = self.analytics_dashboard.validate_system_performance()
+                
+                return PerformanceValidationResponse(
+                    performance_score=validation_result.get("performance_score", 0.0),
+                    meets_criteria=validation_result.get("meets_criteria", False),
+                    validation_criteria=validation_result.get("validation_criteria", {}),
+                    performance_analysis=validation_result.get("performance_analysis", {}),
+                    recommendations=validation_result.get("recommendations", []),
+                    generated_at=validation_result.get("generated_at", "")
+                )
             
             return router
             

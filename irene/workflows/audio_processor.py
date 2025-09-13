@@ -20,6 +20,7 @@ from ..intents.models import AudioData, ConversationContext
 from ..config.models import VADConfig
 from ..utils.vad import SimpleVAD, AdvancedVAD, VADResult
 from ..utils.audio_helpers import calculate_audio_energy, estimate_optimal_vad_threshold
+from ..core.metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -104,127 +105,8 @@ class VoiceSegment:
             return self
 
 
-@dataclass
-class ProcessingMetrics:
-    """Metrics for VAD processing performance"""
-    total_chunks_processed: int = 0
-    voice_segments_detected: int = 0
-    silence_chunks_skipped: int = 0
-    average_processing_time_ms: float = 0.0
-    max_processing_time_ms: float = 0.0
-    total_processing_time_ms: float = 0.0
-    buffer_overflow_count: int = 0
-    timeout_events: int = 0
-    
-    def update_processing_time(self, processing_time_ms: float):
-        """Update processing time metrics"""
-        self.total_processing_time_ms += processing_time_ms
-        self.total_chunks_processed += 1
-        
-        if processing_time_ms > self.max_processing_time_ms:
-            self.max_processing_time_ms = processing_time_ms
-            
-        self.average_processing_time_ms = (
-            self.total_processing_time_ms / self.total_chunks_processed
-        )
-
-
-@dataclass 
-class AdvancedMetrics:
-    """Enhanced metrics for Phase 5 monitoring and optimization"""
-    # Cache performance metrics
-    cache_hit_rate: float = 0.0
-    cache_hits: int = 0
-    cache_misses: int = 0
-    
-    # Voice segment quality metrics
-    total_voice_duration_ms: float = 0.0
-    average_segment_duration_ms: float = 0.0
-    min_segment_duration_ms: float = float('inf')
-    max_segment_duration_ms: float = 0.0
-    
-    # Detection accuracy metrics
-    false_positive_segments: int = 0  # Very short segments (likely noise)
-    false_negative_gaps: int = 0      # Brief silence in continuous speech
-    
-    # Adaptive threshold tracking
-    adaptive_threshold_adjustments: int = 0
-    current_adaptive_threshold: float = 0.0
-    average_energy_level: float = 0.0
-    average_zcr_level: float = 0.0
-    
-    # Performance efficiency
-    real_time_factor: float = 0.0
-    memory_efficiency_score: float = 0.0
-    
-    def update_cache_metrics(self, cache_hit: bool):
-        """Update cache performance metrics"""
-        if cache_hit:
-            self.cache_hits += 1
-        else:
-            self.cache_misses += 1
-        
-        total = self.cache_hits + self.cache_misses
-        self.cache_hit_rate = self.cache_hits / total if total > 0 else 0.0
-    
-    def update_voice_segment_metrics(self, segment_duration_ms: float):
-        """Update voice segment statistics"""
-        self.total_voice_duration_ms += segment_duration_ms
-        
-        # Update duration statistics
-        self.min_segment_duration_ms = min(self.min_segment_duration_ms, segment_duration_ms)
-        self.max_segment_duration_ms = max(self.max_segment_duration_ms, segment_duration_ms)
-        
-        # Check for potential false positives
-        if segment_duration_ms < 100:  # Less than 100ms might be noise
-            self.false_positive_segments += 1
-    
-    def update_detection_quality(self, energy: float, zcr: float, adaptive_threshold: float, chunk_count: int):
-        """Update detection quality metrics"""
-        # Update running averages
-        if chunk_count > 0:
-            alpha = 1.0 / chunk_count
-            self.average_energy_level = (1 - alpha) * self.average_energy_level + alpha * energy
-            self.average_zcr_level = (1 - alpha) * self.average_zcr_level + alpha * zcr
-        
-        # Track threshold changes
-        if abs(adaptive_threshold - self.current_adaptive_threshold) > 0.001:
-            self.adaptive_threshold_adjustments += 1
-            self.current_adaptive_threshold = adaptive_threshold
-    
-    def calculate_efficiency(self, audio_duration_ms: float, processing_time_ms: float, buffer_ratio: float):
-        """Calculate efficiency metrics"""
-        if processing_time_ms > 0:
-            self.real_time_factor = audio_duration_ms / processing_time_ms
-        self.memory_efficiency_score = 1.0 - buffer_ratio
-    
-    def get_summary(self) -> Dict[str, Any]:
-        """Get comprehensive metrics summary"""
-        return {
-            'cache_performance': {
-                'hit_rate': self.cache_hit_rate,
-                'hits': self.cache_hits,
-                'misses': self.cache_misses
-            },
-            'segment_quality': {
-                'total_duration_ms': self.total_voice_duration_ms,
-                'avg_duration_ms': self.average_segment_duration_ms,
-                'min_duration_ms': self.min_segment_duration_ms,
-                'max_duration_ms': self.max_segment_duration_ms,
-                'false_positives': self.false_positive_segments
-            },
-            'detection_quality': {
-                'avg_energy': self.average_energy_level,
-                'avg_zcr': self.average_zcr_level,
-                'threshold': self.current_adaptive_threshold,
-                'adjustments': self.adaptive_threshold_adjustments
-            },
-            'efficiency': {
-                'real_time_factor': self.real_time_factor,
-                'memory_efficiency': self.memory_efficiency_score
-            }
-        }
-
+# Phase 4: AdvancedMetrics removed - all metrics functionality now unified in MetricsCollector
+# Any advanced metrics needed should be implemented as methods in MetricsCollector for unified collection
 
 class UniversalAudioProcessor:
     """
@@ -281,11 +163,8 @@ class UniversalAudioProcessor:
         self.max_segment_duration_s = vad_config.max_segment_duration_s
         self.buffer_size_limit = vad_config.buffer_size_frames
         
-        # Performance metrics
-        self.metrics = ProcessingMetrics()
-        
-        # Phase 5: Advanced metrics for monitoring & optimization
-        self.advanced_metrics = AdvancedMetrics()
+        # Performance metrics (Phase 1: Unified metrics integration)
+        self.metrics_collector = get_metrics_collector()
         
         # Callbacks for voice segment processing
         self.voice_segment_callback: Optional[Callable] = None
@@ -344,13 +223,14 @@ class UniversalAudioProcessor:
             # Perform VAD on the audio chunk
             vad_result = self.vad_engine.process_frame(audio_data)
             
-            # Update metrics
+            # Update metrics (Phase 1: Unified metrics integration)
             processing_time = (time.time() - start_time) * 1000
-            self.metrics.update_processing_time(processing_time)
+            self.metrics_collector.record_vad_chunk_processed(processing_time, vad_result.is_voice)
             
-            # Debug logging every 50 chunks to see activity
-            if self.metrics.total_chunks_processed % 50 == 0:
-                logger.debug(f"VAD processed {self.metrics.total_chunks_processed} chunks, "
+            # Debug logging every 50 chunks to see activity (Phase 1: Unified metrics integration)
+            vad_metrics = self.metrics_collector.get_vad_metrics()
+            if vad_metrics["total_chunks_processed"] % 50 == 0:
+                logger.debug(f"VAD processed {vad_metrics['total_chunks_processed']} chunks, "
                            f"current energy: {vad_result.energy_level:.6f}, "
                            f"threshold: {vad_result.adaptive_threshold:.6f}, "
                            f"voice detected: {vad_result.is_voice}")
@@ -361,13 +241,18 @@ class UniversalAudioProcessor:
                           f"threshold: {vad_result.adaptive_threshold:.6f}, "
                           f"confidence: {vad_result.confidence:.3f}")
             
-            # Phase 5: Update advanced metrics
-            self.advanced_metrics.update_cache_metrics(getattr(vad_result, 'cache_hit', False))
-            self.advanced_metrics.update_detection_quality(
+            # Phase 5: Update advanced metrics (Phase 1: Unified metrics integration)
+            cache_hit = getattr(vad_result, 'cache_hit', False)
+            if cache_hit:
+                self.metrics_collector.record_vad_cache_hit()
+            else:
+                self.metrics_collector.record_vad_cache_miss()
+            
+            # Record quality metrics in unified collector
+            self.metrics_collector.record_vad_quality_metrics(
                 vad_result.energy_level,
                 getattr(vad_result, 'zcr_value', 0.0),
-                getattr(vad_result, 'adaptive_threshold', self.config.energy_threshold),
-                self.metrics.total_chunks_processed
+                vad_result.confidence
             )
             
             # Handle state transitions based on VAD result
@@ -376,13 +261,13 @@ class UniversalAudioProcessor:
             # Check for timeout protection
             if self.voice_buffer and self._is_segment_timeout():
                 logger.warning(f"Voice segment timeout after {self.max_segment_duration_s}s, forcing completion")
-                self.metrics.timeout_events += 1
+                self.metrics_collector.record_vad_timeout()
                 voice_segment = await self._force_voice_segment_completion()
             
             # Check for buffer overflow protection
             if len(self.voice_buffer) > self.buffer_size_limit:
                 logger.warning(f"Voice buffer overflow ({len(self.voice_buffer)} > {self.buffer_size_limit}), forcing completion")
-                self.metrics.buffer_overflow_count += 1
+                self.metrics_collector.record_vad_buffer_overflow()
                 voice_segment = await self._force_voice_segment_completion()
             
             return voice_segment
@@ -425,8 +310,8 @@ class UniversalAudioProcessor:
             return voice_segment
             
         elif self.vad_state == VoiceActivityState.SILENCE and not vad_result.is_voice:
-            # Continue silence - skip processing
-            self.metrics.silence_chunks_skipped += 1
+            # Continue silence - skip processing (already counted in record_vad_chunk_processed)
+            pass
         
         # Log state changes for debugging
         if previous_state != self.vad_state:
@@ -503,15 +388,11 @@ class UniversalAudioProcessor:
         # Combine audio chunks into single AudioData
         voice_segment.combined_audio = await self._combine_audio_buffer(self.voice_buffer)
         
-        # Update metrics
-        self.metrics.voice_segments_detected += 1
+        # Update metrics (Phase 1: Unified metrics integration)
+        self.metrics_collector.record_vad_voice_segment(total_duration_ms)
         
-        # Phase 5: Update advanced voice segment metrics
-        self.advanced_metrics.update_voice_segment_metrics(total_duration_ms)
-        if hasattr(self.advanced_metrics, 'voice_segments_detected') and self.advanced_metrics.voice_segments_detected < self.metrics.voice_segments_detected:
-            self.advanced_metrics.average_segment_duration_ms = (
-                self.advanced_metrics.total_voice_duration_ms / self.metrics.voice_segments_detected
-            )
+        # Phase 5: Advanced voice segment metrics now handled in unified collector
+        # All metrics are recorded via record_vad_voice_segment() above
         
         # Reset voice state
         await self._reset_voice_state()
@@ -623,13 +504,11 @@ class UniversalAudioProcessor:
                     except Exception as e:
                         logger.error(f"Error in voice segment callback: {e}")
     
-    def get_processing_metrics(self) -> ProcessingMetrics:
-        """Get current processing metrics."""
-        return self.metrics
+    def get_processing_metrics(self) -> Dict[str, Any]:
+        """Get current processing metrics from unified collector."""
+        return self.metrics_collector.get_vad_metrics()
     
-    def reset_metrics(self):
-        """Reset processing metrics."""
-        self.metrics = ProcessingMetrics()
+    # Phase 4: reset_metrics() removed - use MetricsCollector.reset_metrics() for unified metrics reset
     
     def get_current_state(self) -> Dict[str, Any]:
         """
@@ -645,14 +524,7 @@ class UniversalAudioProcessor:
                 time.time() - self.voice_segment_start_time 
                 if self.voice_segment_start_time else 0
             ),
-            'metrics': {
-                'chunks_processed': self.metrics.total_chunks_processed,
-                'voice_segments': self.metrics.voice_segments_detected,
-                'silence_skipped': self.metrics.silence_chunks_skipped,
-                'avg_processing_ms': self.metrics.average_processing_time_ms,
-                'buffer_overflows': self.metrics.buffer_overflow_count,
-                'timeouts': self.metrics.timeout_events
-            },
+            'metrics': self.metrics_collector.get_vad_metrics(),
             'config': {
                 'threshold': self.config.threshold,
                 'sensitivity': self.config.sensitivity,
@@ -661,47 +533,44 @@ class UniversalAudioProcessor:
             }
         }
     
-    def get_advanced_metrics(self) -> AdvancedMetrics:
-        """Get Phase 5 advanced metrics for monitoring and optimization."""
-        # Update efficiency metrics before returning
-        audio_duration_ms = self.metrics.total_chunks_processed * 23  # Assuming 23ms chunks
+    def get_advanced_metrics(self) -> Dict[str, Any]:
+        """Get Phase 5 advanced metrics from unified collector."""
+        # Calculate efficiency metrics and record them
+        vad_metrics = self.metrics_collector.get_vad_metrics()
+        audio_duration_ms = vad_metrics["total_chunks_processed"] * 23  # Assuming 23ms chunks
         buffer_ratio = len(self.voice_buffer) / max(1, self.config.buffer_size_frames)
         
-        self.advanced_metrics.calculate_efficiency(
-            audio_duration_ms,
-            self.metrics.total_processing_time_ms,
-            buffer_ratio
-        )
+        # Calculate efficiency metrics
+        if audio_duration_ms > 0:
+            real_time_factor = vad_metrics["total_processing_time_ms"] / audio_duration_ms
+            processing_efficiency = 1.0 / max(real_time_factor, 0.001)  # Avoid division by zero
+        else:
+            real_time_factor = 0.0
+            processing_efficiency = 1.0
         
-        return self.advanced_metrics
+        # Record efficiency metrics to unified collector
+        self.metrics_collector.record_vad_efficiency(real_time_factor, processing_efficiency, buffer_ratio)
+        
+        # Return advanced metrics from unified collector
+        return self.metrics_collector.get_vad_advanced_metrics()
     
     def get_comprehensive_metrics(self) -> Dict[str, Any]:
-        """Get comprehensive metrics combining basic and advanced metrics (Phase 5)."""
+        """Get comprehensive metrics from unified collector (Phase 1: Complete integration)."""
         basic_metrics = self.get_processing_metrics()
         advanced_metrics = self.get_advanced_metrics()
         
         return {
-            'basic_metrics': {
-                'total_chunks_processed': basic_metrics.total_chunks_processed,
-                'voice_segments_detected': basic_metrics.voice_segments_detected,
-                'silence_chunks_skipped': basic_metrics.silence_chunks_skipped,
-                'average_processing_time_ms': basic_metrics.average_processing_time_ms,
-                'max_processing_time_ms': basic_metrics.max_processing_time_ms,
-                'buffer_overflow_count': basic_metrics.buffer_overflow_count,
-                'timeout_events': basic_metrics.timeout_events
-            },
-            'advanced_metrics': advanced_metrics.get_summary(),
+            'basic_metrics': basic_metrics,
+            'advanced_metrics': advanced_metrics,
             'performance_overview': {
-                'efficiency_score': advanced_metrics.memory_efficiency_score,
-                'real_time_factor': advanced_metrics.real_time_factor,
-                'cache_effectiveness': advanced_metrics.cache_hit_rate,
-                'detection_stability': max(0, 1.0 - (advanced_metrics.false_positive_segments / max(1, basic_metrics.voice_segments_detected)))
+                'efficiency_score': advanced_metrics.get('processing_efficiency', 0.0),
+                'real_time_factor': advanced_metrics.get('real_time_factor', 0.0),
+                'cache_effectiveness': basic_metrics.get('cache_hit_rate', 0.0),
+                'detection_stability': advanced_metrics.get('average_confidence', 0.0)
             }
         }
     
-    def reset_advanced_metrics(self):
-        """Reset advanced metrics (Phase 5)."""
-        self.advanced_metrics = AdvancedMetrics()
+    # Phase 4: reset_advanced_metrics() removed - use MetricsCollector.reset_metrics() for unified metrics reset
     
     async def calibrate_threshold(self, calibration_audio: List[AudioData], 
                                 noise_percentile: int = None) -> float:
@@ -933,7 +802,7 @@ class AudioProcessorInterface:
                         'voice_segment': voice_segment
                     }
     
-    def get_metrics(self) -> ProcessingMetrics:
+    def get_metrics(self) -> Dict[str, Any]:
         """Get processing metrics from the audio processor."""
         return self.processor.get_processing_metrics()
     
@@ -984,11 +853,10 @@ async def process_audio_with_vad(audio_stream: AsyncIterator[AudioData],
         yield voice_segment
 
 
-# Export public interface
+# Export public interface - Phase 4: ProcessingMetrics removed, metrics now unified in MetricsCollector
 __all__ = [
     'VoiceActivityState',
     'VoiceSegment', 
-    'ProcessingMetrics',
     'UniversalAudioProcessor',
     'AudioProcessorInterface',
     'create_audio_processor',

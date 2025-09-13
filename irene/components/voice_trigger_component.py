@@ -6,6 +6,7 @@ loader.py for dependency validation, following the implementation plan.
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional, Type
 
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import AudioData, WakeWordResult
 from ..utils.audio_helpers import calculate_audio_buffer_size, validate_audio_file
 from ..utils.loader import DependencyChecker, safe_import
+from ..core.metrics import get_metrics_collector
 
 # Voice trigger provider base class and dynamic loader
 from ..providers.voice_trigger import VoiceTriggerProvider
@@ -41,17 +43,11 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         # Dynamic provider discovery from entry-points (replaces hardcoded classes)
         self._provider_classes: Dict[str, type] = {}
         
-        # Phase 5: Runtime monitoring
-        self._resampling_metrics = {
-            'total_resampling_operations': 0,
-            'total_resampling_time_ms': 0.0,
-            'resampling_failures': 0,
-            'provider_fallbacks': 0,
-            'configuration_warnings': 0,
-            'detection_operations': 0,
-            'detection_successes': 0,
-            'detection_failures': 0
-        }
+        # Phase 1: Runtime monitoring now handled by unified metrics collector
+        
+        # Phase 1: Unified metrics integration
+        self._metrics_push_task: Optional[asyncio.Task] = None
+        self._metrics_push_interval = 60.0  # seconds
         
     @property
     def name(self) -> str:
@@ -208,6 +204,10 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
             
         self.active = len(self.providers) > 0
         logger.info(f"Voice trigger component initialized with {enabled_count} providers. Default: {self.default_provider}")
+        
+        # Phase 1: Start unified metrics push task
+        self._start_metrics_push_task()
+        
         return self.active
     
     async def process_audio(self, audio_data: AudioData) -> WakeWordResult:
@@ -303,16 +303,16 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
                         audio_data, config_sample_rate, conversion_method
                     )
                     
-                    # Update metrics
+                    # Update metrics (Phase 1: Unified metrics integration)
                     resampling_time = (time.time() - start_time) * 1000
-                    self._resampling_metrics['total_resampling_operations'] += 1
-                    self._resampling_metrics['total_resampling_time_ms'] += resampling_time
+                    get_metrics_collector().record_resampling_operation("voice_trigger", resampling_time, success=True)
                     
                     logger.debug(f"Successfully resampled audio to {config_sample_rate}Hz using {conversion_method.value} in {resampling_time:.1f}ms")
                     
                 except Exception as resampling_error:
-                    # Update failure metrics
-                    self._resampling_metrics['resampling_failures'] += 1
+                    # Update failure metrics (Phase 1: Unified metrics integration)
+                    resampling_time = (time.time() - start_time) * 1000
+                    get_metrics_collector().record_resampling_operation("voice_trigger", resampling_time, success=False)
                     logger.error(f"Configuration-required resampling failed for voice trigger: {resampling_error}")
                     raise resampling_error
                 
@@ -385,34 +385,32 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
                 logger.warning(f"Could not get provider requirements for {provider.get_provider_name()}: {e}")
                 # Fallback to simple detection for older providers
                 try:
-                    # Phase 5: Track detection operations
-                    self._resampling_metrics['detection_operations'] += 1
+                    # Phase 5: Track detection operations (Phase 1: Unified metrics integration)
                     result = await provider.detect_wake_word(audio_data)
                     
-                    # Track successful detection
-                    if result.detected:
-                        self._resampling_metrics['detection_successes'] += 1
+                    # Track detection operation in unified collector
+                    wake_word = result.wake_word if result.detected else None
+                    get_metrics_collector().record_detection_operation("voice_trigger", result.detected, wake_word)
                         
                     return result
                 except Exception as detection_error:
                     logger.error(f"Voice trigger detection error: {detection_error}")
-                    self._resampling_metrics['detection_failures'] += 1
+                    get_metrics_collector().record_detection_operation("voice_trigger", False)
                     return await self._detect_with_fallback(audio_data, provider.get_provider_name())
         
         # Phase 4 Step 3: Call provider detect_wake_word with correct format
         try:
-            # Phase 5: Track detection operations
-            self._resampling_metrics['detection_operations'] += 1
+            # Phase 5: Track detection operations (Phase 1: Unified metrics integration)
             result = await provider.detect_wake_word(processed_audio)
             
-            # Track successful detection
-            if result.detected:
-                self._resampling_metrics['detection_successes'] += 1
+            # Track detection operation in unified collector
+            wake_word = result.wake_word if result.detected else None
+            get_metrics_collector().record_detection_operation("voice_trigger", result.detected, wake_word)
                 
             return result
         except Exception as e:
             logger.error(f"Voice trigger detection error with {provider.get_provider_name()}: {e}")
-            self._resampling_metrics['detection_failures'] += 1
+            get_metrics_collector().record_detection_operation("voice_trigger", False)
             # Phase 4 Step 4: Handle provider fallbacks on configuration conflicts
             return await self._detect_with_fallback(audio_data, provider.get_provider_name())
     
@@ -510,34 +508,33 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         return "\n".join(info_lines)
     
     def get_runtime_metrics(self) -> Dict[str, Any]:
-        """Get Phase 5 runtime monitoring metrics"""
-        avg_resampling_time = 0.0
-        if self._resampling_metrics['total_resampling_operations'] > 0:
-            avg_resampling_time = (
-                self._resampling_metrics['total_resampling_time_ms'] / 
-                self._resampling_metrics['total_resampling_operations']
-            )
+        """Get runtime monitoring metrics from unified collector (Phase 1: Complete integration)"""
+        metrics_collector = get_metrics_collector()
         
-        detection_success_rate = 0.0
-        if self._resampling_metrics['detection_operations'] > 0:
-            detection_success_rate = (
-                self._resampling_metrics['detection_successes'] / 
-                self._resampling_metrics['detection_operations']
-            )
+        # Get component-specific metrics from unified collector
+        resampling_metrics = metrics_collector.get_component_resampling_metrics("voice_trigger")
+        detection_metrics = metrics_collector.get_component_detection_metrics("voice_trigger")
         
-        resampling_success_rate = 0.0
-        if self._resampling_metrics['total_resampling_operations'] > 0:
-            resampling_success_rate = (
-                (self._resampling_metrics['total_resampling_operations'] - self._resampling_metrics['resampling_failures']) /
-                self._resampling_metrics['total_resampling_operations']
-            )
-        
-        return {
-            **self._resampling_metrics,
-            'average_resampling_time_ms': avg_resampling_time,
-            'resampling_success_rate': resampling_success_rate,
-            'detection_success_rate': detection_success_rate
+        # Combine and return unified metrics
+        combined_metrics = {
+            'total_resampling_operations': resampling_metrics.get('total_operations', 0),
+            'total_resampling_time_ms': resampling_metrics.get('total_time_ms', 0.0),
+            'resampling_failures': resampling_metrics.get('failures', 0),
+            'average_resampling_time_ms': resampling_metrics.get('average_time_ms', 0.0),
+            'resampling_success_rate': (
+                1.0 - (resampling_metrics.get('failures', 0) / max(1, resampling_metrics.get('total_operations', 1)))
+            ),
+            'detection_operations': detection_metrics.get('total_operations', 0),
+            'detection_successes': detection_metrics.get('successes', 0),
+            'detection_success_rate': (
+                detection_metrics.get('successes', 0) / max(1, detection_metrics.get('total_operations', 1))
+            ),
+            'wake_words_detected': detection_metrics.get('wake_words', {}),
+            'provider_fallbacks': 0,  # To be enhanced later
+            'configuration_warnings': 0  # To be enhanced later
         }
+        
+        return combined_metrics
     
     def get_wake_words(self) -> List[str]:
         """Get current wake words."""
@@ -671,6 +668,53 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         fastapi = safe_import('fastapi')
         pydantic = safe_import('pydantic')
         return fastapi is not None and pydantic is not None
+
+    # Phase 1: Unified metrics integration methods
+    def _start_metrics_push_task(self) -> None:
+        """Start the periodic metrics push task"""
+        if self._metrics_push_task is None:
+            self._metrics_push_task = asyncio.create_task(self._metrics_push_loop())
+            logger.debug("Voice trigger component metrics push task started")
+    
+    async def _stop_metrics_push_task(self) -> None:
+        """Stop the periodic metrics push task"""
+        if self._metrics_push_task:
+            self._metrics_push_task.cancel()
+            try:
+                await self._metrics_push_task
+            except asyncio.CancelledError:
+                pass
+            self._metrics_push_task = None
+            logger.debug("Voice trigger component metrics push task stopped")
+    
+    async def _metrics_push_loop(self) -> None:
+        """Periodic loop to push runtime metrics to unified collector"""
+        while True:
+            try:
+                # Get current runtime metrics
+                runtime_metrics = self.get_runtime_metrics()
+                
+                # Push to unified metrics collector
+                metrics_collector = get_metrics_collector()
+                metrics_collector.record_component_metrics("voice_trigger", runtime_metrics)
+                
+                logger.debug(f"Pushed voice trigger metrics to unified collector: {len(runtime_metrics)} metrics")
+                
+                # Wait for next push cycle
+                await asyncio.sleep(self._metrics_push_interval)
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in voice trigger metrics push loop: {e}")
+                await asyncio.sleep(10)  # Brief pause before retrying
+    
+    async def stop(self) -> None:
+        """Stop the voice trigger component"""
+        # Phase 1: Stop unified metrics push task
+        await self._stop_metrics_push_task()
+        self.active = False
+        logger.info("Voice trigger component stopped")
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

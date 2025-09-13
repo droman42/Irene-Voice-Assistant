@@ -13,10 +13,10 @@ import traceback
 from typing import List, AsyncIterator, Dict, Any
 from dataclasses import dataclass
 
-# Import VAD components
+# Import VAD components - Phase 4: ProcessingMetrics removed, using unified MetricsCollector
 from irene.workflows.audio_processor import (
     UniversalAudioProcessor, AudioProcessorInterface, VoiceSegment, 
-    ProcessingMetrics, VoiceActivityState
+    VoiceActivityState
 )
 from irene.config.models import VADConfig
 from irene.intents.models import AudioData
@@ -264,7 +264,9 @@ async def test_scenario_b_vosk_runner():
     
     # Test various speech patterns with mixed scenario
     print("  Testing mixed speech patterns...")
-    processor.reset_metrics()
+    # Phase 4: Use unified metrics collector for reset
+    from irene.core.metrics import get_metrics_collector
+    get_metrics_collector().reset_metrics()
     mixed_segments = []
     
     async for audio_chunk in generate_scenario_audio_stream("mixed", duration_s=4.0):

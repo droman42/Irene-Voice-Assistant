@@ -124,6 +124,25 @@ class MetricsCollector:
         self._monitoring_enabled = True
         self._monitoring_interval = 60.0  # seconds
         self._monitoring_task: Optional[asyncio.Task] = None
+        
+        # VAD-specific metrics (Phase 1 integration)
+        self._vad_metrics = {
+            "total_chunks_processed": 0,
+            "voice_segments_detected": 0,
+            "silence_chunks_skipped": 0,
+            "average_processing_time_ms": 0.0,
+            "max_processing_time_ms": 0.0,
+            "total_processing_time_ms": 0.0,
+            "buffer_overflow_count": 0,
+            "timeout_events": 0,
+            "cache_hit_rate": 0.0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "total_voice_duration_ms": 0.0,
+            "energy_cache_size": 0,
+            "zcr_cache_size": 0,
+            "array_cache_size": 0
+        }
     
     async def start_monitoring(self) -> None:
         """Start real-time metrics monitoring"""
@@ -216,9 +235,10 @@ class MetricsCollector:
         return self._domain_metrics.copy()
     
     def get_system_metrics(self) -> Dict[str, Any]:
-        """Get system-wide metrics"""
+        """Get system-wide metrics including VAD metrics"""
         metrics = self._system_metrics.copy()
         metrics["uptime_seconds"] = time.time() - metrics["uptime_start"]
+        metrics["vad_metrics"] = self.get_vad_metrics()  # Include VAD metrics
         return metrics
     
     def get_performance_summary(self, time_window: Optional[float] = None) -> Dict[str, Any]:
@@ -451,6 +471,552 @@ class MetricsCollector:
                 await asyncio.sleep(10)  # Brief pause before retrying
         
         self.logger.info("Metrics monitoring loop stopped")
+    
+    # VAD-specific metrics methods (Phase 1 integration)
+    def record_vad_chunk_processed(self, processing_time_ms: float, is_voice: bool = False) -> None:
+        """Record processing of a VAD audio chunk"""
+        self._vad_metrics["total_chunks_processed"] += 1
+        self._vad_metrics["total_processing_time_ms"] += processing_time_ms
+        
+        if processing_time_ms > self._vad_metrics["max_processing_time_ms"]:
+            self._vad_metrics["max_processing_time_ms"] = processing_time_ms
+        
+        # Update average processing time
+        self._vad_metrics["average_processing_time_ms"] = (
+            self._vad_metrics["total_processing_time_ms"] / self._vad_metrics["total_chunks_processed"]
+        )
+        
+        if is_voice:
+            self._vad_metrics["voice_segments_detected"] += 1
+        else:
+            self._vad_metrics["silence_chunks_skipped"] += 1
+    
+    def record_vad_voice_segment(self, duration_ms: float) -> None:
+        """Record a detected voice segment duration"""
+        self._vad_metrics["total_voice_duration_ms"] += duration_ms
+    
+    def record_vad_buffer_overflow(self) -> None:
+        """Record a VAD buffer overflow event"""
+        self._vad_metrics["buffer_overflow_count"] += 1
+    
+    def record_vad_timeout(self) -> None:
+        """Record a VAD timeout event"""
+        self._vad_metrics["timeout_events"] += 1
+    
+    def record_vad_cache_hit(self) -> None:
+        """Record a VAD cache hit"""
+        self._vad_metrics["cache_hits"] += 1
+        total_cache_operations = self._vad_metrics["cache_hits"] + self._vad_metrics["cache_misses"]
+        if total_cache_operations > 0:
+            self._vad_metrics["cache_hit_rate"] = self._vad_metrics["cache_hits"] / total_cache_operations
+    
+    def record_vad_cache_miss(self) -> None:
+        """Record a VAD cache miss"""
+        self._vad_metrics["cache_misses"] += 1
+        total_cache_operations = self._vad_metrics["cache_hits"] + self._vad_metrics["cache_misses"]
+        if total_cache_operations > 0:
+            self._vad_metrics["cache_hit_rate"] = self._vad_metrics["cache_hits"] / total_cache_operations
+    
+    def update_vad_cache_sizes(self, energy_cache_size: int, zcr_cache_size: int, array_cache_size: int) -> None:
+        """Update VAD cache size metrics"""
+        self._vad_metrics["energy_cache_size"] = energy_cache_size
+        self._vad_metrics["zcr_cache_size"] = zcr_cache_size
+        self._vad_metrics["array_cache_size"] = array_cache_size
+    
+    def get_vad_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive VAD metrics"""
+        return self._vad_metrics.copy()
+    
+    # Advanced VAD metrics methods (Phase 1 complete integration)
+    def record_vad_efficiency(self, real_time_factor: float, processing_efficiency: float, buffer_utilization: float) -> None:
+        """Record VAD processing efficiency metrics"""
+        if not hasattr(self, '_vad_advanced_metrics'):
+            self._vad_advanced_metrics = {
+                "real_time_factor": 0.0,
+                "processing_efficiency": 0.0,
+                "buffer_utilization": 0.0,
+                "efficiency_samples": 0
+            }
+        
+        # Update running averages
+        samples = self._vad_advanced_metrics["efficiency_samples"]
+        self._vad_advanced_metrics["real_time_factor"] = (
+            (self._vad_advanced_metrics["real_time_factor"] * samples + real_time_factor) / (samples + 1)
+        )
+        self._vad_advanced_metrics["processing_efficiency"] = (
+            (self._vad_advanced_metrics["processing_efficiency"] * samples + processing_efficiency) / (samples + 1)
+        )
+        self._vad_advanced_metrics["buffer_utilization"] = (
+            (self._vad_advanced_metrics["buffer_utilization"] * samples + buffer_utilization) / (samples + 1)
+        )
+        self._vad_advanced_metrics["efficiency_samples"] += 1
+    
+    def record_vad_quality_metrics(self, energy_level: float, zcr_value: float, detection_confidence: float) -> None:
+        """Record VAD detection quality metrics"""
+        if not hasattr(self, '_vad_quality_metrics'):
+            self._vad_quality_metrics = {
+                "average_energy_level": 0.0,
+                "average_zcr": 0.0,
+                "average_confidence": 0.0,
+                "quality_samples": 0
+            }
+        
+        # Update running averages
+        samples = self._vad_quality_metrics["quality_samples"]
+        self._vad_quality_metrics["average_energy_level"] = (
+            (self._vad_quality_metrics["average_energy_level"] * samples + energy_level) / (samples + 1)
+        )
+        self._vad_quality_metrics["average_zcr"] = (
+            (self._vad_quality_metrics["average_zcr"] * samples + zcr_value) / (samples + 1)
+        )
+        self._vad_quality_metrics["average_confidence"] = (
+            (self._vad_quality_metrics["average_confidence"] * samples + detection_confidence) / (samples + 1)
+        )
+        self._vad_quality_metrics["quality_samples"] += 1
+    
+    def get_vad_advanced_metrics(self) -> Dict[str, Any]:
+        """Get advanced VAD metrics including efficiency and quality"""
+        base_metrics = self.get_vad_metrics()
+        base_metrics.update(getattr(self, '_vad_advanced_metrics', {}))
+        base_metrics.update(getattr(self, '_vad_quality_metrics', {}))
+        return base_metrics
+    
+    # Component runtime metrics methods (Phase 1 integration)
+    def record_component_metrics(self, component_name: str, metrics: Dict[str, Any]) -> None:
+        """Record component runtime metrics"""
+        # Use action-based tracking for component metrics
+        domain = f"component_{component_name}"
+        
+        # Store as domain-specific metrics
+        if domain not in self._domain_metrics:
+            self._domain_metrics[domain] = DomainMetrics()
+        
+        # Update the domain metrics with component data
+        domain_metrics = self._domain_metrics[domain]
+        domain_metrics.last_updated = time.time()
+        
+        # Store component-specific metrics in metadata
+        if not hasattr(domain_metrics, 'component_metrics'):
+            domain_metrics.component_metrics = {}
+        domain_metrics.component_metrics = metrics
+    
+    def get_component_metrics(self, component_name: str) -> Dict[str, Any]:
+        """Get metrics for a specific component"""
+        domain = f"component_{component_name}"
+        if domain in self._domain_metrics:
+            domain_metrics = self._domain_metrics[domain]
+            return getattr(domain_metrics, 'component_metrics', {})
+        return {}
+    
+    def get_all_component_metrics(self) -> Dict[str, Dict[str, Any]]:
+        """Get metrics for all components"""
+        component_metrics = {}
+        for domain, metrics in self._domain_metrics.items():
+            if domain.startswith("component_"):
+                component_name = domain.replace("component_", "")
+                component_metrics[component_name] = getattr(metrics, 'component_metrics', {})
+        return component_metrics
+    
+    # Intent analytics methods (Phase 2 integration)
+    def record_intent_recognition(self, intent_name: str, confidence: float, processing_time: float, session_id: Optional[str] = None) -> None:
+        """Record intent recognition metrics"""
+        domain = f"intent_{intent_name}"
+        
+        # Track as fire-and-forget action
+        self.record_action_start(domain, "recognition", "intent_system", session_id)
+        self.record_action_completion(domain, success=True)
+        
+        # Store intent-specific metrics
+        if domain not in self._domain_metrics:
+            self._domain_metrics[domain] = DomainMetrics(domain=domain)
+        
+        if not hasattr(self._domain_metrics[domain], 'intent_metrics'):
+            self._domain_metrics[domain].intent_metrics = {
+                'recognition_count': 0,
+                'total_confidence': 0.0,
+                'processing_times': deque(maxlen=100),
+                'last_used': 0.0,
+                'average_confidence': 0.0
+            }
+        
+        intent_metrics = self._domain_metrics[domain].intent_metrics
+        intent_metrics['recognition_count'] += 1
+        intent_metrics['total_confidence'] += confidence
+        intent_metrics['processing_times'].append(processing_time)
+        intent_metrics['last_used'] = time.time()
+        intent_metrics['average_confidence'] = intent_metrics['total_confidence'] / intent_metrics['recognition_count']
+        
+        self.logger.debug(f"Intent recognition recorded: {intent_name} (confidence: {confidence:.2f}, time: {processing_time:.3f}s)")
+    
+    def record_intent_execution(self, intent_name: str, success: bool, execution_time: float, 
+                               error: Optional[str] = None, session_id: Optional[str] = None) -> None:
+        """Record intent execution metrics"""
+        domain = f"intent_{intent_name}"
+        
+        # Track as fire-and-forget action
+        self.record_action_start(domain, "execution", "intent_system", session_id)
+        self.record_action_completion(domain, success=success, error=error, error_type="intent_execution_failure" if not success else None)
+        
+        # Store intent-specific execution metrics
+        if domain not in self._domain_metrics:
+            self._domain_metrics[domain] = DomainMetrics(domain=domain)
+        
+        if not hasattr(self._domain_metrics[domain], 'execution_metrics'):
+            self._domain_metrics[domain].execution_metrics = {
+                'execution_count': 0,
+                'success_count': 0,
+                'failure_count': 0,
+                'execution_times': deque(maxlen=100),
+                'success_rate': 0.0,
+                'average_execution_time': 0.0
+            }
+        
+        execution_metrics = self._domain_metrics[domain].execution_metrics
+        execution_metrics['execution_count'] += 1
+        execution_metrics['execution_times'].append(execution_time)
+        
+        if success:
+            execution_metrics['success_count'] += 1
+        else:
+            execution_metrics['failure_count'] += 1
+        
+        execution_metrics['success_rate'] = execution_metrics['success_count'] / execution_metrics['execution_count']
+        execution_metrics['average_execution_time'] = statistics.mean(execution_metrics['execution_times']) if execution_metrics['execution_times'] else 0.0
+        
+        self.logger.debug(f"Intent execution recorded: {intent_name} (success: {success}, time: {execution_time:.3f}s)")
+    
+    def record_session_start(self, session_id: str) -> None:
+        """Record conversation session start"""
+        domain = f"session_{session_id}"
+        
+        # Track as fire-and-forget action
+        self.record_action_start(domain, "session", "intent_system", session_id)
+        
+        # Store session-specific metrics
+        if domain not in self._domain_metrics:
+            self._domain_metrics[domain] = DomainMetrics(domain=domain)
+        
+        if not hasattr(self._domain_metrics[domain], 'session_metrics'):
+            self._domain_metrics[domain].session_metrics = {
+                'session_id': session_id,
+                'start_time': time.time(),
+                'last_activity': time.time(),
+                'intent_count': 0,
+                'successful_intents': 0,
+                'failed_intents': 0,
+                'user_satisfaction_score': 0.8,  # Default
+                'domains_used': set(),
+                'language_switches': 0
+            }
+        
+        self.logger.debug(f"Session started: {session_id}")
+    
+    def record_session_end(self, session_id: str, user_satisfaction: Optional[float] = None) -> None:
+        """Record conversation session end"""
+        domain = f"session_{session_id}"
+        
+        if domain in self._domain_metrics and hasattr(self._domain_metrics[domain], 'session_metrics'):
+            session_metrics = self._domain_metrics[domain].session_metrics
+            session_metrics['last_activity'] = time.time()
+            
+            if user_satisfaction is not None:
+                session_metrics['user_satisfaction_score'] = user_satisfaction
+            
+            # Complete the session action
+            if domain in self._active_actions:
+                self.record_action_completion(domain, success=True)
+            
+            self.logger.debug(f"Session ended: {session_id}")
+    
+    def update_session_activity(self, session_id: str, intent_name: str, success: bool) -> None:
+        """Update session activity with intent usage"""
+        domain = f"session_{session_id}"
+        
+        if domain in self._domain_metrics and hasattr(self._domain_metrics[domain], 'session_metrics'):
+            session_metrics = self._domain_metrics[domain].session_metrics
+            session_metrics['last_activity'] = time.time()
+            session_metrics['intent_count'] += 1
+            
+            if success:
+                session_metrics['successful_intents'] += 1
+            else:
+                session_metrics['failed_intents'] += 1
+            
+            # Track domain usage (extract from intent name if follows pattern)
+            if "_" in intent_name:
+                domain_name = intent_name.split("_")[0]
+                session_metrics['domains_used'].add(domain_name)
+    
+    def get_intent_analytics(self) -> Dict[str, Any]:
+        """Get comprehensive intent analytics"""
+        intent_domains = {domain: metrics for domain, metrics in self._domain_metrics.items() 
+                         if domain.startswith("intent_")}
+        
+        if not intent_domains:
+            return {
+                "overview": {
+                    "total_intents_processed": 0,
+                    "unique_intent_types": 0,
+                    "average_confidence": 0.0,
+                    "overall_success_rate": 0.0,
+                    "recent_average_confidence": 0.0
+                },
+                "top_intents": [],
+                "detailed_metrics": {}
+            }
+        
+        # Calculate overview metrics
+        total_intents = sum(getattr(metrics, 'intent_metrics', {}).get('recognition_count', 0) 
+                           for metrics in intent_domains.values())
+        
+        total_executions = sum(getattr(metrics, 'execution_metrics', {}).get('execution_count', 0) 
+                              for metrics in intent_domains.values())
+        
+        total_successes = sum(getattr(metrics, 'execution_metrics', {}).get('success_count', 0) 
+                             for metrics in intent_domains.values())
+        
+        avg_confidence = 0.0
+        if total_intents > 0:
+            total_confidence = sum(
+                getattr(metrics, 'intent_metrics', {}).get('total_confidence', 0.0) 
+                for metrics in intent_domains.values()
+            )
+            avg_confidence = total_confidence / total_intents
+        
+        overall_success_rate = total_successes / total_executions if total_executions > 0 else 0.0
+        
+        # Top intents by usage
+        top_intents = []
+        for domain, metrics in intent_domains.items():
+            intent_name = domain.replace("intent_", "")
+            intent_metrics = getattr(metrics, 'intent_metrics', {})
+            execution_metrics = getattr(metrics, 'execution_metrics', {})
+            
+            if intent_metrics.get('recognition_count', 0) > 0:
+                top_intents.append({
+                    "name": intent_name,
+                    "usage_count": intent_metrics.get('recognition_count', 0),
+                    "avg_confidence": intent_metrics.get('average_confidence', 0.0),
+                    "success_rate": execution_metrics.get('success_rate', 0.0)
+                })
+        
+        top_intents.sort(key=lambda x: x['usage_count'], reverse=True)
+        
+        # Detailed metrics
+        detailed_metrics = {}
+        for domain, metrics in intent_domains.items():
+            intent_name = domain.replace("intent_", "")
+            intent_metrics = getattr(metrics, 'intent_metrics', {})
+            execution_metrics = getattr(metrics, 'execution_metrics', {})
+            
+            detailed_metrics[intent_name] = {
+                "recognition_count": intent_metrics.get('recognition_count', 0),
+                "average_confidence": intent_metrics.get('average_confidence', 0.0),
+                "success_rate": execution_metrics.get('success_rate', 0.0),
+                "average_response_time": execution_metrics.get('average_execution_time', 0.0),
+                "last_used": intent_metrics.get('last_used', 0.0)
+            }
+        
+        return {
+            "overview": {
+                "total_intents_processed": total_intents,
+                "unique_intent_types": len(intent_domains),
+                "average_confidence": avg_confidence,
+                "overall_success_rate": overall_success_rate,
+                "recent_average_confidence": avg_confidence  # Simplified for now
+            },
+            "top_intents": top_intents[:10],
+            "detailed_metrics": detailed_metrics
+        }
+    
+    def get_session_analytics(self) -> Dict[str, Any]:
+        """Get comprehensive session analytics"""
+        session_domains = {domain: metrics for domain, metrics in self._domain_metrics.items() 
+                          if domain.startswith("session_")}
+        
+        if not session_domains:
+            return {
+                "overview": {
+                    "active_sessions": 0,
+                    "total_sessions": 0,
+                    "peak_concurrent_sessions": 0,
+                    "average_session_duration": 0.0,
+                    "average_intents_per_session": 0.0,
+                    "average_user_satisfaction": 0.8
+                },
+                "active_sessions": [],
+                "session_details": {}
+            }
+        
+        # Active sessions (those with ongoing actions)
+        active_sessions = []
+        current_time = time.time()
+        
+        for domain, metrics in session_domains.items():
+            if domain in self._active_actions:
+                session_metrics = getattr(metrics, 'session_metrics', {})
+                session_id = session_metrics.get('session_id', domain.replace('session_', ''))
+                
+                active_sessions.append({
+                    "session_id": session_id,
+                    "duration": current_time - session_metrics.get('start_time', current_time),
+                    "intent_count": session_metrics.get('intent_count', 0),
+                    "success_rate": self._calculate_session_success_rate(session_metrics)
+                })
+        
+        # Calculate overall statistics
+        total_sessions = len(session_domains)
+        avg_duration = 0.0
+        avg_intents = 0.0
+        avg_satisfaction = 0.0
+        
+        if total_sessions > 0:
+            durations = []
+            intent_counts = []
+            satisfactions = []
+            
+            for metrics in session_domains.values():
+                session_metrics = getattr(metrics, 'session_metrics', {})
+                start_time = session_metrics.get('start_time', current_time)
+                last_activity = session_metrics.get('last_activity', start_time)
+                durations.append(last_activity - start_time)
+                intent_counts.append(session_metrics.get('intent_count', 0))
+                satisfactions.append(session_metrics.get('user_satisfaction_score', 0.8))
+            
+            avg_duration = statistics.mean(durations) if durations else 0.0
+            avg_intents = statistics.mean(intent_counts) if intent_counts else 0.0
+            avg_satisfaction = statistics.mean(satisfactions) if satisfactions else 0.8
+        
+        # Session details
+        session_details = {}
+        for domain, metrics in session_domains.items():
+            session_metrics = getattr(metrics, 'session_metrics', {})
+            session_id = session_metrics.get('session_id', domain.replace('session_', ''))
+            start_time = session_metrics.get('start_time', current_time)
+            last_activity = session_metrics.get('last_activity', start_time)
+            
+            session_details[session_id] = {
+                "start_time": start_time,
+                "duration": last_activity - start_time,
+                "intent_count": session_metrics.get('intent_count', 0),
+                "success_rate": self._calculate_session_success_rate(session_metrics),
+                "domains_used": list(session_metrics.get('domains_used', set())),
+                "satisfaction_score": session_metrics.get('user_satisfaction_score', 0.8)
+            }
+        
+        return {
+            "overview": {
+                "active_sessions": len(active_sessions),
+                "total_sessions": total_sessions,
+                "peak_concurrent_sessions": self._system_metrics.get("peak_concurrent_actions", 0),
+                "average_session_duration": avg_duration,
+                "average_intents_per_session": avg_intents,
+                "average_user_satisfaction": avg_satisfaction
+            },
+            "active_sessions": active_sessions,
+            "session_details": session_details
+        }
+    
+    def _calculate_session_success_rate(self, session_metrics: Dict[str, Any]) -> float:
+        """Calculate success rate for a session"""
+        successful = session_metrics.get('successful_intents', 0)
+        failed = session_metrics.get('failed_intents', 0)
+        total = successful + failed
+        return successful / total if total > 0 else 0.0
+    
+    def generate_analytics_report(self) -> Dict[str, Any]:
+        """Generate comprehensive analytics report matching AnalyticsManager format"""
+        intent_analytics = self.get_intent_analytics()
+        session_analytics = self.get_session_analytics()
+        system_metrics = self.get_system_metrics()
+        
+        return {
+            "timestamp": time.time(),
+            "report_type": "comprehensive_analytics",
+            "intents": intent_analytics,
+            "sessions": session_analytics,
+            "system": {
+                "uptime_seconds": system_metrics.get("uptime_seconds", 0),
+                "total_requests": system_metrics.get("total_actions_started", 0),
+                "total_intents_processed": intent_analytics["overview"]["total_intents_processed"],
+                "total_execution_errors": system_metrics.get("total_actions_failed", 0),
+                "average_processing_time": system_metrics.get("average_completion_time", 0.0),
+                "requests_per_minute": 0.0,  # Calculated in original, simplified here
+                "error_rate": system_metrics.get("total_actions_failed", 0) / max(1, system_metrics.get("total_actions_completed", 1))
+            }
+        }
+    
+    # Component-specific metrics methods (Phase 1 complete integration)
+    def record_resampling_operation(self, component_name: str, duration_ms: float, success: bool = True) -> None:
+        """Record a resampling operation for a component"""
+        domain = f"component_{component_name}_resampling"
+        
+        if domain not in self._domain_metrics:
+            self._domain_metrics[domain] = DomainMetrics()
+        
+        # Track as an action for consistency with fire-and-forget pattern
+        if success:
+            self.record_action_start(domain, "resampling", component_name)
+            self.record_action_completion(domain, success=True)
+        else:
+            self.record_action_start(domain, "resampling", component_name)
+            self.record_action_completion(domain, success=False, error="resampling_failed")
+        
+        # Store resampling-specific metrics
+        if not hasattr(self._domain_metrics[domain], 'resampling_metrics'):
+            self._domain_metrics[domain].resampling_metrics = {
+                'total_operations': 0,
+                'total_time_ms': 0.0,
+                'failures': 0,
+                'average_time_ms': 0.0
+            }
+        
+        resampling = self._domain_metrics[domain].resampling_metrics
+        resampling['total_operations'] += 1
+        resampling['total_time_ms'] += duration_ms
+        if not success:
+            resampling['failures'] += 1
+        resampling['average_time_ms'] = resampling['total_time_ms'] / resampling['total_operations']
+    
+    def record_detection_operation(self, component_name: str, success: bool, wake_word: str = None) -> None:
+        """Record a detection operation for voice trigger components"""
+        domain = f"component_{component_name}_detection"
+        
+        if domain not in self._domain_metrics:
+            self._domain_metrics[domain] = DomainMetrics()
+        
+        # Track as an action
+        self.record_action_start(domain, "detection", component_name)
+        self.record_action_completion(domain, success=success)
+        
+        # Store detection-specific metrics
+        if not hasattr(self._domain_metrics[domain], 'detection_metrics'):
+            self._domain_metrics[domain].detection_metrics = {
+                'total_operations': 0,
+                'successes': 0,
+                'wake_words': {}
+            }
+        
+        detection = self._domain_metrics[domain].detection_metrics
+        detection['total_operations'] += 1
+        if success:
+            detection['successes'] += 1
+            if wake_word:
+                detection['wake_words'][wake_word] = detection['wake_words'].get(wake_word, 0) + 1
+    
+    def get_component_resampling_metrics(self, component_name: str) -> Dict[str, Any]:
+        """Get resampling metrics for a specific component"""
+        domain = f"component_{component_name}_resampling"
+        if domain in self._domain_metrics:
+            return getattr(self._domain_metrics[domain], 'resampling_metrics', {})
+        return {}
+    
+    def get_component_detection_metrics(self, component_name: str) -> Dict[str, Any]:
+        """Get detection metrics for a specific component"""
+        domain = f"component_{component_name}_detection"
+        if domain in self._domain_metrics:
+            return getattr(self._domain_metrics[domain], 'detection_metrics', {})
+        return {}
 
 
 # Global metrics collector instance
