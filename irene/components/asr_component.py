@@ -613,41 +613,66 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
             if provider_name not in self.providers:
                 raise HTTPException(404, f"Provider '{provider_name}' not available")
             
-            # Read and transcribe audio
+            # Save uploaded file to configured temp directory
+            import uuid
+            from pathlib import Path
+            from ..config.models import CoreConfig
+            
+            # Get temp audio directory from configuration
+            config = self.core.config if hasattr(self, 'core') and self.core else CoreConfig()
+            temp_dir = config.assets.temp_audio_dir
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate unique filename
+            filename = audio.filename or "audio_file"
+            suffix = Path(filename).suffix if filename else ".wav"
+            unique_filename = f"{uuid.uuid4()}{suffix}"
+            temp_path = temp_dir / unique_filename
+            
+            # Write uploaded content to file
             audio_data = await audio.read()
-            text = await self.transcribe_audio(
-                audio_data, provider=provider_name, language=language
-            )
+            temp_path.write_bytes(audio_data)
             
-            # Optional LLM enhancement
-            enhanced_text = None
-            if enhance and text.strip():
-                # Get LLM plugin and enhance text
-                if hasattr(self, 'core') and self.core:
-                    llm_plugin = self.core.plugin_manager.get_plugin("universal_llm")
-                    if llm_plugin:
-                        try:
-                            enhanced_text = await llm_plugin.enhance_text(
-                                text, task="improve_speech_recognition"
-                            )
-                        except Exception as e:
-                            logger.warning(f"LLM enhancement failed: {e}")
+            try:
+                # Transcribe from file (some providers may prefer file input)
+                text = await self.transcribe_audio(
+                    audio_data, provider=provider_name, language=language
+                )
                 
-                if enhanced_text:
-                    return {
-                        "original_text": text,
-                        "enhanced_text": enhanced_text,
-                        "provider": provider_name,
-                        "language": language,
-                        "enhanced": True
-                    }
-            
-            return {
-                "text": text,
-                "provider": provider_name,
-                "language": language,
-                "enhanced": False
-            }
+                # Optional LLM enhancement
+                enhanced_text = None
+                if enhance and text.strip():
+                    # Get LLM plugin and enhance text
+                    if hasattr(self, 'core') and self.core:
+                        llm_plugin = self.core.plugin_manager.get_plugin("universal_llm")
+                        if llm_plugin:
+                            try:
+                                enhanced_text = await llm_plugin.enhance_text(
+                                    text, task="improve_speech_recognition"
+                                )
+                            except Exception as e:
+                                logger.warning(f"LLM enhancement failed: {e}")
+                    
+                    if enhanced_text:
+                        return {
+                            "original_text": text,
+                            "enhanced_text": enhanced_text,
+                            "provider": provider_name,
+                            "language": language,
+                            "enhanced": True
+                        }
+                
+                return {
+                    "text": text,
+                    "provider": provider_name,
+                    "language": language,
+                    "enhanced": False
+                }
+                
+            finally:
+                # Clean up temporary file
+                if temp_path.exists():
+                    temp_path.unlink()
         
         @router.websocket("/stream")
         async def stream_transcription(websocket: WebSocket):
@@ -762,11 +787,24 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         
         return router 
     
+    def get_api_prefix(self) -> str:
+        """Get URL prefix for ASR API endpoints"""
+        return "/asr"
+    
+    def get_api_tags(self) -> List[str]:
+        """Get OpenAPI tags for ASR endpoints"""
+        return ["Speech Recognition"]
+    
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """ASR component needs web API functionality"""
-        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0", "websockets>=11.0.0"]
+        return [
+            "fastapi>=0.100.0", 
+            "uvicorn[standard]>=0.20.0", 
+            "websockets>=11.0.0",
+            "python-multipart>=0.0.6"  # Required for file upload endpoints
+        ]
     
     # Phase 1: Unified metrics integration methods
     def _start_metrics_push_task(self) -> None:

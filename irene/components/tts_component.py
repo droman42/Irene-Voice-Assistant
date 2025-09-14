@@ -579,7 +579,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
     
     def get_api_tags(self) -> list[str]:
         """Get OpenAPI tags for TTS endpoints"""
-        return ["TTS", "Text-to-Speech"]
+        return ["Text-To-Speech"]
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

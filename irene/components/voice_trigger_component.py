@@ -663,6 +663,14 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
             logger.warning("FastAPI not available for voice trigger web API")
             return None
     
+    def get_api_prefix(self) -> str:
+        """Get URL prefix for voice trigger API endpoints"""
+        return "/voice_trigger"
+    
+    def get_api_tags(self) -> List[str]:
+        """Get OpenAPI tags for voice trigger endpoints"""
+        return ["Voice Trigger"]
+    
     def is_api_available(self) -> bool:
         """Check if FastAPI dependencies are available for web API."""
         fastapi = safe_import('fastapi')

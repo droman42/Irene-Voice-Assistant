@@ -311,14 +311,24 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
             if provider_name not in self.providers:
                 raise HTTPException(404, f"Provider '{provider_name}' not available")
             
-            # Save uploaded file temporarily
-            import tempfile
+            # Save uploaded file to configured temp directory
+            import uuid
+            from ..config.models import CoreConfig
+            
+            # Get temp audio directory from configuration
+            config = self.core.config if hasattr(self, 'core') and self.core else CoreConfig()
+            temp_dir = config.assets.temp_audio_dir
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate unique filename
             filename = file.filename or "audio_file"
             suffix = Path(filename).suffix if filename else ".wav"
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-                content = await file.read()
-                temp_file.write(content)
-                temp_path = Path(temp_file.name)
+            unique_filename = f"{uuid.uuid4()}{suffix}"
+            temp_path = temp_dir / unique_filename
+            
+            # Write uploaded content to file
+            content = await file.read()
+            temp_path.write_bytes(content)
             
             try:
                 # Build parameters
@@ -439,6 +449,14 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
         
         return router
     
+    def get_api_prefix(self) -> str:
+        """Get URL prefix for audio API endpoints"""
+        return "/audio"
+    
+    def get_api_tags(self) -> List[str]:
+        """Get OpenAPI tags for audio endpoints"""
+        return ["Audio Playback"]
+    
     # Helper methods
     async def _play_with_fallback(self, file_path: Path, failed_provider: str, **kwargs) -> None:
         """Attempt playback with fallback providers"""
@@ -497,7 +515,11 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """Audio component needs web API functionality"""
-        return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0"]
+        return [
+            "fastapi>=0.100.0", 
+            "uvicorn[standard]>=0.20.0",
+            "python-multipart>=0.0.6"  # Required for file upload endpoints
+        ]
     
     # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
     @classmethod

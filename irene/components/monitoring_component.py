@@ -577,7 +577,7 @@ class MonitoringComponent(Component, WebAPIPlugin):
     
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for monitoring endpoints"""
-        return ["Monitoring", "Phase 3", "Analytics", "Metrics", "Memory", "Debug"]
+        return ["Monitoring"]
     
     def is_api_available(self) -> bool:
         """Check if FastAPI dependencies are available for web API"""

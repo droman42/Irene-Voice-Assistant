@@ -402,6 +402,14 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
         
         return router 
     
+    def get_api_prefix(self) -> str:
+        """Get URL prefix for LLM API endpoints"""
+        return "/llm"
+    
+    def get_api_tags(self) -> List[str]:
+        """Get OpenAPI tags for LLM endpoints"""
+        return ["LLM Component"]
+    
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
     def get_python_dependencies(cls) -> List[str]:

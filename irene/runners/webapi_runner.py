@@ -77,8 +77,8 @@ class WebAPIRunner(BaseRunner):
         parser.add_argument(
             "--port", "-p",
             type=int,
-            default=5003,
-            help="Port to bind to (default: 5003)"
+            default=None,  # Will be set from config if not provided
+            help="Port to bind to (default: from config or 8000)"
         )
         parser.add_argument(
             "--workers",
@@ -126,13 +126,14 @@ class WebAPIRunner(BaseRunner):
         """Get usage examples for WebAPI runner"""
         return """
 Examples:
-  %(prog)s                           # Start on default host:port (web input only)
-  %(prog)s --host 0.0.0.0 --port 8080 # Custom host and port (web input only)
+  %(prog)s                           # Start on default host:port (from config or 8000)
+  %(prog)s --host 0.0.0.0 --port 8080 # Custom host and port (overrides config)
   %(prog)s --ssl-cert cert.pem       # Enable HTTPS (web input only)
-  %(prog)s --enable-tts              # Enable TTS for audio responses
+  %(prog)s --enable-tts              # Enable TTS for audio responses (default: enabled)
   %(prog)s --cors-origins "*"        # Allow all CORS origins
 
 Note: WebAPI runner always uses web input only, regardless of config file settings.
+Port priority: command line > config file > default (8000)
         """
     
     async def _check_dependencies(self, args: argparse.Namespace) -> bool:
@@ -156,6 +157,17 @@ Note: WebAPI runner always uses web input only, regardless of config file settin
         # Enable web API service capability
         config.system.web_api_enabled = True
         
+        # Set port from command line args or config, with fallback to 8000
+        if args.port is not None:
+            # Command line argument takes precedence
+            args.port = args.port
+        elif hasattr(config.system, 'web_port') and config.system.web_port:
+            # Use configuration value
+            args.port = config.system.web_port
+        else:
+            # Fallback to 8000 (same as config default)
+            args.port = 8000
+        
         # WebAPI Runner ALWAYS forces web-only input configuration
         # This overrides any input configuration from the config file
         config.inputs.microphone = False
@@ -168,14 +180,16 @@ Note: WebAPI runner always uses web input only, regardless of config file settin
         config.system.microphone_enabled = False
         
         # Configure components (using correct v14 field names)
-        config.components.tts = args.enable_tts     # Enable TTS for audio responses
-        config.components.audio = False             # No direct audio output in API mode
+        config.components.tts = args.enable_tts     # Enable TTS for audio responses  
+        config.components.audio = args.enable_tts   # Audio required when TTS is enabled
         config.components.intent_system = True      # Essential for processing requests
-        config.components.asr = False               # No direct ASR in web-only mode
+        config.components.asr = True                # Enable ASR for file upload transcription
+        config.components.voice_trigger = False     # No wake word in web-only mode
         
         # Enable text processing for web requests
         config.components.text_processor = True
         config.components.nlu = True
+        config.components.monitoring = True         # Enable monitoring for web API
         
         config.debug = args.debug
         
@@ -204,6 +218,7 @@ Note: WebAPI runner always uses web input only, regardless of config file settin
         return """
 [system]
 web_api_enabled = true
+web_port = 8000
 
 [inputs]
 web = true
@@ -213,6 +228,9 @@ intent_system = true
 text_processor = true
 nlu = true
 tts = true
+audio = true  # Required when TTS is enabled
+asr = true    # Enables file upload transcription endpoints
+monitoring = true
 
 # Note: WebAPI runner always uses web input only.
 # Other input configurations will be overridden."""
@@ -324,7 +342,7 @@ tts = true
                     </div>
                     
                     <p><strong>API Documentation:</strong> <a href="/docs">/docs</a></p>
-                    <p><strong>Component WebSockets:</strong> /asr/stream, /voice_trigger/ws</p>
+                    <p><strong>Component WebSockets:</strong> /asr/stream (speech recognition)</p>
                     <p><strong>REST API:</strong> POST /command</p>
                 </div>
                 
@@ -462,6 +480,7 @@ tts = true
     async def _mount_component_routers(self, app):
         """Mount component routers following the universal plugin pattern"""
         if not self.core:
+            logger.warning("Core not available for router mounting")
             return
         
         try:
@@ -470,21 +489,45 @@ tts = true
             # Get all components that implement WebAPIPlugin
             web_components = []
             
+            logger.info("Searching for components with WebAPI support...")
+            
             # Check if component manager has components that implement WebAPIPlugin
             if hasattr(self.core, 'component_manager'):
                 try:
-                    available_components = await self.core.component_manager.get_available_components()
+                    available_components = self.core.component_manager.get_components()
+                    logger.info(f"Found {len(available_components)} available components: {list(available_components.keys())}")
+                    
                     for name, component in available_components.items():
                         if isinstance(component, WebAPIPlugin):
                             web_components.append((name, component))
+                            logger.info(f"Component {name} implements WebAPIPlugin")
+                        else:
+                            logger.debug(f"Component {name} does not implement WebAPIPlugin (type: {type(component).__name__})")
+                            
                 except Exception as e:
                     logger.warning(f"Could not get components from component manager: {e}")
+            else:
+                logger.warning("Core does not have component_manager")
             
             # Also check plugins that implement WebAPIPlugin
             if hasattr(self.core, 'plugin_manager'):
-                for name, plugin in self.core.plugin_manager._plugins.items():
-                    if isinstance(plugin, WebAPIPlugin):
-                        web_components.append((name, plugin))
+                try:
+                    plugin_count = len(self.core.plugin_manager._plugins)
+                    logger.info(f"Found {plugin_count} plugins in plugin manager")
+                    
+                    for name, plugin in self.core.plugin_manager._plugins.items():
+                        if isinstance(plugin, WebAPIPlugin):
+                            web_components.append((name, plugin))
+                            logger.info(f"Plugin {name} implements WebAPIPlugin")
+                        else:
+                            logger.debug(f"Plugin {name} does not implement WebAPIPlugin (type: {type(plugin).__name__})")
+                            
+                except Exception as e:
+                    logger.warning(f"Could not get plugins from plugin manager: {e}")
+            else:
+                logger.warning("Core does not have plugin_manager")
+            
+            logger.info(f"Found {len(web_components)} components/plugins with WebAPI support")
             
             # Mount each component's router
             mounted_count = 0
@@ -502,12 +545,17 @@ tts = true
                         )
                         
                         mounted_count += 1
-                        logger.info(f"Mounted {name} router at {prefix}")
+                        logger.info(f"✅ Mounted {name} router at {prefix} with tags {tags}")
+                    else:
+                        logger.warning(f"Component {name} returned no router")
                         
                 except Exception as e:
-                    logger.error(f"Failed to mount router for {name}: {e}")
+                    logger.error(f"❌ Failed to mount router for {name}: {e}")
             
-            logger.info(f"Successfully mounted {mounted_count} component routers")
+            if mounted_count > 0:
+                logger.info(f"✅ Successfully mounted {mounted_count} component routers")
+            else:
+                logger.warning("⚠️ No component routers were mounted - check component configuration and WebAPIPlugin implementation")
             
         except ImportError:
             logger.warning("FastAPI not available, skipping router mounting")
@@ -725,7 +773,7 @@ tts = true
             print(f"🌐 Starting Web API server at {protocol}://{args.host}:{args.port} (web input only)")
             print(f"📚 API docs available at {protocol}://{args.host}:{args.port}/docs")
             print(f"🌍 Web interface at {protocol}://{args.host}:{args.port}")
-            print(f"🔌 Component WebSockets: /asr/stream, /voice_trigger/ws")
+            print(f"🔌 Component WebSockets: /asr/stream (speech recognition)")
             print("💻 Input mode: Web only (other inputs disabled)")
             print("Press Ctrl+C to stop")
         

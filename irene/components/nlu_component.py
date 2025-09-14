@@ -1060,7 +1060,7 @@ class NLUComponent(Component, WebAPIPlugin):
     
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for NLU endpoints"""
-        return ["nlu", "intent_recognition"]
+        return ["Natural Language Understanding"]
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

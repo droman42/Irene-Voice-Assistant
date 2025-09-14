@@ -435,6 +435,14 @@ class IntentComponent(Component, WebAPIPlugin):
             logger.warning("FastAPI not available, Web API routes disabled")
             return None
     
+    def get_api_prefix(self) -> str:
+        """Get URL prefix for intent system API endpoints"""
+        return "/intent_system"
+    
+    def get_api_tags(self) -> List[str]:
+        """Get OpenAPI tags for intent system endpoints"""
+        return ["Intent System"]
+    
     def get_config_schema(self) -> Dict[str, Any]:
         """Get configuration schema for Web API"""
         return {

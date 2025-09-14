@@ -411,7 +411,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for text processing endpoints"""
-        return ["text_processing", "normalization"]
+        return ["Text Normalization"]
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
