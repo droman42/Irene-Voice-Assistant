@@ -6,9 +6,11 @@ debug tools, analytics dashboard) into the system component architecture.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 
-from ..core.components import Component
+from pydantic import BaseModel
+
+from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..core.notifications import initialize_notification_service, get_notification_service
 from ..core.metrics import initialize_metrics_system, get_metrics_collector
@@ -599,6 +601,10 @@ class MonitoringComponent(Component, WebAPIPlugin):
         """Component dependencies"""
         return ["intent_system"]  # Requires intent system for handler integration
     
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Get list of required service dependencies."""
+        return {}  # No service dependencies
+    
     # Service access methods for other components
     def get_notification_service(self):
         """Get notification service instance"""
@@ -619,3 +625,50 @@ class MonitoringComponent(Component, WebAPIPlugin):
     def get_analytics_dashboard(self):
         """Get analytics dashboard instance"""
         return self.analytics_dashboard
+    
+    # Required abstract methods from base Component class
+    def get_providers_info(self) -> str:
+        """Get human-readable information about monitoring services"""
+        services = []
+        if self.notification_service:
+            services.append("Notification Service")
+        if self.metrics_collector:
+            services.append("Metrics Collector")
+        if self.memory_manager:
+            services.append("Memory Manager")
+        if self.action_debugger:
+            services.append("Action Debugger")
+        if self.analytics_dashboard:
+            services.append("Analytics Dashboard")
+        
+        if services:
+            return f"Active monitoring services: {', '.join(services)}"
+        else:
+            return "No monitoring services currently active"
+    
+    @classmethod
+    def get_config_class(cls) -> Type[BaseModel]:
+        """Return the Pydantic config model for monitoring component"""
+        from ..config.models import MonitoringConfig
+        return MonitoringConfig
+    
+    @classmethod
+    def get_config_path(cls) -> str:
+        """Return the TOML path to monitoring component config"""
+        return "monitoring"
+    
+    # Required property methods from PluginInterface (inherited via Component base class)
+    @property
+    def name(self) -> str:
+        """Get component name"""
+        return "monitoring"
+    
+    @property
+    def version(self) -> str:
+        """Get component version"""
+        return "1.0.0"
+    
+    @property
+    def description(self) -> str:
+        """Get component description"""
+        return "Phase 3 monitoring component with unified metrics, notifications, and analytics"

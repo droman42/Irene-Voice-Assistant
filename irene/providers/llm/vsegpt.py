@@ -87,7 +87,7 @@ class VseGPTLLMProvider(LLMProvider):
     
     async def enhance_text(self, text: str, task: str = "improve", **kwargs) -> str:
         """Enhance text using VseGPT models"""
-        model = kwargs.get("model", self.default_model)
+        model = kwargs.get("model") or self.default_model  # Handle None model parameter
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
         temperature = kwargs.get("temperature", self.temperature)
         
@@ -129,7 +129,7 @@ class VseGPTLLMProvider(LLMProvider):
     
     async def chat_completion(self, messages: List[Dict], **kwargs) -> str:
         """Generate chat completion using VseGPT"""
-        model = kwargs.get("model", self.default_model)
+        model = kwargs.get("model") or self.default_model  # Handle None model parameter
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
         temperature = kwargs.get("temperature", self.temperature)
         

@@ -589,7 +589,7 @@ class MetricsCollector:
         
         # Store as domain-specific metrics
         if domain not in self._domain_metrics:
-            self._domain_metrics[domain] = DomainMetrics()
+            self._domain_metrics[domain] = DomainMetrics(domain=domain)
         
         # Update the domain metrics with component data
         domain_metrics = self._domain_metrics[domain]
@@ -952,7 +952,7 @@ class MetricsCollector:
         domain = f"component_{component_name}_resampling"
         
         if domain not in self._domain_metrics:
-            self._domain_metrics[domain] = DomainMetrics()
+            self._domain_metrics[domain] = DomainMetrics(domain=domain)
         
         # Track as an action for consistency with fire-and-forget pattern
         if success:
@@ -983,7 +983,7 @@ class MetricsCollector:
         domain = f"component_{component_name}_detection"
         
         if domain not in self._domain_metrics:
-            self._domain_metrics[domain] = DomainMetrics()
+            self._domain_metrics[domain] = DomainMetrics(domain=domain)
         
         # Track as an action
         self.record_action_start(domain, "detection", component_name)
