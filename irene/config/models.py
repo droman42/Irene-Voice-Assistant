@@ -44,10 +44,8 @@ class SystemConfig(BaseModel):
     # Service capabilities  
     web_api_enabled: bool = Field(default=True, description="Enable web API service")
     web_port: int = Field(default=8000, ge=1, le=65535, description="Web API server port")
-    metrics_enabled: bool = Field(default=False, description="Enable metrics collection service")
-    metrics_port: int = Field(default=9090, ge=1, le=65535, description="Metrics server port")
     
-    @field_validator('web_port', 'metrics_port')
+    @field_validator('web_port')
     @classmethod
     def validate_ports(cls, v):
         if not (1 <= v <= 65535):
@@ -160,6 +158,7 @@ class ComponentConfig(BaseModel):
     text_processor: bool = Field(default=False, description="Enable text processing pipeline component")
     intent_system: bool = Field(default=True, description="Enable intent handling component (essential)")
     vad: bool = Field(default=False, description="Enable voice activity detection for audio processing")
+    monitoring: bool = Field(default=True, description="Enable monitoring and metrics component (Phase 3 infrastructure)")
 
 
 # ============================================================
@@ -403,6 +402,44 @@ class VADConfig(BaseModel):
         if not 0.1 <= v <= 2.0:
             raise ValueError("VAD sensitivity must be between 0.1 and 2.0")
         return v
+
+
+# ============================================================
+# MONITORING COMPONENT CONFIGURATION
+# ============================================================
+
+class MonitoringConfig(BaseModel):
+    """Monitoring component configuration (Phase 5 unified metrics system)"""
+    enabled: bool = Field(default=True, description="Enable unified monitoring system")
+    metrics_enabled: bool = Field(default=True, description="Enable metrics collection")
+    dashboard_enabled: bool = Field(default=True, description="Enable analytics dashboard")
+    notifications_enabled: bool = Field(default=True, description="Enable notification system")
+    debug_tools_enabled: bool = Field(default=True, description="Enable debug tools")
+    memory_management_enabled: bool = Field(default=True, description="Enable memory management")
+    
+    # Notification system configuration
+    notifications_default_channel: str = Field(default="log", description="Default notification channel")
+    notifications_tts_enabled: bool = Field(default=True, description="Enable TTS notifications")
+    notifications_web_enabled: bool = Field(default=True, description="Enable web notifications")
+    
+    # Metrics collection configuration
+    metrics_monitoring_interval: int = Field(default=300, ge=30, description="Metrics collection interval in seconds")
+    metrics_retention_hours: int = Field(default=24, ge=1, description="Metrics retention period in hours")
+    
+    # Memory management configuration
+    memory_cleanup_interval: int = Field(default=1800, ge=300, description="Memory cleanup interval in seconds")
+    memory_aggressive_cleanup: bool = Field(default=False, description="Enable aggressive memory cleanup")
+    
+    # Debug tools configuration
+    debug_auto_inspect_failures: bool = Field(default=True, description="Automatically inspect failed actions")
+    debug_max_history: int = Field(default=1000, ge=100, description="Maximum debug history entries")
+    
+    # Analytics dashboard configuration
+    analytics_dashboard_enabled: bool = Field(default=True, description="Enable analytics dashboard web interface")
+    analytics_refresh_interval: int = Field(default=30, ge=5, description="Dashboard refresh interval in seconds")
+    
+    # NOTE: Monitoring endpoints are accessible via unified web API at system.web_port
+    # All functionality available through /monitoring/* endpoints (WebAPIPlugin integration)
 
 
 class ConversationHandlerConfig(BaseModel):
@@ -780,6 +817,7 @@ class UnifiedVoiceAssistantWorkflowConfig(BaseModel):
     llm_enabled: bool = Field(default=True, description="Enable LLM processing stage")
     tts_enabled: bool = Field(default=True, description="Enable TTS output stage")
     audio_enabled: bool = Field(default=True, description="Enable audio playback stage")
+    monitoring_enabled: bool = Field(default=True, description="Enable monitoring and metrics stage")
     
     # VAD processing configuration
     enable_vad_processing: bool = Field(default=True, description="Enable Voice Activity Detection processing for audio pipeline")
@@ -1056,6 +1094,7 @@ class CoreConfig(BaseSettings):
     text_processor: TextProcessorConfig = Field(default_factory=TextProcessorConfig, description="Text processor component configuration")
     intent_system: IntentSystemConfig = Field(default_factory=IntentSystemConfig, description="Intent system component configuration")
     vad: VADConfig = Field(default_factory=VADConfig, description="Voice Activity Detection component configuration")
+    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig, description="Monitoring component configuration (Phase 5 unified metrics system)")
     
     # Language and locale
     language: str = Field(default="en-US", description="Primary language")

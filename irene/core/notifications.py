@@ -84,6 +84,11 @@ class NotificationService:
             "deliveries_by_type": {}
         }
         
+        # Configuration settings (configurable)
+        self._default_channel = "log"
+        self._tts_enabled = True
+        self._web_enabled = True
+        
         # Component references (injected during initialization)
         self.tts_component = None
         self.audio_component = None
@@ -419,11 +424,21 @@ class NotificationService:
 _notification_service: Optional[NotificationService] = None
 
 
-async def initialize_notification_service(components: Dict[str, Any]) -> NotificationService:
-    """Initialize the global notification service"""
+async def initialize_notification_service(components: Dict[str, Any], config: dict = None) -> NotificationService:
+    """Initialize the global notification service with configuration"""
     global _notification_service
     if _notification_service is None:
         _notification_service = NotificationService()
+        
+        # Apply configuration if provided
+        if config:
+            if 'default_channel' in config:
+                _notification_service._default_channel = config['default_channel']
+            if 'tts_enabled' in config:
+                _notification_service._tts_enabled = config['tts_enabled']
+            if 'web_enabled' in config:
+                _notification_service._web_enabled = config['web_enabled']
+        
         await _notification_service.initialize(components)
     return _notification_service
 

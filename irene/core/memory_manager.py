@@ -47,6 +47,7 @@ class MemoryManager:
         # Cleanup configuration
         self._auto_cleanup_enabled = True
         self._cleanup_interval = 1800.0  # 30 minutes
+        self._aggressive_cleanup = False  # configurable
         self._cleanup_task: Optional[asyncio.Task] = None
         
         # Memory tracking
@@ -413,9 +414,17 @@ def get_memory_manager() -> MemoryManager:
     return _memory_manager
 
 
-async def initialize_memory_manager(context_manager) -> MemoryManager:
-    """Initialize the global memory manager"""
+async def initialize_memory_manager(context_manager, config: dict = None) -> MemoryManager:
+    """Initialize the global memory manager with configuration"""
     manager = get_memory_manager()
+    
+    # Apply configuration if provided
+    if config:
+        if 'cleanup_interval' in config:
+            manager._cleanup_interval = config['cleanup_interval']
+        if 'aggressive_cleanup' in config:
+            manager._aggressive_cleanup = config['aggressive_cleanup']
+    
     await manager.initialize(context_manager)
     return manager
 

@@ -29,7 +29,7 @@ class AnalyticsDashboard:
         self.metrics_collector = metrics_collector
         self._dashboard_data_cache: Optional[Dict[str, Any]] = None
         self._cache_expiry: float = 0
-        self._cache_duration = 30.0  # seconds
+        self._cache_duration = 30.0  # seconds (configurable)
     
     def set_metrics_collector(self, metrics_collector) -> None:
         """Set the metrics collector for data source"""
@@ -1005,8 +1005,14 @@ def get_analytics_dashboard() -> AnalyticsDashboard:
     return _analytics_dashboard
 
 
-def initialize_analytics_dashboard(metrics_collector) -> AnalyticsDashboard:
-    """Initialize the global analytics dashboard"""
+def initialize_analytics_dashboard(metrics_collector, config: dict = None) -> AnalyticsDashboard:
+    """Initialize the global analytics dashboard with configuration"""
     dashboard = get_analytics_dashboard()
     dashboard.set_metrics_collector(metrics_collector)
+    
+    # Apply configuration if provided
+    if config:
+        if 'refresh_interval' in config:
+            dashboard._cache_duration = config['refresh_interval']
+    
     return dashboard

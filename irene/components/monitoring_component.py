@@ -52,58 +52,19 @@ class MonitoringComponent(Component, WebAPIPlugin):
         try:
             self.logger.info("Initializing Phase 3 Monitoring Component...")
             
-            # Get configuration with fallback to legacy settings (Phase 2)
+            # Get monitoring configuration (Phase 5: Modern configuration only)
             config = getattr(core.config, 'monitoring', None)
-            legacy_metrics_enabled = getattr(core.config, 'metrics_enabled', None)
-            legacy_metrics_port = getattr(core.config, 'metrics_port', None)
             
             if not config:
-                # Create default config if missing, with legacy fallback
-                self.logger.warning("No monitoring configuration found, checking legacy settings and using defaults")
-                config = type('MonitoringConfig', (), {
-                    'enabled': True,
-                    'notifications_enabled': True,
-                    'notifications_default_channel': 'log',
-                    'notifications_tts_enabled': True,
-                    'metrics_enabled': legacy_metrics_enabled if legacy_metrics_enabled is not None else True,
-                    'metrics_monitoring_interval': 300,
-                    'metrics_retention_hours': 24,
-                    'memory_management_enabled': True,
-                    'memory_cleanup_interval': 1800,
-                    'memory_aggressive_cleanup': False,
-                    'debug_tools_enabled': True,
-                    'debug_auto_inspect_failures': True,
-                    'debug_max_history': 1000,
-                    'analytics_dashboard_enabled': True,
-                    'analytics_web_port': legacy_metrics_port if legacy_metrics_port else 8081,
-                    'analytics_refresh_interval': 30
-                })()
-                
-                # Log legacy configuration migration
-                if legacy_metrics_enabled is not None or legacy_metrics_port is not None:
-                    self.logger.info(f"🔄 Using legacy configuration: metrics_enabled={legacy_metrics_enabled}, metrics_port={legacy_metrics_port}")
-                    self.logger.info("📋 Consider migrating to monitoring.* configuration section")
+                raise ValueError("Monitoring configuration required. Add [monitoring] section to config.")
             
-            # Convert Pydantic model to dict for easier access with legacy fallbacks
+            # Convert Pydantic model to dict for easier access
             if hasattr(config, 'model_dump'):
                 config_dict = config.model_dump()
             elif hasattr(config, 'dict'):
                 config_dict = config.dict()
             else:
                 config_dict = {attr: getattr(config, attr) for attr in dir(config) if not attr.startswith('_')}
-            
-            # Apply legacy setting fallbacks (Phase 2: Configuration precedence)
-            if legacy_metrics_enabled is not None and 'metrics_enabled' not in config_dict:
-                config_dict['metrics_enabled'] = legacy_metrics_enabled
-                self.logger.info(f"🔄 Applied legacy fallback: metrics_enabled={legacy_metrics_enabled}")
-            
-            if legacy_metrics_port is not None and 'analytics_web_port' not in config_dict:
-                config_dict['analytics_web_port'] = legacy_metrics_port
-                self.logger.info(f"🔄 Applied legacy fallback: analytics_web_port={legacy_metrics_port}")
-            
-            # Ensure backward compatibility with monitoring.metrics_* prefix
-            if config_dict.get('metrics_enabled') is not None and not hasattr(config, 'metrics_enabled'):
-                self.logger.debug("Using monitoring.metrics_enabled setting")
             
             # Get required components
             self.context_manager = getattr(core, 'context_manager', None)
@@ -121,22 +82,39 @@ class MonitoringComponent(Component, WebAPIPlugin):
             
             # Phase 3.1: Initialize Notification Service
             if config_dict.get('notifications_enabled', True):
-                self.notification_service = await initialize_notification_service(components_dict)
-                self.logger.info("✅ Notification service initialized")
+                # Configure notification service with monitoring configuration
+                notification_config = {
+                    'default_channel': config_dict.get('notifications_default_channel', 'log'),
+                    'tts_enabled': config_dict.get('notifications_tts_enabled', True),
+                    'web_enabled': config_dict.get('notifications_web_enabled', True)
+                }
+                self.notification_service = await initialize_notification_service(components_dict, notification_config)
+                self.logger.info(f"✅ Notification service initialized with default_channel={notification_config['default_channel']}")
             else:
                 self.logger.info("⏭️ Notification service disabled in configuration")
             
             # Phase 3.2: Initialize Metrics System
             if config_dict.get('metrics_enabled', True):
-                self.metrics_collector = await initialize_metrics_system()
-                self.logger.info("✅ Metrics system initialized")
+                # Configure metrics system with monitoring configuration
+                metrics_config = {
+                    'monitoring_interval': config_dict.get('metrics_monitoring_interval', 300),
+                    'retention_hours': config_dict.get('metrics_retention_hours', 24),
+                    'max_history': config_dict.get('debug_max_history', 1000)
+                }
+                self.metrics_collector = await initialize_metrics_system(metrics_config)
+                self.logger.info(f"✅ Metrics system initialized with interval={metrics_config['monitoring_interval']}s")
             else:
                 self.logger.info("⏭️ Metrics system disabled in configuration")
             
             # Phase 3.3: Initialize Memory Manager
             if config_dict.get('memory_management_enabled', True):
-                self.memory_manager = await initialize_memory_manager(self.context_manager)
-                self.logger.info("✅ Memory manager initialized")
+                # Configure memory manager with monitoring configuration
+                memory_config = {
+                    'cleanup_interval': config_dict.get('memory_cleanup_interval', 1800),
+                    'aggressive_cleanup': config_dict.get('memory_aggressive_cleanup', False)
+                }
+                self.memory_manager = await initialize_memory_manager(self.context_manager, memory_config)
+                self.logger.info(f"✅ Memory manager initialized with cleanup_interval={memory_config['cleanup_interval']}s")
             else:
                 self.logger.info("⏭️ Memory manager disabled in configuration")
             
@@ -154,8 +132,12 @@ class MonitoringComponent(Component, WebAPIPlugin):
             
             # Phase 3.5: Initialize Analytics Dashboard
             if config_dict.get('analytics_dashboard_enabled', True):
-                self.analytics_dashboard = initialize_analytics_dashboard(self.metrics_collector)
-                self.logger.info("✅ Analytics dashboard initialized")
+                # Configure analytics dashboard with monitoring configuration
+                dashboard_config = {
+                    'refresh_interval': config_dict.get('analytics_refresh_interval', 30)
+                }
+                self.analytics_dashboard = initialize_analytics_dashboard(self.metrics_collector, dashboard_config)
+                self.logger.info(f"✅ Analytics dashboard initialized with refresh_interval={dashboard_config['refresh_interval']}s")
             else:
                 self.logger.info("⏭️ Analytics dashboard disabled in configuration")
             

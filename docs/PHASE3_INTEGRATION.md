@@ -124,8 +124,8 @@ debug_max_history = 1000
 
 # Phase 3.5: Analytics Dashboard
 analytics_dashboard_enabled = true
-analytics_web_port = 8081
 analytics_refresh_interval = 30
+# NOTE: Analytics dashboard served via unified web API at system.web_port
 ```
 
 ### **3. Programmatic Access**

@@ -1031,9 +1031,19 @@ def get_metrics_collector() -> MetricsCollector:
     return _metrics_collector
 
 
-async def initialize_metrics_system() -> MetricsCollector:
-    """Initialize the global metrics system"""
+async def initialize_metrics_system(config: dict = None) -> MetricsCollector:
+    """Initialize the global metrics system with configuration"""
     collector = get_metrics_collector()
+    
+    # Apply configuration if provided
+    if config:
+        if 'monitoring_interval' in config:
+            collector._monitoring_interval = config['monitoring_interval']
+        if 'max_history' in config:
+            collector.max_history_size = config['max_history']
+            # Update the deque with new max size
+            collector._completed_actions = deque(collector._completed_actions, maxlen=config['max_history'])
+    
     await collector.start_monitoring()
     return collector
 
