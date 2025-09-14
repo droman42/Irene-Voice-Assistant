@@ -123,17 +123,11 @@ class V13ToV14Migrator:
         web_api_enabled = v13_components.get("web_api", True)
         web_port = v13_components.get("web_port", 8000)
         
-        # Metrics from advanced settings
-        metrics_enabled = v13_config.get("enable_metrics", False)
-        metrics_port = v13_config.get("metrics_port", 9090)
-        
         system_config = SystemConfig(
             microphone_enabled=microphone_enabled,
             audio_playback_enabled=audio_playback_enabled,
             web_api_enabled=web_api_enabled,
-            web_port=web_port,
-            metrics_enabled=metrics_enabled,
-            metrics_port=metrics_port
+            web_port=web_port
         )
         
         self._log(f"Migrated system config: microphone={microphone_enabled}, audio={audio_playback_enabled}, web_api={web_api_enabled}")

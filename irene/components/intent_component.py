@@ -88,6 +88,27 @@ class IntentComponent(Component, WebAPIPlugin):
         donations = self.handler_manager.get_donations()
         logger.info(f"Intent component initialized with {len(handlers)} handlers: {list(handlers.keys())}")
         logger.info(f"Loaded {len(donations)} JSON donations for donation-driven execution")
+    
+    async def shutdown(self) -> None:
+        """Shutdown intent component and clean up handler resources"""
+        await super().shutdown()
+        
+        # Clean up timeout tasks from all handlers
+        if self.handler_manager and self.handler_manager.get_handlers():
+            cleanup_tasks = []
+            for handler_name, handler in self.handler_manager.get_handlers().items():
+                if hasattr(handler, 'cleanup_timeout_tasks'):
+                    cleanup_tasks.append(handler.cleanup_timeout_tasks())
+            
+            if cleanup_tasks:
+                await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+                logger.info("Cleaned up timeout tasks from all intent handlers")
+    
+    def set_context_manager(self, context_manager: Any) -> None:
+        """Set the context manager on all intent handlers for fire-and-forget action tracking."""
+        if self.handler_manager:
+            self.handler_manager.set_context_manager(context_manager)
+            logger.info("Context manager injected into intent handlers for fire-and-forget action tracking")
         
     def get_enabled_handler_names(self) -> List[str]:
         """
@@ -336,6 +357,33 @@ class IntentComponent(Component, WebAPIPlugin):
                 
                 return {"handlers": handlers_info}
             
+            @router.post("/actions/cancel")
+            async def cancel_action_endpoint(domain: str, reason: str = "User requested cancellation"):
+                """Cancel an active fire-and-forget action"""
+                try:
+                    # This would need session_id parameter or session management
+                    # For now, return method availability info
+                    return {
+                        "message": "Action cancellation endpoint available",
+                        "domain": domain,
+                        "reason": reason,
+                        "note": "Full implementation requires session context"
+                    }
+                except Exception as e:
+                    raise HTTPException(500, f"Error cancelling action: {str(e)}")
+            
+            @router.get("/actions/active")
+            async def get_active_actions_endpoint():
+                """Get list of active fire-and-forget actions"""
+                try:
+                    # This would need session context to be useful
+                    return {
+                        "message": "Active actions endpoint available",
+                        "note": "Full implementation requires session context"
+                    }
+                except Exception as e:
+                    raise HTTPException(500, f"Error getting active actions: {str(e)}")
+
             @router.get("/registry")
             async def get_intent_registry():
                 """Get intent registry patterns"""

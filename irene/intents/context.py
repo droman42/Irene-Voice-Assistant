@@ -11,6 +11,7 @@ import logging
 import asyncio
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from .models import ConversationContext, Intent, IntentResult
+from ..core.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
     from ..workflows.base import RequestContext
@@ -34,6 +35,7 @@ class ContextManager:
         self.max_history_turns = max_history_turns
         self.cleanup_interval = 300  # Cleanup every 5 minutes
         self.last_cleanup = time.time()
+        self.metrics_collector = get_metrics_collector()  # Phase 2: Session analytics integration
     
     async def get_context(self, session_id: str) -> ConversationContext:
         """
@@ -48,12 +50,20 @@ class ContextManager:
         # Clean up expired sessions periodically
         await self._cleanup_expired_sessions()
         
+        # Check if this is a new session
+        is_new_session = session_id not in self.sessions
+        
         if session_id in self.sessions:
             context = self.sessions[session_id]
             # Check if session has expired
             if time.time() - context.last_updated > self.session_timeout:
                 logger.info(f"Session {session_id} expired, creating new context")
+                
+                # Phase 2: Record session end for expired session
+                self.metrics_collector.record_session_end(session_id)
+                
                 del self.sessions[session_id]
+                is_new_session = True  # Treat as new session
             else:
                 return context
         
@@ -65,6 +75,10 @@ class ContextManager:
         )
         self.sessions[session_id] = context
         logger.info(f"Created new conversation context for session: {session_id}")
+        
+        # Phase 2: Record session start for new sessions
+        if is_new_session:
+            self.metrics_collector.record_session_start(session_id)
         return context
     
     async def get_context_with_request_info(self, session_id: str, request_context: 'RequestContext' = None) -> ConversationContext:
@@ -334,6 +348,14 @@ class ContextManager:
         """
         context = await self.get_context(session_id)
         context.add_assistant_turn(result)
+        
+        # Phase 2: Update session activity with intent execution result
+        if hasattr(result, 'metadata') and result.metadata and 'original_intent' in result.metadata:
+            intent_name = result.metadata['original_intent']
+        else:
+            intent_name = "unknown"
+        
+        self.metrics_collector.update_session_activity(session_id, intent_name, result.success)
         
         # Update intent processing statistics
         if 'intent_processing' in context.metadata:

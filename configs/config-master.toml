@@ -41,8 +41,7 @@ audio_playback_enabled = true      # Enable audio playback hardware capability
 # Service capabilities - what services to run
 web_api_enabled = true             # Enable REST API and WebSocket server
 web_port = 8000                    # Web API server port (1-65535)
-metrics_enabled = false            # Enable Prometheus metrics collection
-metrics_port = 9090                # Metrics server port (1-65535)
+# NOTE: Metrics configuration moved to [monitoring] section (Phase 5 unification)
 
 # ============================================================
 # INPUT SOURCES - Data Entry Points
@@ -90,6 +89,7 @@ voice_trigger = false              # Wake word detection component
 nlu = true                         # Natural language understanding component
 text_processor = true              # Text processing pipeline component
 intent_system = true               # Intent handling component (essential)
+monitoring = true                  # Monitoring and metrics component (Phase 3 infrastructure)
 
 # ============================================================
 # TTS (TEXT-TO-SPEECH) COMPONENT CONFIGURATION
@@ -473,6 +473,41 @@ voice_frames_required = 2          # Require 2 consecutive frames for stable det
 silence_frames_required = 8        # Reduced frames needed to confirm voice end for responsiveness (1-20)
 
 # ============================================================
+# MONITORING COMPONENT CONFIGURATION
+# ============================================================
+[monitoring]
+enabled = true                     # Enable unified monitoring system
+metrics_enabled = true            # Enable metrics collection
+dashboard_enabled = true          # Enable analytics dashboard
+notifications_enabled = true     # Enable notification system
+debug_tools_enabled = true       # Enable debug tools
+memory_management_enabled = true  # Enable memory management
+
+# Notification system configuration
+notifications_default_channel = "log"  # Default notification channel: "log", "tts", "web"
+notifications_tts_enabled = true       # Enable TTS notifications
+notifications_web_enabled = true       # Enable web notifications
+
+# Metrics collection configuration
+metrics_monitoring_interval = 300      # Metrics collection interval in seconds
+metrics_retention_hours = 24          # Metrics retention period in hours
+
+# Memory management configuration
+memory_cleanup_interval = 1800        # Memory cleanup interval in seconds (30 minutes)
+memory_aggressive_cleanup = false     # Enable aggressive memory cleanup
+
+# Debug tools configuration
+debug_auto_inspect_failures = true    # Automatically inspect failed actions
+debug_max_history = 1000              # Maximum debug history entries
+
+# Analytics dashboard configuration
+analytics_dashboard_enabled = true    # Enable analytics dashboard web interface
+analytics_refresh_interval = 30       # Dashboard refresh interval in seconds
+
+# NOTE: Monitoring endpoints are available through the unified web API at system.web_port
+# All monitoring functionality accessible via /monitoring/* endpoints (no separate ports needed)
+
+# ============================================================
 # WORKFLOWS - Processing Pipelines (Two-Level Configuration)
 # ============================================================
 # Two-level hierarchy:
@@ -499,6 +534,7 @@ intent_execution_enabled = true    # Enable intent execution stage (requires com
 llm_enabled = true                 # Enable LLM processing stage (requires components.llm = true)
 tts_enabled = true                 # Enable TTS output stage (requires components.tts = true)
 audio_enabled = true               # Enable audio playback stage (requires components.audio = true)
+monitoring_enabled = true          # Enable monitoring and metrics stage (requires components.monitoring = true)
 
 # Audio processing configuration
 buffer_size_ms = 100.0             # Audio buffer size in milliseconds

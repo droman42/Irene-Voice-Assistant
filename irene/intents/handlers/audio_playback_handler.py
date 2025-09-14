@@ -94,10 +94,11 @@ class AudioPlaybackIntentHandler(IntentHandler):
         
         # Use fire-and-forget action execution for audio playback
         playback_id = f"audio_{int(time.time() * 1000)}"
-        action_metadata = await self.execute_fire_and_forget_action(
+        action_metadata = await self.execute_fire_and_forget_with_context(
             self._start_audio_playback_action,
             action_name=playback_id,
             domain="audio",
+            context=context,
             audio_file=audio_file,
             source=source,
             language=language
@@ -121,10 +122,11 @@ class AudioPlaybackIntentHandler(IntentHandler):
         
         # Use fire-and-forget action execution for stopping audio
         stop_id = f"audio_stop_{int(time.time() * 1000)}"
-        action_metadata = await self.execute_fire_and_forget_action(
+        action_metadata = await self.execute_fire_and_forget_with_context(
             self._stop_audio_playback_action,
             action_name=stop_id,
             domain="audio",
+            context=context,
             language=language
         )
         
@@ -150,10 +152,11 @@ class AudioPlaybackIntentHandler(IntentHandler):
             
             # Use fire-and-forget action execution for stopping audio
             stop_id = f"audio_stop_all_{int(time.time() * 1000)}"
-            action_metadata = await self.execute_fire_and_forget_action(
+            action_metadata = await self.execute_fire_and_forget_with_context(
                 self._stop_audio_playback_action,
                 action_name=stop_id,
                 domain="audio",
+                context=context,
                 language=language
             )
             

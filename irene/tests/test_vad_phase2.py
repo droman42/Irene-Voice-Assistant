@@ -11,9 +11,9 @@ import time
 import numpy as np
 from typing import List, AsyncIterator
 
-# Import Phase 2 components
+# Import Phase 2 components - Phase 4: ProcessingMetrics removed, using unified MetricsCollector
 from irene.workflows.audio_processor import (
-    VoiceActivityState, VoiceSegment, ProcessingMetrics,
+    VoiceActivityState, VoiceSegment,
     UniversalAudioProcessor, AudioProcessorInterface,
     create_audio_processor
 )

@@ -1,10 +1,12 @@
 """Intent orchestration and execution."""
 
 import logging
+import time
 from typing import Dict, Any, Optional
 
 from .models import Intent, IntentResult, ConversationContext
 from .registry import IntentRegistry
+from ..core.metrics import get_metrics_collector, MetricsCollector
 # PHASE 5: Remove parameter extractor import - parameter extraction now integrated into NLU providers
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,7 @@ class IntentOrchestrator:
         self.middleware: list = []
         self.error_handlers: Dict[str, callable] = {}
         self._use_donation_routing = True  # Phase 6: Enable donation-driven routing
+        self.metrics_collector = get_metrics_collector()  # Phase 2: Intent analytics integration
     
     def add_middleware(self, middleware_func: callable):
         """Add middleware function to process intents before execution."""
@@ -99,24 +102,49 @@ class IntentOrchestrator:
             # Execute the intent using donation-driven routing if available
             logger.info(f"Executing intent '{processed_intent.name}' with handler {handler.__class__.__name__}")
             
-            if (self._use_donation_routing and 
-                hasattr(handler, 'execute_with_donation_routing') and 
-                hasattr(handler, 'has_donation') and 
-                handler.has_donation()):
-                # Phase 6: Use donation-driven method routing
-                logger.debug(f"Using donation-driven execution for {processed_intent.name}")
-                result = await handler.execute_with_donation_routing(processed_intent, context)
-            else:
-                # Fallback to standard execution
-                logger.debug(f"Using standard execution for {processed_intent.name}")
-                result = await handler.execute(processed_intent, context)
+            # Phase 2: Track intent execution start time
+            execution_start_time = time.time()
             
-            # Update conversation context
-            context.add_user_turn(processed_intent)
-            context.add_assistant_turn(result)
-            
-            logger.info(f"Intent executed successfully: {processed_intent.name}")
-            return result
+            try:
+                if (self._use_donation_routing and 
+                    hasattr(handler, 'execute_with_donation_routing') and 
+                    hasattr(handler, 'has_donation') and 
+                    handler.has_donation()):
+                    # Phase 6: Use donation-driven method routing
+                    logger.debug(f"Using donation-driven execution for {processed_intent.name}")
+                    result = await handler.execute_with_donation_routing(processed_intent, context)
+                else:
+                    # Fallback to standard execution
+                    logger.debug(f"Using standard execution for {processed_intent.name}")
+                    result = await handler.execute(processed_intent, context)
+                
+                # Phase 2: Record successful intent execution
+                execution_time = time.time() - execution_start_time
+                self.metrics_collector.record_intent_execution(
+                    intent_name=processed_intent.name,
+                    success=result.success,
+                    execution_time=execution_time,
+                    session_id=getattr(processed_intent, 'session_id', None)
+                )
+                
+                # Update conversation context
+                context.add_user_turn(processed_intent)
+                context.add_assistant_turn(result)
+                
+                logger.info(f"Intent executed successfully: {processed_intent.name}")
+                return result
+                
+            except Exception as exec_error:
+                # Phase 2: Record failed intent execution
+                execution_time = time.time() - execution_start_time
+                self.metrics_collector.record_intent_execution(
+                    intent_name=processed_intent.name,
+                    success=False,
+                    execution_time=execution_time,
+                    error=str(exec_error),
+                    session_id=getattr(processed_intent, 'session_id', None)
+                )
+                raise  # Re-raise the exception to be handled by outer try-catch
             
         except Exception as e:
             logger.error(f"Error executing intent '{intent.name}': {e}", exc_info=True)
@@ -128,6 +156,15 @@ class IntentOrchestrator:
                     return await self.error_handlers[error_type](intent, context, e)
                 except Exception as handler_error:
                     logger.error(f"Error handler failed: {handler_error}")
+            
+            # Phase 2: Record failed intent execution for general errors
+            self.metrics_collector.record_intent_execution(
+                intent_name=intent.name,
+                success=False,
+                execution_time=0.0,
+                error=str(e),
+                session_id=intent.session_id
+            )
             
             # Generic error response
             return self._create_error_result(

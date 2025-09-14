@@ -284,8 +284,6 @@ microphone_enabled = {str(config.system.microphone_enabled).lower()}      # Hard
 audio_playback_enabled = {str(config.system.audio_playback_enabled).lower()}  # Hardware capability
 web_api_enabled = {str(config.system.web_api_enabled).lower()}         # Service capability
 web_port = {config.system.web_port}
-metrics_enabled = {str(config.system.metrics_enabled).lower()}
-metrics_port = {config.system.metrics_port}
 
 # ============================================================
 # INPUT SOURCES - Data Entry Points

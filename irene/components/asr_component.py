@@ -11,6 +11,7 @@ import json
 import time
 import base64
 import logging
+import asyncio
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect  # type: ignore
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ from .base import Component
 from ..core.interfaces.asr import ASRPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import AudioData
+from ..core.metrics import get_metrics_collector
 
 
 # Import ASR provider base class and dynamic loader
@@ -87,14 +89,11 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         # Dynamic provider discovery from entry-points (replaces hardcoded classes)
         self._provider_classes: Dict[str, type] = {}
         
-        # Phase 5: Runtime monitoring
-        self._resampling_metrics = {
-            'total_resampling_operations': 0,
-            'total_resampling_time_ms': 0.0,
-            'resampling_failures': 0,
-            'provider_fallbacks': 0,
-            'configuration_warnings': 0
-        }
+        # Phase 1: Runtime monitoring now handled by unified metrics collector
+        
+        # Phase 1: Unified metrics integration
+        self._metrics_push_task: Optional[asyncio.Task] = None
+        self._metrics_push_interval = 60.0  # seconds
         
     async def initialize(self, core) -> None:
         """Initialize ASR providers from configuration"""
@@ -171,6 +170,9 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                 logger.warning("No ASR providers available")
             else:
                 logger.info(f"Universal ASR Plugin initialized with {len(self.providers)} providers")
+                
+            # Phase 1: Start unified metrics push task
+            self._start_metrics_push_task()
                 
         except Exception as e:
             logger.error(f"Failed to initialize Universal ASR Plugin: {e}")
@@ -254,10 +256,9 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                         audio_data, config_sample_rate, conversion_method
                     )
                     
-                    # Update metrics
+                    # Update metrics (Phase 1: Unified metrics integration)
                     resampling_time = (time.time() - start_time) * 1000
-                    self._resampling_metrics['total_resampling_operations'] += 1
-                    self._resampling_metrics['total_resampling_time_ms'] += resampling_time
+                    get_metrics_collector().record_resampling_operation("asr", resampling_time, success=True)
                     
                     logger.debug(f"Successfully resampled audio to {config_sample_rate}Hz using {conversion_method.value} in {resampling_time:.1f}ms")
                     
@@ -265,8 +266,9 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                     return await self.transcribe_audio(resampled_audio.data, **kwargs)
                     
                 except Exception as resampling_error:
-                    # Update failure metrics
-                    self._resampling_metrics['resampling_failures'] += 1
+                    # Update failure metrics (Phase 1: Unified metrics integration)
+                    resampling_time = (time.time() - start_time) * 1000
+                    get_metrics_collector().record_resampling_operation("asr", resampling_time, success=False)
                     logger.error(f"Configuration-required resampling failed: {resampling_error}")
                     # Reset provider state after resampling failure to ensure clean state
                     self.reset_provider_state(provider_name)
@@ -463,27 +465,31 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         return self._get_providers_info()
     
     def get_runtime_metrics(self) -> Dict[str, Any]:
-        """Get Phase 5 runtime monitoring metrics enhanced with Phase 6 cache statistics"""
-        avg_resampling_time = 0.0
-        if self._resampling_metrics['total_resampling_operations'] > 0:
-            avg_resampling_time = (
-                self._resampling_metrics['total_resampling_time_ms'] / 
-                self._resampling_metrics['total_resampling_operations']
-            )
+        """Get runtime monitoring metrics from unified collector (Phase 1: Complete integration)"""
+        metrics_collector = get_metrics_collector()
+        
+        # Get component-specific metrics from unified collector
+        resampling_metrics = metrics_collector.get_component_resampling_metrics("asr")
         
         # Phase 6: Include cache performance metrics
         from ..utils.audio_helpers import AudioProcessor
         cache_stats = AudioProcessor.get_cache_stats()
         
-        return {
-            **self._resampling_metrics,
-            'average_resampling_time_ms': avg_resampling_time,
+        # Combine and return unified metrics
+        combined_metrics = {
+            'total_resampling_operations': resampling_metrics.get('total_operations', 0),
+            'total_resampling_time_ms': resampling_metrics.get('total_time_ms', 0.0),
+            'resampling_failures': resampling_metrics.get('failures', 0),
+            'average_resampling_time_ms': resampling_metrics.get('average_time_ms', 0.0),
             'resampling_success_rate': (
-                (self._resampling_metrics['total_resampling_operations'] - self._resampling_metrics['resampling_failures']) /
-                max(1, self._resampling_metrics['total_resampling_operations'])
+                1.0 - (resampling_metrics.get('failures', 0) / max(1, resampling_metrics.get('total_operations', 1)))
             ),
+            'provider_fallbacks': 0,  # To be enhanced later
+            'configuration_warnings': 0,  # To be enhanced later
             'cache_statistics': cache_stats
         }
+        
+        return combined_metrics
     
     def parse_provider_name_from_text(self, text: str) -> Optional[str]:
         """Override base method with ASR-specific aliases and logic"""
@@ -762,8 +768,50 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         """ASR component needs web API functionality"""
         return ["fastapi>=0.100.0", "uvicorn[standard]>=0.20.0", "websockets>=11.0.0"]
     
+    # Phase 1: Unified metrics integration methods
+    def _start_metrics_push_task(self) -> None:
+        """Start the periodic metrics push task"""
+        if self._metrics_push_task is None:
+            self._metrics_push_task = asyncio.create_task(self._metrics_push_loop())
+            logger.debug("ASR component metrics push task started")
+    
+    async def _stop_metrics_push_task(self) -> None:
+        """Stop the periodic metrics push task"""
+        if self._metrics_push_task:
+            self._metrics_push_task.cancel()
+            try:
+                await self._metrics_push_task
+            except asyncio.CancelledError:
+                pass
+            self._metrics_push_task = None
+            logger.debug("ASR component metrics push task stopped")
+    
+    async def _metrics_push_loop(self) -> None:
+        """Periodic loop to push runtime metrics to unified collector"""
+        while True:
+            try:
+                # Get current runtime metrics
+                runtime_metrics = self.get_runtime_metrics()
+                
+                # Push to unified metrics collector
+                metrics_collector = get_metrics_collector()
+                metrics_collector.record_component_metrics("asr", runtime_metrics)
+                
+                logger.debug(f"Pushed ASR metrics to unified collector: {len(runtime_metrics)} metrics")
+                
+                # Wait for next push cycle
+                await asyncio.sleep(self._metrics_push_interval)
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in ASR metrics push loop: {e}")
+                await asyncio.sleep(10)  # Brief pause before retrying
+    
     async def stop(self) -> None:
         """Stop the ASR component (alias for shutdown)"""
+        # Phase 1: Stop unified metrics push task
+        await self._stop_metrics_push_task()
         await self.shutdown()
     
     # Config interface methods (Phase 3 - Configuration Architecture Cleanup)
