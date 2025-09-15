@@ -805,77 +805,54 @@ monitoring = true
             @app.get("/asyncapi", response_class=HTMLResponse, include_in_schema=False)
             async def asyncapi_docs():
                 """Serve AsyncAPI documentation page"""
-                html_content = '''
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Irene WebSocket API Documentation</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-                        .header { background: #007cba; color: white; padding: 20px; text-align: center; }
-                        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-                        .loading { text-align: center; margin: 50px 0; color: #666; }
-                        .error { color: #dc3545; text-align: center; margin: 20px 0; }
-                        .links { text-align: center; margin: 20px 0; }
-                        .links a { margin: 0 10px; color: #007cba; text-decoration: none; }
-                        .links a:hover { text-decoration: underline; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <h1>🚀 Irene WebSocket API Documentation</h1>
-                        <p>Real-time communication endpoints for Irene Voice Assistant</p>
-                    </div>
-                    <div class="container">
-                        <div class="loading" id="loading">Loading AsyncAPI documentation...</div>
-                        <div class="error" id="error" style="display: none;">
-                            Failed to load AsyncAPI component. 
-                            <div class="links">
-                                <a href="/asyncapi.json" target="_blank">View JSON Spec</a>
-                                <a href="/asyncapi.yaml" target="_blank">View YAML Spec</a>
-                                <a href="/docs" target="_blank">REST API Docs</a>
-                            </div>
-                        </div>
-                        <asyncapi-component 
-                            schema-url="/asyncapi.yaml"
-                            config='{"show": {"sidebar": true}, "theme": {"name": "default"}}'
-                        ></asyncapi-component>
-                    </div>
-                        <script src="https://unpkg.com/@asyncapi/web-component@2.6.4/lib/asyncapi-web-component.js"></script>
-                    <script>
-                        // Add error handling and timeout
-                        setTimeout(() => {
-                            const loading = document.getElementById('loading');
-                            const error = document.getElementById('error');
-                            const component = document.querySelector('asyncapi-component');
-                            
-                            if (loading && loading.style.display !== 'none') {
-                                loading.style.display = 'none';
-                                error.style.display = 'block';
-                                console.error('AsyncAPI component failed to load within 10 seconds');
-                            }
-                        }, 10000);
-                        
-                        // Listen for component events
-                        document.addEventListener('DOMContentLoaded', () => {
-                            const component = document.querySelector('asyncapi-component');
-                            if (component) {
-                                component.addEventListener('load', () => {
-                                    document.getElementById('loading').style.display = 'none';
-                                    console.log('AsyncAPI component loaded successfully');
-                                });
-                                component.addEventListener('error', (e) => {
-                                    document.getElementById('loading').style.display = 'none';
-                                    document.getElementById('error').style.display = 'block';
-                                    console.error('AsyncAPI component error:', e);
-                                });
-                            }
-                        });
-                    </script>
-                </body>
-                </html>
-                '''
-                return HTMLResponse(content=html_content)
+                return HTMLResponse("""
+                <!doctype html><meta charset="utf-8">
+                <title>Irene WebSocket API Documentation</title>
+
+                <link rel="stylesheet"
+                  href="https://unpkg.com/@asyncapi/react-component@2.6.4/styles/default.min.css">
+
+                <div class="header" style="background:#007cba;color:#fff;padding:20px;text-align:center">
+                  <h1>🚀 Irene WebSocket API Documentation</h1>
+                  <p>Real-time communication endpoints for Irene Voice Assistant</p>
+                </div>
+
+                <div class="container" style="max-width:1200px;margin:0 auto;padding:20px">
+                  <div id="loading" style="text-align:center;color:#666;margin:20px 0">
+                    Loading AsyncAPI documentation…
+                  </div>
+
+                  <asyncapi-component id="ac"></asyncapi-component>
+
+                  <div class="links" style="text-align:center;margin:20px 0">
+                    <a href="/asyncapi.json" target="_blank">View JSON Spec</a> ·
+                    <a href="/asyncapi.yaml" target="_blank">View YAML Spec</a> ·
+                    <a href="/docs" target="_blank">REST API Docs</a>
+                  </div>
+                </div>
+
+                <script src="https://unpkg.com/@asyncapi/web-component@2.6.4/lib/asyncapi-web-component.js" defer></script>
+                <script>
+                  // Set properties after the custom element upgrades (avoids attribute name pitfalls)
+                  window.addEventListener('DOMContentLoaded', () => {
+                    const el = document.getElementById('ac');
+                    el.schemaUrl = '/asyncapi.json';                  // ✅ correct prop
+                    el.config = { show: { sidebar: true } };
+
+                    // simple "loaded" detector
+                    const loading = document.getElementById('loading');
+                    const stop = () => loading && (loading.style.display = 'none');
+                    // hide spinner once something renders
+                    const obs = new MutationObserver(() => { stop(); obs.disconnect(); });
+                    obs.observe(el, { childList: true, subtree: true });
+
+                    // also fetch the spec to surface version mismatches in console
+                    fetch('/asyncapi.json').then(r => r.json()).then(d => {
+                      console.log('AsyncAPI version:', d.asyncapi);
+                    });
+                  });
+                </script>
+                """)
             
             @app.get("/asyncapi.yaml", include_in_schema=False)
             async def asyncapi_spec():

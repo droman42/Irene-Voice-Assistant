@@ -146,6 +146,7 @@ def extract_websocket_specs_from_router(router, component_name: str, api_prefix:
     """
     channels = {}
     messages = {}
+    operations = {}
     
     # Iterate through router routes to find WebSocket endpoints
     for route in router.routes:
@@ -159,8 +160,9 @@ def extract_websocket_specs_from_router(router, component_name: str, api_prefix:
             # Register in global registry
             _websocket_registry.register_endpoint(meta)
             
-            # Build channel specification
+            # Build channel specification for AsyncAPI v3.0.0
             channel_spec = {
+                "address": full_path,
                 "description": meta.description,
                 "bindings": {
                     "ws": {
@@ -169,38 +171,66 @@ def extract_websocket_specs_from_router(router, component_name: str, api_prefix:
                 }
             }
             
-            # Add subscribe operation (messages we receive)
+            # Build operations for AsyncAPI v3.0.0
+            channel_messages = {}
+            
+            # Add receive operation (messages we receive)
             if meta.receives_schema:
                 receives_schema = pydantic_to_asyncapi_schema(meta.receives_schema)
                 message_name = f"{component_name}_{meta.receives_schema.__name__}"
                 messages[message_name] = receives_schema
                 
-                channel_spec["subscribe"] = {
-                    "operationId": f"{component_name}_receive_{route.path.replace('/', '_')}",
-                    "description": f"Receive messages on {full_path}",
-                    "message": {
-                        "$ref": f"#/components/messages/{message_name}"
-                    }
+                # Create stable channel message ID
+                channel_msg_id = f"{meta.receives_schema.__name__.lower()}"
+                channel_messages[channel_msg_id] = {"$ref": f"#/components/messages/{message_name}"}
+                
+                receive_op_id = f"{component_name}_receive_{route.path.replace('/', '_')}"
+                operations[receive_op_id] = {
+                    "action": "receive",
+                    "channel": {
+                        "$ref": f"#/channels/{full_path.replace('/', '~1')}"
+                    },
+                    "summary": f"Receive messages on {full_path}",
+                    "messages": [
+                        {
+                            "$ref": f"#/channels/{full_path.replace('/', '~1')}/messages/{channel_msg_id}"
+                        }
+                    ]
                 }
             
-            # Add publish operation (messages we send)
+            # Add send operation (messages we send)
             if meta.sends_schema:
                 sends_schema = pydantic_to_asyncapi_schema(meta.sends_schema)
                 message_name = f"{component_name}_{meta.sends_schema.__name__}"
                 messages[message_name] = sends_schema
                 
-                channel_spec["publish"] = {
-                    "operationId": f"{component_name}_send_{route.path.replace('/', '_')}",
-                    "description": f"Send messages on {full_path}",
-                    "message": {
-                        "$ref": f"#/components/messages/{message_name}"
-                    }
+                # Create stable channel message ID
+                channel_msg_id = f"{meta.sends_schema.__name__.lower()}"
+                channel_messages[channel_msg_id] = {"$ref": f"#/components/messages/{message_name}"}
+                
+                send_op_id = f"{component_name}_send_{route.path.replace('/', '_')}"
+                operations[send_op_id] = {
+                    "action": "send",
+                    "channel": {
+                        "$ref": f"#/channels/{full_path.replace('/', '~1')}"
+                    },
+                    "summary": f"Send messages on {full_path}",
+                    "messages": [
+                        {
+                            "$ref": f"#/channels/{full_path.replace('/', '~1')}/messages/{channel_msg_id}"
+                        }
+                    ]
                 }
+            
+            # Add messages to channel
+            if channel_messages:
+                channel_spec["messages"] = channel_messages
             
             channels[full_path] = channel_spec
     
     return {
         "channels": channels,
+        "operations": operations,
         "messages": messages
     }
 
@@ -208,7 +238,7 @@ def extract_websocket_specs_from_router(router, component_name: str, api_prefix:
 def generate_base_asyncapi_spec() -> Dict[str, Any]:
     """Generate base AsyncAPI specification structure"""
     return {
-        "asyncapi": "2.6.0",
+        "asyncapi": "3.0.0",
         "info": {
             "title": "Irene Voice Assistant WebSocket API",
             "version": "13.0.0",
@@ -216,10 +246,12 @@ def generate_base_asyncapi_spec() -> Dict[str, Any]:
             "contact": {
                 "name": "Irene Voice Assistant",
                 "url": "https://github.com/irene-voice-assistant"
-            }
+            },
+            "x-logo": "https://raw.githubusercontent.com/asyncapi/spec/master/assets/logo.png"
         },
         "defaultContentType": "application/json",
         "channels": {},
+        "operations": {},
         "components": {
             "messages": {}
         }
@@ -242,6 +274,9 @@ def merge_asyncapi_specs(base_spec: Dict[str, Any], component_specs: list[Dict[s
     for spec in component_specs:
         # Merge channels
         merged["channels"].update(spec.get("channels", {}))
+        
+        # Merge operations
+        merged["operations"].update(spec.get("operations", {}))
         
         # Merge messages
         merged["components"]["messages"].update(spec.get("messages", {}))
