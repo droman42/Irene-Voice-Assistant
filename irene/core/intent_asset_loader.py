@@ -11,6 +11,7 @@ with unified error handling, validation, and caching.
 import json
 import logging
 import asyncio
+import time
 import yaml
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
@@ -92,6 +93,163 @@ class IntentAssetLoader:
     def get_donation(self, handler_name: str) -> Optional[HandlerDonation]:
         """Get JSON donation (existing functionality)"""
         return self.donations.get(handler_name)
+    
+    async def save_donation(self, handler_name: str, donation_data: dict, create_backup: bool = True) -> bool:
+        """Save donation JSON to file with backup support"""
+        donations_dir = self.assets_root / "donations"
+        json_path = donations_dir / f"{handler_name}.json"
+        
+        try:
+            # Create backup if requested and file exists
+            if create_backup and json_path.exists():
+                # Create backups directory
+                backups_dir = donations_dir / "backups"
+                backups_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Generate backup filename with current datetime
+                from datetime import datetime
+                current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_filename = f"{handler_name}_{current_datetime}.json"
+                backup_path = backups_dir / backup_filename
+                
+                # Copy existing file to backup location
+                import shutil
+                shutil.copy2(json_path, backup_path)
+                logger.info(f"Created backup: {backup_path}")
+            
+            # Ensure donations directory exists
+            donations_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write JSON with proper formatting
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(donation_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Saved donation for handler '{handler_name}' to {json_path}")
+            return True
+            
+        except Exception as e:
+            error_msg = f"Failed to save donation for handler '{handler_name}': {e}"
+            self._add_error(error_msg)
+            return False
+    
+    async def validate_donation_data(self, handler_name: str, donation_data: dict) -> tuple[bool, list, list]:
+        """Validate donation data without saving (dry-run)
+        
+        Returns:
+            tuple: (is_valid, errors, warnings)
+        """
+        validation_errors = []
+        validation_warnings = []
+        
+        try:
+            # JSON Schema validation (if available)
+            if self.config.validate_json_schema:
+                try:
+                    await self._validate_json_schema(donation_data, Path(f"validation_{handler_name}.json"))
+                except Exception as e:
+                    validation_errors.append({
+                        "type": "schema",
+                        "message": f"JSON schema validation failed: {e}",
+                        "path": None
+                    })
+            
+            # Pydantic validation
+            try:
+                donation = HandlerDonation(**donation_data)
+            except Exception as e:
+                validation_errors.append({
+                    "type": "pydantic",
+                    "message": f"Data validation failed: {e}",
+                    "path": None
+                })
+                return False, validation_errors, validation_warnings
+            
+            # Method existence validation (if available)
+            if self.config.validate_method_existence:
+                try:
+                    await self._validate_method_existence(donation, handler_name)
+                except Exception as e:
+                    validation_warnings.append({
+                        "type": "method_existence",
+                        "message": f"Method validation warning: {e}",
+                        "path": None
+                    })
+            
+            return len(validation_errors) == 0, validation_errors, validation_warnings
+            
+        except Exception as e:
+            validation_errors.append({
+                "type": "general",
+                "message": f"Validation error: {e}",
+                "path": None
+            })
+            return False, validation_errors, validation_warnings
+    
+    def get_donation_metadata(self, handler_name: str) -> Optional[dict]:
+        """Get metadata about a donation file"""
+        donations_dir = self.assets_root / "donations"
+        json_path = donations_dir / f"{handler_name}.json"
+        
+        if not json_path.exists():
+            return None
+        
+        try:
+            stat = json_path.stat()
+            donation = self.donations.get(handler_name)
+            
+            metadata = {
+                "handler_name": handler_name,
+                "file_size": stat.st_size,
+                "last_modified": stat.st_mtime
+            }
+            
+            if donation:
+                metadata.update({
+                    "domain": donation.handler_domain,
+                    "description": donation.description,
+                    "methods_count": len(donation.method_donations),
+                    "global_parameters_count": len(donation.global_parameters)
+                })
+            else:
+                # Try to read basic info from file
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    metadata.update({
+                        "domain": data.get("handler_domain", "unknown"),
+                        "description": data.get("description", ""),
+                        "methods_count": len(data.get("method_donations", [])),
+                        "global_parameters_count": len(data.get("global_parameters", []))
+                    })
+                except Exception:
+                    metadata.update({
+                        "domain": "unknown",
+                        "description": "Failed to read file",
+                        "methods_count": 0,
+                        "global_parameters_count": 0
+                    })
+            
+            return metadata
+            
+        except Exception as e:
+            logger.error(f"Failed to get metadata for {handler_name}: {e}")
+            return None
+    
+    def list_all_donations(self) -> list[dict]:
+        """List all available donation files with metadata"""
+        donations_dir = self.assets_root / "donations"
+        
+        if not donations_dir.exists():
+            return []
+        
+        donations_list = []
+        for json_file in donations_dir.glob("*.json"):
+            handler_name = json_file.stem
+            metadata = self.get_donation_metadata(handler_name)
+            if metadata:
+                donations_list.append(metadata)
+        
+        return donations_list
     
     def get_template(self, handler_name: str, template_name: str, language: str = None) -> Optional[str]:
         """Get response template with i18n fallback"""

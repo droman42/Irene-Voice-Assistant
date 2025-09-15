@@ -537,6 +537,98 @@ class LLMProvidersResponse(BaseAPIResponse):
 # INTENT SYSTEM SCHEMAS  
 # ============================================================
 
+# ============================================================
+# DONATION MANAGEMENT SCHEMAS
+# ============================================================
+
+class DonationMetadata(BaseModel):
+    """Metadata about a donation file"""
+    handler_name: str = Field(description="Handler name (filename without .json)")
+    domain: str = Field(description="Handler domain from donation")
+    description: str = Field(description="Donation description")
+    methods_count: int = Field(description="Number of method donations")
+    global_parameters_count: int = Field(description="Number of global parameters")
+    file_size: int = Field(description="File size in bytes")
+    last_modified: float = Field(description="Unix timestamp of last modification")
+
+
+class ValidationError(BaseModel):
+    """Validation error details"""
+    type: str = Field(description="Error type (schema, method_existence, etc.)")
+    message: str = Field(description="Human-readable error message")
+    path: Optional[str] = Field(default=None, description="JSON path where error occurred")
+    line: Optional[int] = Field(default=None, description="Line number if applicable")
+
+
+class ValidationWarning(BaseModel):
+    """Validation warning details"""
+    type: str = Field(description="Warning type")
+    message: str = Field(description="Human-readable warning message")
+    path: Optional[str] = Field(default=None, description="JSON path where warning occurred")
+
+
+class DonationUpdateRequest(BaseAPIRequest):
+    """Request to update a donation file"""
+    donation_data: Dict[str, Any] = Field(description="Complete donation JSON data")
+    validate_before_save: bool = Field(
+        default=True,
+        description="Whether to validate before saving"
+    )
+    trigger_reload: bool = Field(
+        default=True,
+        description="Whether to trigger intent system reload after save"
+    )
+
+
+class DonationValidationRequest(BaseAPIRequest):
+    """Request to validate donation data without saving"""
+    donation_data: Dict[str, Any] = Field(description="Donation JSON data to validate")
+    handler_name: str = Field(description="Handler name for validation context")
+
+
+class DonationListResponse(BaseAPIResponse):
+    """Response for donation listing"""
+    donations: List[DonationMetadata] = Field(description="List of available donations")
+    total_count: int = Field(description="Total number of donations")
+
+
+class DonationContentResponse(BaseAPIResponse):
+    """Response for donation content retrieval"""
+    handler_name: str = Field(description="Handler name")
+    donation_data: Dict[str, Any] = Field(description="Complete donation JSON content")
+    metadata: DonationMetadata = Field(description="File metadata")
+
+
+class DonationUpdateResponse(BaseAPIResponse):
+    """Response for donation update operation"""
+    handler_name: str = Field(description="Updated handler name")
+    validation_passed: bool = Field(description="Whether validation passed")
+    reload_triggered: bool = Field(description="Whether intent system reload was triggered")
+    backup_created: bool = Field(description="Whether backup was created")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+
+
+class DonationValidationResponse(BaseAPIResponse):
+    """Response for donation validation operation"""
+    handler_name: str = Field(description="Handler name being validated")
+    is_valid: bool = Field(description="Whether donation is valid")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+    validation_types: List[str] = Field(description="Types of validation performed")
+
+
+class DonationSchemaResponse(BaseAPIResponse):
+    """Response for donation JSON schema"""
+    schema: Dict[str, Any] = Field(description="JSON schema for donation structure")
+    schema_version: str = Field(description="Schema version")
+    supported_versions: List[str] = Field(description="Supported schema versions")
+
+
+# ============================================================
+# INTENT SYSTEM SCHEMAS (EXISTING)
+# ============================================================
+
 class IntentHandlerInfo(BaseModel):
     """Information about an intent handler"""
     class_name: str = Field(description="Handler class name", alias="class")

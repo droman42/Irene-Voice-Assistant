@@ -309,7 +309,11 @@ class IntentComponent(Component, WebAPIPlugin):
             from ..api.schemas import (
                 IntentSystemStatusResponse, IntentHandlersResponse, IntentHandlerInfo,
                 IntentActionCancelRequest, IntentActionResponse, IntentActiveActionsResponse,
-                IntentRegistryResponse, IntentReloadResponse
+                IntentRegistryResponse, IntentReloadResponse,
+                # Donation management schemas
+                DonationListResponse, DonationContentResponse, DonationUpdateRequest, DonationUpdateResponse,
+                DonationValidationRequest, DonationValidationResponse, DonationSchemaResponse,
+                DonationMetadata, ValidationError, ValidationWarning
             )
             
             router = APIRouter()
@@ -418,6 +422,219 @@ class IntentComponent(Component, WebAPIPlugin):
                     patterns=patterns_info
                 )
             
+            # ============================================================
+            # DONATION MANAGEMENT ENDPOINTS
+            # ============================================================
+            
+            @router.get("/donations", response_model=DonationListResponse)
+            async def list_donations():
+                """List all donations with metadata"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    donations_list = asset_loader.list_all_donations()
+                    
+                    metadata_list = []
+                    for donation_dict in donations_list:
+                        metadata_list.append(DonationMetadata(**donation_dict))
+                    
+                    return DonationListResponse(
+                        success=True,
+                        donations=metadata_list,
+                        total_count=len(metadata_list)
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to list donations: {str(e)}")
+            
+            @router.get("/donations/{handler_name}", response_model=DonationContentResponse)
+            async def get_donation(handler_name: str):
+                """Get specific donation JSON content"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Get donation data
+                    donation = asset_loader.get_donation(handler_name)
+                    if not donation:
+                        raise HTTPException(404, f"Donation not found for handler '{handler_name}'")
+                    
+                    # Get metadata
+                    metadata_dict = asset_loader.get_donation_metadata(handler_name)
+                    if not metadata_dict:
+                        raise HTTPException(404, f"Metadata not found for handler '{handler_name}'")
+                    
+                    metadata = DonationMetadata(**metadata_dict)
+                    
+                    # Convert donation to dict for response
+                    donation_data = donation.dict()
+                    
+                    return DonationContentResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        donation_data=donation_data,
+                        metadata=metadata
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get donation: {str(e)}")
+            
+            @router.put("/donations/{handler_name}", response_model=DonationUpdateResponse)
+            async def update_donation(handler_name: str, request: DonationUpdateRequest):
+                """Update donation and trigger hot reload"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    validation_passed = True
+                    errors = []
+                    warnings = []
+                    
+                    # Validate before saving if requested
+                    if request.validate_before_save:
+                        is_valid, error_list, warning_list = await asset_loader.validate_donation_data(
+                            handler_name, request.donation_data
+                        )
+                        validation_passed = is_valid
+                        errors = [ValidationError(**err) for err in error_list]
+                        warnings = [ValidationWarning(**warn) for warn in warning_list]
+                        
+                        if not is_valid:
+                            return DonationUpdateResponse(
+                                success=False,
+                                handler_name=handler_name,
+                                validation_passed=False,
+                                reload_triggered=False,
+                                backup_created=False,
+                                errors=errors,
+                                warnings=warnings
+                            )
+                    
+                    # Save donation
+                    saved = await asset_loader.save_donation(handler_name, request.donation_data)
+                    if not saved:
+                        raise HTTPException(500, "Failed to save donation file")
+                    
+                    # Trigger reload if requested
+                    reload_triggered = False
+                    if request.trigger_reload:
+                        try:
+                            # Handle both dict and Pydantic config objects
+                            if isinstance(self._config, dict):
+                                handlers_config = self._config.get("handlers", {})
+                            else:
+                                handlers_config = getattr(self._config, "handlers", {})
+                            await self.handler_manager.reload_handlers(handlers_config)
+                            
+                            # Update references
+                            self.intent_registry = self.handler_manager.get_registry()
+                            self.intent_orchestrator = self.handler_manager.get_orchestrator()
+                            reload_triggered = True
+                        except Exception as e:
+                            logger.warning(f"Donation saved but reload failed: {e}")
+                    
+                    return DonationUpdateResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        validation_passed=validation_passed,
+                        reload_triggered=reload_triggered,
+                        backup_created=True,  # Asset loader creates backups by default
+                        errors=errors,
+                        warnings=warnings
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to update donation: {str(e)}")
+            
+            @router.post("/donations/{handler_name}/validate", response_model=DonationValidationResponse)
+            async def validate_donation(handler_name: str, request: DonationValidationRequest):
+                """Validate donation without saving (dry-run)"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    is_valid, error_list, warning_list = await asset_loader.validate_donation_data(
+                        handler_name, request.donation_data
+                    )
+                    
+                    errors = [ValidationError(**err) for err in error_list]
+                    warnings = [ValidationWarning(**warn) for warn in warning_list]
+                    
+                    validation_types = ["pydantic"]
+                    if asset_loader.config.validate_json_schema:
+                        validation_types.append("schema")
+                    if asset_loader.config.validate_method_existence:
+                        validation_types.append("method_existence")
+                    
+                    return DonationValidationResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        is_valid=is_valid,
+                        errors=errors,
+                        warnings=warnings,
+                        validation_types=validation_types
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to validate donation: {str(e)}")
+            
+            @router.get("/schema", response_model=DonationSchemaResponse)
+            async def get_donation_schema():
+                """Get JSON schema for donation structure"""
+                try:
+                    # Load schema from assets/v1.0.json
+                    from pathlib import Path
+                    import json as json_module
+                    
+                    schema_path = Path("assets/v1.0.json")
+                    if not schema_path.exists():
+                        # Fallback to a basic schema structure
+                        basic_schema = {
+                            "$schema": "http://json-schema.org/draft-07/schema#",
+                            "type": "object",
+                            "title": "Handler Donation Schema",
+                            "description": "Schema for intent handler donation files",
+                            "properties": {
+                                "schema_version": {"type": "string"},
+                                "donation_version": {"type": "string"},
+                                "handler_domain": {"type": "string"},
+                                "description": {"type": "string"},
+                                "global_parameters": {"type": "array"},
+                                "method_donations": {"type": "array"}
+                            },
+                            "required": ["handler_domain", "method_donations"]
+                        }
+                        
+                        return DonationSchemaResponse(
+                            success=True,
+                            schema=basic_schema,
+                            schema_version="1.0",
+                            supported_versions=["1.0"]
+                        )
+                    
+                    with open(schema_path, 'r', encoding='utf-8') as f:
+                        schema_data = json_module.load(f)
+                    
+                    return DonationSchemaResponse(
+                        success=True,
+                        schema=schema_data,
+                        schema_version="1.0",
+                        supported_versions=["1.0"]
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to load donation schema: {str(e)}")
+            
+            # ============================================================
+            # EXISTING ENDPOINTS
+            # ============================================================
+            
             @router.post("/reload", response_model=IntentReloadResponse)
             async def reload_intent_handlers():
                 """Reload intent handlers with current configuration"""
@@ -461,7 +678,7 @@ class IntentComponent(Component, WebAPIPlugin):
     
     def get_api_prefix(self) -> str:
         """Get URL prefix for intent system API endpoints"""
-        return "/intent_system"
+        return "/intents"
     
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for intent system endpoints"""
