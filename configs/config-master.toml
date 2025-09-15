@@ -397,7 +397,7 @@ fallback_intent = "conversation.general"  # Fallback intent when recognition fai
 
 # Intent handler configuration
 [intent_system.handlers]
-enabled = ["conversation", "greetings", "timer", "datetime", "system", "text_enhancement_handler"]  # Enabled handlers
+enabled = ["conversation", "greetings", "timer", "datetime", "system"]  # Enabled handlers
 disabled = ["train_schedule"]       # Disabled handlers
 auto_discover = true               # Automatically discover handlers
 discovery_paths = ["irene.intents.handlers"]  # Entry-point discovery paths
