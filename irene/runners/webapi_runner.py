@@ -21,6 +21,7 @@ from ..core.engine import AsyncVACore
 from ..utils.loader import get_component_status
 from ..utils.logging import setup_logging
 from .base import BaseRunner, RunnerConfig, check_component_dependencies, print_dependency_status
+from ..web_api.asyncapi import generate_base_asyncapi_spec, merge_asyncapi_specs
 
 
 logger = logging.getLogger(__name__)
@@ -287,16 +288,8 @@ monitoring = true
             allow_headers=["*"],
         )
         
-        # Pydantic models
-        class CommandRequest(BaseModel):
-            command: str
-            context: Optional[Dict[str, Any]] = None
-        
-        class CommandResponse(BaseModel):
-            success: bool
-            response: Optional[str] = None
-            error: Optional[str] = None
-            metadata: Optional[Dict[str, Any]] = None
+        # Import centralized API schemas
+        from ..api.schemas import CommandRequest, CommandResponse
         
         class StatusResponse(BaseModel):
             status: str
@@ -341,7 +334,8 @@ monitoring = true
                         <div class="message">Connected to Irene API. Type a command above!</div>
                     </div>
                     
-                    <p><strong>API Documentation:</strong> <a href="/docs">/docs</a></p>
+                    <p><strong>REST API Documentation:</strong> <a href="/docs">/docs</a></p>
+                    <p><strong>WebSocket API Documentation:</strong> <a href="/asyncapi">/asyncapi</a></p>
                     <p><strong>Component WebSockets:</strong> /asr/stream (speech recognition)</p>
                     <p><strong>REST API:</strong> POST /command</p>
                 </div>
@@ -426,6 +420,7 @@ monitoring = true
                 logger.error(f"Command execution error: {e}")
                 return CommandResponse(
                     success=False,
+                    response="Command execution failed",
                     error=str(e)
                 )
         
@@ -444,6 +439,9 @@ monitoring = true
         
         # Intent management endpoints - NEW PHASE 4 FUNCTIONALITY  
         await self._add_intent_management_endpoints(app)
+        
+        # AsyncAPI documentation endpoints
+        await self._add_asyncapi_endpoints(app)
         
         # Component info endpoint
         @app.get("/components")
@@ -561,6 +559,84 @@ monitoring = true
             logger.warning("FastAPI not available, skipping router mounting")
         except Exception as e:
             logger.error(f"Error mounting component routers: {e}")
+    
+    async def _generate_asyncapi_spec(self) -> Dict[str, Any]:
+        """Generate combined AsyncAPI specification from all components"""
+        try:
+            # Start with base AsyncAPI spec
+            base_spec = generate_base_asyncapi_spec()
+            component_specs = []
+            
+            # Get WebAPI components (same logic as _mount_component_routers)
+            if self.core:
+                from ..core.interfaces.webapi import WebAPIPlugin
+                web_components = []
+                
+                # Check component manager first
+                if hasattr(self.core, 'component_manager'):
+                    try:
+                        available_components = self.core.component_manager.get_components()
+                        logger.debug(f"Found {len(available_components)} available components: {list(available_components.keys())}")
+                        
+                        for name, component in available_components.items():
+                            if isinstance(component, WebAPIPlugin):
+                                web_components.append((name, component))
+                                logger.debug(f"Component {name} implements WebAPIPlugin")
+                            else:
+                                logger.debug(f"Component {name} does not implement WebAPIPlugin (type: {type(component).__name__})")
+                                
+                    except Exception as e:
+                        logger.warning(f"Could not get components from component manager: {e}")
+                else:
+                    logger.warning("Core does not have component_manager")
+                
+                # Also check plugin manager
+                if hasattr(self.core, 'plugin_manager'):
+                    try:
+                        for name, plugin in self.core.plugin_manager._plugins.items():
+                            if isinstance(plugin, WebAPIPlugin):
+                                web_components.append((name, plugin))
+                                logger.debug(f"Plugin {name} implements WebAPIPlugin")
+                            else:
+                                logger.debug(f"Plugin {name} does not implement WebAPIPlugin (type: {type(plugin).__name__})")
+                    except Exception as e:
+                        logger.warning(f"Could not get plugins from plugin manager: {e}")
+                else:
+                    logger.warning("Core does not have plugin_manager")
+                
+                logger.debug(f"Found {len(web_components)} WebAPIPlugin components for AsyncAPI generation")
+                
+                # Collect AsyncAPI specs from each component
+                for name, component in web_components:
+                    try:
+                        if hasattr(component, 'get_websocket_spec'):
+                            spec = component.get_websocket_spec()
+                            if spec:
+                                component_specs.append(spec)
+                                logger.debug(f"✅ Generated AsyncAPI spec for {name}")
+                            else:
+                                logger.debug(f"⚪ Component {name} has no WebSocket endpoints")
+                        else:
+                            logger.debug(f"⚪ Component {name} doesn't implement get_websocket_spec")
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Failed to generate AsyncAPI spec for {name}: {e}")
+                
+                # Merge all specs
+                merged_spec = merge_asyncapi_specs(base_spec, component_specs)
+                
+                logger.info(f"✅ Generated AsyncAPI spec with {len(merged_spec.get('channels', {}))} channels "
+                           f"and {len(merged_spec.get('components', {}).get('messages', {}))} message types")
+                
+                return merged_spec
+            
+            else:
+                logger.warning("Core or plugin manager not available for AsyncAPI generation")
+                return base_spec
+                
+        except Exception as e:
+            logger.error(f"Error generating AsyncAPI specification: {e}")
+            return generate_base_asyncapi_spec()  # Return empty spec on error
     
     async def _add_intent_management_endpoints(self, app):
         """Add high-level intent management endpoints"""
@@ -721,6 +797,194 @@ monitoring = true
         except Exception as e:
             logger.error(f"Error adding intent management endpoints: {e}")
     
+    async def _add_asyncapi_endpoints(self, app):
+        """Add AsyncAPI documentation endpoints"""
+        try:
+            from fastapi.responses import HTMLResponse  # type: ignore
+            
+            @app.get("/asyncapi", response_class=HTMLResponse, include_in_schema=False)
+            async def asyncapi_docs():
+                """Serve AsyncAPI documentation page"""
+                html_content = '''
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Irene WebSocket API Documentation</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+                        .header { background: #007cba; color: white; padding: 20px; text-align: center; }
+                        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+                        .loading { text-align: center; margin: 50px 0; color: #666; }
+                        .error { color: #dc3545; text-align: center; margin: 20px 0; }
+                        .links { text-align: center; margin: 20px 0; }
+                        .links a { margin: 0 10px; color: #007cba; text-decoration: none; }
+                        .links a:hover { text-decoration: underline; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>🚀 Irene WebSocket API Documentation</h1>
+                        <p>Real-time communication endpoints for Irene Voice Assistant</p>
+                    </div>
+                    <div class="container">
+                        <div class="loading" id="loading">Loading AsyncAPI documentation...</div>
+                        <div class="error" id="error" style="display: none;">
+                            Failed to load AsyncAPI component. 
+                            <div class="links">
+                                <a href="/asyncapi.json" target="_blank">View JSON Spec</a>
+                                <a href="/asyncapi.yaml" target="_blank">View YAML Spec</a>
+                                <a href="/docs" target="_blank">REST API Docs</a>
+                            </div>
+                        </div>
+                        <asyncapi-component 
+                            schema-url="/asyncapi.yaml"
+                            config='{"show": {"sidebar": true}, "theme": {"name": "default"}}'
+                        ></asyncapi-component>
+                    </div>
+                        <script src="https://unpkg.com/@asyncapi/web-component@2.6.4/lib/asyncapi-web-component.js"></script>
+                    <script>
+                        // Add error handling and timeout
+                        setTimeout(() => {
+                            const loading = document.getElementById('loading');
+                            const error = document.getElementById('error');
+                            const component = document.querySelector('asyncapi-component');
+                            
+                            if (loading && loading.style.display !== 'none') {
+                                loading.style.display = 'none';
+                                error.style.display = 'block';
+                                console.error('AsyncAPI component failed to load within 10 seconds');
+                            }
+                        }, 10000);
+                        
+                        // Listen for component events
+                        document.addEventListener('DOMContentLoaded', () => {
+                            const component = document.querySelector('asyncapi-component');
+                            if (component) {
+                                component.addEventListener('load', () => {
+                                    document.getElementById('loading').style.display = 'none';
+                                    console.log('AsyncAPI component loaded successfully');
+                                });
+                                component.addEventListener('error', (e) => {
+                                    document.getElementById('loading').style.display = 'none';
+                                    document.getElementById('error').style.display = 'block';
+                                    console.error('AsyncAPI component error:', e);
+                                });
+                            }
+                        });
+                    </script>
+                </body>
+                </html>
+                '''
+                return HTMLResponse(content=html_content)
+            
+            @app.get("/asyncapi.yaml", include_in_schema=False)
+            async def asyncapi_spec():
+                """Get AsyncAPI specification in YAML format"""
+                try:
+                    spec = await self._generate_asyncapi_spec()
+                    
+                    # Convert to YAML
+                    import yaml
+                    yaml_content = yaml.dump(spec, default_flow_style=False, sort_keys=False)
+                    
+                    from fastapi.responses import Response  # type: ignore
+                    return Response(
+                        content=yaml_content,
+                        media_type="application/x-yaml",
+                        headers={"Content-Disposition": "inline; filename=asyncapi.yaml"}
+                    )
+                except Exception as e:
+                    logger.error(f"Error generating AsyncAPI spec: {e}")
+                    from fastapi import HTTPException  # type: ignore
+                    raise HTTPException(500, f"Failed to generate AsyncAPI specification: {e}")
+            
+            @app.get("/asyncapi.json", include_in_schema=False)
+            async def asyncapi_spec_json():
+                """Get AsyncAPI specification in JSON format"""
+                try:
+                    spec = await self._generate_asyncapi_spec()
+                    return spec
+                except Exception as e:
+                    logger.error(f"Error generating AsyncAPI spec: {e}")
+                    from fastapi import HTTPException  # type: ignore
+                    raise HTTPException(500, f"Failed to generate AsyncAPI specification: {e}")
+            
+            @app.get("/debug/asyncapi", include_in_schema=False)
+            async def debug_asyncapi():
+                """Debug AsyncAPI generation process"""
+                debug_info = {}
+                
+                try:
+                    # Check component manager first
+                    if self.core and hasattr(self.core, 'component_manager'):
+                        debug_info["component_manager_available"] = True
+                        available_components = self.core.component_manager.get_components()
+                        debug_info["total_components"] = len(available_components)
+                        debug_info["component_names"] = list(available_components.keys())
+                    else:
+                        debug_info["component_manager_available"] = False
+                    
+                    # Check plugin manager
+                    if self.core and hasattr(self.core, 'plugin_manager'):
+                        debug_info["plugin_manager_available"] = True
+                        debug_info["total_plugins"] = len(self.core.plugin_manager._plugins)
+                        
+                        # Find WebAPIPlugin components
+                        from ..core.interfaces.webapi import WebAPIPlugin
+                        web_components = []
+                        
+                        for name, plugin in self.core.plugin_manager._plugins.items():
+                            plugin_info = {
+                                "name": name,
+                                "type": type(plugin).__name__,
+                                "is_webapi_plugin": isinstance(plugin, WebAPIPlugin),
+                                "has_get_websocket_spec": hasattr(plugin, 'get_websocket_spec'),
+                                "has_get_router": hasattr(plugin, 'get_router')
+                            }
+                            
+                            if isinstance(plugin, WebAPIPlugin):
+                                web_components.append((name, plugin))
+                                try:
+                                    router = plugin.get_router()
+                                    plugin_info["router_available"] = router is not None
+                                    if router:
+                                        plugin_info["router_routes_count"] = len(router.routes)
+                                        plugin_info["websocket_routes"] = []
+                                        
+                                        for route in router.routes:
+                                            if hasattr(route, 'endpoint') and hasattr(route.endpoint, '_websocket_meta'):
+                                                plugin_info["websocket_routes"].append({
+                                                    "path": route.path,
+                                                    "endpoint": route.endpoint.__name__,
+                                                    "has_meta": True
+                                                })
+                                        
+                                        # Test get_websocket_spec method
+                                        if hasattr(plugin, 'get_websocket_spec'):
+                                            spec = plugin.get_websocket_spec()
+                                            plugin_info["websocket_spec"] = spec
+                                        
+                                except Exception as e:
+                                    plugin_info["error"] = str(e)
+                            
+                            debug_info[f"plugin_{name}"] = plugin_info
+                        
+                        debug_info["webapi_components_count"] = len(web_components)
+                    else:
+                        debug_info["plugin_manager_available"] = False
+                    
+                    return debug_info
+                    
+                except Exception as e:
+                    return {"error": str(e), "traceback": str(e)}
+            
+            logger.info("✅ Added AsyncAPI documentation endpoints: /asyncapi, /asyncapi.yaml, /asyncapi.json")
+            
+        except ImportError as e:
+            logger.warning(f"AsyncAPI dependencies not available: {e}")
+        except Exception as e:
+            logger.error(f"Error adding AsyncAPI endpoints: {e}")
+    
     async def _add_analytics_endpoints(self, app):
         """Add analytics and monitoring endpoints"""
         try:
@@ -771,7 +1035,8 @@ monitoring = true
         if not args.quiet:
             protocol = "https" if ssl_config else "http"
             print(f"🌐 Starting Web API server at {protocol}://{args.host}:{args.port} (web input only)")
-            print(f"📚 API docs available at {protocol}://{args.host}:{args.port}/docs")
+            print(f"📚 REST API docs available at {protocol}://{args.host}:{args.port}/docs")
+            print(f"🚀 WebSocket API docs available at {protocol}://{args.host}:{args.port}/asyncapi")
             print(f"🌍 Web interface at {protocol}://{args.host}:{args.port}")
             print(f"🔌 Component WebSockets: /asr/stream (speech recognition)")
             print("💻 Input mode: Web only (other inputs disabled)")

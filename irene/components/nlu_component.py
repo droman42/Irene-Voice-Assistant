@@ -960,23 +960,9 @@ class NLUComponent(Component, WebAPIPlugin):
             
         try:
             from fastapi import APIRouter, HTTPException  # type: ignore
-            from pydantic import BaseModel  # type: ignore
+            from ..api.schemas import NLURequest, IntentResponse
             
             router = APIRouter()
-            
-            # Request/Response models
-            class NLURequest(BaseModel):
-                text: str
-                context: Optional[Dict[str, Any]] = None
-                provider: Optional[str] = None
-                
-            class IntentResponse(BaseModel):
-                name: str
-                entities: Dict[str, Any]
-                confidence: float
-                provider: str
-                domain: Optional[str] = None
-                action: Optional[str] = None
                 
             @router.post("/recognize", response_model=IntentResponse)
             async def recognize_intent(request: NLURequest):
@@ -997,6 +983,7 @@ class NLUComponent(Component, WebAPIPlugin):
                     provider_name = self.default_provider or "fallback"
                 
                 return IntentResponse(
+                    success=True,
                     name=intent.name,
                     entities=intent.entities,
                     confidence=intent.confidence,

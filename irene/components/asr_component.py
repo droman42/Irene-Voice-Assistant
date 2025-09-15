@@ -20,6 +20,8 @@ from ..core.interfaces.asr import ASRPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import AudioData
 from ..core.metrics import get_metrics_collector
+from ..web_api.asyncapi import websocket_api, extract_websocket_specs_from_router
+from ..api.schemas import AudioChunkMessage, TranscriptionResultMessage, TranscriptionErrorMessage
 
 
 # Import ASR provider base class and dynamic loader
@@ -674,9 +676,15 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                 if temp_path.exists():
                     temp_path.unlink()
         
+        @websocket_api(
+            description="Real-time speech recognition streaming",
+            receives=AudioChunkMessage,
+            sends=TranscriptionResultMessage,
+            tags=["Speech Recognition", "Real-time"]
+        )
         @router.websocket("/stream")
         async def stream_transcription(websocket: WebSocket):
-            """WebSocket endpoint for real-time ASR - NEW CAPABILITY!"""
+            """WebSocket endpoint for real-time ASR with automatic AsyncAPI documentation"""
             await websocket.accept()
             
             # Reset all ASR provider states for clean session start
@@ -794,6 +802,21 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for ASR endpoints"""
         return ["Speech Recognition"]
+    
+    def get_websocket_spec(self) -> Optional[dict]:
+        """Get AsyncAPI specification for ASR WebSocket endpoints"""
+        try:
+            router = self.get_router()
+            if router:
+                return extract_websocket_specs_from_router(
+                    router=router,
+                    component_name="asr",
+                    api_prefix=self.get_api_prefix()
+                )
+            return None
+        except Exception as e:
+            logger.error(f"Error generating AsyncAPI spec for ASR component: {e}")
+            return None
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

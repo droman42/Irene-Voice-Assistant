@@ -79,4 +79,36 @@ class WebAPIPlugin(PluginInterface):
         Returns:
             OpenAPI schema dict or None for auto-generation
         """
+        return None
+        
+    def get_websocket_spec(self) -> Optional[dict]:
+        """
+        Get AsyncAPI specification fragment for WebSocket endpoints.
+        
+        This method should return an AsyncAPI specification fragment
+        containing channels and message definitions for WebSocket endpoints
+        exposed by this plugin.
+        
+        Returns:
+            AsyncAPI spec fragment dict or None if no WebSocket endpoints
+            
+        Example:
+            {
+                "channels": {
+                    "/stream": {
+                        "description": "Real-time data streaming",
+                        "subscribe": {
+                            "message": {"$ref": "#/components/messages/InputMessage"}
+                        },
+                        "publish": {
+                            "message": {"$ref": "#/components/messages/OutputMessage"}
+                        }
+                    }
+                },
+                "messages": {
+                    "InputMessage": {...},
+                    "OutputMessage": {...}
+                }
+            }
+        """
         return None 

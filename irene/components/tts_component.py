@@ -464,27 +464,9 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
             
         try:
             from fastapi import APIRouter, HTTPException  # type: ignore
-            from pydantic import BaseModel  # type: ignore
+            from ..api.schemas import TTSRequest, TTSResponse, TTSProvidersResponse
             
             router = APIRouter()
-            
-            # Request/Response models
-            class TTSRequest(BaseModel):
-                text: str
-                provider: Optional[str] = None
-                speaker: Optional[str] = None
-                language: Optional[str] = None
-                
-            class TTSResponse(BaseModel):
-                success: bool
-                provider: str
-                text: str
-                audio_content: Optional[str] = None  # Base64 encoded audio data
-                error: Optional[str] = None
-                
-            class ProvidersResponse(BaseModel):
-                providers: Dict[str, Any]
-                default: str
                 
             @router.post("/speak", response_model=TTSResponse)
             async def unified_speak(request: TTSRequest):
@@ -537,7 +519,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
                         error=str(e)
                     )
             
-            @router.get("/providers", response_model=ProvidersResponse)
+            @router.get("/providers", response_model=TTSProvidersResponse)
             async def list_providers():
                 """Discovery endpoint for all provider capabilities"""
                 result = {}
@@ -548,7 +530,8 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
                         "capabilities": provider.get_capabilities()
                     }
                 
-                return ProvidersResponse(
+                return TTSProvidersResponse(
+                    success=True,
                     providers=result,
                     default=self.default_provider
                 )
