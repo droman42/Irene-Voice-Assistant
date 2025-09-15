@@ -338,7 +338,7 @@ class IntentComponent(Component, WebAPIPlugin):
                 
                 for name, handler in self.handler_manager.get_handlers().items():
                     handler_info_data = {
-                        "class_name": handler.__class__.__name__,
+                        "class": handler.__class__.__name__,
                         "domains": getattr(handler, 'get_supported_domains', lambda: [])(),
                         "actions": getattr(handler, 'get_supported_actions', lambda: [])(),
                         "available": await handler.is_available() if hasattr(handler, 'is_available') else True,
@@ -732,7 +732,7 @@ class IntentComponent(Component, WebAPIPlugin):
             "registry_patterns": list(registry_handlers.keys()),
             "donation_routing_enabled": orchestrator_capabilities.get("donation_routing_enabled", False),
             "parameter_extraction_integrated": orchestrator_capabilities.get("parameter_extraction_integrated", True),  # PHASE 6: Updated to reflect new architecture
-            "configuration": self._config
+            "configuration": self._config.model_dump() if hasattr(self._config, 'model_dump') else self._config
         }
     
 

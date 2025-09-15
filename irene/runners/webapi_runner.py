@@ -279,11 +279,11 @@ monitoring = true
             debug=args.debug
         )
         
-        # Add CORS middleware
+        # Add CORS middleware - Allow all origins for development
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=args.cors_origins,
-            allow_credentials=True,
+            allow_origins=["*"],
+            allow_credentials=False,  # Must be False when allow_origins=["*"]
             allow_methods=["*"],
             allow_headers=["*"],
         )
