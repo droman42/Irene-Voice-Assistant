@@ -22,7 +22,7 @@ import TokenPatternsEditor from '@/components/editors/TokenPatternsEditor';
 import SlotPatternsEditor from '@/components/editors/SlotPatternsEditor';
 import ExamplesEditor from '@/components/editors/ExamplesEditor';
 
-import apiClient from '@/lib/apiClient';
+import apiClient from '@/utils/apiClient';
 import type { 
   DonationData, 
   DonationListItem,

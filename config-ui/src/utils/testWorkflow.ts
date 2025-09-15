@@ -5,7 +5,7 @@
  * and ensure all components work together properly.
  */
 
-import apiClient from '@/lib/apiClient';
+import apiClient from '@/utils/apiClient';
 import type { DonationData, ValidationResult } from '@/types';
 
 interface TestResult {

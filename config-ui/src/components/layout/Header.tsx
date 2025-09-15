@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, AlertCircle, CheckCircle2 } from 'lucide-react';
-import apiClient from '@/lib/apiClient';
+import apiClient from '@/utils/apiClient';
 import type { HeaderProps, ConnectionStatus } from '@/types';
 
 interface SystemInfo {

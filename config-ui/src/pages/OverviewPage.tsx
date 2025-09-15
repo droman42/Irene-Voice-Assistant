@@ -17,7 +17,7 @@ import {
   Zap
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '@/lib/apiClient';
+import apiClient from '@/utils/apiClient';
 import type { IntentStatusResponse, IntentHandlersResponse } from '@/types';
 
 interface SystemStatusData {
