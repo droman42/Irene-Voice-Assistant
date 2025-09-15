@@ -325,52 +325,73 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
     
     # WebAPIPlugin interface - unified API
     def get_router(self) -> APIRouter:
+        """Get FastAPI router with LLM endpoints using centralized schemas"""
+        from ..api.schemas import (
+            LLMEnhanceRequest, LLMEnhanceResponse,
+            LLMChatRequest, LLMChatResponse,
+            LLMConfigureRequest, LLMProvidersResponse
+        )
+        
         router = APIRouter()
         
-        @router.post("/enhance")
-        async def enhance_text_endpoint(
-            text: str,
-            task: str = "improve",
-            provider: Optional[str] = None,
-            **kwargs
-        ):
+        @router.post("/enhance", response_model=LLMEnhanceResponse)
+        async def enhance_text_endpoint(request: LLMEnhanceRequest):
             """Enhance text using LLM"""
-            provider_name = provider or self.default_provider
+            provider_name = request.provider or self.default_provider
             
             if provider_name not in self.providers:
                 raise HTTPException(404, f"Provider '{provider_name}' not available")
             
-            enhanced = await self.enhance_text(text, task=task, provider=provider_name, **kwargs)
+            # Extract additional parameters for provider
+            kwargs = request.parameters or {}
             
-            return {
-                "original_text": text,
-                "enhanced_text": enhanced,
-                "task": task,
-                "provider": provider_name
-            }
+            enhanced = await self.enhance_text(
+                request.text, 
+                task=request.task, 
+                provider=provider_name, 
+                **kwargs
+            )
+            
+            return LLMEnhanceResponse(
+                success=True,
+                original_text=request.text,
+                enhanced_text=enhanced,
+                task=request.task,
+                provider=provider_name
+            )
         
-        @router.post("/chat")
-        async def chat_completion_endpoint(
-            messages: List[Dict[str, str]],
-            provider: Optional[str] = None,
-            **kwargs
-        ):
-            """Chat completion"""
-            provider_name = provider or self.default_provider
+        @router.post("/chat", response_model=LLMChatResponse)
+        async def chat_completion_endpoint(request: LLMChatRequest):
+            """Chat completion with structured message format"""
+            provider_name = request.provider or self.default_provider
             
             if provider_name not in self.providers:
                 raise HTTPException(404, f"Provider '{provider_name}' not available")
+            
+            # Convert ChatMessage objects to the format expected by providers
+            messages = [
+                {"role": msg.role, "content": msg.content} 
+                for msg in request.messages
+            ]
+            
+            # Extract additional parameters for provider
+            kwargs = request.parameters or {}
             
             response = await self.providers[provider_name].chat_completion(
                 messages, **kwargs
             )
             
-            return {
-                "response": response,
-                "provider": provider_name
-            }
+            # Try to get usage statistics if available
+            usage = kwargs.get("usage") if hasattr(self.providers[provider_name], "get_usage_stats") else None
+            
+            return LLMChatResponse(
+                success=True,
+                response=response,
+                provider=provider_name,
+                usage=usage
+            )
         
-        @router.get("/providers")
+        @router.get("/providers", response_model=LLMProvidersResponse)
         async def list_llm_providers():
             """Discovery endpoint for all LLM provider capabilities"""
             result = {}
@@ -388,17 +409,33 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
                         "available": False,
                         "error": str(e)
                     }
-            return {"providers": result, "default": self.default_provider}
+            
+            return LLMProvidersResponse(
+                success=True,
+                providers=result,
+                default=self.default_provider
+            )
         
         @router.post("/configure")
-        async def configure_llm(provider: str, set_as_default: bool = False):
+        async def configure_llm(request: LLMConfigureRequest):
             """Configure LLM settings"""
-            if provider in self.providers:
-                if set_as_default:
-                    self.default_provider = provider
-                return {"success": True, "default_provider": self.default_provider}
+            if request.provider in self.providers:
+                if request.set_as_default:
+                    self.default_provider = request.provider
+                
+                # Apply any additional parameters if provided
+                if request.parameters:
+                    # This would be provider-specific configuration
+                    # Implementation depends on provider capabilities
+                    pass
+                
+                return {
+                    "success": True, 
+                    "default_provider": self.default_provider,
+                    "configured_provider": request.provider
+                }
             else:
-                raise HTTPException(404, f"Provider '{provider}' not available")
+                raise HTTPException(404, f"Provider '{request.provider}' not available")
         
         return router 
     

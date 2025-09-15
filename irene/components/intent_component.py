@@ -303,29 +303,38 @@ class IntentComponent(Component, WebAPIPlugin):
         return "Intent recognition and handling system with dynamic handler discovery"
     
     def get_router(self) -> Optional[Any]:
-        """Get FastAPI router for Web API integration"""
+        """Get FastAPI router for Web API integration using centralized schemas"""
         try:
-            from fastapi import APIRouter
+            from fastapi import APIRouter, HTTPException
+            from ..api.schemas import (
+                IntentSystemStatusResponse, IntentHandlersResponse, IntentHandlerInfo,
+                IntentActionCancelRequest, IntentActionResponse, IntentActiveActionsResponse,
+                IntentRegistryResponse, IntentReloadResponse
+            )
             
             router = APIRouter()
             
-            @router.get("/status")
+            @router.get("/status", response_model=IntentSystemStatusResponse)
             async def get_intent_status():
                 """Get intent system status"""
-                return await self.get_status()
+                status_data = await self.get_status()
+                return IntentSystemStatusResponse(
+                    success=True,
+                    **status_data
+                )
             
-            @router.get("/handlers")
+            @router.get("/handlers", response_model=IntentHandlersResponse)
             async def get_intent_handlers():
                 """Get available intent handlers"""
                 if not self.handler_manager:
-                    return {"error": "Intent system not initialized"}
+                    raise HTTPException(503, "Intent system not initialized")
                 
                 handlers_info = {}
                 donations = self.handler_manager.get_donations()
                 
                 for name, handler in self.handler_manager.get_handlers().items():
-                    handler_info = {
-                        "class": handler.__class__.__name__,
+                    handler_info_data = {
+                        "class_name": handler.__class__.__name__,
                         "domains": getattr(handler, 'get_supported_domains', lambda: [])(),
                         "actions": getattr(handler, 'get_supported_actions', lambda: [])(),
                         "available": await handler.is_available() if hasattr(handler, 'is_available') else True,
@@ -337,7 +346,7 @@ class IntentComponent(Component, WebAPIPlugin):
                     # Add donation information if available
                     if name in donations:
                         donation = donations[name]
-                        handler_info["donation"] = {
+                        handler_info_data["donation"] = {
                             "domain": donation.handler_domain,
                             "methods_count": len(donation.method_donations),
                             "methods": [
@@ -353,42 +362,47 @@ class IntentComponent(Component, WebAPIPlugin):
                             "global_parameters_count": len(donation.global_parameters)
                         }
                     
-                    handlers_info[name] = handler_info
+                    handlers_info[name] = IntentHandlerInfo(**handler_info_data)
                 
-                return {"handlers": handlers_info}
+                return IntentHandlersResponse(
+                    success=True,
+                    handlers=handlers_info
+                )
             
-            @router.post("/actions/cancel")
-            async def cancel_action_endpoint(domain: str, reason: str = "User requested cancellation"):
+            @router.post("/actions/cancel", response_model=IntentActionResponse)
+            async def cancel_action_endpoint(request: IntentActionCancelRequest):
                 """Cancel an active fire-and-forget action"""
                 try:
                     # This would need session_id parameter or session management
                     # For now, return method availability info
-                    return {
-                        "message": "Action cancellation endpoint available",
-                        "domain": domain,
-                        "reason": reason,
-                        "note": "Full implementation requires session context"
-                    }
+                    return IntentActionResponse(
+                        success=True,
+                        message="Action cancellation endpoint available",
+                        domain=request.domain,
+                        reason=request.reason,
+                        note="Full implementation requires session context"
+                    )
                 except Exception as e:
                     raise HTTPException(500, f"Error cancelling action: {str(e)}")
             
-            @router.get("/actions/active")
+            @router.get("/actions/active", response_model=IntentActiveActionsResponse)
             async def get_active_actions_endpoint():
                 """Get list of active fire-and-forget actions"""
                 try:
                     # This would need session context to be useful
-                    return {
-                        "message": "Active actions endpoint available",
-                        "note": "Full implementation requires session context"
-                    }
+                    return IntentActiveActionsResponse(
+                        success=True,
+                        message="Active actions endpoint available",
+                        note="Full implementation requires session context"
+                    )
                 except Exception as e:
                     raise HTTPException(500, f"Error getting active actions: {str(e)}")
 
-            @router.get("/registry")
+            @router.get("/registry", response_model=IntentRegistryResponse)
             async def get_intent_registry():
                 """Get intent registry patterns"""
                 if not self.intent_registry:
-                    return {"error": "Intent registry not initialized"}
+                    raise HTTPException(503, "Intent registry not initialized")
                 
                 handlers = await self.intent_registry.get_all_handlers()
                 patterns_info = {}
@@ -399,13 +413,16 @@ class IntentComponent(Component, WebAPIPlugin):
                         "metadata": self.intent_registry.get_handler_info(pattern)
                     }
                 
-                return {"patterns": patterns_info}
+                return IntentRegistryResponse(
+                    success=True,
+                    patterns=patterns_info
+                )
             
-            @router.post("/reload")
+            @router.post("/reload", response_model=IntentReloadResponse)
             async def reload_intent_handlers():
                 """Reload intent handlers with current configuration"""
                 if not self.handler_manager:
-                    return {"error": "Intent system not initialized"}
+                    raise HTTPException(503, "Intent system not initialized")
                 
                 try:
                     # Handle both dict and Pydantic config objects
@@ -420,14 +437,21 @@ class IntentComponent(Component, WebAPIPlugin):
                     self.intent_orchestrator = self.handler_manager.get_orchestrator()
                     
                     handlers = self.handler_manager.get_handlers()
-                    return {
-                        "status": "reloaded",
-                        "handlers_count": len(handlers),
-                        "handlers": list(handlers.keys())
-                    }
+                    return IntentReloadResponse(
+                        success=True,
+                        status="reloaded",
+                        handlers_count=len(handlers),
+                        handlers=list(handlers.keys())
+                    )
                 except Exception as e:
                     logger.error(f"Failed to reload intent handlers: {e}")
-                    return {"error": f"Reload failed: {str(e)}"}
+                    return IntentReloadResponse(
+                        success=False,
+                        status="failed",
+                        handlers_count=0,
+                        handlers=[],
+                        error=f"Reload failed: {str(e)}"
+                    )
             
             return router
             

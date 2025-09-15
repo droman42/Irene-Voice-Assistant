@@ -580,32 +580,25 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
     
     # WebAPIPlugin interface - following universal plugin pattern
     def get_router(self) -> Optional[Any]:
-        """Get FastAPI router with voice trigger endpoints"""
+        """Get FastAPI router with voice trigger endpoints using centralized schemas"""
         if not self.is_api_available():
             return None
             
         try:
-            from fastapi import APIRouter, HTTPException, WebSocket  # type: ignore
-            from pydantic import BaseModel  # type: ignore
+            from fastapi import APIRouter, HTTPException  # type: ignore
+            from ..api.schemas import (
+                VoiceTriggerStatus, WakeWordConfig, VoiceTriggerConfigureResponse,
+                VoiceTriggerSwitchRequest, VoiceTriggerSwitchResponse,
+                VoiceTriggerProvidersResponse
+            )
             
             router = APIRouter()
-            
-            # Request/Response models
-            class VoiceTriggerStatus(BaseModel):
-                active: bool
-                wake_words: List[str]
-                threshold: float
-                provider: str
-                providers_available: List[str]
-                
-            class WakeWordConfig(BaseModel):
-                wake_words: List[str]
-                threshold: float = 0.8
                 
             @router.get("/status", response_model=VoiceTriggerStatus)
             async def get_status():
                 """Get voice trigger status and configuration"""
                 return VoiceTriggerStatus(
+                    success=True,
                     active=self.is_active(),
                     wake_words=self.get_wake_words(),
                     threshold=self.get_threshold(),
@@ -613,19 +606,20 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
                     providers_available=list(self.providers.keys())
                 )
             
-            @router.post("/configure")
+            @router.post("/configure", response_model=VoiceTriggerConfigureResponse)
             async def configure_voice_trigger(config: WakeWordConfig):
                 """Configure voice trigger settings"""
                 success_words = await self.set_wake_words(config.wake_words)
                 success_threshold = await self.set_threshold(config.threshold)
-                return {
-                    "success": success_words and success_threshold,
-                    "config": config,
-                    "updated_words": success_words,
-                    "updated_threshold": success_threshold
-                }
+                
+                return VoiceTriggerConfigureResponse(
+                    success=success_words and success_threshold,
+                    config=config,
+                    updated_words=success_words,
+                    updated_threshold=success_threshold
+                )
             
-            @router.get("/providers")
+            @router.get("/providers", response_model=VoiceTriggerProvidersResponse)
             async def list_voice_trigger_providers():
                 """Discovery endpoint for voice trigger provider capabilities"""
                 result = {}
@@ -637,25 +631,27 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
                         "parameters": provider.get_parameter_schema(),
                         "is_default": name == self.default_provider
                     }
-                return {
-                    "providers": result,
-                    "default": self.default_provider,
-                    "fallbacks": self.fallback_providers
-                }
-            
-            @router.post("/switch_provider")
-            async def switch_provider(provider_name: str):
-                """Switch to a different voice trigger provider"""
-                if provider_name not in self.providers:
-                    raise HTTPException(404, f"Provider '{provider_name}' not available")
                 
-                self.default_provider = provider_name
-                return {
-                    "success": True,
-                    "active_provider": provider_name,
-                    "wake_words": self.get_wake_words(),
-                    "threshold": self.get_threshold()
-                }
+                return VoiceTriggerProvidersResponse(
+                    success=True,
+                    providers=result,
+                    default=self.default_provider,
+                    fallbacks=self.fallback_providers
+                )
+            
+            @router.post("/switch_provider", response_model=VoiceTriggerSwitchResponse)
+            async def switch_provider(request: VoiceTriggerSwitchRequest):
+                """Switch to a different voice trigger provider"""
+                if request.provider_name not in self.providers:
+                    raise HTTPException(404, f"Provider '{request.provider_name}' not available")
+                
+                self.default_provider = request.provider_name
+                return VoiceTriggerSwitchResponse(
+                    success=True,
+                    active_provider=request.provider_name,
+                    wake_words=self.get_wake_words(),
+                    threshold=self.get_threshold()
+                )
             
             return router
             

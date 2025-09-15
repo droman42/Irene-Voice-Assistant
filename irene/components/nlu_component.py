@@ -954,13 +954,16 @@ class NLUComponent(Component, WebAPIPlugin):
     
     # WebAPIPlugin interface - following universal plugin pattern
     def get_router(self) -> Optional[Any]:
-        """Get FastAPI router with NLU endpoints"""
+        """Get FastAPI router with NLU endpoints using centralized schemas"""
         if not self.is_api_available():
             return None
             
         try:
             from fastapi import APIRouter, HTTPException  # type: ignore
-            from ..api.schemas import NLURequest, IntentResponse
+            from ..api.schemas import (
+                NLURequest, IntentResponse,
+                NLUConfigureRequest, NLUConfigResponse, NLUProvidersResponse
+            )
             
             router = APIRouter()
                 
@@ -992,7 +995,7 @@ class NLUComponent(Component, WebAPIPlugin):
                     action=intent.action
                 )
             
-            @router.get("/providers")
+            @router.get("/providers", response_model=NLUProvidersResponse)
             async def list_nlu_providers():
                 """Discovery endpoint for NLU provider capabilities"""
                 result = {}
@@ -1004,27 +1007,43 @@ class NLUComponent(Component, WebAPIPlugin):
                         "parameters": getattr(provider, 'get_parameter_schema', lambda: {})(),
                         "capabilities": getattr(provider, 'get_capabilities', lambda: {})()
                     }
-                return {"providers": result, "default": self.default_provider}
+                
+                return NLUProvidersResponse(
+                    success=True,
+                    providers=result,
+                    default=self.default_provider
+                )
             
             @router.post("/configure")
-            async def configure_nlu(provider: str, set_as_default: bool = False):
+            async def configure_nlu(request: NLUConfigureRequest):
                 """Configure NLU settings"""
-                if provider in self.providers:
-                    if set_as_default:
-                        self.default_provider = provider
-                    return {"success": True, "default_provider": self.default_provider}
+                if request.provider in self.providers:
+                    if request.set_as_default:
+                        self.default_provider = request.provider
+                    
+                    # Apply confidence threshold if provided
+                    if request.confidence_threshold is not None:
+                        self.confidence_threshold = request.confidence_threshold
+                        logger.info(f"Updated NLU confidence threshold to {self.confidence_threshold}")
+                    
+                    return {
+                        "success": True,
+                        "default_provider": self.default_provider,
+                        "confidence_threshold": self.confidence_threshold
+                    }
                 else:
-                    raise HTTPException(404, f"Provider '{provider}' not available")
+                    raise HTTPException(404, f"Provider '{request.provider}' not available")
             
-            @router.get("/config")
+            @router.get("/config", response_model=NLUConfigResponse)
             async def get_nlu_config():
                 """Get current NLU configuration"""
-                return {
-                    "confidence_threshold": self.confidence_threshold,
-                    "fallback_intent": self.fallback_intent,
-                    "default_provider": self.default_provider,
-                    "available_providers": list(self.providers.keys())
-                }
+                return NLUConfigResponse(
+                    success=True,
+                    confidence_threshold=self.confidence_threshold,
+                    fallback_intent=self.fallback_intent,
+                    default_provider=self.default_provider,
+                    available_providers=list(self.providers.keys())
+                )
             
             return router
             

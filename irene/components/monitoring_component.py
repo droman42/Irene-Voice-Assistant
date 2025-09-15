@@ -212,41 +212,20 @@ class MonitoringComponent(Component, WebAPIPlugin):
             self.logger.error(f"Failed to integrate with intent handlers: {e}")
     
     def get_router(self) -> Optional[Any]:
-        """Get FastAPI router with monitoring endpoints"""
+        """Get FastAPI router with monitoring endpoints using centralized schemas"""
         try:
             from fastapi import APIRouter, HTTPException
-            from pydantic import BaseModel
+            from ..api.schemas import (
+                MonitoringStatusResponse, MetricsResponse, MemoryStatusResponse,
+                NotificationResponse, DebugResponse, DashboardResponse,
+                AnalyticsReportResponse, PerformanceValidationResponse,
+                SessionSatisfactionRequest, SessionSatisfactionResponse,
+                IntentAnalyticsResponse, SessionAnalyticsResponse,
+                PerformanceAnalyticsResponse
+            )
             from typing import Dict, Any, List
             
             router = APIRouter()
-            
-            # Response models
-            class MonitoringStatusResponse(BaseModel):
-                status: str
-                services: Dict[str, bool]
-                uptime: float
-                
-            class MetricsResponse(BaseModel):
-                system_metrics: Dict[str, Any]
-                domain_metrics: Dict[str, Any]
-                performance_summary: Dict[str, Any]
-                
-            class MemoryStatusResponse(BaseModel):
-                memory_usage: Dict[str, Any]
-                cleanup_needed: Dict[str, bool]
-                recommendations: List[Dict[str, Any]]
-                
-            class NotificationResponse(BaseModel):
-                success: bool
-                message: str
-                
-            class DebugResponse(BaseModel):
-                debug_status: Dict[str, Any]
-                inspection_history: List[Dict[str, Any]]
-                
-            class DashboardResponse(BaseModel):
-                dashboard_data: Dict[str, Any]
-                health_summary: Dict[str, Any]
             
             # Monitoring status endpoint
             @router.get("/status", response_model=MonitoringStatusResponse)
@@ -263,6 +242,7 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 }
                 
                 return MonitoringStatusResponse(
+                    success=True,
                     status="active" if all(services.values()) else "partial",
                     services=services,
                     uptime=time.time() - getattr(self, '_start_time', time.time())
@@ -276,6 +256,7 @@ class MonitoringComponent(Component, WebAPIPlugin):
                     raise HTTPException(status_code=503, detail="Metrics collector not available")
                 
                 return MetricsResponse(
+                    success=True,
                     system_metrics=self.metrics_collector.get_system_metrics(),
                     domain_metrics=self.metrics_collector.get_all_domain_metrics(),
                     performance_summary=self.metrics_collector.get_performance_summary(3600)  # Last hour
@@ -292,19 +273,23 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 recommendations = await self.memory_manager.get_memory_recommendations()
                 
                 return MemoryStatusResponse(
+                    success=True,
                     memory_usage=analysis,
                     cleanup_needed={"system_cleanup": len(recommendations) > 0},
                     recommendations=recommendations
                 )
             
-            @router.post("/memory/cleanup")
+            @router.post("/memory/cleanup", response_model=NotificationResponse)
             async def trigger_memory_cleanup(aggressive: bool = False):
                 """Trigger system memory cleanup"""
                 if not self.memory_manager:
                     raise HTTPException(status_code=503, detail="Memory manager not available")
                 
                 result = await self.memory_manager.perform_system_cleanup(aggressive=aggressive)
-                return result
+                return NotificationResponse(
+                    success=True,
+                    message=f"Memory cleanup completed: {result}"
+                )
             
             # Notification endpoints
             @router.post("/notifications/test", response_model=NotificationResponse)
@@ -358,14 +343,8 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 return HTMLResponse(content=html_content)
             
             # Phase 1: Analytics endpoints (migrated from webapi_runner.py)
-            class AnalyticsReportResponse(BaseModel):
-                timestamp: float
-                report_type: str
-                intents: Dict[str, Any]
-                sessions: Dict[str, Any]
-                system: Dict[str, Any]
             
-            @router.get("/intents")
+            @router.get("/intents", response_model=IntentAnalyticsResponse)
             async def get_intent_analytics():
                 """Get intent recognition and execution analytics"""
                 if not self.metrics_collector:
@@ -387,15 +366,16 @@ class MonitoringComponent(Component, WebAPIPlugin):
                     }
                 
                 import time
-                return {
-                    "total_intents_processed": sum(m.total_actions for m in domain_metrics.values() if m.total_actions > 0),
-                    "unique_intent_types": len(intent_data),
-                    "intent_breakdown": intent_data,
-                    "overall_success_rate": sum(m.success_rate for m in domain_metrics.values()) / max(1, len(domain_metrics)),
-                    "timestamp": time.time()
-                }
+                return IntentAnalyticsResponse(
+                    success=True,
+                    total_intents_processed=sum(m.total_actions for m in domain_metrics.values() if m.total_actions > 0),
+                    unique_intent_types=len(intent_data),
+                    intent_breakdown=intent_data,
+                    overall_success_rate=sum(m.success_rate for m in domain_metrics.values()) / max(1, len(domain_metrics)),
+                    timestamp=time.time()
+                )
             
-            @router.get("/sessions")
+            @router.get("/sessions", response_model=SessionAnalyticsResponse)
             async def get_session_analytics():
                 """Get conversation session analytics"""
                 if not self.metrics_collector:
@@ -404,16 +384,17 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 # Get session analytics from unified metrics
                 import time
                 system_metrics = self.metrics_collector.get_system_metrics()
-                return {
-                    "active_sessions": system_metrics.get("current_concurrent_actions", 0),
-                    "total_sessions": system_metrics.get("total_actions_completed", 0),
-                    "average_session_duration": system_metrics.get("average_completion_time", 0.0),
-                    "average_user_satisfaction": 0.8,  # Default value - to be enhanced later
-                    "uptime_seconds": system_metrics.get("uptime_seconds", 0),
-                    "timestamp": time.time()
-                }
+                return SessionAnalyticsResponse(
+                    success=True,
+                    active_sessions=system_metrics.get("current_concurrent_actions", 0),
+                    total_sessions=system_metrics.get("total_actions_completed", 0),
+                    average_session_duration=system_metrics.get("average_completion_time", 0.0),
+                    average_user_satisfaction=0.8,  # Default value - to be enhanced later
+                    uptime_seconds=system_metrics.get("uptime_seconds", 0),
+                    timestamp=time.time()
+                )
             
-            @router.get("/performance")
+            @router.get("/performance", response_model=PerformanceAnalyticsResponse)
             async def get_system_performance():
                 """Get system performance metrics including VAD and component metrics"""
                 if not self.metrics_collector:
@@ -424,17 +405,18 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 vad_metrics = self.metrics_collector.get_vad_metrics()
                 component_metrics = self.metrics_collector.get_all_component_metrics()
                 
-                return {
-                    "system": {
+                return PerformanceAnalyticsResponse(
+                    success=True,
+                    system={
                         "uptime_seconds": system_metrics.get("uptime_seconds", 0),
                         "total_actions": system_metrics.get("total_actions_completed", 0),
                         "success_rate": system_metrics.get("average_success_rate", 0.0),
                         "peak_concurrent": system_metrics.get("peak_concurrent_actions", 0)
                     },
-                    "vad": vad_metrics,
-                    "components": component_metrics,
-                    "timestamp": time.time()
-                }
+                    vad=vad_metrics,
+                    components=component_metrics,
+                    timestamp=time.time()
+                )
             
             @router.get("/report", response_model=AnalyticsReportResponse)
             async def get_comprehensive_analytics_report():
@@ -451,6 +433,7 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 
                 # Build comprehensive report
                 return AnalyticsReportResponse(
+                    success=True,
                     timestamp=time.time(),
                     report_type="comprehensive_unified_analytics",
                     intents={
@@ -476,20 +459,19 @@ class MonitoringComponent(Component, WebAPIPlugin):
                     }
                 )
             
-            @router.post("/session/{session_id}/satisfaction")
-            async def rate_session_satisfaction(session_id: str, satisfaction_score: float):
+            @router.post("/session/{session_id}/satisfaction", response_model=SessionSatisfactionResponse)
+            async def rate_session_satisfaction(session_id: str, request: SessionSatisfactionRequest):
                 """Rate user satisfaction for a session (0.0-1.0)"""
-                if not 0.0 <= satisfaction_score <= 1.0:
-                    raise HTTPException(status_code=400, detail="Satisfaction score must be between 0.0 and 1.0")
+                # Validation is now handled by Pydantic schema
                 
                 # For now, store satisfaction in memory - could be enhanced to persist
                 # This is a placeholder implementation for Phase 1 compatibility
-                return {
-                    "success": True,
-                    "session_id": session_id,
-                    "satisfaction_score": satisfaction_score,
-                    "message": "Satisfaction rating recorded in unified metrics system"
-                }
+                return SessionSatisfactionResponse(
+                    success=True,
+                    session_id=session_id,
+                    satisfaction_score=request.satisfaction_score,
+                    message="Satisfaction rating recorded in unified metrics system"
+                )
             
             @router.get("/prometheus")
             async def get_prometheus_metrics():
@@ -540,13 +522,6 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 return PlainTextResponse(content="\n".join(lines), media_type="text/plain")
             
             # Phase 3: Performance validation endpoint
-            class PerformanceValidationResponse(BaseModel):
-                performance_score: float
-                meets_criteria: bool
-                validation_criteria: Dict[str, float]
-                performance_analysis: Dict[str, Any]
-                recommendations: List[Dict[str, str]]
-                generated_at: str
                 
             @router.get("/performance/validate", response_model=PerformanceValidationResponse)
             async def validate_system_performance():
@@ -557,6 +532,7 @@ class MonitoringComponent(Component, WebAPIPlugin):
                 validation_result = self.analytics_dashboard.validate_system_performance()
                 
                 return PerformanceValidationResponse(
+                    success=True,
                     performance_score=validation_result.get("performance_score", 0.0),
                     meets_criteria=validation_result.get("meets_criteria", False),
                     validation_criteria=validation_result.get("validation_criteria", {}),

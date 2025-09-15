@@ -292,31 +292,20 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     
     # WebAPIPlugin interface - following universal plugin pattern
     def get_router(self) -> Optional[Any]:
-        """Get FastAPI router with text processing endpoints"""
+        """Get FastAPI router with text processing endpoints using centralized schemas"""
         if not self.is_api_available():
             return None
             
         try:
             from fastapi import APIRouter  # type: ignore
-            from pydantic import BaseModel  # type: ignore
+            from ..api.schemas import (
+                TextProcessingRequest, TextProcessingResponse,
+                NumberConversionRequest, NumberConversionResponse,
+                TextProcessingNormalizersResponse, TextNormalizerInfo,
+                TextProcessingConfigResponse
+            )
             
             router = APIRouter()
-            
-            # Request/Response models
-            class TextProcessingRequest(BaseModel):
-                text: str
-                stage: str = "general"  # 'asr_output', 'general', 'tts_input'
-                normalizer: Optional[str] = None  # Specific normalizer to use
-                
-            class TextProcessingResponse(BaseModel):
-                original_text: str
-                processed_text: str
-                stage: str
-                normalizers_applied: List[str]
-            
-            class NumberConversionRequest(BaseModel):
-                text: str
-                language: str = "ru"
                 
             @router.post("/process", response_model=TextProcessingResponse)
             async def process_text(request: TextProcessingRequest):
@@ -345,50 +334,54 @@ class TextProcessorComponent(Component, WebAPIPlugin):
                                          if n.applies_to_stage(request.stage)]
                 
                 return TextProcessingResponse(
+                    success=True,
                     original_text=request.text,
                     processed_text=processed,
                     stage=request.stage,
                     normalizers_applied=normalizers_applied
                 )
             
-            @router.post("/numbers")
+            @router.post("/numbers", response_model=NumberConversionResponse)
             async def convert_numbers_to_text(request: NumberConversionRequest):
                 """Convert numbers in text to words"""
                 processed = await self.convert_numbers_to_words(request.text, request.language)
-                return {
-                    "original_text": request.text,
-                    "processed_text": processed,
-                    "language": request.language
-                }
+                return NumberConversionResponse(
+                    success=True,
+                    original_text=request.text,
+                    processed_text=processed,
+                    language=request.language
+                )
             
-            @router.get("/normalizers")
+            @router.get("/normalizers", response_model=TextProcessingNormalizersResponse)
             async def list_normalizers():
                 """List available text normalizers and their capabilities"""
                 normalizers = {}
                 for normalizer in self.processor.normalizers:
                     name = normalizer.__class__.__name__
-                    normalizers[name] = {
-                        "stages": ["asr_output", "general", "tts_input"],
-                        "applies_to": [stage for stage in ["asr_output", "general", "tts_input"] 
-                                     if normalizer.applies_to_stage(stage)],
-                        "description": normalizer.__doc__ or f"{name} text normalizer"
-                    }
+                    normalizers[name] = TextNormalizerInfo(
+                        stages=["asr_output", "general", "tts_input"],
+                        applies_to=[stage for stage in ["asr_output", "general", "tts_input"] 
+                                   if normalizer.applies_to_stage(stage)],
+                        description=normalizer.__doc__ or f"{name} text normalizer"
+                    )
                 
-                return {
-                    "normalizers": normalizers,
-                    "pipeline_stages": ["asr_output", "general", "tts_input"],
-                    "available_languages": ["ru", "en"]  # For number conversion
-                }
+                return TextProcessingNormalizersResponse(
+                    success=True,
+                    normalizers=normalizers,
+                    pipeline_stages=["asr_output", "general", "tts_input"],
+                    available_languages=["ru", "en"]  # For number conversion
+                )
             
-            @router.get("/config")
+            @router.get("/config", response_model=TextProcessingConfigResponse)
             async def get_text_processor_config():
                 """Get text processor configuration"""
-                return {
-                    "normalizer_count": len(self.processor.normalizers),
-                    "supported_stages": ["asr_output", "general", "tts_input"],
-                    "supported_languages": ["ru", "en"],
-                    "dependencies": self.get_component_dependencies()
-                }
+                return TextProcessingConfigResponse(
+                    success=True,
+                    normalizer_count=len(self.processor.normalizers),
+                    supported_stages=["asr_output", "general", "tts_input"],
+                    supported_languages=["ru", "en"],
+                    dependencies=self.get_component_dependencies()
+                )
             
             return router
             

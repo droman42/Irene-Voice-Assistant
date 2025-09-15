@@ -25,14 +25,6 @@ from ..utils.loader import dynamic_loader
 logger = logging.getLogger(__name__)
 
 
-class AudioPlayRequest(BaseModel):
-    """Request model for audio playback API"""
-    file_path: Optional[str] = None
-    provider: Optional[str] = None
-    volume: Optional[float] = None
-    device: Optional[str] = None
-
-
 class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     """
     Audio Component that manages multiple audio providers.
@@ -295,10 +287,16 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     
     # WebAPIPlugin interface - unified API
     def get_router(self) -> APIRouter:
-        """Get FastAPI router for audio endpoints"""
+        """Get FastAPI router for audio endpoints using centralized schemas"""
+        from ..api.schemas import (
+            AudioPlayResponse, AudioStreamResponse, AudioStopResponse,
+            AudioDevicesResponse, AudioConfigureRequest, AudioConfigureResponse,
+            AudioProvidersResponse
+        )
+        
         router = APIRouter()
         
-        @router.post("/play")
+        @router.post("/play", response_model=AudioPlayResponse)
         async def play_audio(
             file: UploadFile = File(...),
             provider: Optional[str] = None,
@@ -341,19 +339,19 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
                 # Play the file
                 await self.play_file(temp_path, **kwargs)
                 
-                return {
-                    "success": True,
-                    "provider": provider_name,
-                    "file": file.filename,
-                    "size": len(content)
-                }
+                return AudioPlayResponse(
+                    success=True,
+                    provider=provider_name,
+                    file=file.filename,
+                    size=len(content)
+                )
                 
             finally:
                 # Clean up temporary file
                 if temp_path.exists():
                     temp_path.unlink()
         
-        @router.post("/stream")
+        @router.post("/stream", response_model=AudioStreamResponse)
         async def play_audio_stream(
             audio_data: bytes,
             format: str = "wav",
@@ -372,20 +370,23 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
             
             await self.play_stream(audio_data, format, **kwargs)
             
-            return {
-                "success": True,
-                "provider": provider_name,
-                "format": format,
-                "size": len(audio_data)
-            }
+            return AudioStreamResponse(
+                success=True,
+                provider=provider_name,
+                format=format,
+                size=len(audio_data)
+            )
         
-        @router.post("/stop")
+        @router.post("/stop", response_model=AudioStopResponse)
         async def stop_audio():
             """Stop current audio playback"""
             await self.stop_playback()
-            return {"success": True, "message": "Audio playback stopped"}
+            return AudioStopResponse(
+                success=True,
+                message="Audio playback stopped"
+            )
         
-        @router.get("/providers")
+        @router.get("/providers", response_model=AudioProvidersResponse)
         async def list_providers():
             """List all available audio providers and their capabilities"""
             result = {}
@@ -396,13 +397,15 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
                     "capabilities": provider.get_capabilities(),
                     "formats": provider.get_supported_formats()
                 }
-            return {
-                "providers": result,
-                "default": self.default_provider,
-                "fallbacks": self.fallback_providers
-            }
+            
+            return AudioProvidersResponse(
+                success=True,
+                providers=result,
+                default=self.default_provider,
+                fallbacks=self.fallback_providers
+            )
         
-        @router.get("/devices")
+        @router.get("/devices", response_model=AudioDevicesResponse)
         async def list_devices(provider: Optional[str] = None):
             """List available audio output devices"""
             provider_name = provider or self.default_provider
@@ -411,41 +414,37 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
                 raise HTTPException(404, f"Provider '{provider_name}' not available")
             
             devices = self.providers[provider_name].get_playback_devices()
-            return {
-                "provider": provider_name,
-                "devices": devices
-            }
+            return AudioDevicesResponse(
+                success=True,
+                provider=provider_name,
+                devices=devices
+            )
         
-        @router.post("/configure")
-        async def configure_audio(
-            provider: Optional[str] = None,
-            set_as_default: bool = False,
-            volume: Optional[float] = None,
-            device: Optional[str] = None
-        ):
+        @router.post("/configure", response_model=AudioConfigureResponse)
+        async def configure_audio(request: AudioConfigureRequest):
             """Configure audio settings"""
-            provider_name = provider or self.default_provider
+            provider_name = request.provider or self.default_provider
             
             if provider_name not in self.providers:
                 raise HTTPException(404, f"Provider '{provider_name}' not available")
             
             # Apply configuration
-            if set_as_default:
+            if request.set_as_default:
                 self.default_provider = provider_name
             
-            if volume is not None:
-                await self.providers[provider_name].set_volume(volume)
+            if request.volume is not None:
+                await self.providers[provider_name].set_volume(request.volume)
             
-            if device is not None:
-                await self.providers[provider_name].set_output_device(device)
+            if request.device is not None:
+                await self.providers[provider_name].set_output_device(request.device)
             
-            return {
-                "success": True,
-                "provider": provider_name,
-                "default_provider": self.default_provider,
-                "volume": volume,
-                "device": device
-            }
+            return AudioConfigureResponse(
+                success=True,
+                provider=provider_name,
+                default_provider=self.default_provider,
+                volume=request.volume,
+                device=request.device
+            )
         
         return router
     
