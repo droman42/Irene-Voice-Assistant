@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "train_schedule",
-  "description": "Train schedule information and route planning",
+  "description": "Информация о расписании поездов и планирование маршрутов",
   "global_parameters": [
     {
       "name": "language",
@@ -14,7 +14,7 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "intent_name_patterns": [],
@@ -41,7 +41,7 @@
     {
       "method_name": "handle_train_query",
       "intent_suffix": "query",
-      "description": "Handle train schedule and route queries",
+      "description": "Обработка запросов о расписании поездов и маршрутах",
       "phrases": [
         "расписание поездов",
         "когда поезд",
@@ -65,7 +65,7 @@
           "name": "from_station",
           "type": "string",
           "required": false,
-          "description": "Departure station",
+          "description": "Станция отправления",
           "extraction_patterns": [
             {
               "pattern": [
@@ -92,7 +92,7 @@
           "name": "to_station",
           "type": "string",
           "required": false,
-          "description": "Destination station",
+          "description": "Станция назначения",
           "extraction_patterns": [
             {
               "pattern": [
@@ -119,7 +119,7 @@
           "name": "time",
           "type": "string",
           "required": false,
-          "description": "Departure time or date",
+          "description": "Время или дата отправления",
           "extraction_patterns": [
             {
               "pattern": [

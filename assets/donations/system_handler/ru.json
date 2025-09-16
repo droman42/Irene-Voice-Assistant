@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "system",
-  "description": "System information, help, and status operations",
+  "description": "Информация о системе, помощь и статусные операции",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -17,14 +17,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_help_request",
       "intent_suffix": "help",
-      "description": "Provide help information and command list",
+      "description": "Предоставить справочную информацию и список команд",
       "phrases": [
         "помощь",
         "справка",
@@ -43,7 +43,7 @@
           "name": "topic",
           "type": "string",
           "required": false,
-          "description": "Specific help topic",
+          "description": "Конкретная тема справки",
           "extraction_patterns": [
             {
               "pattern": [
@@ -144,7 +144,7 @@
     {
       "method_name": "_handle_status_request",
       "intent_suffix": "status",
-      "description": "Show system status and health information",
+      "description": "Показать статус системы и информацию о здоровье",
       "phrases": [
         "статус",
         "состояние",

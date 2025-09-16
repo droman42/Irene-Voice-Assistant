@@ -3,14 +3,14 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "таймер",
-  "description": "Timer functionality with duration and message support",
+  "description": "Функциональность таймера с поддержкой длительности и сообщений",
   "global_parameters": [
     {
       "name": "retain",
       "type": "boolean",
       "required": false,
       "default_value": false,
-      "description": "Whether to retain state across sessions"
+      "description": "Сохранять ли состояние между сессиями"
     }
   ],
   "intent_name_patterns": [],
@@ -30,7 +30,7 @@
     {
       "method_name": "_handle_set_timer",
       "intent_suffix": "set",
-      "description": "Set a timer with duration and optional message",
+      "description": "Установить таймер с длительностью и опциональным сообщением",
       "phrases": [
         "поставь таймер",
         "установи таймер",
@@ -56,7 +56,7 @@
           "name": "duration",
           "type": "integer",
           "required": true,
-          "description": "Timer duration number",
+          "description": "Продолжительность таймера в числах",
           "min_value": 1,
           "max_value": 86400,
           "extraction_patterns": [
@@ -137,10 +137,15 @@
         },
         {
           "name": "unit",
-          "type": "string",
+          "type": "choice",
           "required": false,
           "default_value": "minutes",
-          "description": "Time unit for duration",
+          "choices": [
+            "seconds",
+            "minutes",
+            "hours"
+          ],
+          "description": "Единица времени для продолжительности",
           "extraction_patterns": [
             {
               "pattern": [
@@ -180,7 +185,7 @@
           "type": "string",
           "required": false,
           "default_value": "Таймер завершён!",
-          "description": "Custom message when timer completes",
+          "description": "Пользовательское сообщение при завершении таймера",
           "extraction_patterns": [
             {
               "pattern": [
@@ -387,7 +392,7 @@
     {
       "method_name": "_handle_cancel_timer",
       "intent_suffix": "cancel",
-      "description": "Cancel existing timer",
+      "description": "Отменить существующий таймер",
       "phrases": [
         "отмени таймер",
         "убери таймер",
@@ -409,7 +414,7 @@
           "name": "timer_id",
           "type": "string",
           "required": false,
-          "description": "Specific timer ID to cancel",
+          "description": "Конкретный ID таймера для отмены",
           "extraction_patterns": [
             {
               "pattern": [
@@ -468,7 +473,7 @@
     {
       "method_name": "_handle_list_timers",
       "intent_suffix": "list",
-      "description": "List all active timers",
+      "description": "Показать все активные таймеры",
       "phrases": [
         "покажи таймеры",
         "список таймеров",
@@ -530,7 +535,7 @@
     {
       "method_name": "_handle_timer_status",
       "intent_suffix": "status",
-      "description": "Check status of timers",
+      "description": "Проверить статус таймеров",
       "phrases": [
         "статус таймеров",
         "состояние таймеров",

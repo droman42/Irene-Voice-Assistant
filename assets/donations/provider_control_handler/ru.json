@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "provider_control",
-  "description": "Provider switching and management across all components",
+  "description": "Переключение и управление провайдерами во всех компонентах",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -17,14 +17,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_switch_provider",
       "intent_suffix": "switch",
-      "description": "Switch provider for any component",
+      "description": "Переключить провайдер для любого компонента",
       "phrases": [
         "переключись на",
         "смени провайдер",
@@ -55,7 +55,7 @@
             "голос",
             "модель"
           ],
-          "description": "Component type to switch provider for",
+          "description": "Тип компонента для переключения провайдера",
           "extraction_patterns": [
             {
               "pattern": [

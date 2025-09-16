@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "voice_synthesis",
-  "description": "Text-to-speech with specific voices and TTS provider management",
+  "description": "Синтез речи с конкретными голосами и управление TTS провайдерами",
   "intent_name_patterns": [],
   "action_patterns": [],
   "action_domain_priority": 60,

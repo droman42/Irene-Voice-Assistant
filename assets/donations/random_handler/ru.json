@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "случайно",
-  "description": "Random number generation, coin flips, dice rolls, and random choices",
+  "description": "Генерация случайных чисел, подбрасывание монет, броски кубиков и случайный выбор",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -17,14 +17,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_coin_flip",
       "intent_suffix": "coin_flip",
-      "description": "Flip a coin and get heads or tails result",
+      "description": "Подбросить монету и получить результат орел или решка",
       "phrases": [
         "подбрось монету",
         "подбрось монетку",
@@ -120,7 +120,7 @@
     {
       "method_name": "_handle_dice_roll",
       "intent_suffix": "dice_roll",
-      "description": "Roll dice with specified sides and count",
+      "description": "Бросить кубики с указанным количеством сторон и количеством",
       "phrases": [
         "подбрось кубик",
         "брось кубик",

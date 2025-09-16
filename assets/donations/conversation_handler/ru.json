@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "conversation",
-  "description": "General conversation and reference queries with context management",
+  "description": "Общие разговоры и справочные запросы с управлением контекста",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -18,14 +18,14 @@
       "name": "session_id",
       "type": "string",
       "required": true,
-      "description": "Conversation session identifier"
+      "description": "Идентификатор сессии разговора"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_start_conversation",
       "intent_suffix": "start",
-      "description": "Start a new conversation or chat session",
+      "description": "Начать новый разговор или чат-сессию",
       "phrases": [
         "поболтаем",
         "поговорим",
@@ -45,7 +45,7 @@
           "name": "topic",
           "type": "string",
           "required": false,
-          "description": "Conversation topic",
+          "description": "Тема разговора",
           "extraction_patterns": [
             {
               "pattern": [
@@ -160,7 +160,7 @@
     {
       "method_name": "_handle_end_conversation",
       "intent_suffix": "end",
-      "description": "End the current conversation",
+      "description": "Завершить текущий разговор",
       "phrases": [
         "закончим разговор",
         "хватит болтать",
@@ -225,7 +225,7 @@
     {
       "method_name": "_handle_clear_conversation",
       "intent_suffix": "clear",
-      "description": "Clear conversation history",
+      "description": "Очистить историю разговора",
       "phrases": [
         "очисти историю",
         "сбрось контекст",
@@ -290,7 +290,7 @@
     {
       "method_name": "_handle_reference_query",
       "intent_suffix": "reference",
-      "description": "Handle reference questions and information requests",
+      "description": "Обработка справочных вопросов и информационных запросов",
       "phrases": [
         "что такое",
         "кто такой",
@@ -310,7 +310,7 @@
           "name": "query_topic",
           "type": "string",
           "required": true,
-          "description": "Topic or subject to explain",
+          "description": "Тема или предмет для объяснения",
           "extraction_patterns": [
             {
               "pattern": [
@@ -465,7 +465,7 @@
     {
       "method_name": "_handle_continue_conversation",
       "intent_suffix": "general",
-      "description": "Handle general conversation continuation and fallback",
+      "description": "Обработка общего продолжения разговора и резервных вариантов",
       "phrases": [
         "продолжим",
         "еще поговорим",
@@ -483,7 +483,7 @@
           "name": "context_reference",
           "type": "string",
           "required": false,
-          "description": "Reference to previous conversation context",
+          "description": "Ссылка на предыдущий контекст разговора",
           "extraction_patterns": [
             {
               "pattern": [

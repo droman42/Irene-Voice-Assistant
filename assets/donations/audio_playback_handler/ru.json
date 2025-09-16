@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "audio",
-  "description": "Audio playback control commands - music and audio control",
+  "description": "Команды управления воспроизведением аудио - управление музыкой и звуком",
   "intent_name_patterns": [],
   "action_patterns": [],
   "action_domain_priority": 90,
@@ -30,14 +30,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_play_audio",
       "intent_suffix": "play",
-      "description": "Start audio playback",
+      "description": "Начать воспроизведение аудио",
       "phrases": [
         "играй музыку",
         "воспроизведи файл",
@@ -65,7 +65,7 @@
           "name": "file_path",
           "type": "string",
           "required": false,
-          "description": "Path to audio file to play",
+          "description": "Путь к аудиофайлу для воспроизведения",
           "extraction_patterns": [
             {
               "pattern": [
@@ -231,7 +231,7 @@
     {
       "method_name": "_handle_stop_audio",
       "intent_suffix": "stop",
-      "description": "Stop audio playback",
+      "description": "Остановить воспроизведение аудио",
       "phrases": [
         "останови аудио",
         "останови музыку",
@@ -341,7 +341,7 @@
     {
       "method_name": "_handle_switch_audio_provider",
       "intent_suffix": "switch",
-      "description": "Switch audio provider",
+      "description": "Переключить аудио провайдер",
       "phrases": [
         "переключись на аудио",
         "смени аудио провайдер",
@@ -361,9 +361,15 @@
       "parameters": [
         {
           "name": "provider",
-          "type": "string",
+          "type": "choice",
           "required": true,
-          "description": "Audio provider to switch to",
+          "choices": [
+            "sounddevice",
+            "pulseaudio",
+            "alsa",
+            "portaudio"
+          ],
+          "description": "Аудио провайдер для переключения",
           "extraction_patterns": [
             {
               "pattern": [
@@ -519,7 +525,7 @@
     {
       "method_name": "_handle_list_audio_providers",
       "intent_suffix": "list",
-      "description": "List available audio providers",
+      "description": "Показать доступные аудио провайдеры",
       "phrases": [
         "покажи аудио провайдеры",
         "список аудио устройств",

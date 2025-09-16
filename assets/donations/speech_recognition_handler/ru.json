@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "speech_recognition",
-  "description": "ASR configuration and speech recognition management",
+  "description": "Конфигурация ASR и управление распознаванием речи",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -17,14 +17,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_show_recognition",
       "intent_suffix": "show",
-      "description": "Show ASR providers and recognition information",
+      "description": "Показать ASR провайдеры и информацию о распознавании",
       "phrases": [
         "покажи распознавание",
         "покажи провайдеры asr",
@@ -142,7 +142,7 @@
     {
       "method_name": "_handle_switch_asr_provider",
       "intent_suffix": "switch",
-      "description": "Switch ASR provider",
+      "description": "Переключить ASR провайдер",
       "phrases": [
         "переключись на whisper",
         "смени asr",
@@ -170,7 +170,7 @@
             "гугл",
             "облако"
           ],
-          "description": "ASR provider to switch to",
+          "description": "ASR провайдер для переключения",
           "extraction_patterns": [
             {
               "pattern": [
@@ -339,7 +339,7 @@
     {
       "method_name": "_handle_switch_language",
       "intent_suffix": "language",
-      "description": "Switch ASR language",
+      "description": "Переключить язык ASR",
       "phrases": [
         "переключи язык",
         "смени язык распознавания",
@@ -366,7 +366,7 @@
             "немецкий",
             "французский"
           ],
-          "description": "Language to switch ASR to",
+          "description": "Язык для переключения ASR",
           "extraction_patterns": [
             {
               "pattern": [
@@ -545,7 +545,7 @@
     {
       "method_name": "_handle_configure_quality",
       "intent_suffix": "quality",
-      "description": "Configure ASR quality settings",
+      "description": "Настроить параметры качества ASR",
       "phrases": [
         "настрой качество",
         "улучши распознавание",
@@ -574,7 +574,7 @@
             "высокое",
             "максимальное"
           ],
-          "description": "Quality level for ASR",
+          "description": "Уровень качества для ASR",
           "extraction_patterns": [
             {
               "pattern": [
@@ -698,7 +698,7 @@
     {
       "method_name": "_handle_configure_microphone",
       "intent_suffix": "microphone",
-      "description": "Configure microphone settings for ASR",
+      "description": "Настроить параметры микрофона для ASR",
       "phrases": [
         "настрой микрофон",
         "смени микрофон",
@@ -721,7 +721,7 @@
           "type": "string",
           "required": false,
           "default_value": "default",
-          "description": "Microphone device to use",
+          "description": "Устройство микрофона для использования",
           "extraction_patterns": [
             {
               "pattern": [

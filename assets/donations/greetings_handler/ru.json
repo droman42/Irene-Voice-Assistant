@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "greeting",
-  "description": "Greeting and farewell interactions with context-aware responses",
+  "description": "Приветствия и прощания с контекстно-зависимыми ответами",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -17,14 +17,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_greeting",
       "intent_suffix": "hello",
-      "description": "Handle hello and greeting messages",
+      "description": "Обработка приветствий и приветственных сообщений",
       "phrases": [
         "привет",
         "здравствуй",
@@ -57,7 +57,7 @@
             "вечер",
             "ночь"
           ],
-          "description": "Time-specific greeting",
+          "description": "Приветствие в зависимости от времени",
           "extraction_patterns": [
             {
               "pattern": [
@@ -171,7 +171,7 @@
     {
       "method_name": "_handle_farewell",
       "intent_suffix": "goodbye",
-      "description": "Handle goodbye and farewell messages",
+      "description": "Обработка прощаний и прощальных сообщений",
       "phrases": [
         "пока",
         "до свидания",
@@ -192,7 +192,7 @@
           "name": "return_time",
           "type": "string",
           "required": false,
-          "description": "When planning to return",
+          "description": "Когда планируется вернуться",
           "extraction_patterns": [
             {
               "pattern": [

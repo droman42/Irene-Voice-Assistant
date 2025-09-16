@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "translation",
-  "description": "Text translation commands via LLM",
+  "description": "Команды перевода текста через LLM",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -17,14 +17,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_translate_text",
       "intent_suffix": "translate",
-      "description": "Translate text using command parsing",
+      "description": "Перевести текст с помощью разбора команды",
       "phrases": [
         "переведи",
         "переводи",
@@ -51,7 +51,7 @@
           "name": "text",
           "type": "string",
           "required": false,
-          "description": "Text to translate (extracted from command)",
+          "description": "Текст для перевода (извлечённый из команды)",
           "extraction_patterns": [
             {
               "pattern": [
@@ -91,7 +91,7 @@
             "русский",
             "английский"
           ],
-          "description": "Target language for translation",
+          "description": "Целевой язык для перевода",
           "extraction_patterns": [
             {
               "pattern": [
@@ -238,7 +238,7 @@
     {
       "method_name": "_handle_translate_specific",
       "intent_suffix": "specific",
-      "description": "Translate specific text with extracted entities",
+      "description": "Перевести конкретный текст с извлечёнными сущностями",
       "phrases": [
         "переведи фразу",
         "переведи слово",
@@ -260,7 +260,7 @@
           "name": "text",
           "type": "string",
           "required": true,
-          "description": "Specific text to translate",
+          "description": "Конкретный текст для перевода",
           "extraction_patterns": [
             {
               "pattern": [
@@ -325,7 +325,7 @@
             "русский",
             "английский"
           ],
-          "description": "Target language for specific translation",
+          "description": "Целевой язык для конкретного перевода",
           "extraction_patterns": [
             {
               "pattern": [

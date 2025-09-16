@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "text_enhancement",
-  "description": "Text improvement and enhancement commands via LLM",
+  "description": "Команды улучшения и редактирования текста через LLM",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -17,14 +17,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_enhance_text",
       "intent_suffix": "enhance",
-      "description": "Enhance text using command parsing",
+      "description": "Улучшить текст с помощью разбора команды",
       "phrases": [
         "улучши",
         "улучшить",
@@ -49,7 +49,7 @@
           "name": "text",
           "type": "string",
           "required": false,
-          "description": "Text to enhance (extracted from command)",
+          "description": "Текст для улучшения (извлечённый из команды)",
           "extraction_patterns": [
             {
               "pattern": [
@@ -208,7 +208,7 @@
     {
       "method_name": "_handle_improve_text",
       "intent_suffix": "improve",
-      "description": "Improve specific text with extracted entities",
+      "description": "Улучшить конкретный текст с извлечёнными сущностями",
       "phrases": [
         "исправь",
         "исправить",
@@ -233,7 +233,7 @@
           "name": "text",
           "type": "string",
           "required": false,
-          "description": "Text to improve",
+          "description": "Текст для улучшения",
           "extraction_patterns": [
             {
               "pattern": [
@@ -285,7 +285,7 @@
             "грамматика",
             "словарь"
           ],
-          "description": "Type of improvement to make",
+          "description": "Тип улучшения для применения",
           "extraction_patterns": [
             {
               "pattern": [
@@ -460,7 +460,7 @@
     {
       "method_name": "_handle_correct_text",
       "intent_suffix": "correct",
-      "description": "Correct text errors and issues",
+      "description": "Исправить ошибки и проблемы в тексте",
       "phrases": [
         "поправь",
         "поправить",
@@ -485,7 +485,7 @@
           "name": "text",
           "type": "string",
           "required": false,
-          "description": "Text to correct",
+          "description": "Текст для исправления",
           "extraction_patterns": [
             {
               "pattern": [
@@ -528,10 +528,17 @@
         },
         {
           "name": "correction_type",
-          "type": "string",
+          "type": "choice",
           "required": false,
           "default_value": "all",
-          "description": "Type of correction to apply",
+          "choices": [
+            "grammar",
+            "spelling",
+            "punctuation",
+            "style",
+            "all"
+          ],
+          "description": "Тип исправления для применения",
           "extraction_patterns": [
             {
               "pattern": [

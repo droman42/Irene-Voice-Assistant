@@ -3,14 +3,14 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "datetime",
-  "description": "Date and time information requests with timezone support",
+  "description": "Запросы информации о дате и времени с поддержкой часовых поясов",
   "global_parameters": [
     {
       "name": "timezone",
       "type": "string",
       "required": false,
       "default_value": "UTC",
-      "description": "Timezone for date/time responses"
+      "description": "Часовой пояс для ответов о дате/времени"
     },
     {
       "name": "language",
@@ -21,7 +21,7 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "intent_name_patterns": [],
@@ -41,7 +41,7 @@
     {
       "method_name": "_handle_time_request",
       "intent_suffix": "current_time",
-      "description": "Get current time information",
+      "description": "Получить текущую информацию о времени",
       "phrases": [
         "сколько времени",
         "который час",

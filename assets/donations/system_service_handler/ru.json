@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "donation_version": "1.0",
   "handler_domain": "service",
-  "description": "System service status, statistics, and health monitoring",
+  "description": "Статус системных сервисов, статистика и мониторинг здоровья",
   "intent_name_patterns": [],
   "action_patterns": [],
   "domain_patterns": [],
@@ -17,14 +17,14 @@
         "русский",
         "английский"
       ],
-      "description": "Response language preference"
+      "description": "Предпочтение языка ответа"
     }
   ],
   "method_donations": [
     {
       "method_name": "_handle_service_status",
       "intent_suffix": "status",
-      "description": "Show current service status and basic information",
+      "description": "Показать текущий статус сервиса и основную информацию",
       "phrases": [
         "статус сервиса",
         "состояние сервиса",
@@ -44,7 +44,7 @@
           "name": "component",
           "type": "string",
           "required": false,
-          "description": "Specific service component to check",
+          "description": "Конкретный компонент сервиса для проверки",
           "extraction_patterns": [
             {
               "pattern": [
@@ -169,7 +169,7 @@
     {
       "method_name": "_handle_service_stats",
       "intent_suffix": "stats",
-      "description": "Show detailed service statistics and metrics",
+      "description": "Показать подробную статистику сервиса и метрики",
       "phrases": [
         "статистика сервиса",
         "статистика системы",
@@ -188,9 +188,16 @@
       "parameters": [
         {
           "name": "metric_type",
-          "type": "string",
+          "type": "choice",
           "required": false,
-          "description": "Type of statistics to show",
+          "choices": [
+            "performance",
+            "memory",
+            "cpu",
+            "network",
+            "all"
+          ],
+          "description": "Тип статистики для отображения",
           "extraction_patterns": [
             {
               "pattern": [
@@ -319,7 +326,7 @@
     {
       "method_name": "_handle_service_health",
       "intent_suffix": "health",
-      "description": "Check service health and diagnostic information",
+      "description": "Проверить здоровье сервиса и диагностическую информацию",
       "phrases": [
         "здоровье сервиса",
         "здоровье системы",
@@ -342,7 +349,7 @@
           "type": "boolean",
           "required": false,
           "default_value": false,
-          "description": "Show detailed health information",
+          "description": "Показать подробную информацию о здоровье",
           "extraction_patterns": [
             {
               "pattern": [
