@@ -625,6 +625,126 @@ class IntentAssetLoader:
         
         return handlers_languages
     
+    # ============================================================
+    # TEMPLATE MANAGEMENT API (Phase 6)
+    # ============================================================
+    
+    def get_template_for_language_editing(self, handler_name: str, language: str) -> Optional[Dict[str, Any]]:
+        """Get language-specific template data for editing purposes"""
+        asset_handler_name = self._get_asset_handler_name(handler_name)
+        lang_file = self.assets_root / "templates" / asset_handler_name / f"{language}.yaml"
+        
+        if lang_file.exists():
+            try:
+                with open(lang_file, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f) or {}
+            except Exception as e:
+                logger.error(f"Failed to load template file {lang_file}: {e}")
+                return None
+        
+        return None
+    
+    def save_template_for_language(self, handler_name: str, language: str, template_data: Dict[str, Any]) -> bool:
+        """Save language-specific template data for editing"""
+        asset_handler_name = self._get_asset_handler_name(handler_name)
+        lang_dir = self.assets_root / "templates" / asset_handler_name
+        lang_dir.mkdir(parents=True, exist_ok=True)
+        
+        lang_file = lang_dir / f"{language}.yaml"
+        try:
+            with open(lang_file, 'w', encoding='utf-8') as f:
+                yaml.dump(template_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            
+            logger.info(f"Saved {language} template for handler '{handler_name}' to {lang_file}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save template file {lang_file}: {e}")
+            return False
+    
+    async def reload_templates_for_handler(self, handler_name: str) -> bool:
+        """Reload templates for a specific handler after language file changes"""
+        try:
+            await self._load_templates([handler_name])
+            logger.info(f"Reloaded templates for handler '{handler_name}'")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to reload templates for handler '{handler_name}': {e}")
+            return False
+    
+    def get_available_template_languages_for_handler(self, handler_name: str) -> List[str]:
+        """Get list of available template language files for handler"""
+        asset_handler_name = self._get_asset_handler_name(handler_name)
+        lang_dir = self.assets_root / "templates" / asset_handler_name
+        
+        if not lang_dir.exists():
+            return []
+        
+        return [lang_file.stem for lang_file in lang_dir.glob("*.yaml")]
+    
+    def get_handlers_with_templates(self) -> Dict[str, List[str]]:
+        """Get all handlers that have template files with their available languages"""
+        handlers_languages = {}
+        templates_dir = self.assets_root / "templates"
+        
+        if not templates_dir.exists():
+            return handlers_languages
+        
+        for handler_dir in templates_dir.iterdir():
+            if handler_dir.is_dir():
+                # Convert asset handler name back to handler name
+                handler_name = handler_dir.name
+                if handler_name.endswith('_handler'):
+                    handler_name = handler_name[:-8]  # Remove '_handler' suffix
+                
+                languages = [lang_file.stem for lang_file in handler_dir.glob("*.yaml")]
+                if languages:
+                    handlers_languages[handler_name] = sorted(languages)
+        
+        return handlers_languages
+    
+    async def validate_template_data(self, handler_name: str, template_data: Dict[str, Any]) -> tuple[bool, List[Dict[str, str]], List[Dict[str, str]]]:
+        """Validate template data structure"""
+        errors = []
+        warnings = []
+        
+        try:
+            # Basic YAML structure validation
+            if not isinstance(template_data, dict):
+                errors.append({
+                    "field": "root",
+                    "message": "Template data must be a dictionary/object",
+                    "severity": "error"
+                })
+                return False, errors, warnings
+            
+            # Check for common template keys and types
+            for key, value in template_data.items():
+                if not isinstance(key, str):
+                    errors.append({
+                        "field": key,
+                        "message": "Template keys must be strings",
+                        "severity": "error"
+                    })
+                    continue
+                
+                # Validate template value types (can be strings, arrays, or objects)
+                if not isinstance(value, (str, list, dict)):
+                    warnings.append({
+                        "field": key,
+                        "message": f"Template value has unusual type: {type(value).__name__}",
+                        "severity": "warning"
+                    })
+            
+            return len(errors) == 0, errors, warnings
+            
+        except Exception as e:
+            errors.append({
+                "field": "validation",
+                "message": f"Validation error: {str(e)}",
+                "severity": "error"
+            })
+            return False, errors, warnings
+
     def validate_cross_language_consistency(self, handler_name: str) -> Dict[str, Any]:
         """Validate consistency across language files for a handler"""
         languages = self.get_available_languages_for_handler(handler_name)

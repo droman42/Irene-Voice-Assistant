@@ -321,7 +321,12 @@ class IntentComponent(Component, WebAPIPlugin):
                 CrossLanguageValidationResponse, ValidationReportSchema, CompletenessReportSchema,
                 SyncParametersRequest, SyncParametersResponse,
                 SuggestTranslationsRequest, SuggestTranslationsResponse,
-                TranslationSuggestionsSchema, MissingPhraseInfo
+                TranslationSuggestionsSchema, MissingPhraseInfo,
+                # Phase 6: Template management schemas
+                TemplateContentResponse, TemplateUpdateRequest, TemplateUpdateResponse,
+                TemplateValidationRequest, TemplateValidationResponse,
+                CreateTemplateLanguageRequest, CreateTemplateLanguageResponse, DeleteTemplateLanguageResponse,
+                TemplateHandlerListResponse, TemplateMetadata
             )
             from ..core.donations import HandlerDonation
             
@@ -1022,6 +1027,296 @@ class IntentComponent(Component, WebAPIPlugin):
                     )
                 except Exception as e:
                     raise HTTPException(500, f"Failed to reload donation: {str(e)}")
+            
+            # ============================================================
+            # TEMPLATE MANAGEMENT ENDPOINTS (Phase 6)
+            # ============================================================
+            
+            @router.get("/templates", response_model=TemplateHandlerListResponse)
+            async def get_template_handlers():
+                """List all handlers with template language info"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    handlers_languages = asset_loader.get_handlers_with_templates()
+                    
+                    handlers_info = []
+                    for handler_name, languages in handlers_languages.items():
+                        handlers_info.append(HandlerLanguageInfo(
+                            handler_name=handler_name,
+                            languages=languages,
+                            total_languages=len(languages),
+                            supported_languages=asset_loader.config.supported_languages,
+                            default_language=asset_loader.config.default_language
+                        ))
+                    
+                    return TemplateHandlerListResponse(
+                        success=True,
+                        handlers=handlers_info,
+                        total_handlers=len(handlers_info)
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get template handlers: {str(e)}")
+            
+            @router.get("/templates/{handler_name}/languages", response_model=List[str])
+            async def get_template_handler_languages(handler_name: str):
+                """Get available languages for a handler's templates"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    languages = asset_loader.get_available_template_languages_for_handler(handler_name)
+                    
+                    if not languages:
+                        raise HTTPException(404, f"No template language files found for handler '{handler_name}'")
+                    
+                    return languages
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get template handler languages: {str(e)}")
+            
+            @router.get("/templates/{handler_name}/{language}", response_model=TemplateContentResponse)
+            async def get_language_template(handler_name: str, language: str):
+                """Get language-specific template content for editing"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Get language-specific template data
+                    template_data = asset_loader.get_template_for_language_editing(handler_name, language)
+                    if template_data is None:
+                        raise HTTPException(404, f"Language '{language}' not found for handler '{handler_name}' templates")
+                    
+                    # Get metadata
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "templates" / asset_handler_name / f"{language}.yaml"
+                    
+                    if not lang_file.exists():
+                        raise HTTPException(404, f"Template language file not found: {lang_file}")
+                    
+                    stat = lang_file.stat()
+                    metadata = TemplateMetadata(
+                        file_path=f"{asset_handler_name}/{language}.yaml",
+                        language=language,
+                        file_size=stat.st_size,
+                        last_modified=stat.st_mtime,
+                        template_count=len(template_data) if isinstance(template_data, dict) else 0
+                    )
+                    
+                    # Get available languages
+                    available_languages = asset_loader.get_available_template_languages_for_handler(handler_name)
+                    
+                    # Schema info for template structure
+                    schema_info = {
+                        "expected_keys": list(template_data.keys()) if isinstance(template_data, dict) else [],
+                        "key_types": {
+                            key: type(value).__name__.lower() for key, value in template_data.items()
+                        } if isinstance(template_data, dict) else {}
+                    }
+                    
+                    return TemplateContentResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        template_data=template_data,
+                        metadata=metadata,
+                        available_languages=available_languages,
+                        schema_info=schema_info
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get language template: {str(e)}")
+            
+            @router.put("/templates/{handler_name}/{language}", response_model=TemplateUpdateResponse)
+            async def update_language_template(handler_name: str, language: str, request: TemplateUpdateRequest):
+                """Update language-specific template and trigger reload"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    validation_passed = True
+                    errors = []
+                    warnings = []
+                    
+                    # Validate before saving if requested
+                    if request.validate_before_save:
+                        is_valid, error_list, warning_list = await asset_loader.validate_template_data(
+                            handler_name, request.template_data
+                        )
+                        validation_passed = is_valid
+                        errors = [ValidationError(**err) for err in error_list]
+                        warnings = [ValidationWarning(**warn) for warn in warning_list]
+                        
+                        if not is_valid:
+                            return TemplateUpdateResponse(
+                                success=False,
+                                handler_name=handler_name,
+                                language=language,
+                                validation_passed=False,
+                                reload_triggered=False,
+                                backup_created=False,
+                                errors=errors,
+                                warnings=warnings
+                            )
+                    
+                    # Save template data
+                    try:
+                        saved = asset_loader.save_template_for_language(handler_name, language, request.template_data)
+                        if not saved:
+                            raise HTTPException(500, "Failed to save template language file")
+                    except Exception as e:
+                        raise HTTPException(400, f"Invalid template data: {str(e)}")
+                    
+                    # Trigger template reload if requested
+                    reload_triggered = False
+                    if request.trigger_reload:
+                        try:
+                            reload_success = await asset_loader.reload_templates_for_handler(handler_name)
+                            if reload_success:
+                                reload_triggered = True
+                        except Exception as e:
+                            logger.warning(f"Template saved but reload failed: {e}")
+                    
+                    return TemplateUpdateResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        validation_passed=validation_passed,
+                        reload_triggered=reload_triggered,
+                        backup_created=False,  # TODO: Implement backup functionality
+                        errors=errors,
+                        warnings=warnings
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to update language template: {str(e)}")
+            
+            @router.post("/templates/{handler_name}/{language}/validate", response_model=TemplateValidationResponse)
+            async def validate_language_template(handler_name: str, language: str, request: TemplateValidationRequest):
+                """Validate language-specific template data without saving"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    is_valid, error_list, warning_list = await asset_loader.validate_template_data(
+                        handler_name, request.template_data
+                    )
+                    
+                    errors = [ValidationError(**err) for err in error_list]
+                    warnings = [ValidationWarning(**warn) for warn in warning_list]
+                    
+                    return TemplateValidationResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        is_valid=is_valid,
+                        errors=errors,
+                        warnings=warnings,
+                        validation_types=["yaml_structure", "template_types"]
+                    )
+                    
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to validate template: {str(e)}")
+            
+            @router.delete("/templates/{handler_name}/{language}", response_model=DeleteTemplateLanguageResponse)
+            async def delete_template_language(handler_name: str, language: str):
+                """Delete language-specific template file"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "templates" / asset_handler_name / f"{language}.yaml"
+                    
+                    if not lang_file.exists():
+                        raise HTTPException(404, f"Template language file not found: {lang_file}")
+                    
+                    # Delete the file
+                    lang_file.unlink()
+                    
+                    # Reload templates to update cache
+                    await asset_loader.reload_templates_for_handler(handler_name)
+                    
+                    return DeleteTemplateLanguageResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        deleted=True,
+                        backup_created=False  # TODO: Implement backup functionality
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to delete template language: {str(e)}")
+            
+            @router.post("/templates/{handler_name}/{language}", response_model=CreateTemplateLanguageResponse)
+            async def create_template_language(handler_name: str, language: str, request: CreateTemplateLanguageRequest):
+                """Create new language file for template"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "templates" / asset_handler_name / f"{language}.yaml"
+                    
+                    if lang_file.exists():
+                        raise HTTPException(409, f"Template language file already exists: {lang_file}")
+                    
+                    # Create new template data
+                    template_data = {}
+                    copied_from = None
+                    
+                    if request.copy_from and not request.use_template:
+                        # Copy from existing language
+                        source_data = asset_loader.get_template_for_language_editing(handler_name, request.copy_from)
+                        if source_data:
+                            template_data = source_data
+                            copied_from = request.copy_from
+                        else:
+                            raise HTTPException(404, f"Source language '{request.copy_from}' not found for copying")
+                    elif request.use_template:
+                        # Use empty template
+                        template_data = {
+                            "success": "Operation completed successfully",
+                            "error": "An error occurred",
+                            "welcome": "Welcome to the system"
+                        }
+                    
+                    # Save the new language file
+                    saved = asset_loader.save_template_for_language(handler_name, language, template_data)
+                    if not saved:
+                        raise HTTPException(500, "Failed to create template language file")
+                    
+                    # Reload templates to update cache
+                    await asset_loader.reload_templates_for_handler(handler_name)
+                    
+                    return CreateTemplateLanguageResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        created=True,
+                        copied_from=copied_from
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to create template language: {str(e)}")
             
             return router
             

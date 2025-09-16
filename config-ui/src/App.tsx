@@ -14,6 +14,7 @@ import Layout from '@/components/layout/Layout'
 // Page components
 import OverviewPage from '@/pages/OverviewPage'
 import DonationsPage from '@/pages/DonationsPage'
+import TemplatesPage from '@/pages/TemplatesPage'
 import MonitoringPage from '@/pages/MonitoringPage'
 import ConfigurationPage from '@/pages/ConfigurationPage'
 
@@ -32,6 +33,9 @@ const App: React.FC = () => {
           
           {/* Donations management */}
           <Route path="/donations" element={<DonationsPage />} />
+          
+          {/* Templates management */}
+          <Route path="/templates" element={<TemplatesPage />} />
           
           {/* Monitoring dashboard */}
           <Route path="/monitoring" element={<MonitoringPage />} />

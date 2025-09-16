@@ -790,6 +790,90 @@ class SuggestTranslationsResponse(BaseAPIResponse):
 
 
 # ============================================================
+# TEMPLATE MANAGEMENT SCHEMAS (Phase 6)
+# ============================================================
+
+class TemplateMetadata(BaseModel):
+    """Metadata for a language-specific template file"""
+    file_path: str = Field(description="e.g., 'conversation_handler/en.yaml'")
+    language: str = Field(description="Language code")
+    file_size: int = Field(description="File size in bytes")
+    last_modified: float = Field(description="Last modification timestamp")
+    template_count: int = Field(description="Number of templates in the file")
+
+
+class TemplateContentResponse(BaseAPIResponse):
+    """Response for language-specific template content retrieval"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Current language")
+    template_data: Dict[str, Any] = Field(description="Complete template YAML content")
+    metadata: TemplateMetadata = Field(description="File metadata")
+    available_languages: List[str] = Field(description="Other available languages")
+    schema_info: Dict[str, Any] = Field(description="Expected keys and their types")
+
+
+class TemplateUpdateRequest(BaseAPIRequest):
+    """Request to update a language-specific template file"""
+    template_data: Dict[str, Any] = Field(description="Complete template YAML data")
+    validate_before_save: bool = Field(default=True, description="Whether to validate before saving")
+    trigger_reload: bool = Field(default=True, description="Whether to trigger reload after save")
+
+
+class TemplateUpdateResponse(BaseAPIResponse):
+    """Response for language-specific template update operation"""
+    handler_name: str = Field(description="Updated handler name")
+    language: str = Field(description="Updated language")
+    validation_passed: bool = Field(description="Whether validation passed")
+    reload_triggered: bool = Field(description="Whether template reload was triggered")
+    backup_created: bool = Field(description="Whether backup was created")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+
+
+class TemplateValidationRequest(BaseAPIRequest):
+    """Request to validate language-specific template data without saving"""
+    template_data: Dict[str, Any] = Field(description="Template data to validate")
+
+
+class TemplateValidationResponse(BaseAPIResponse):
+    """Response for language-specific template validation operation"""
+    handler_name: str = Field(description="Handler name being validated")
+    language: str = Field(description="Language being validated")
+    is_valid: bool = Field(description="Whether template is valid")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+    validation_types: List[str] = Field(description="Types of validation performed")
+
+
+class CreateTemplateLanguageRequest(BaseAPIRequest):
+    """Request to create a new language file for template"""
+    copy_from: Optional[str] = Field(default=None, description="Language to copy from")
+    use_template: bool = Field(default=False, description="Use empty template instead of copying")
+
+
+class CreateTemplateLanguageResponse(BaseAPIResponse):
+    """Response for template language creation operation"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Created language")
+    created: bool = Field(description="Whether language file was created")
+    copied_from: Optional[str] = Field(default=None, description="Language copied from")
+
+
+class DeleteTemplateLanguageResponse(BaseAPIResponse):
+    """Response for template language deletion operation"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Deleted language")
+    deleted: bool = Field(description="Whether language file was deleted")
+    backup_created: bool = Field(description="Whether backup was created before deletion")
+
+
+class TemplateHandlerListResponse(BaseAPIResponse):
+    """Response for listing handlers with template language info"""
+    handlers: List[HandlerLanguageInfo] = Field(description="List of handlers with language info")
+    total_handlers: int = Field(description="Total number of handlers")
+
+
+# ============================================================
 # INTENT SYSTEM SCHEMAS (EXISTING)
 # ============================================================
 

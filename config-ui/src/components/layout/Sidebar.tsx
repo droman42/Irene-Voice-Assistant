@@ -11,6 +11,7 @@ import {
   ChevronRight, 
   Home, 
   FileText, 
+  Code,
   Activity, 
   Settings,
   Menu,
@@ -41,6 +42,13 @@ const navigationSections: NavigationSection[] = [
     icon: FileText,
     path: '/donations',
     description: 'Edit intent handler donations'
+  },
+  {
+    id: 'templates',
+    title: 'Templates',
+    icon: Code,
+    path: '/templates',
+    description: 'Edit response templates'
   },
   {
     id: 'monitoring',

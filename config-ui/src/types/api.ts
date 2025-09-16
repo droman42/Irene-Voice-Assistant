@@ -315,3 +315,80 @@ export interface SuggestTranslationsRequest {
 export interface SuggestTranslationsResponse extends BaseApiResponse {
   suggestions: TranslationSuggestions;
 }
+
+// ============================================================
+// TEMPLATE MANAGEMENT TYPES (Phase 6)
+// ============================================================
+
+export interface TemplateMetadata {
+  file_path: string;
+  language: string;
+  file_size: number;
+  last_modified: number;
+  template_count: number;
+}
+
+export interface TemplateContentResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  template_data: Record<string, any>;
+  metadata: TemplateMetadata;
+  available_languages: string[];
+  schema_info: {
+    expected_keys: string[];
+    key_types: Record<string, string>;
+  };
+}
+
+export interface TemplateUpdateRequest {
+  template_data: Record<string, any>;
+  validate_before_save?: boolean;
+  trigger_reload?: boolean;
+}
+
+export interface TemplateUpdateResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  validation_passed: boolean;
+  reload_triggered: boolean;
+  backup_created: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+export interface TemplateValidationRequest {
+  template_data: Record<string, any>;
+}
+
+export interface TemplateValidationResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  is_valid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+  validation_types: string[];
+}
+
+export interface CreateTemplateLanguageRequest {
+  copy_from?: string;
+  use_template?: boolean;
+}
+
+export interface CreateTemplateLanguageResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  created: boolean;
+  copied_from?: string;
+}
+
+export interface DeleteTemplateLanguageResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  deleted: boolean;
+  backup_created: boolean;
+}
+
+export interface TemplateHandlerListResponse extends BaseApiResponse {
+  handlers: HandlerLanguageInfo[];
+  total_handlers: number;
+}

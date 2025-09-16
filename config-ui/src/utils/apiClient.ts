@@ -27,7 +27,17 @@ import type {
   SyncParametersRequest,
   SyncParametersResponse,
   SuggestTranslationsRequest,
-  SuggestTranslationsResponse
+  SuggestTranslationsResponse,
+  // Phase 6: Template management types
+  TemplateHandlerListResponse,
+  TemplateContentResponse,
+  TemplateUpdateRequest,
+  TemplateUpdateResponse,
+  TemplateValidationRequest,
+  TemplateValidationResponse,
+  CreateTemplateLanguageRequest,
+  CreateTemplateLanguageResponse,
+  DeleteTemplateLanguageResponse
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -337,6 +347,106 @@ class IreneApiClient {
       console.warn('API connection check failed:', error instanceof Error ? error.message : String(error));
       return false;
     }
+  }
+
+  // ============================================================
+  // TEMPLATE MANAGEMENT API (Phase 6)
+  // ============================================================
+
+  /**
+   * Get all handlers with template language info
+   */
+  async getTemplateHandlers(): Promise<TemplateHandlerListResponse> {
+    return this.get<TemplateHandlerListResponse>('/intents/templates');
+  }
+
+  /**
+   * Get available languages for a handler's templates
+   */
+  async getTemplateHandlerLanguages(handlerName: string): Promise<string[]> {
+    return this.get<string[]>(`/intents/templates/${encodeURIComponent(handlerName)}/languages`);
+  }
+
+  /**
+   * Get language-specific template content
+   */
+  async getLanguageTemplate(handlerName: string, language: string): Promise<TemplateContentResponse> {
+    return this.get<TemplateContentResponse>(
+      `/intents/templates/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`
+    );
+  }
+
+  /**
+   * Update language-specific template
+   */
+  async updateLanguageTemplate(
+    handlerName: string, 
+    language: string, 
+    templateData: Record<string, any>,
+    options: {
+      validateBeforeSave?: boolean;
+      triggerReload?: boolean;
+    } = {}
+  ): Promise<TemplateUpdateResponse> {
+    const requestData: TemplateUpdateRequest = {
+      template_data: templateData,
+      validate_before_save: options.validateBeforeSave ?? true,
+      trigger_reload: options.triggerReload ?? true
+    };
+
+    return this.put<TemplateUpdateResponse>(
+      `/intents/templates/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`,
+      requestData
+    );
+  }
+
+  /**
+   * Validate language-specific template without saving
+   */
+  async validateLanguageTemplate(
+    handlerName: string, 
+    language: string, 
+    templateData: Record<string, any>
+  ): Promise<TemplateValidationResponse> {
+    const requestData: TemplateValidationRequest = {
+      template_data: templateData
+    };
+
+    return this.post<TemplateValidationResponse>(
+      `/intents/templates/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}/validate`,
+      requestData
+    );
+  }
+
+  /**
+   * Delete language-specific template file
+   */
+  async deleteTemplateLanguage(handlerName: string, language: string): Promise<DeleteTemplateLanguageResponse> {
+    return this.delete<DeleteTemplateLanguageResponse>(
+      `/intents/templates/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`
+    );
+  }
+
+  /**
+   * Create new language file for template
+   */
+  async createTemplateLanguage(
+    handlerName: string, 
+    language: string, 
+    options: {
+      copyFrom?: string;
+      useTemplate?: boolean;
+    } = {}
+  ): Promise<CreateTemplateLanguageResponse> {
+    const requestData: CreateTemplateLanguageRequest = {
+      copy_from: options.copyFrom,
+      use_template: options.useTemplate ?? false
+    };
+
+    return this.post<CreateTemplateLanguageResponse>(
+      `/intents/templates/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`,
+      requestData
+    );
   }
 }
 
