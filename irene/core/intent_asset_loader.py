@@ -327,6 +327,24 @@ class IntentAssetLoader:
         
         return None
     
+    def get_prompt_metadata(self, handler_name: str, prompt_type: str, language: str = None) -> Optional[Dict[str, Any]]:
+        """Get LLM prompt metadata for assets editor"""
+        language = language or self.config.default_language
+        
+        handler_prompts = self.prompts.get(handler_name, {})
+        metadata_key = f"{prompt_type}_{language}_metadata"
+        
+        # Try requested language first
+        if metadata_key in handler_prompts:
+            return handler_prompts[metadata_key]
+        
+        # Fallback to default language
+        fallback_key = f"{prompt_type}_{self.config.fallback_language}_metadata"
+        if fallback_key in handler_prompts:
+            return handler_prompts[fallback_key]
+        
+        return None
+    
     def get_localization(self, domain: str, language: str = None) -> Optional[Dict[str, Any]]:
         """Get localization data (arrays, mappings) with language fallback"""
         language = language or self.config.default_language
@@ -411,6 +429,14 @@ class IntentAssetLoader:
                 error_msg = f"Failed to load donation for handler '{handler_name}': {e}"
                 self._add_error(error_msg)
     
+    def _get_asset_handler_name(self, handler_name: str) -> str:
+        """Map handler file name to asset directory name"""
+        # Handler files ending with _handler already have the suffix
+        if handler_name.endswith("_handler"):
+            return handler_name
+        # For files without suffix, add _handler
+        return f"{handler_name}_handler"
+    
     async def _load_templates(self, handler_names: List[str]) -> None:
         """Load response templates (Category B: YAML/JSON/Markdown parsing)"""
         templates_dir = self.assets_root / "templates"
@@ -420,36 +446,36 @@ class IntentAssetLoader:
             return
         
         for handler_name in handler_names:
-            handler_template_dir = templates_dir / handler_name
+            asset_handler_name = self._get_asset_handler_name(handler_name)
+            handler_template_dir = templates_dir / asset_handler_name
             
             if not handler_template_dir.exists():
-                logger.debug(f"No templates directory for handler '{handler_name}', skipping")
+                logger.debug(f"No templates directory for handler '{handler_name}' (looked for '{asset_handler_name}'), skipping")
                 continue
             
             try:
                 handler_templates = {}
                 
-                # Discover template files by language
-                for lang_dir in handler_template_dir.iterdir():
-                    if lang_dir.is_dir():
-                        language = lang_dir.name
-                        lang_templates = await self._load_language_templates(lang_dir)
-                        
-                        # Merge templates by name
-                        for template_name, content in lang_templates.items():
-                            if template_name not in handler_templates:
-                                handler_templates[template_name] = {}
-                            handler_templates[template_name][language] = content
+                # NEW: Load consolidated language files directly (lang.yaml pattern)
+                for lang_file in handler_template_dir.glob("*.yaml"):
+                    language = lang_file.stem
+                    lang_templates = await self._load_language_file(lang_file)
+                    
+                    # Merge templates by name
+                    for template_name, content in lang_templates.items():
+                        if template_name not in handler_templates:
+                            handler_templates[template_name] = {}
+                        handler_templates[template_name][language] = content
                 
                 if handler_templates:
                     self.templates[handler_name] = handler_templates
-                    logger.debug(f"Loaded {len(handler_templates)} template sets for handler '{handler_name}'")
+                    logger.debug(f"Loaded {len(handler_templates)} template sets for handler '{handler_name}' from '{asset_handler_name}'")
                 
             except Exception as e:
                 self._add_warning(f"Failed to load templates for handler '{handler_name}': {e}")
     
     async def _load_prompts(self, handler_names: List[str]) -> None:
-        """Load LLM prompts (Category A1: Text file loading)"""
+        """Load LLM prompts from YAML files with metadata (YAML format only)"""
         prompts_dir = self.assets_root / "prompts"
         
         if not prompts_dir.exists():
@@ -457,30 +483,42 @@ class IntentAssetLoader:
             return
         
         for handler_name in handler_names:
-            handler_prompt_dir = prompts_dir / handler_name
+            asset_handler_name = self._get_asset_handler_name(handler_name)
+            handler_prompt_dir = prompts_dir / asset_handler_name
             
             if not handler_prompt_dir.exists():
-                logger.debug(f"No prompts directory for handler '{handler_name}', skipping")
+                logger.debug(f"No prompts directory for handler '{handler_name}' (looked for '{asset_handler_name}'), skipping")
                 continue
             
             try:
                 handler_prompts = {}
                 
-                # Discover prompt files by language
-                for lang_dir in handler_prompt_dir.iterdir():
-                    if lang_dir.is_dir():
-                        language = lang_dir.name
+                # NEW: Load consolidated language files directly (lang.yaml pattern)
+                for lang_file in handler_prompt_dir.glob("*.yaml"):
+                    language = lang_file.stem
+                    
+                    with open(lang_file, 'r', encoding='utf-8') as f:
+                        data = yaml.safe_load(f)
                         
-                        for prompt_file in lang_dir.glob("*.txt"):
-                            prompt_type = prompt_file.stem
-                            prompt_key = f"{prompt_type}_{language}"
-                            
-                            with open(prompt_file, 'r', encoding='utf-8') as f:
-                                handler_prompts[prompt_key] = f.read().strip()
+                        # Extract prompt content from YAML structure
+                        for prompt_type, prompt_data in data.items():
+                            if isinstance(prompt_data, dict) and 'content' in prompt_data:
+                                prompt_key = f"{prompt_type}_{language}"
+                                # Store just the content for backward compatibility
+                                handler_prompts[prompt_key] = prompt_data['content'].strip()
+                                
+                                # Store full metadata for assets editor API
+                                metadata_key = f"{prompt_type}_{language}_metadata"
+                                handler_prompts[metadata_key] = {
+                                    'description': prompt_data.get('description', ''),
+                                    'usage_context': prompt_data.get('usage_context', ''),
+                                    'variables': prompt_data.get('variables', []),
+                                    'prompt_type': prompt_data.get('prompt_type', 'system')
+                                }
                 
                 if handler_prompts:
                     self.prompts[handler_name] = handler_prompts
-                    logger.debug(f"Loaded {len(handler_prompts)} prompts for handler '{handler_name}'")
+                    logger.debug(f"Loaded {len([k for k in handler_prompts.keys() if not k.endswith('_metadata')])} prompts for handler '{handler_name}' from '{asset_handler_name}'")
                 
             except Exception as e:
                 self._add_warning(f"Failed to load prompts for handler '{handler_name}': {e}")
@@ -611,8 +649,37 @@ class IntentAssetLoader:
             else:
                 self._add_warning(f"Could not validate method existence for {handler_name}: {e}")
     
+    async def _load_language_file(self, lang_file: Path) -> Dict[str, str]:
+        """Load template/prompt data from a single language file (YAML and JSON formats only)"""
+        templates = {}
+        
+        try:
+            if lang_file.suffix == '.yaml':
+                with open(lang_file, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f)
+                    if isinstance(data, dict):
+                        templates.update(data)
+                    else:
+                        logger.warning(f"Expected dict in {lang_file}, got {type(data)}")
+            
+            elif lang_file.suffix == '.json':
+                with open(lang_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        templates.update(data)
+                    else:
+                        logger.warning(f"Expected dict in {lang_file}, got {type(data)}")
+            
+            else:
+                logger.debug(f"Skipping unknown file type: {lang_file}")
+        
+        except Exception as e:
+            self._add_warning(f"Failed to load language file {lang_file}: {e}")
+        
+        return templates
+    
     async def _load_language_templates(self, lang_dir: Path) -> Dict[str, str]:
-        """Load template files for a specific language"""
+        """Load template files for a specific language (YAML and JSON formats only) - LEGACY"""
         templates = {}
         
         for template_file in lang_dir.iterdir():
@@ -639,10 +706,6 @@ class IntentAssetLoader:
                                 templates.update(data)
                             else:
                                 templates[template_name] = str(data)
-                    
-                    elif template_file.suffix in ['.md', '.txt']:
-                        with open(template_file, 'r', encoding='utf-8') as f:
-                            templates[template_name] = f.read().strip()
                     
                     else:
                         logger.debug(f"Skipping unknown template file type: {template_file}")

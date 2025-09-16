@@ -1,0 +1,7 @@
+# Russian templates for text_enhancement_handler
+# Consolidated from multiple files
+
+enhanced_text: 'Улучшенный текст: {enhanced}'
+improved_text: 'Улучшенный текст: {improved}'
+corrected_text: 'Исправленный текст: {corrected}'
+error_enhancement: 'Ошибка улучшения текста: {error}'

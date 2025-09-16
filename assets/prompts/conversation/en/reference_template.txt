@@ -1,1 +1,0 @@
-Question: {0}. Answer in English as briefly as possible - only the requested data.

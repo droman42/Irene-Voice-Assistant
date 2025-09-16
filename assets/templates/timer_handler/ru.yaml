@@ -1,0 +1,23 @@
+# Russian templates for timer_handler
+# Consolidated from multiple files
+
+timer_set_success: 'Таймер установлен на {time_str}. Сообщение: {message}'
+timer_set_error: 'Ошибка в настройке таймера: {error}'
+timer_duration_parse_error: 'Не удалось определить время для таймера. Попробуйте сказать,
+  например: ''поставь таймер на 5 минут''.'
+timer_cancel_success: Отменяю таймер {timer_id}
+timer_cancel_all_success: Отменяю {count} таймеров
+timer_cancel_not_found: Таймер {timer_id} не найден.
+timer_no_active: У вас нет активных таймеров.
+timer_list_active: 'Активные таймеры ({count}):
+
+  {timer_list}'
+timer_list_empty: У вас нет активных таймеров.
+timer_list_expired: Все ваши таймеры уже завершились.
+timer_status_remaining: 'Таймер {timer_id}: осталось {time_str}.'
+timer_status_expired: Таймер {timer_id} уже завершился.
+stop_all_timers: Останавливаю все таймеры ({count})
+stop_no_timers: Нет активных таймеров для остановки
+stop_not_timer_domain: Команда остановки не относится к таймерам
+general_error: Извините, произошла ошибка при работе с таймером.
+timer_completed_default: Таймер завершён!

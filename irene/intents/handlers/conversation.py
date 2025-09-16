@@ -201,7 +201,7 @@ class ConversationIntentHandler(IntentHandler):
         if prompt is None:
             raise RuntimeError(
                 f"ConversationIntentHandler: Required prompt '{prompt_type}' for language '{language}' "
-                f"not found in assets/prompts/conversation/{language}/{prompt_type}.txt. "
+                f"not found in assets/prompts/conversation/{language}/conversation_prompts.yaml. "
                 f"This is a fatal error - all conversation prompts must be externalized."
             )
         

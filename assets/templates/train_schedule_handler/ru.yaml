@@ -1,0 +1,15 @@
+# Russian templates for train_schedule_handler
+# Consolidated from multiple files
+
+missing_dependency: Функция расписания поездов недоступна. Отсутствует библиотека
+  requests.
+missing_api_key: Нужен ключ API для получения расписания
+schedule_unavailable: Не удалось получить расписание поездов
+execution_error: Проблемы с расписанием. Посмотрите логи
+schedule_not_found: Расписание не найдено
+no_trains_today: Не найдено поездов на сегодня
+schedule_parsing_error: Ошибка обработки расписания
+next_train_first: Ближайшая электричка в {hours} {minutes}
+next_train_second: Следующая в {hours} {minutes}
+next_train_third: Дальше в {hours} {minutes}
+general_error: Извините, произошла ошибка при получении расписания поездов.

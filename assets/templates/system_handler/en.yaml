@@ -1,0 +1,46 @@
+# English system message templates for SystemIntentHandler
+# Converted from MD format to YAML for consistency
+
+general: |
+  I'm Irene, your intelligent voice assistant running on v{version}.
+  I use modern intent-based processing to understand and respond to your requests.
+  Ask me for help to learn about my capabilities!
+
+help: |
+  I'm Irene, your voice assistant. Here's what I can help you with:
+
+  🗣️ **Conversation**: Just talk to me naturally
+  ⏰ **Timers**: "Set timer for 5 minutes"
+  📅 **Date & Time**: "What time is it?" or "What's today's date?"
+  👋 **Greetings**: Say hello or goodbye
+  🔧 **System**: Ask for status, version, or help
+
+  You can speak to me in Russian or English. How can I help you today?
+
+info: |
+  System Information:
+  💻 Assistant: Irene v{version}
+  🕐 Session started: {session_start_time}
+  💬 Messages exchanged: {message_count}
+  🎯 Current session: {session_id}
+  🧠 Processing mode: Intent-based NLU
+
+  Ready to assist you!
+
+status: |
+  System Status: ✅ Running
+  Uptime: {uptime_str}
+  Version: Irene v{version}
+  Mode: Intent-based processing
+  Language: Bilingual (Russian/English)
+
+  All systems operational!
+
+version: |
+  Irene Voice Assistant v{version}
+  🤖 Modern async voice assistant
+  🧠 Intent-based natural language processing
+  🗣️ Bilingual support (Russian/English)
+  🔧 Component-based architecture
+
+  Built with modern Python async/await patterns.

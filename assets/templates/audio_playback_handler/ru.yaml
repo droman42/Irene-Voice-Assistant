@@ -1,0 +1,10 @@
+# Russian templates for audio_playback_handler
+# Consolidated from multiple files
+
+start_playback: 'Начинаю воспроизведение аудио: {audio_file}'
+stop_playback: Останавливаю воспроизведение аудио
+stop_audio: Останавливаю аудио
+provider_switched: Переключился на аудио провайдер {provider_name}
+provider_unknown: 'Неизвестный провайдер. Доступные: {available}'
+error_general: 'Ошибка: {error}'
+command_not_audio: Команда остановки не относится к аудио

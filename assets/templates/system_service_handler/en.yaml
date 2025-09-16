@@ -1,0 +1,48 @@
+# English templates for system_service_handler
+# Consolidated from multiple files
+
+service_status_info: '🔧 System Status:
+
+  • Service: 🟢 Running
+
+  • Heartbeats: {heartbeats}
+
+  • Last heartbeat: {last_heartbeat}
+
+  • Uptime: {uptime}
+
+  '
+service_stats_info: '📊 Service Statistics:
+
+  • Total heartbeats: {total_heartbeats}
+
+  • Service running: Yes
+
+  • Background tasks: 1
+
+  • Memory efficient: ✅ (async implementation)
+
+  • Non-blocking: ✅ (doesn''t block main thread)
+
+  • Resource usage: Minimal
+
+  '
+service_health_info: '💚 System Health:
+
+  • Overall health: {health_score}% healthy
+
+  • Uptime: {uptime}
+
+  • Last activity: {last_activity}
+
+  • Issues: None detected
+
+  • Performance: Optimal
+
+  '
+uptime_seconds: '{seconds} seconds'
+uptime_minutes: '{minutes} minute{plural_s}'
+uptime_hours: '{hours} hour{plural_s}'
+uptime_no_heartbeats: No heartbeats yet
+general_error: Sorry, an error occurred while checking the system service.
+unavailable_error: System service monitoring is currently unavailable.

@@ -1,0 +1,21 @@
+# Russian templates for random_handler
+# Consolidated from multiple files
+
+coin_results:
+- Выпал орёл
+- Выпала решка
+dice_results:
+- Выпала единица
+- Выпало два
+- Выпало три
+- Выпало четыре
+- Выпало пять
+- Выпало шесть
+random_number: 'Случайное число: {number}'
+random_choice: 'Выбрано: {choice}'
+invalid_dice_params: Некорректные параметры кубика
+invalid_number_range: Некорректный диапазон чисел
+no_options: Не указаны варианты для выбора
+choice_error: Ошибка при выборе варианта
+dice_multiple: 'Выпало: {rolls}'
+dice_with_total: 'Выпало: {rolls} (сумма: {total})'

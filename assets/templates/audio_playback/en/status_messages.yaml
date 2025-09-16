@@ -1,7 +1,0 @@
-start_playback: "Starting audio playback: {audio_file}"
-stop_playback: "Stopping audio playback"
-stop_audio: "Stopping audio"
-provider_switched: "Switched to audio provider {provider_name}"
-provider_unknown: "Unknown provider. Available: {available}"
-error_general: "Error: {error}"
-command_not_audio: "Stop command not related to audio"

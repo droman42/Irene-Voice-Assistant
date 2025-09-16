@@ -160,7 +160,7 @@ class SystemIntentHandler(IntentHandler):
         if template_content is None:
             raise RuntimeError(
                 f"SystemIntentHandler: Required template '{template_name}' for language '{language}' "
-                f"not found in assets/templates/system/{language}/{template_name}.md. "
+                f"not found in assets/templates/system/{language}/system_messages.yaml. "
                 f"This is a fatal error - all system templates must be externalized."
             )
         
@@ -170,7 +170,7 @@ class SystemIntentHandler(IntentHandler):
         except KeyError as e:
             raise RuntimeError(
                 f"SystemIntentHandler: Template '{template_name}' missing required format argument: {e}. "
-                f"Check assets/templates/system/{language}/{template_name}.md for correct placeholders."
+                f"Check assets/templates/system/{language}/system_messages.yaml for correct placeholders."
             )
     
     async def _handle_help_request(self, intent: Intent, context: ConversationContext) -> IntentResult:

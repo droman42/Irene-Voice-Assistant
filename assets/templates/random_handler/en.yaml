@@ -1,0 +1,21 @@
+# English templates for random_handler
+# Consolidated from multiple files
+
+coin_results:
+- Heads!
+- Tails!
+dice_results:
+- You rolled a one
+- You rolled a two
+- You rolled a three
+- You rolled a four
+- You rolled a five
+- You rolled a six
+random_number: 'Random number: {number}'
+random_choice: 'Chosen: {choice}'
+invalid_dice_params: 'Invalid dice parameters: {error}'
+invalid_number_range: 'Invalid number range: {error}'
+no_options: No options provided for choice
+choice_error: 'Error making choice: {error}'
+dice_multiple: 'Rolled: {rolls}'
+dice_with_total: 'Rolled: {rolls} (total: {total})'

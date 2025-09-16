@@ -1,0 +1,9 @@
+# Russian templates for speech_recognition_handler
+# Consolidated from multiple files
+
+error_configuration: 'Ошибка настройки распознавания речи: {error}'
+quality_not_implemented: Настройка качества распознавания речи ({quality}) пока не
+  реализована
+microphone_not_implemented: Настройка микрофона ({microphone}) пока не реализована
+provider_switched: Переключился на {provider_name}
+provider_unavailable: Провайдер {provider_name} недоступен

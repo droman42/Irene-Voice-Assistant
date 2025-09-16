@@ -1,0 +1,15 @@
+# English templates for train_schedule_handler
+# Consolidated from multiple files
+
+missing_dependency: Train schedule functionality is unavailable. Missing requests
+  library.
+missing_api_key: API key required to get train schedule
+schedule_unavailable: Could not retrieve train schedule
+execution_error: Problems with schedule. Check logs
+schedule_not_found: Schedule not found
+no_trains_today: No trains found for today
+schedule_parsing_error: Error processing schedule
+next_train_first: Next train at {hours}:{minutes}
+next_train_second: Following train at {hours}:{minutes}
+next_train_third: Later train at {hours}:{minutes}
+general_error: Sorry, an error occurred while retrieving train schedule.

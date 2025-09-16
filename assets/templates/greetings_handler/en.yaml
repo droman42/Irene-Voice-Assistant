@@ -1,0 +1,36 @@
+# English templates for greetings_handler
+# Consolidated from multiple files
+
+greetings:
+- Hello! How are you today?
+- Hi there! What can I do for you?
+- Welcome! I'm ready to help.
+- Greetings! What shall we do?
+- Hello! Nice to see you.
+- Hi! I'm here and ready to assist.
+- Good day! How can I help?
+- Welcome back! What's on the agenda?
+- Hello! Let's get started.
+- Hi! Ready for some assistance?
+farewells:
+- Goodbye! Have a great day!
+- See you later! Take care.
+- Farewell! It was nice helping you.
+- Bye! Hope to see you again soon.
+- Goodbye! Wishing you all the best.
+- Take care! Have a wonderful time.
+- See you next time! Stay safe.
+- Bye-bye! Until we meet again.
+- Farewell! Enjoy your day.
+- Goodbye! It was a pleasure helping.
+welcome_messages:
+- Welcome! I'm Irene, your voice assistant. How can I help you?
+- Hello! My name is Irene. I'm ready to assist you.
+- Greetings! I'm your personal assistant Irene. What shall we do?
+- Welcome to the system! I'm Irene, ready to help with your tasks.
+- Hello! Irene at your service. What can I do for you today?
+time_based_greetings:
+  morning: Good morning!
+  afternoon: Good afternoon!
+  evening: Good evening!
+  night: Good night!

@@ -1,0 +1,9 @@
+# English templates for speech_recognition_handler
+# Consolidated from multiple files
+
+error_configuration: 'Speech recognition configuration error: {error}'
+quality_not_implemented: Speech recognition quality configuration ({quality}) not
+  yet implemented
+microphone_not_implemented: Microphone configuration ({microphone}) not yet implemented
+provider_switched: Switched to {provider_name}
+provider_unavailable: Provider {provider_name} not available

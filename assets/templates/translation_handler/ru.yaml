@@ -1,0 +1,6 @@
+# Russian templates for translation_handler
+# Consolidated from multiple files
+
+translation_result: 'Перевод: {translated}'
+error_translation: 'Ошибка перевода: {error}'
+default_target_language: английский

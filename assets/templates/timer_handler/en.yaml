@@ -1,0 +1,23 @@
+# English templates for timer_handler
+# Consolidated from multiple files
+
+timer_set_success: 'Timer set for {time_str}. Message: {message}'
+timer_set_error: 'Timer setup error: {error}'
+timer_duration_parse_error: 'Could not determine timer duration. Try saying, for example:
+  ''set timer for 5 minutes''.'
+timer_cancel_success: Cancelling timer {timer_id}
+timer_cancel_all_success: Cancelling {count} timers
+timer_cancel_not_found: Timer {timer_id} not found.
+timer_no_active: You have no active timers.
+timer_list_active: 'Active timers ({count}):
+
+  {timer_list}'
+timer_list_empty: You have no active timers.
+timer_list_expired: All your timers have already expired.
+timer_status_remaining: 'Timer {timer_id}: {time_str} remaining.'
+timer_status_expired: Timer {timer_id} has already expired.
+stop_all_timers: Stopping all timers ({count})
+stop_no_timers: No active timers to stop
+stop_not_timer_domain: Stop command does not relate to timers
+general_error: Sorry, an error occurred while working with the timer.
+timer_completed_default: Timer completed!

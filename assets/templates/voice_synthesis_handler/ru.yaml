@@ -1,0 +1,12 @@
+# Russian templates for voice_synthesis_handler
+# Consolidated from multiple files
+
+synthesis_with_voice: Синтезирую речь '{text}' голосом {voice}
+synthesis_without_voice: Синтезирую речь '{text}'
+synthesis_basic_with_voice: 'Синтезирую: {text}'
+synthesis_basic: 'Синтезирую: {text}'
+provider_switch_success: Переключился на TTS провайдер {provider}
+provider_switch_failed: TTS провайдер {provider} недоступен
+tts_unavailable: TTS component not available
+no_text_error: No text to speak found
+synthesis_error: 'Ошибка синтеза речи: {error}'
