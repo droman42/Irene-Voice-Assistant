@@ -16,25 +16,16 @@ interface TemplateKeyEditorProps {
   value: string | string[] | Record<string, any>;
   onChange: (key: string, value: string | string[] | Record<string, any>) => void;
   onDelete: (key: string) => void;
-  onKeyChange: (oldKey: string, newKey: string) => void;
 }
 
 const TemplateKeyEditor: React.FC<TemplateKeyEditorProps> = ({
   templateKey,
   value,
   onChange,
-  onDelete,
-  onKeyChange
+  onDelete
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [keyName, setKeyName] = useState(templateKey);
-
-  const handleKeyNameChange = (newKey: string) => {
-    setKeyName(newKey);
-    if (newKey !== templateKey) {
-      onKeyChange(templateKey, newKey);
-    }
-  };
+  // Key names are read-only since they connect to code
 
   const getValueType = (): 'string' | 'array' | 'object' => {
     if (Array.isArray(value)) return 'array';
@@ -120,6 +111,7 @@ const TemplateKeyEditor: React.FC<TemplateKeyEditorProps> = ({
               Template Values (Array)
             </label>
             <ArrayOfStringsEditor
+              label=""
               value={value as string[]}
               onChange={handleArrayChange}
               placeholder="Enter template option..."
@@ -209,12 +201,14 @@ const TemplateKeyEditor: React.FC<TemplateKeyEditorProps> = ({
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Key Name
+              Key Name (Read-only)
             </label>
             <Input
-              value={keyName}
-              onChange={handleKeyNameChange}
-              placeholder="Enter key name..."
+              value={templateKey}
+              onChange={() => {}} // Read-only
+              placeholder="Template key identifier"
+              disabled={true}
+              className="bg-gray-50 cursor-not-allowed"
             />
           </div>
 

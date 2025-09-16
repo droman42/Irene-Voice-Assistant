@@ -678,18 +678,19 @@ const DonationsPage: React.FC = () => {
   };
 
   const handleCancel = (): void => {
-    if (!selectedHandler) return;
+    if (!selectedHandler || !selectedLanguage) return;
 
-    const original = originalDonations[selectedHandler];
+    const donationKey = `${selectedHandler}:${selectedLanguage}`;
+    const original = originalDonations[donationKey];
     if (original) {
       setDonations(prev => ({
         ...prev,
-        [selectedHandler]: JSON.parse(JSON.stringify(original))
+        [donationKey]: JSON.parse(JSON.stringify(original))
       }));
       
       setHasChanges(prev => ({
         ...prev,
-        [selectedHandler]: false
+        [donationKey]: false
       }));
     }
   };

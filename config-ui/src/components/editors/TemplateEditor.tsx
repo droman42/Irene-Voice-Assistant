@@ -165,17 +165,10 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({
     onChange(newData);
   };
 
-  const handleKeyRename = (oldKey: string, newKey: string) => {
-    if (oldKey === newKey) return;
-    
-    const newData = { ...value };
-    newData[newKey] = newData[oldKey];
-    delete newData[oldKey];
-    onChange(newData);
-  };
+  // Key renaming removed - template keys are read-only
 
   const addNewKey = () => {
-    const newKey = `template_${Date.now()}`;
+    const newKey = `new_template_${Date.now()}`;
     const newData = { ...value, [newKey]: '' };
     onChange(newData);
   };
@@ -187,10 +180,11 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({
         <button
           type="button"
           onClick={addNewKey}
-          className="flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className="flex items-center space-x-2 px-3 py-1 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+          title="Only add new keys if you're updating the code to use them"
         >
           <Plus className="w-4 h-4" />
-          <span>Add Template</span>
+          <span>Add Template Key</span>
         </button>
       </div>
       
@@ -207,7 +201,6 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({
             value={val}
             onChange={handleKeyChange}
             onDelete={handleKeyDelete}
-            onKeyChange={handleKeyRename}
           />
         ))
       )}
