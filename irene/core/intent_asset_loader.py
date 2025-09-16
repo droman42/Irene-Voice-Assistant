@@ -94,6 +94,43 @@ class IntentAssetLoader:
         """Get JSON donation (existing functionality)"""
         return self.donations.get(handler_name)
     
+    async def load_donation_on_demand(self, handler_name: str) -> Optional[HandlerDonation]:
+        """
+        Load donation from file for configuration UI only.
+        
+        This method loads donation data directly from the filesystem without
+        caching it in memory or registering it with the runtime system.
+        Used exclusively by the configuration UI to access donations for
+        handlers that may not be currently enabled.
+        
+        Args:
+            handler_name: Name of the handler to load donation for
+            
+        Returns:
+            HandlerDonation object if file exists and is valid, None otherwise
+            
+        Note:
+            - Does NOT add to self.donations cache
+            - Does NOT register handler with runtime system  
+            - Read-only access for configuration purposes only
+        """
+        donations_dir = self.assets_root / "donations"
+        json_path = donations_dir / f"{handler_name}.json"
+        
+        try:
+            if not json_path.exists():
+                logger.debug(f"No donation file found for handler '{handler_name}': {json_path}")
+                return None
+            
+            # Load and validate donation directly from file
+            donation = await self._load_and_validate_donation(json_path, handler_name)
+            logger.debug(f"Loaded donation on-demand for handler '{handler_name}' (configuration UI)")
+            return donation
+            
+        except Exception as e:
+            logger.warning(f"Failed to load donation on-demand for handler '{handler_name}': {e}")
+            return None
+    
     async def save_donation(self, handler_name: str, donation_data: dict, create_backup: bool = True) -> bool:
         """Save donation JSON to file with backup support"""
         donations_dir = self.assets_root / "donations"

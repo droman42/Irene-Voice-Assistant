@@ -457,10 +457,14 @@ class IntentComponent(Component, WebAPIPlugin):
                 try:
                     asset_loader = self.handler_manager._asset_loader
                     
-                    # Get donation data
+                    # Try to get donation from cache first (for enabled handlers)
                     donation = asset_loader.get_donation(handler_name)
+                    
+                    # If not in cache, try on-demand loading for configuration UI
                     if not donation:
-                        raise HTTPException(404, f"Donation not found for handler '{handler_name}'")
+                        donation = await asset_loader.load_donation_on_demand(handler_name)
+                        if not donation:
+                            raise HTTPException(404, f"Donation not found for handler '{handler_name}'")
                     
                     # Get metadata
                     metadata_dict = asset_loader.get_donation_metadata(handler_name)
