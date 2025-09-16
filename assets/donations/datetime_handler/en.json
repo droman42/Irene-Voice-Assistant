@@ -1,0 +1,447 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "datetime",
+  "description": "Date and time information requests with timezone support",
+  "global_parameters": [
+    {
+      "name": "timezone",
+      "type": "string",
+      "required": false,
+      "default_value": "UTC",
+      "description": "Timezone for date/time responses"
+    },
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "ru",
+        "en"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "intent_name_patterns": [
+    "datetime.current_time",
+    "datetime.current_date",
+    "datetime.current_datetime"
+  ],
+  "action_patterns": [
+    "current_time",
+    "current_date",
+    "get_time",
+    "get_date"
+  ],
+  "language_detection": {
+    "english_indicators": [
+      "time",
+      "date",
+      "what time",
+      "what date",
+      "current"
+    ],
+    "russian_indicators": []
+  },
+  "method_donations": [
+    {
+      "method_name": "_handle_time_request",
+      "intent_suffix": "current_time",
+      "description": "Get current time information",
+      "phrases": [
+        "what time",
+        "current time",
+        "what's the time",
+        "tell me the time",
+        "time now"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "location",
+          "type": "string",
+          "required": false,
+          "description": "Specific location or timezone",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "in"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "LOCATION"
+            }
+          ],
+          "aliases": []
+        },
+        {
+          "name": "format",
+          "type": "choice",
+          "required": false,
+          "default_value": "12hour",
+          "choices": [
+            "12hour",
+            "24hour",
+            "verbose"
+          ],
+          "description": "Time format preference",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "\\d{1,2}[-:]\\d{2}"
+                  }
+                }
+              ],
+              "label": "TIME_FORMAT"
+            }
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": "time"
+          }
+        ],
+        [
+          {
+            "TEXT": "current"
+          },
+          {
+            "TEXT": "time"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "LOCATION": [
+          [
+            {},
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "by"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "in"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
+        ],
+        "TIME_FORMAT": [
+          [
+            {
+              "TEXT": {
+                "REGEX": "\\d{1,2}[-:]\\d{2}"
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "what time is it",
+          "parameters": {}
+        },
+        {
+          "text": "current time in London",
+          "parameters": {
+            "location": "London"
+          }
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_date_request",
+      "intent_suffix": "current_date",
+      "description": "Get current date information",
+      "phrases": [
+        "what date",
+        "today's date",
+        "current date",
+        "what day is it"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "format",
+          "type": "choice",
+          "required": false,
+          "default_value": "full",
+          "choices": [
+            "short",
+            "full",
+            "iso",
+            "verbose"
+          ],
+          "description": "Date format preference",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}"
+                  }
+                }
+              ],
+              "label": "DATE_FORMAT"
+            }
+          ]
+        },
+        {
+          "name": "relative",
+          "type": "choice",
+          "required": false,
+          "choices": [
+            "today",
+            "tomorrow",
+            "yesterday"
+          ],
+          "description": "Relative date reference",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "today",
+                      "tomorrow",
+                      "yesterday"
+                    ]
+                  }
+                }
+              ],
+              "label": "RELATIVE_DATE"
+            }
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": {
+              "REGEX": "date|day"
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "today"
+          },
+          {
+            "TEXT": "date"
+          }
+        ],
+        [
+          {
+            "TEXT": "current"
+          },
+          {
+            "TEXT": "date"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "DATE_FORMAT": [
+          [
+            {
+              "TEXT": {
+                "REGEX": "\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}"
+              }
+            }
+          ]
+        ],
+        "RELATIVE_DATE": [
+          [
+            {
+              "LOWER": {
+                "IN": []
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "today",
+                  "tomorrow",
+                  "yesterday"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "what date is it",
+          "parameters": {}
+        },
+        {
+          "text": "today's date",
+          "parameters": {
+            "relative": "today"
+          }
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_datetime_request",
+      "intent_suffix": "current_datetime",
+      "description": "Get combined date and time information",
+      "phrases": [
+        "date and time",
+        "full datetime",
+        "timestamp",
+        "current datetime"
+      ],
+      "lemmas": [
+        "timestamp"
+      ],
+      "parameters": [
+        {
+          "name": "timezone",
+          "type": "string",
+          "required": false,
+          "description": "Specific timezone for datetime",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "UTC|GMT|[A-Z]{3,4}"
+                  }
+                }
+              ],
+              "label": "TIMEZONE"
+            }
+          ],
+          "aliases": [
+            "zone"
+          ]
+        },
+        {
+          "name": "format",
+          "type": "choice",
+          "required": false,
+          "default_value": "readable",
+          "choices": [
+            "iso",
+            "readable",
+            "unix",
+            "verbose"
+          ],
+          "description": "Datetime format preference"
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "date"
+          },
+          {
+            "TEXT": "and"
+          },
+          {
+            "TEXT": "time"
+          }
+        ],
+        [
+          {
+            "TEXT": "current"
+          },
+          {
+            "TEXT": "datetime"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "TIMEZONE": [
+          [
+            {
+              "TEXT": {
+                "REGEX": "UTC|GMT|[A-Z]{3,4}"
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "date and time",
+          "parameters": {}
+        },
+        {
+          "text": "current datetime UTC",
+          "parameters": {
+            "timezone": "UTC"
+          }
+        }
+      ],
+      "boost": 1.1
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "time|date"
+        }
+      }
+    ]
+  ],
+  "additional_recognition_patterns": [
+    "date|what date|today",
+    "time|what time|current time",
+    "date and time|time and date"
+  ],
+  "language": "en"
+}

@@ -1,0 +1,880 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "voice_synthesis",
+  "description": "Text-to-speech with specific voices and TTS provider management",
+  "intent_name_patterns": [],
+  "action_patterns": [],
+  "action_domain_priority": 60,
+  "stop_command_patterns": [
+    "стоп синтез",
+    "останови синтез",
+    "прекрати синтез",
+    "останови речь",
+    "стоп голос",
+    "останови голос"
+  ],
+  "domain_patterns": [],
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "русский",
+        "английский"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_speak_with_voice",
+      "intent_suffix": "voice",
+      "description": "Speak text with specific voice",
+      "phrases": [
+        "скажи голосом",
+        "говори голосом",
+        "произнеси голосом",
+        "скажи ксенией",
+        "скажи айдаром",
+        "голосом ксении",
+        "голосом айдара",
+        "скажи текст голосом",
+        "произнеси голосом силеро"
+      ],
+      "lemmas": [
+        "говорить",
+        "сказать",
+        "произносить",
+        "голос",
+        "ксения",
+        "айдар",
+        "силеро"
+      ],
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
+          "description": "Text to speak",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "говорить",
+                      "сказать"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                },
+                {
+                  "LEMMA": "голос"
+                }
+              ],
+              "label": "TEXT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": []
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                },
+                {
+                  "TEXT": {
+                    "IN": []
+                  }
+                }
+              ],
+              "label": "TEXT"
+            }
+          ],
+          "aliases": [
+            "фраза",
+            "слова",
+            "предложение"
+          ]
+        },
+        {
+          "name": "voice",
+          "type": "choice",
+          "required": false,
+          "choices": [
+            "ксения",
+            "айдар",
+            "силеро",
+            "консоль",
+            "системный"
+          ],
+          "description": "Voice to use for speech",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": "голос"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "ксения",
+                      "айдар",
+                      "силеро",
+                      "консоль",
+                      "системный"
+                    ]
+                  }
+                }
+              ],
+              "label": "голос"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "голос"
+                }
+              ],
+              "label": "голос"
+            }
+          ],
+          "aliases": [
+            "голос",
+            "диктор"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "говорить",
+                "сказать"
+              ]
+            }
+          },
+          {
+            "LEMMA": "голос"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": []
+            }
+          },
+          {
+            "TEXT": {
+              "IN": []
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "говорить",
+                "сказать"
+              ]
+            }
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "ксения",
+                "айдар",
+                "силеро"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": []
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "голос"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "ксения",
+                "айдар",
+                "силеро",
+                "консоль",
+                "системный"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "голос"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "TEXT": [
+          [
+            {
+              "LEMMA": {
+                "IN": [
+                  "говорить",
+                  "сказать"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            },
+            {
+              "LEMMA": "голос"
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": []
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            },
+            {
+              "TEXT": {
+                "IN": []
+              }
+            }
+          ]
+        ],
+        "VOICE": [
+          [
+            {
+              "LEMMA": "голос"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "ксения",
+                  "айдар",
+                  "силеро",
+                  "консоль",
+                  "системный"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": "голос"
+            },
+            {
+              "LOWER": {
+                "IN": []
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "скажи привет голосом ксении",
+          "parameters": {
+            "text": "привет",
+            "voice": "ксения"
+          }
+        },
+        {
+          "text": "говори голосом айдара",
+          "parameters": {
+            "voice": "айдар"
+          }
+        },
+        {
+          "text": "произнеси текст голосом силеро",
+          "parameters": {
+            "text": "текст",
+            "voice": "силеро"
+          }
+        }
+      ],
+      "boost": 1.4
+    },
+    {
+      "method_name": "_handle_list_voices",
+      "intent_suffix": "list",
+      "description": "List available voices and TTS providers",
+      "phrases": [
+        "покажи голоса",
+        "список голосов",
+        "какие голоса",
+        "доступные голоса",
+        "покажи диктеров",
+        "список дикторов",
+        "tts провайдеры",
+        "голосовые провайдеры",
+        "синтезаторы речи"
+      ],
+      "lemmas": [
+        "показывать",
+        "список",
+        "голос",
+        "диктор",
+        "провайдер",
+        "доступный",
+        "синтезатор"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "показывать"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "голос",
+                "диктор"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "список"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "голос",
+                "диктор"
+              ]
+            }
+          }
+        ],
+        [
+          {},
+          {
+            "TEXT": {
+              "IN": []
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "list"
+          },
+          {
+            "TEXT": {
+              "IN": []
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "доступный"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "голос",
+                "диктор"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "available"
+          },
+          {
+            "TEXT": {
+              "IN": []
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "tts"
+          },
+          {
+            "TEXT": {
+              "IN": [
+                "провайдеры"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "голосовой"
+          },
+          {
+            "LEMMA": "провайдер"
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "покажи голоса",
+          "parameters": {}
+        },
+        {
+          "text": "список голосов",
+          "parameters": {}
+        },
+        {
+          "text": "доступные голоса",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_speak_text",
+      "intent_suffix": "speak",
+      "description": "Basic text-to-speech",
+      "phrases": [
+        "скажи",
+        "говори",
+        "произнеси",
+        "скажи текст",
+        "говори фразу",
+        "произнеси слова",
+        "озвучь",
+        "читай вслух",
+        "проговори",
+        "артикулируй"
+      ],
+      "lemmas": [
+        "говорить",
+        "сказать",
+        "произносить",
+        "озвучивать",
+        "читать",
+        "проговаривать",
+        "артикулировать"
+      ],
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "required": true,
+          "description": "Text to speak",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "говорить",
+                      "сказать",
+                      "произносить"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": []
+                  }
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            }
+          ],
+          "aliases": [
+            "фраза",
+            "слова",
+            "предложение"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "говорить",
+                "сказать",
+                "произносить"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": []
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "говорить",
+                "сказать"
+              ]
+            }
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": []
+            }
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "LEMMA": "озвучивать"
+          }
+        ],
+        [
+          {
+            "TEXT": "голос"
+          },
+          {
+            "TEXT": "text"
+          }
+        ],
+        [
+          {
+            "LEMMA": "читать"
+          },
+          {
+            "LEMMA": "вслух"
+          }
+        ],
+        [
+          {
+            "TEXT": "read"
+          },
+          {
+            "TEXT": "aloud"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "TEXT": [
+          [
+            {
+              "LEMMA": {
+                "IN": [
+                  "говорить",
+                  "сказать",
+                  "произносить"
+                ]
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": []
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "скажи привет",
+          "parameters": {
+            "text": "привет"
+          }
+        },
+        {
+          "text": "произнеси этот текст",
+          "parameters": {
+            "text": "этот текст"
+          }
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_switch_tts_provider",
+      "intent_suffix": "switch",
+      "description": "Switch TTS provider",
+      "phrases": [
+        "переключись на силеро",
+        "смени на консоль",
+        "используй системный",
+        "переключи синтезатор",
+        "смени голосовой движок",
+        "переключись на tts"
+      ],
+      "lemmas": [
+        "переключаться",
+        "менять",
+        "использовать",
+        "синтезатор",
+        "движок",
+        "провайдер"
+      ],
+      "parameters": [
+        {
+          "name": "provider",
+          "type": "choice",
+          "required": true,
+          "choices": [
+            "силеро",
+            "силеро3",
+            "силеро4",
+            "консоль",
+            "системный",
+            "воск"
+          ],
+          "description": "TTS provider to switch to",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": "переключаться"
+                },
+                {
+                  "TEXT": "на"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "силеро",
+                      "консоль",
+                      "системный",
+                      "воск"
+                    ]
+                  }
+                }
+              ],
+              "label": "PROVIDER"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": []
+                  }
+                },
+                {
+                  "TEXT": "to"
+                }
+              ],
+              "label": "PROVIDER"
+            }
+          ],
+          "aliases": [
+            "синтезатор",
+            "движок",
+            "провайдер"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "переключаться"
+          },
+          {
+            "TEXT": "на"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "силеро",
+                "консоль",
+                "системный",
+                "воск"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": []
+            }
+          },
+          {
+            "TEXT": "to"
+          }
+        ],
+        [
+          {
+            "LEMMA": "менять"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "синтезатор",
+                "провайдер"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "изменить"
+          },
+          {
+            "TEXT": {
+              "IN": []
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "использовать"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "силеро",
+                "консоль",
+                "системный"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "PROVIDER": [
+          [
+            {
+              "LEMMA": "переключаться"
+            },
+            {
+              "TEXT": "на"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "силеро",
+                  "консоль",
+                  "системный",
+                  "воск"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": []
+              }
+            },
+            {
+              "TEXT": "to"
+            },
+            {
+              "LOWER": {
+                "IN": []
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "переключись на силеро",
+          "parameters": {
+            "provider": "силеро"
+          }
+        },
+        {
+          "text": "смени на системный",
+          "parameters": {
+            "provider": "системный"
+          }
+        }
+      ],
+      "boost": 1.1
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "говорить",
+            "сказать",
+            "голос"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": ".*"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": ".*"
+        }
+      }
+    ]
+  ],
+  "language": "ru"
+}

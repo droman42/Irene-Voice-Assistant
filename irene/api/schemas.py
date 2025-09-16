@@ -567,62 +567,226 @@ class ValidationWarning(BaseModel):
     path: Optional[str] = Field(default=None, description="JSON path where warning occurred")
 
 
-class DonationUpdateRequest(BaseAPIRequest):
-    """Request to update a donation file"""
-    donation_data: Dict[str, Any] = Field(description="Complete donation JSON data")
-    validate_before_save: bool = Field(
-        default=True,
-        description="Whether to validate before saving"
-    )
-    trigger_reload: bool = Field(
-        default=True,
-        description="Whether to trigger intent system reload after save"
-    )
+# ============================================================
+# LEGACY DONATION SCHEMAS REMOVED (Phase 3 Cleanup)
+# ============================================================
+# Old single-file donation request/response models removed:
+# - DonationUpdateRequest
+# - DonationValidationRequest 
+# - DonationListResponse
+# - DonationContentResponse
+# - DonationUpdateResponse
+# - DonationValidationResponse
+#
+# Replaced by language-aware v2 endpoints below
 
 
-class DonationValidationRequest(BaseAPIRequest):
-    """Request to validate donation data without saving"""
-    donation_data: Dict[str, Any] = Field(description="Donation JSON data to validate")
-    handler_name: str = Field(description="Handler name for validation context")
+class DonationSchemaResponse(BaseAPIResponse):
+    """Response for donation JSON schema"""
+    json_schema: Dict[str, Any] = Field(description="JSON schema for donation structure")
+    schema_version: str = Field(description="Schema version")
+    supported_versions: List[str] = Field(description="Supported schema versions")
 
 
-class DonationListResponse(BaseAPIResponse):
-    """Response for donation listing"""
-    donations: List[DonationMetadata] = Field(description="List of available donations")
-    total_count: int = Field(description="Total number of donations")
+# ============================================================
+# LANGUAGE-AWARE DONATION SCHEMAS (Phase 3)
+# ============================================================
 
-
-class DonationContentResponse(BaseAPIResponse):
-    """Response for donation content retrieval"""
+class HandlerLanguageInfo(BaseModel):
+    """Information about a handler's language support"""
     handler_name: str = Field(description="Handler name")
+    languages: List[str] = Field(description="Available languages")
+    total_languages: int = Field(description="Language count")
+    supported_languages: List[str] = Field(description="From system config")
+    default_language: str = Field(description="System default language")
+
+
+class DonationHandlerListResponse(BaseAPIResponse):
+    """Response for listing handlers with language info"""
+    handlers: List[HandlerLanguageInfo] = Field(description="List of handlers with language info")
+    total_handlers: int = Field(description="Total number of handlers")
+
+
+class CrossLanguageValidation(BaseModel):
+    """Cross-language validation results"""
+    parameter_consistency: bool = Field(description="Whether parameters are consistent across languages")
+    missing_methods: List[str] = Field(description="Methods missing in some language files")
+    extra_methods: List[str] = Field(description="Extra methods in some language files")
+
+
+class LanguageDonationMetadata(BaseModel):
+    """Metadata for a language-specific donation file"""
+    file_path: str = Field(description="e.g., 'conversation_handler/en.json'")
+    language: str = Field(description="Language code")
+    file_size: int = Field(description="File size in bytes")
+    last_modified: float = Field(description="Last modification timestamp")
+
+
+class LanguageDonationContentResponse(BaseAPIResponse):
+    """Response for language-specific donation content retrieval"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Current language")
     donation_data: Dict[str, Any] = Field(description="Complete donation JSON content")
-    metadata: DonationMetadata = Field(description="File metadata")
+    metadata: LanguageDonationMetadata = Field(description="File metadata")
+    available_languages: List[str] = Field(description="Other available languages")
+    cross_language_validation: CrossLanguageValidation = Field(description="Cross-language checks")
 
 
-class DonationUpdateResponse(BaseAPIResponse):
-    """Response for donation update operation"""
+class LanguageDonationUpdateRequest(BaseAPIRequest):
+    """Request to update a language-specific donation file"""
+    donation_data: Dict[str, Any] = Field(description="Complete donation JSON data")
+    validate_before_save: bool = Field(default=True, description="Whether to validate before saving")
+    trigger_reload: bool = Field(default=True, description="Whether to trigger reload after save")
+
+
+class LanguageDonationUpdateResponse(BaseAPIResponse):
+    """Response for language-specific donation update operation"""
     handler_name: str = Field(description="Updated handler name")
+    language: str = Field(description="Updated language")
     validation_passed: bool = Field(description="Whether validation passed")
-    reload_triggered: bool = Field(description="Whether intent system reload was triggered")
+    reload_triggered: bool = Field(description="Whether unified donation reload was triggered")
     backup_created: bool = Field(description="Whether backup was created")
     errors: List[ValidationError] = Field(default=[], description="Validation errors")
     warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
 
 
-class DonationValidationResponse(BaseAPIResponse):
-    """Response for donation validation operation"""
+class LanguageDonationValidationRequest(BaseAPIRequest):
+    """Request to validate language-specific donation data without saving"""
+    donation_data: Dict[str, Any] = Field(description="Donation data to validate")
+
+
+class LanguageDonationValidationResponse(BaseAPIResponse):
+    """Response for language-specific donation validation operation"""
     handler_name: str = Field(description="Handler name being validated")
+    language: str = Field(description="Language being validated")
     is_valid: bool = Field(description="Whether donation is valid")
     errors: List[ValidationError] = Field(default=[], description="Validation errors")
     warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
     validation_types: List[str] = Field(description="Types of validation performed")
 
 
-class DonationSchemaResponse(BaseAPIResponse):
-    """Response for donation JSON schema"""
-    schema: Dict[str, Any] = Field(description="JSON schema for donation structure")
-    schema_version: str = Field(description="Schema version")
-    supported_versions: List[str] = Field(description="Supported schema versions")
+class CreateLanguageRequest(BaseAPIRequest):
+    """Request to create a new language file for a handler"""
+    copy_from: Optional[str] = Field(default=None, description="Language to copy from")
+    use_template: bool = Field(default=False, description="Use empty template instead of copying")
+
+
+class CreateLanguageResponse(BaseAPIResponse):
+    """Response for language creation operation"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Created language")
+    created: bool = Field(description="Whether language file was created")
+    copied_from: Optional[str] = Field(default=None, description="Language copied from")
+
+
+class DeleteLanguageResponse(BaseAPIResponse):
+    """Response for language deletion operation"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Deleted language")
+    deleted: bool = Field(description="Whether language file was deleted")
+
+
+class ReloadDonationResponse(BaseAPIResponse):
+    """Response for unified donation reload operation"""
+    handler_name: str = Field(description="Handler name")
+    reloaded: bool = Field(description="Whether unified donation was reloaded")
+    merged_languages: List[str] = Field(description="Languages that were merged")
+
+
+# ============================================================
+# CROSS-LANGUAGE VALIDATION SCHEMAS (Phase 4)
+# ============================================================
+
+class ValidationReportSchema(BaseModel):
+    """Schema for parameter consistency validation report"""
+    handler_name: str = Field(description="Handler name that was validated")
+    languages_checked: List[str] = Field(description="Languages that were included in validation")
+    parameter_consistency: bool = Field(description="Whether parameters are consistent across languages")
+    missing_parameters: List[str] = Field(description="Parameters missing in some languages (format: 'language: method.parameter')")
+    extra_parameters: List[str] = Field(description="Extra parameters in some languages")
+    type_mismatches: List[str] = Field(description="Parameter type mismatches across languages")
+    warnings: List[str] = Field(description="Validation warnings")
+    timestamp: float = Field(description="Validation timestamp")
+
+
+class CompletenessReportSchema(BaseModel):
+    """Schema for method completeness validation report"""
+    handler_name: str = Field(description="Handler name that was validated")
+    languages_checked: List[str] = Field(description="Languages that were included in validation")
+    method_completeness: bool = Field(description="Whether all methods exist in all languages")
+    missing_methods: List[str] = Field(description="Methods missing in some languages (format: 'language: method_key')")
+    extra_methods: List[str] = Field(description="Extra methods in some languages")
+    all_methods: List[str] = Field(description="All unique method keys across languages")
+    method_counts_by_language: Dict[str, int] = Field(description="Method count per language")
+    warnings: List[str] = Field(description="Validation warnings")
+    timestamp: float = Field(description="Validation timestamp")
+
+
+class MissingPhraseInfo(BaseModel):
+    """Information about missing phrases for translation"""
+    method_key: str = Field(description="Method key (method_name#intent_suffix)")
+    source_phrases: List[str] = Field(description="Phrases available in source language")
+    target_phrases: List[str] = Field(description="Phrases available in target language")
+    missing_count: int = Field(description="Number of missing phrases")
+    coverage_ratio: float = Field(description="Ratio of target to source phrases", ge=0.0, le=1.0)
+
+
+class TranslationSuggestionsSchema(BaseModel):
+    """Schema for translation suggestions response"""
+    handler_name: str = Field(description="Handler name")
+    source_language: str = Field(description="Source language for suggestions")
+    target_language: str = Field(description="Target language for suggestions")
+    missing_phrases: List[MissingPhraseInfo] = Field(description="Information about missing phrases")
+    missing_methods: List[str] = Field(description="Method keys completely missing in target language")
+    confidence_scores: Dict[str, float] = Field(description="Confidence scores for suggestions")
+    timestamp: float = Field(description="Suggestion generation timestamp")
+
+
+class CrossLanguageValidationRequest(BaseAPIRequest):
+    """Request for cross-language validation"""
+    validation_type: str = Field(
+        description="Type of validation to perform",
+        example="parameters"
+    )
+
+
+class CrossLanguageValidationResponse(BaseAPIResponse):
+    """Response for cross-language validation"""
+    validation_type: str = Field(description="Type of validation performed")
+    parameter_report: Optional[ValidationReportSchema] = Field(
+        default=None,
+        description="Parameter consistency report"
+    )
+    completeness_report: Optional[CompletenessReportSchema] = Field(
+        default=None,
+        description="Method completeness report"
+    )
+
+
+class SyncParametersRequest(BaseAPIRequest):
+    """Request to sync parameter structures across languages"""
+    source_language: str = Field(description="Source language to sync from")
+    target_languages: List[str] = Field(description="Target languages to sync to")
+
+
+class SyncParametersResponse(BaseAPIResponse):
+    """Response for parameter synchronization operation"""
+    handler_name: str = Field(description="Handler that was synced")
+    source_language: str = Field(description="Source language used")
+    sync_results: Dict[str, bool] = Field(description="Sync success status per target language")
+    updated_languages: List[str] = Field(description="Languages that were actually updated")
+    skipped_languages: List[str] = Field(description="Languages that were skipped")
+
+
+class SuggestTranslationsRequest(BaseAPIRequest):
+    """Request for translation suggestions"""
+    source_language: str = Field(description="Source language for suggestions")
+    target_language: str = Field(description="Target language for suggestions")
+
+
+class SuggestTranslationsResponse(BaseAPIResponse):
+    """Response for translation suggestions"""
+    suggestions: TranslationSuggestionsSchema = Field(description="Translation suggestions")
 
 
 # ============================================================

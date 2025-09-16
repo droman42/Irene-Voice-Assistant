@@ -1,294 +1,149 @@
 /**
- * HandlerList Component - Navigation list for donation handlers
+ * HandlerList Component - Simplified navigation list for donation handlers
  * 
- * Displays a list of available donation handlers with metadata,
- * allows selection for editing, and shows change indicators.
+ * Displays donation handlers with basic status indicators, allows selection for editing.
+ * Language selection is handled by the language tabs in the main editor area.
  */
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { 
-  FileText, 
   AlertCircle, 
   CheckCircle2, 
-  Clock, 
-  Users,
-  Hash,
-  Circle,
-  Sliders,
-  Search,
-  Filter
+  Search
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
-import type { HandlerListProps } from '@/types';
+import type { HandlerLanguageListProps } from '@/types';
 
-const HandlerList: React.FC<HandlerListProps> = ({ 
+const HandlerList: React.FC<HandlerLanguageListProps> = ({ 
   handlers, 
   selectedHandler, 
+  selectedLanguage: _selectedLanguage,
   onSelect, 
+  onLanguageSelect: _onLanguageSelect,
+  onCreateLanguage: _onCreateLanguage,
+  onDeleteLanguage: _onDeleteLanguage,
   searchQuery,
   onSearchChange,
-  filterDomain,
-  onFilterDomainChange,
-  filterMethodCount,
-  onFilterMethodCountChange,
-  filterModified,
-  onFilterModifiedChange,
-  bulkSelection,
-  onBulkSelectionChange,
-  hasChanges = {}, 
+  filterLanguageCount,
+  onFilterLanguageCountChange: _onFilterLanguageCountChange,
+  hasChanges: _hasChanges = {}, 
   loading = false,
   error = null
 }) => {
-  const [showFilters, setShowFilters] = useState(false);
 
-  // Get unique domains for filter
-  const uniqueDomains = useMemo(() => {
-    return Array.from(new Set(handlers.map(h => h.domain))).sort();
-  }, [handlers]);
-
-  // Advanced filtering logic
+  // Simple filtering logic
   const filteredHandlers = useMemo(() => {
     return handlers.filter(handler => {
       // Text search
       const search = searchQuery.toLowerCase();
-      const matchesSearch = search === '' || 
-        handler.handler_name.toLowerCase().includes(search) ||
-        handler.domain.toLowerCase().includes(search) ||
-        (handler.description && handler.description.toLowerCase().includes(search));
-      
-      // Filter by changes
-      if (filterModified && !hasChanges[handler.handler_name]) {
+      if (search && !handler.handler_name.toLowerCase().includes(search)) {
         return false;
       }
       
-      // Filter by domain
-      if (filterDomain && handler.domain !== filterDomain) {
-        return false;
-      }
+      // Language count filter
+      const languageCount = handler.languages.length;
+      if (filterLanguageCount === 'single' && languageCount !== 1) return false;
+      if (filterLanguageCount === 'multiple' && languageCount <= 1) return false;
       
-      // Filter by method count
-      if (filterMethodCount) {
-        const count = handler.methods_count;
-        switch (filterMethodCount) {
-          case 'none':
-            if (count > 0) return false;
-            break;
-          case 'few':
-            if (count < 1 || count > 3) return false;
-            break;
-          case 'many':
-            if (count <= 3) return false;
-            break;
-        }
-      }
-      
-      return matchesSearch;
+      return true;
     });
-  }, [handlers, searchQuery, filterModified, filterDomain, filterMethodCount, hasChanges]);
+  }, [handlers, searchQuery, filterLanguageCount]);
 
-  const getHandlerIcon = (handler: typeof handlers[0]) => {
-    if (hasChanges[handler.handler_name]) {
-      return <AlertCircle className="w-4 h-4 text-orange-500" />;
+  const getStatusBadge = (handler: any) => {
+    const availableLanguages = handler.languages.length;
+    
+    if (availableLanguages === 0) {
+      return <Badge variant="error">No Languages</Badge>;
     }
-    if (handler.methods_count === 0) {
-      return <Circle className="w-4 h-4 text-gray-400" />;
+    return <Badge variant="success">Available</Badge>;
+  };
+
+  const getStatusIcon = (handler: any) => {
+    const availableLanguages = handler.languages.length;
+    if (availableLanguages === 0) {
+      return <AlertCircle className="w-4 h-4 text-red-500" />;
     }
     return <CheckCircle2 className="w-4 h-4 text-green-500" />;
   };
 
-  const getStatusBadge = (handler: typeof handlers[0]) => {
-    if (hasChanges[handler.handler_name]) {
-      return <Badge variant="warning">Modified</Badge>;
-    }
-    if (handler.methods_count === 0) {
-      return <Badge variant="default">Empty</Badge>;
-    }
-    return null;
-  };
-
   if (loading) {
     return (
-      <div className="w-80 border-r border-gray-200 bg-gray-50">
-        <div className="p-4">
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded"></div>
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-        </div>
+      <div className="w-80 bg-gray-50 border-r border-gray-200 flex items-center justify-center">
+        <div className="text-gray-500">Loading handlers...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="w-80 border-r border-gray-200 bg-gray-50">
-        <div className="p-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <div className="flex items-start">
-              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 mr-2 flex-shrink-0" />
-              <div className="text-sm">
-                <p className="text-red-800 font-medium">Failed to load handlers</p>
-                <p className="text-red-700 mt-1">{error}</p>
-              </div>
-            </div>
-          </div>
+      <div className="w-80 bg-gray-50 border-r border-gray-200 p-4">
+        <div className="text-red-600">
+          <AlertCircle className="w-5 h-5 inline mr-2" />
+          {error}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-80 border-r border-gray-200 bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="border-b border-gray-200 p-4 bg-white">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Handlers</h2>
-        
-        {/* Search */}
-        <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+    <div className="w-80 bg-gray-50 border-r border-gray-200 flex flex-col">
+      {/* Search Header */}
+      <div className="p-4 border-b border-gray-200 bg-white">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
             placeholder="Search handlers..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
+      </div>
 
-        {/* Filter toggle */}
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <div className="flex items-center">
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
+      {/* Handlers List */}
+      <div className="flex-1 overflow-auto">
+        {filteredHandlers.length === 0 ? (
+          <div className="p-4 text-gray-500 text-center">
+            {searchQuery ? 'No matching handlers' : 'No handlers available'}
           </div>
-          <Sliders className="w-4 h-4" />
-        </button>
+        ) : (
+          <div className="space-y-1 p-2">
+            {filteredHandlers.map((handler) => (
+              <div key={handler.handler_name} className="space-y-1">
+                {/* Handler Item */}
+                <div
+                  onClick={() => onSelect(handler.handler_name)}
+                  className={`
+                    flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors
+                    ${selectedHandler === handler.handler_name
+                      ? 'bg-blue-100 border border-blue-300 text-blue-900'
+                      : 'bg-white border border-gray-200 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(handler)}
+                      <span className="font-medium truncate">{handler.handler_name}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col items-end space-y-1">
+                    {getStatusBadge(handler)}
+                  </div>
+                </div>
 
-        {/* Filters */}
-        {showFilters && (
-          <div className="mt-3 space-y-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-            {/* Domain filter */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Domain</label>
-              <select
-                value={filterDomain}
-                onChange={(e) => onFilterDomainChange(e.target.value)}
-                className="w-full text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">All domains</option>
-                {uniqueDomains.map(domain => (
-                  <option key={domain} value={domain}>{domain}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Method count filter */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Methods</label>
-              <select
-                value={filterMethodCount}
-                onChange={(e) => onFilterMethodCountChange(e.target.value)}
-                className="w-full text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Any count</option>
-                <option value="none">No methods</option>
-                <option value="few">1-3 methods</option>
-                <option value="many">4+ methods</option>
-              </select>
-            </div>
-
-            {/* Modified filter */}
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="filter-modified"
-                checked={filterModified}
-                onChange={(e) => onFilterModifiedChange(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="filter-modified" className="ml-2 text-xs font-medium text-gray-700">
-                Only modified
-              </label>
-            </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Handlers list */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-2">
-          {filteredHandlers.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No handlers found</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {filteredHandlers.map((handler) => (
-                <button
-                  key={handler.handler_name}
-                  onClick={() => onSelect(handler.handler_name)}
-                  className={`w-full text-left p-3 rounded-lg border transition-all duration-150 hover:shadow-sm ${
-                    selectedHandler === handler.handler_name
-                      ? 'bg-blue-50 border-blue-200 shadow-sm'
-                      : 'bg-white border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center space-x-2 min-w-0 flex-1">
-                      {getHandlerIcon(handler)}
-                      <span className="font-medium text-sm text-gray-900 truncate">
-                        {handler.handler_name}
-                      </span>
-                    </div>
-                    {getStatusBadge(handler)}
-                  </div>
-                  
-                  <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                    {handler.description || 'No description'}
-                  </p>
-                  
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <div className="flex items-center space-x-3">
-                      <div className="flex items-center space-x-1">
-                        <Hash className="w-3 h-3" />
-                        <span>{handler.domain}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Users className="w-3 h-3" />
-                        <span>{handler.methods_count}</span>
-                      </div>
-                    </div>
-                    {handler.last_modified && (
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{new Date(handler.last_modified * 1000).toLocaleDateString()}</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Footer with stats */}
-      <div className="border-t border-gray-200 p-3 bg-white">
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>
-            {filteredHandlers.length} of {handlers.length} handlers
-          </span>
-          {Object.values(hasChanges).filter(Boolean).length > 0 && (
-            <span className="text-orange-600 font-medium">
-              {Object.values(hasChanges).filter(Boolean).length} modified
-            </span>
-          )}
+      {/* Footer */}
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <div className="text-xs text-gray-500">
+          {filteredHandlers.length} handlers
         </div>
       </div>
     </div>

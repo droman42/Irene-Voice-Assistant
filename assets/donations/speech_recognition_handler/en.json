@@ -1,0 +1,833 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "speech_recognition",
+  "description": "ASR configuration and speech recognition management",
+  "intent_name_patterns": [
+    "asr.show",
+    "asr.switch",
+    "asr.language",
+    "asr.config",
+    "speech.recognition"
+  ],
+  "action_patterns": [
+    "show",
+    "switch",
+    "configure",
+    "language",
+    "recognition"
+  ],
+  "domain_patterns": [
+    "asr",
+    "speech",
+    "recognition",
+    "configuration"
+  ],
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "ru",
+        "en"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_show_recognition",
+      "intent_suffix": "show",
+      "description": "Show ASR providers and recognition information",
+      "phrases": [
+        "show recognition",
+        "show asr providers",
+        "speech recognition info",
+        "recognition providers",
+        "show speech",
+        "speech recognition"
+      ],
+      "lemmas": [
+        "asr"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "show"
+          },
+          {
+            "TEXT": {
+              "IN": [
+                "recognition",
+                "asr"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "TEXT": "show"
+          },
+          {
+            "TEXT": "asr"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "TEXT": "list"
+          },
+          {
+            "TEXT": "recognition"
+          }
+        ],
+        [
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "TEXT": "asr"
+          },
+          {
+            "TEXT": "information"
+          }
+        ],
+        [
+          {
+            "TEXT": "speech"
+          },
+          {
+            "TEXT": "recognition"
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "show recognition",
+          "parameters": {}
+        },
+        {
+          "text": "speech recognition info",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_switch_asr_provider",
+      "intent_suffix": "switch",
+      "description": "Switch ASR provider",
+      "phrases": [
+        "switch to whisper",
+        "switch asr provider",
+        "change to vosk",
+        "switch recognition",
+        "change asr",
+        "use different asr"
+      ],
+      "lemmas": [
+        "asr"
+      ],
+      "parameters": [
+        {
+          "name": "provider",
+          "type": "choice",
+          "required": true,
+          "choices": [
+            "whisper",
+            "vosk",
+            "google_cloud",
+            "azure"
+          ],
+          "description": "ASR provider to switch to",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": "on"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "whisper",
+                      "vosk",
+                      "google",
+                      "azure"
+                    ]
+                  }
+                }
+              ],
+              "label": "PROVIDER"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": [
+                      "switch",
+                      "change"
+                    ]
+                  }
+                },
+                {
+                  "TEXT": "to"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "whisper",
+                      "vosk",
+                      "google",
+                      "azure"
+                    ]
+                  }
+                }
+              ],
+              "label": "PROVIDER"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "on"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "whisper",
+                "vosk",
+                "google",
+                "azure"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "switch",
+                "change"
+              ]
+            }
+          },
+          {
+            "TEXT": "to"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "whisper",
+                "vosk",
+                "google",
+                "azure"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "TEXT": "change"
+          },
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "LOWER": {
+              "IN": [
+                "whisper",
+                "vosk",
+                "google"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "whisper",
+                "vosk",
+                "google"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "switch"
+          },
+          {
+            "TEXT": "recognition"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "PROVIDER": [
+          [
+            {
+              "LEMMA": "switch"
+            },
+            {
+              "TEXT": "on"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "whisper",
+                  "vosk",
+                  "google",
+                  "azure"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": [
+                  "switch",
+                  "change"
+                ]
+              }
+            },
+            {
+              "TEXT": "to"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "whisper",
+                  "vosk",
+                  "google",
+                  "azure"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "switch to vosk",
+          "parameters": {
+            "provider": "vosk"
+          }
+        },
+        {
+          "text": "use azure asr",
+          "parameters": {
+            "provider": "azure"
+          }
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_switch_language",
+      "intent_suffix": "language",
+      "description": "Switch ASR language",
+      "phrases": [
+        "switch language",
+        "change recognition language",
+        "use english",
+        "language to english",
+        "change to russian",
+        "recognition in"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "language",
+          "type": "choice",
+          "required": true,
+          "choices": [
+            "spanish",
+            "russian",
+            "english",
+            "german",
+            "french"
+          ],
+          "description": "Language to switch ASR to",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": "on"
+                }
+              ],
+              "label": "LANGUAGE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "language"
+                },
+                {
+                  "TEXT": "to"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "russian",
+                      "english",
+                      "german",
+                      "french",
+                      "spanish"
+                    ]
+                  }
+                }
+              ],
+              "label": "LANGUAGE"
+            }
+          ],
+          "aliases": [
+            "locale"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "switch"
+          },
+          {
+            "TEXT": "language"
+          }
+        ],
+        [
+          {
+            "TEXT": "change"
+          },
+          {
+            "TEXT": "recognition"
+          },
+          {
+            "TEXT": "language"
+          }
+        ],
+        [
+          {
+            "TEXT": "on"
+          }
+        ],
+        [
+          {
+            "TEXT": "language"
+          },
+          {
+            "TEXT": "to"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "russian",
+                "english",
+                "german",
+                "french"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "russian",
+                "english"
+              ]
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "LANGUAGE": [
+          [
+            {
+              "LEMMA": "language"
+            },
+            {
+              "TEXT": "on"
+            },
+            {
+              "LOWER": {
+                "IN": []
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": "language"
+            },
+            {
+              "TEXT": "to"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "russian",
+                  "english",
+                  "german",
+                  "french",
+                  "spanish"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "switch language to english",
+          "parameters": {
+            "language": "english"
+          }
+        },
+        {
+          "text": "use russian recognition",
+          "parameters": {
+            "language": "russian"
+          }
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_configure_quality",
+      "intent_suffix": "quality",
+      "description": "Configure ASR quality settings",
+      "phrases": [
+        "configure quality",
+        "improve recognition",
+        "high quality asr",
+        "recognition quality",
+        "asr settings",
+        "recognition accuracy"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "quality",
+          "type": "choice",
+          "required": false,
+          "default_value": "high",
+          "choices": [
+            "low",
+            "medium",
+            "high",
+            "ultra"
+          ],
+          "description": "Quality level for ASR",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "low",
+                      "medium",
+                      "high",
+                      "ultra"
+                    ]
+                  }
+                }
+              ],
+              "label": "QUALITY"
+            }
+          ],
+          "aliases": [
+            "level"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "configure"
+          },
+          {
+            "TEXT": "quality"
+          }
+        ],
+        [
+          {
+            "TEXT": "improve"
+          },
+          {
+            "TEXT": "recognition"
+          }
+        ],
+        [
+          {
+            "LOWER": {
+              "IN": [
+                "high",
+                "low",
+                "medium"
+              ]
+            }
+          },
+          {
+            "TEXT": "quality"
+          }
+        ],
+        [
+          {
+            "TEXT": "recognition"
+          },
+          {
+            "TEXT": "quality"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "QUALITY": [
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "low",
+                  "medium",
+                  "high",
+                  "ultra"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "configure high quality",
+          "parameters": {
+            "quality": "high"
+          }
+        },
+        {
+          "text": "medium quality asr",
+          "parameters": {
+            "quality": "medium"
+          }
+        }
+      ],
+      "boost": 1.0
+    },
+    {
+      "method_name": "_handle_configure_microphone",
+      "intent_suffix": "microphone",
+      "description": "Configure microphone settings for ASR",
+      "phrases": [
+        "configure microphone",
+        "change microphone",
+        "use different microphone",
+        "microphone for asr",
+        "microphone settings",
+        "select microphone"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "microphone",
+          "type": "string",
+          "required": false,
+          "default_value": "default",
+          "description": "Microphone device to use",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "MICROPHONE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": [
+                      "configure",
+                      "use",
+                      "select"
+                    ]
+                  }
+                },
+                {
+                  "TEXT": "microphone"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "MICROPHONE"
+            }
+          ],
+          "aliases": [
+            "device"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "configure"
+          },
+          {
+            "TEXT": "microphone"
+          }
+        ],
+        [
+          {
+            "TEXT": "change"
+          },
+          {
+            "TEXT": "microphone"
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          },
+          {
+            "TEXT": "microphone"
+          }
+        ],
+        [
+          {
+            "TEXT": "for"
+          },
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "TEXT": "microphone"
+          },
+          {
+            "TEXT": "for"
+          },
+          {
+            "TEXT": "asr"
+          }
+        ],
+        [
+          {
+            "TEXT": "select"
+          },
+          {
+            "TEXT": "microphone"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "MICROPHONE": [
+          [
+            {
+              "LEMMA": {
+                "IN": []
+              }
+            },
+            {
+              "LEMMA": "microphone"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": [
+                  "configure",
+                  "use",
+                  "select"
+                ]
+              }
+            },
+            {
+              "TEXT": "microphone"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "configure default microphone",
+          "parameters": {
+            "microphone": "default"
+          }
+        },
+        {
+          "text": "select built-in microphone",
+          "parameters": {
+            "microphone": "built-in"
+          }
+        }
+      ],
+      "boost": 0.9
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "asr"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "recognition|asr|microphone"
+        }
+      }
+    ]
+  ],
+  "language": "en"
+}

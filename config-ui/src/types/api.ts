@@ -86,18 +86,7 @@ export interface DonationListItem {
   last_modified: number; // Unix timestamp
 }
 
-// Updated to match backend DonationContentResponse schema exactly
-export interface DonationResponse extends BaseApiResponse {
-  handler_name: string;
-  donation_data: Record<string, any>; // Backend uses "additionalProperties": true
-  metadata: DonationListItem; // Backend refs DonationMetadata
-}
-
-// Updated to match backend DonationListResponse schema exactly  
-export interface DonationsListResponse extends BaseApiResponse {
-  donations: DonationListItem[];
-  total_count: number;
-}
+// Legacy donation types removed - replaced by language-aware types below
 
 // Schema-related types
 export interface JsonSchema {
@@ -111,40 +100,12 @@ export interface JsonSchema {
 
 // Updated to match backend DonationSchemaResponse schema exactly
 export interface SchemaResponse extends BaseApiResponse {
-  schema: Record<string, any>; // Backend uses "additionalProperties": true
+  json_schema: Record<string, any>; // Backend uses "additionalProperties": true
   schema_version: string;
   supported_versions: string[];
 }
 
-// Update request types - match backend schemas exactly
-export interface UpdateDonationRequest {
-  donation_data: Record<string, any>; // Backend uses "additionalProperties": true
-  validate_before_save?: boolean; // default: true
-  trigger_reload?: boolean; // default: true
-}
-
-export interface ValidateDonationRequest {
-  donation_data: Record<string, any>; // Backend uses "additionalProperties": true
-  handler_name: string;
-}
-
-// Update response types - match backend schemas exactly
-export interface UpdateDonationResponse extends BaseApiResponse {
-  handler_name: string;
-  validation_passed: boolean;
-  reload_triggered: boolean;
-  backup_created: boolean;
-  errors: ValidationError[]; // default: []
-  warnings: ValidationWarning[]; // default: []
-}
-
-export interface ValidateDonationResponse extends BaseApiResponse {
-  handler_name: string;
-  is_valid: boolean;
-  errors: ValidationError[]; // default: []
-  warnings: ValidationWarning[]; // default: []
-  validation_types: string[];
-}
+// Legacy request/response types removed - replaced by language-aware types below
 
 // System status types
 export interface SystemStatus {
@@ -185,4 +146,172 @@ export interface ReloadResponse extends BaseApiResponse {
   handlers_count: number;
   handlers: string[];
   error?: string | null;
+}
+
+// ============================================================
+// LANGUAGE-AWARE DONATION TYPES (Phase 3)
+// ============================================================
+
+export interface HandlerLanguageInfo {
+  handler_name: string;
+  languages: string[];
+  total_languages: number;
+  supported_languages: string[];
+  default_language: string;
+}
+
+export interface DonationHandlerListResponse extends BaseApiResponse {
+  handlers: HandlerLanguageInfo[];
+  total_handlers: number;
+}
+
+export interface LanguageDonationMetadata {
+  file_path: string;
+  language: string;
+  file_size: number;
+  last_modified: number;
+}
+
+export interface CrossLanguageValidation {
+  is_consistent: boolean;
+  missing_methods: string[];
+  extra_methods: string[];
+  inconsistent_parameters: string[];
+  total_methods: number;
+  languages_compared: string[];
+}
+
+export interface LanguageDonationContentResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  donation_data: DonationData;
+  metadata: LanguageDonationMetadata;
+  available_languages: string[];
+  cross_language_validation: CrossLanguageValidation;
+}
+
+export interface LanguageDonationUpdateRequest {
+  donation_data: any;
+  validate_before_save: boolean;
+  trigger_reload: boolean;
+}
+
+export interface LanguageDonationUpdateResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  validation_passed: boolean;
+  reload_triggered: boolean;
+  backup_created: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+export interface LanguageDonationValidationRequest {
+  donation_data: any;
+}
+
+export interface LanguageDonationValidationResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  is_valid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+  validation_types: string[];
+}
+
+export interface CreateLanguageRequest {
+  copy_from?: string;
+  use_template: boolean;
+}
+
+export interface CreateLanguageResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  created: boolean;
+  copied_from?: string;
+}
+
+export interface DeleteLanguageResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  deleted: boolean;
+}
+
+export interface ReloadDonationResponse extends BaseApiResponse {
+  handler_name: string;
+  reloaded: boolean;
+  merged_languages: string[];
+}
+
+// ============================================================
+// Phase 4: Cross-Language Validation Types
+// ============================================================
+
+export interface ValidationReport {
+  handler_name: string;
+  languages_checked: string[];
+  parameter_consistency: boolean;
+  missing_parameters: string[];
+  extra_parameters: string[];
+  type_mismatches: string[];
+  warnings: string[];
+  timestamp: number;
+}
+
+export interface CompletenessReport {
+  handler_name: string;
+  languages_checked: string[];
+  method_completeness: boolean;
+  missing_methods: string[];
+  extra_methods: string[];
+  all_methods: string[];
+  method_counts_by_language: Record<string, number>;
+  warnings: string[];
+  timestamp: number;
+}
+
+export interface MissingPhraseInfo {
+  method_key: string;
+  source_phrases: string[];
+  target_phrases: string[];
+  missing_count: number;
+  coverage_ratio: number;
+}
+
+export interface TranslationSuggestions {
+  handler_name: string;
+  source_language: string;
+  target_language: string;
+  missing_phrases: MissingPhraseInfo[];
+  missing_methods: string[];
+  confidence_scores: Record<string, number>;
+  timestamp: number;
+}
+
+export interface CrossLanguageValidationResponse extends BaseApiResponse {
+  validation_type: string;
+  parameter_report?: ValidationReport;
+  completeness_report?: CompletenessReport;
+}
+
+export interface SyncParametersRequest {
+  source_language: string;
+  target_languages: string[];
+}
+
+export interface SyncParametersResponse extends BaseApiResponse {
+  handler_name: string;
+  source_language: string;
+  sync_results: Record<string, boolean>;
+  updated_languages: string[];
+  skipped_languages: string[];
+}
+
+export interface SuggestTranslationsRequest {
+  source_language: string;
+  target_language: string;
+}
+
+export interface SuggestTranslationsResponse extends BaseApiResponse {
+  suggestions: TranslationSuggestions;
 }

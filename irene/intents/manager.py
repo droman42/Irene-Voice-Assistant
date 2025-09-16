@@ -13,7 +13,6 @@ from .registry import IntentRegistry
 from .orchestrator import IntentOrchestrator
 from ..utils.loader import dynamic_loader
 from ..core.intent_asset_loader import IntentAssetLoader, AssetLoaderConfig
-# PHASE 5: Remove parameter extractor import - now integrated into NLU providers
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,6 @@ class IntentHandlerManager:
         self._registry = IntentRegistry()
         self._orchestrator: Optional[IntentOrchestrator] = None
         self._asset_loader: Optional[IntentAssetLoader] = None
-        # PHASE 5: Remove parameter extractor field - now integrated into NLU providers
         self._donations: Dict[str, Any] = {}
         self._intent_system_config: Optional[Any] = None  # Phase 5: Store full intent system config
         self._initialized = False
@@ -114,7 +112,6 @@ class IntentHandlerManager:
         await self._initialize_handlers_with_donations()
         await self._register_handlers()
         
-        # PHASE 5: Remove parameter extractor initialization - now integrated into NLU providers
         
         # Create orchestrator with registry only (no parameter extractor needed)
         self._orchestrator = IntentOrchestrator(self._registry)
@@ -311,7 +308,6 @@ class IntentHandlerManager:
         
         logger.info(f"Successfully initialized {len(self._handler_instances)} handlers with donations")
     
-    # PHASE 5: Remove _initialize_parameter_extractor method - parameter extraction now integrated into NLU providers
     
     async def _register_handlers(self) -> None:
         """Register handler instances with the IntentRegistry using donation-based patterns."""
@@ -431,7 +427,6 @@ class IntentHandlerManager:
         """Get all loaded JSON donations."""
         return self._donations.copy()
     
-    # PHASE 5: Remove get_parameter_extractor method - parameter extraction now integrated into NLU providers
     
     async def add_handler(self, name: str, handler: Any, patterns: Optional[List[str]] = None) -> None:
         """

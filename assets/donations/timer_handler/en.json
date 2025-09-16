@@ -1,0 +1,462 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "timer",
+  "description": "Timer functionality with duration and message support",
+  "global_parameters": [
+    {
+      "name": "retain",
+      "type": "boolean",
+      "required": false,
+      "default_value": false,
+      "description": "Whether to retain state across sessions"
+    }
+  ],
+  "intent_name_patterns": [
+    "timer.set",
+    "timer.cancel",
+    "timer.list",
+    "timer.status"
+  ],
+  "action_patterns": [
+    "set",
+    "cancel",
+    "list",
+    "status",
+    "create",
+    "remove",
+    "start",
+    "stop",
+    "pause",
+    "resume"
+  ],
+  "stop_command_patterns": [
+    "stop timer",
+    "cancel timer",
+    "halt timer",
+    "remove timer",
+    "stop alarm",
+    "cancel alarm"
+  ],
+  "action_domain_priority": 70,
+  "method_donations": [
+    {
+      "method_name": "_handle_set_timer",
+      "intent_suffix": "set",
+      "description": "Set a timer with duration and optional message",
+      "phrases": [
+        "set timer",
+        "start timer",
+        "set alarm",
+        "start alarm",
+        "remind me in"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "duration",
+          "type": "integer",
+          "required": true,
+          "description": "Timer duration number",
+          "min_value": 1,
+          "max_value": 86400,
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LIKE_NUM": true
+                }
+              ],
+              "label": "DURATION_VALUE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "^\\d+$"
+                  }
+                }
+              ],
+              "label": "DURATION_VALUE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": ".*"
+                  }
+                }
+              ],
+              "label": "DURATION_SECONDS"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": ".*"
+                  }
+                }
+              ],
+              "label": "DURATION_MINUTES"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": ".*"
+                  }
+                }
+              ],
+              "label": "DURATION_HOURS"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": ".*"
+                  }
+                }
+              ],
+              "label": "DURATION_WITH_PREFIX"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": ".*"
+                  }
+                }
+              ],
+              "label": "DURATION_WITH_THROUGH"
+            }
+          ],
+          "aliases": []
+        },
+        {
+          "name": "unit",
+          "type": "choice",
+          "required": false,
+          "default_value": "minutes",
+          "description": "Time unit for duration",
+          "choices": [
+            "seconds",
+            "minutes",
+            "hours"
+          ],
+          "extraction_patterns": [
+            {
+              "pattern": [],
+              "label": "TIME_UNIT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "seconds",
+                      "minutes",
+                      "hours"
+                    ]
+                  }
+                }
+              ],
+              "label": "TIME_UNIT"
+            }
+          ],
+          "aliases": []
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "required": false,
+          "description": "Custom message when timer completes",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "IS_SENT_START": false
+                }
+              ],
+              "label": "TIMER_MESSAGE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": ".*"
+                  }
+                }
+              ],
+              "label": "TIMER_MESSAGE_COLON"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": ".*"
+                  }
+                }
+              ],
+              "label": "TIMER_MESSAGE_REMIND"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": ".*"
+                  }
+                }
+              ],
+              "label": "TIMER_MESSAGE_SAY"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LOWER": "on"
+          },
+          {
+            "LIKE_NUM": true
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "set|start"
+            }
+          },
+          {
+            "TEXT": {
+              "REGEX": "timer|alarm"
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "DURATION_VALUE": [
+          [
+            {
+              "LIKE_NUM": true
+            },
+            {
+              "LEMMA": {
+                "IN": []
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "REGEX": "^\\d+$"
+              }
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "minutes",
+                  "seconds",
+                  "hours"
+                ]
+              }
+            }
+          ]
+        ],
+        "TIME_UNIT": [
+          [
+            {
+              "LEMMA": {
+                "IN": []
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "seconds",
+                  "minutes",
+                  "hours"
+                ]
+              }
+            }
+          ]
+        ],
+        "TIMER_MESSAGE": [
+          [
+            {
+              "LOWER": "message"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "remind"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "set timer for 10 minutes",
+          "parameters": {
+            "duration": 10,
+            "unit": "minutes"
+          }
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_cancel_timer",
+      "intent_suffix": "cancel",
+      "description": "Cancel existing timer",
+      "phrases": [
+        "cancel timer",
+        "stop timer",
+        "remove timer",
+        "delete timer"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "timer_id",
+          "type": "string",
+          "required": false,
+          "description": "Specific timer ID to cancel",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "REGEX": "\\d+"
+                  }
+                }
+              ],
+              "label": "TIMER_ID"
+            }
+          ],
+          "aliases": [
+            "id"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "cancel|stop|remove"
+            }
+          },
+          {
+            "TEXT": "timer"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "cancel timer",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_list_timers",
+      "intent_suffix": "list",
+      "description": "List all active timers",
+      "phrases": [
+        "show timers",
+        "list timers",
+        "my timers",
+        "active timers"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "show|list"
+            }
+          },
+          {
+            "TEXT": "timer"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "list timers",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.0
+    },
+    {
+      "method_name": "_handle_timer_status",
+      "intent_suffix": "status",
+      "description": "Check status of timers",
+      "phrases": [
+        "timer status",
+        "timer state",
+        "how are timers"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "timer"
+          },
+          {
+            "TEXT": {
+              "REGEX": "status|state"
+            }
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "timer status",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.0
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      },
+      {
+        "LEMMA": "timer"
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not|without"
+        }
+      },
+      {
+        "TEXT": "timer"
+      }
+    ]
+  ],
+  "additional_recognition_patterns": [],
+  "language": "en"
+}

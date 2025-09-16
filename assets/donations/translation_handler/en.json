@@ -1,0 +1,469 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "translation",
+  "description": "Text translation commands via LLM",
+  "intent_name_patterns": [
+    "translation.translate",
+    "translation.specific",
+    "llm.translate"
+  ],
+  "action_patterns": [
+    "translate",
+    "translation",
+    "convert"
+  ],
+  "domain_patterns": [
+    "translation",
+    "language",
+    "llm"
+  ],
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "ru",
+        "en"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_translate_text",
+      "intent_suffix": "translate",
+      "description": "Translate text using command parsing",
+      "phrases": [
+        "translate",
+        "translation",
+        "translate to",
+        "make translation",
+        "convert to"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "required": false,
+          "description": "Text to translate (extracted from command)",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "translate"
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            }
+          ],
+          "aliases": []
+        },
+        {
+          "name": "target_language",
+          "type": "choice",
+          "required": false,
+          "choices": [
+            "spanish",
+            "french",
+            "german",
+            "chinese"
+          ],
+          "description": "Target language for translation",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": "on"
+                }
+              ],
+              "label": "TARGET_LANGUAGE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "to"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "russian",
+                      "english",
+                      "spanish",
+                      "french",
+                      "german",
+                      "chinese"
+                    ]
+                  }
+                }
+              ],
+              "label": "TARGET_LANGUAGE"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "translate"
+          }
+        ],
+        [
+          {
+            "TEXT": "translation"
+          }
+        ],
+        [
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ],
+        [
+          {
+            "TEXT": "translate"
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "TEXT": [
+          [
+            {
+              "LEMMA": "translate"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "TEXT": "translate"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
+        ],
+        "TARGET_LANGUAGE": [
+          [
+            {
+              "TEXT": "on"
+            },
+            {
+              "LOWER": {
+                "IN": []
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": "to"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "russian",
+                  "english",
+                  "spanish",
+                  "french",
+                  "german",
+                  "chinese"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "translate to russian",
+          "parameters": {
+            "target_language": "russian"
+          }
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_translate_specific",
+      "intent_suffix": "specific",
+      "description": "Translate specific text with extracted entities",
+      "phrases": [
+        "translate phrase",
+        "translate word",
+        "translate text to",
+        "translate 'text' to",
+        "make translation to"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "required": true,
+          "description": "Specific text to translate",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": "'"
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                },
+                {
+                  "TEXT": "'"
+                }
+              ],
+              "label": "TEXT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "\""
+                },
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                },
+                {
+                  "TEXT": "\""
+                }
+              ],
+              "label": "TEXT"
+            },
+            {
+              "pattern": [
+                {
+                  "IS_ALPHA": true,
+                  "OP": "+"
+                }
+              ],
+              "label": "TEXT"
+            }
+          ],
+          "aliases": []
+        },
+        {
+          "name": "target_language",
+          "type": "choice",
+          "required": true,
+          "choices": [
+            "spanish",
+            "french",
+            "german",
+            "chinese"
+          ],
+          "description": "Target language for specific translation",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": "on"
+                }
+              ],
+              "label": "TARGET_LANGUAGE"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "to"
+                },
+                {
+                  "LOWER": {
+                    "IN": [
+                      "russian",
+                      "english",
+                      "spanish",
+                      "french",
+                      "german",
+                      "chinese"
+                    ]
+                  }
+                }
+              ],
+              "label": "TARGET_LANGUAGE"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "on"
+          }
+        ],
+        [
+          {
+            "TEXT": "translate"
+          },
+          {
+            "TEXT": {
+              "IN": [
+                "phrase",
+                "word",
+                "text"
+              ]
+            }
+          },
+          {
+            "TEXT": "to"
+          }
+        ],
+        [
+          {
+            "TEXT": "'"
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          },
+          {
+            "TEXT": "'"
+          }
+        ],
+        [
+          {
+            "TEXT": "translate"
+          },
+          {
+            "TEXT": "'"
+          },
+          {
+            "IS_ALPHA": true,
+            "OP": "+"
+          },
+          {
+            "TEXT": "'"
+          }
+        ],
+        [
+          {}
+        ]
+      ],
+      "slot_patterns": {
+        "TEXT": [
+          [
+            {
+              "TEXT": "'"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            },
+            {
+              "TEXT": "'"
+            }
+          ],
+          [
+            {
+              "TEXT": "\""
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            },
+            {
+              "TEXT": "\""
+            }
+          ],
+          [
+            {
+              "LEMMA": {
+                "IN": []
+              }
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
+        ],
+        "TARGET_LANGUAGE": [
+          [
+            {
+              "TEXT": "on"
+            },
+            {
+              "LOWER": {
+                "IN": []
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": "to"
+            },
+            {
+              "LOWER": {
+                "IN": [
+                  "russian",
+                  "english",
+                  "spanish",
+                  "french",
+                  "german",
+                  "chinese"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [],
+      "boost": 1.4
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "translate|translation"
+        }
+      }
+    ]
+  ],
+  "language": "en"
+}

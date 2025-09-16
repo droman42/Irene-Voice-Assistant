@@ -25,16 +25,6 @@
   ],
   "action_domain_priority": 90,
   "stop_command_patterns": [
-    "стоп аудио",
-    "останови аудио",
-    "прекрати аудио",
-    "выключи аудио",
-    "стоп музыка",
-    "останови музыку",
-    "прекрати музыку",
-    "выключи музыку",
-    "стоп воспроизведение",
-    "останови воспроизведение",
     "stop audio",
     "stop music",
     "halt audio",
@@ -66,32 +56,13 @@
       "intent_suffix": "play",
       "description": "Start audio playback",
       "phrases": [
-        "играй музыку",
-        "воспроизведи файл",
-        "включи аудио",
-        "запусти музыку",
         "play music",
         "play audio",
         "start playback",
-        "воспроизведи",
-        "играй",
-        "включи музыку",
-        "запусти аудио",
         "start music",
-        "играй аудио",
-        "воспроизведи музыку",
-        "play",
-        "воспроизведи аудио"
+        "play"
       ],
-      "lemmas": [
-        "играть",
-        "воспроизводить",
-        "включать",
-        "запускать",
-        "музыка",
-        "аудио",
-        "файл"
-      ],
+      "lemmas": [],
       "parameters": [
         {
           "name": "file_path",
@@ -101,14 +72,6 @@
           "extraction_patterns": [
             {
               "pattern": [
-                {
-                  "LEMMA": {
-                    "IN": [
-                      "играть",
-                      "воспроизводить"
-                    ]
-                  }
-                },
                 {
                   "IS_ALPHA": true,
                   "OP": "+"
@@ -120,7 +83,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "REGEX": "play|воспроизведи"
+                    "REGEX": "play"
                   }
                 },
                 {
@@ -131,67 +94,10 @@
               "label": "FILE_PATH"
             }
           ],
-          "aliases": [
-            "файл",
-            "трек",
-            "песня"
-          ]
+          "aliases": []
         }
       ],
       "token_patterns": [
-        [
-          {
-            "LEMMA": "играть"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "музыка",
-                "аудио"
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "LEMMA": "воспроизводить"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "файл",
-                "музыка",
-                "аудио"
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "LEMMA": "включать"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "музыка",
-                "аудио"
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "LEMMA": "запускать"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "музыка",
-                "аудио"
-              ]
-            }
-          }
-        ],
         [
           {
             "TEXT": "play"
@@ -225,10 +131,7 @@
           [
             {
               "LEMMA": {
-                "IN": [
-                  "играть",
-                  "воспроизводить"
-                ]
+                "IN": []
               }
             },
             {
@@ -239,7 +142,7 @@
           [
             {
               "TEXT": {
-                "REGEX": "play|воспроизведи"
+                "REGEX": "play"
               }
             },
             {
@@ -250,20 +153,6 @@
         ]
       },
       "examples": [
-        {
-          "text": "играй музыку",
-          "parameters": {}
-        },
-        {
-          "text": "воспроизведи файл music.mp3",
-          "parameters": {
-            "file_path": "music.mp3"
-          }
-        },
-        {
-          "text": "включи аудио",
-          "parameters": {}
-        },
         {
           "text": "play music",
           "parameters": {}
@@ -276,70 +165,15 @@
       "intent_suffix": "stop",
       "description": "Stop audio playback",
       "phrases": [
-        "останови аудио",
-        "останови музыку",
-        "стоп",
-        "выключи аудио",
         "stop audio",
         "stop music",
         "stop playback",
-        "остановка",
-        "останови воспроизведение",
-        "выключи музыку",
-        "прекрати играть",
         "stop",
-        "pause",
-        "пауза",
-        "останови",
-        "стоп аудио",
-        "стоп музыка"
+        "pause"
       ],
-      "lemmas": [
-        "останавливать",
-        "стоп",
-        "выключать",
-        "прекращать",
-        "пауза",
-        "музыка",
-        "аудио"
-      ],
+      "lemmas": [],
       "parameters": [],
       "token_patterns": [
-        [
-          {
-            "LEMMA": "останавливать"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "аудио",
-                "музыка",
-                "воспроизведение"
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "LEMMA": "выключать"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "аудио",
-                "музыка"
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "LEMMA": "прекращать"
-          },
-          {
-            "LEMMA": "играть"
-          }
-        ],
         [
           {
             "TEXT": "stop"
@@ -358,7 +192,6 @@
           {
             "TEXT": {
               "IN": [
-                "стоп",
                 "stop"
               ]
             }
@@ -368,7 +201,6 @@
           {
             "TEXT": {
               "IN": [
-                "пауза",
                 "pause"
               ]
             }
@@ -377,18 +209,6 @@
       ],
       "slot_patterns": {},
       "examples": [
-        {
-          "text": "останови аудио",
-          "parameters": {}
-        },
-        {
-          "text": "останови музыку",
-          "parameters": {}
-        },
-        {
-          "text": "стоп",
-          "parameters": {}
-        },
         {
           "text": "stop music",
           "parameters": {}
@@ -401,26 +221,13 @@
       "intent_suffix": "switch",
       "description": "Switch audio provider",
       "phrases": [
-        "переключись на аудио",
-        "смени аудио провайдер",
-        "используй аудио",
         "switch audio provider",
         "change audio",
-        "переключись на sounddevice",
-        "смени на pulseaudio",
-        "используй alsa",
-        "переключи аудио",
         "switch to",
         "change to",
         "use audio provider"
       ],
-      "lemmas": [
-        "переключаться",
-        "менять",
-        "использовать",
-        "аудио",
-        "провайдер"
-      ],
+      "lemmas": [],
       "parameters": [
         {
           "name": "provider",
@@ -437,10 +244,7 @@
             {
               "pattern": [
                 {
-                  "LEMMA": "переключаться"
-                },
-                {
-                  "TEXT": "на"
+                  "TEXT": "on"
                 },
                 {
                   "IS_ALPHA": true
@@ -468,49 +272,21 @@
               "label": "PROVIDER"
             }
           ],
-          "aliases": [
-            "драйвер",
-            "система"
-          ]
+          "aliases": []
         }
       ],
       "token_patterns": [
         [
           {
-            "LEMMA": "переключаться"
-          },
-          {
-            "TEXT": "на"
-          },
-          {
-            "LEMMA": "аудио"
+            "TEXT": "on"
           }
         ],
         [
           {
-            "LEMMA": "переключаться"
-          },
-          {
-            "TEXT": "на"
+            "TEXT": "on"
           },
           {
             "IS_ALPHA": true
-          },
-          {
-            "LEMMA": "аудио"
-          }
-        ],
-        [
-          {
-            "LEMMA": "менять"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "аудио",
-                "провайдер"
-              ]
-            }
           }
         ],
         [
@@ -548,10 +324,10 @@
         "PROVIDER": [
           [
             {
-              "LEMMA": "переключаться"
+              "LEMMA": "switch"
             },
             {
-              "TEXT": "на"
+              "TEXT": "on"
             },
             {
               "IS_ALPHA": true
@@ -577,18 +353,6 @@
       },
       "examples": [
         {
-          "text": "переключись на sounddevice аудио",
-          "parameters": {
-            "provider": "sounddevice"
-          }
-        },
-        {
-          "text": "смени аудио провайдер на pulseaudio",
-          "parameters": {
-            "provider": "pulseaudio"
-          }
-        },
-        {
           "text": "switch audio provider to alsa",
           "parameters": {
             "provider": "alsa"
@@ -602,54 +366,15 @@
       "intent_suffix": "list",
       "description": "List available audio providers",
       "phrases": [
-        "покажи аудио провайдеры",
-        "список аудио устройств",
-        "какие аудио",
         "show audio providers",
         "list audio devices",
-        "аудио провайдеры",
-        "покажи аудио",
-        "список аудио",
-        "доступные аудио",
         "available audio",
         "what audio providers",
-        "audio devices",
-        "аудио устройства"
+        "audio devices"
       ],
-      "lemmas": [
-        "показывать",
-        "список",
-        "аудио",
-        "провайдер",
-        "устройство",
-        "доступный"
-      ],
+      "lemmas": [],
       "parameters": [],
       "token_patterns": [
-        [
-          {
-            "LEMMA": "показывать"
-          },
-          {
-            "LEMMA": "аудио"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "провайдер",
-                "устройство"
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "LEMMA": "список"
-          },
-          {
-            "LEMMA": "аудио"
-          }
-        ],
         [
           {
             "TEXT": "show"
@@ -676,14 +401,6 @@
         ],
         [
           {
-            "LEMMA": "доступный"
-          },
-          {
-            "LEMMA": "аудио"
-          }
-        ],
-        [
-          {
             "TEXT": "available"
           },
           {
@@ -694,19 +411,7 @@
       "slot_patterns": {},
       "examples": [
         {
-          "text": "покажи аудио провайдеры",
-          "parameters": {}
-        },
-        {
-          "text": "список аудио устройств",
-          "parameters": {}
-        },
-        {
           "text": "show audio providers",
-          "parameters": {}
-        },
-        {
-          "text": "доступные аудио",
           "parameters": {}
         }
       ],
@@ -717,20 +422,12 @@
     [
       {
         "LEMMA": {
-          "IN": [
-            "нет",
-            "не"
-          ]
+          "IN": []
         }
       },
       {
         "LEMMA": {
-          "IN": [
-            "играть",
-            "воспроизводить",
-            "аудио",
-            "музыка"
-          ]
+          "IN": []
         }
       }
     ],
@@ -746,5 +443,6 @@
         }
       }
     ]
-  ]
+  ],
+  "language": "en"
 }

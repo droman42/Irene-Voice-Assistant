@@ -11,20 +11,14 @@
       "required": false,
       "default_value": "ru",
       "choices": [
-        "ru",
-        "en"
+        "русский",
+        "английский"
       ],
       "description": "Response language preference"
     }
   ],
-  "intent_name_patterns": [
-    "transport.train_schedule",
-    "transport.get_trains"
-  ],
-  "action_patterns": [
-    "train_schedule",
-    "get_trains"
-  ],
+  "intent_name_patterns": [],
+  "action_patterns": [],
   "domain_action_patterns": [
     {
       "domain": "transport",
@@ -57,11 +51,7 @@
         "электрички",
         "поезд",
         "ближайший поезд",
-        "расписание электричек",
-        "train schedule",
-        "when is train",
-        "trains to",
-        "railway timetable"
+        "расписание электричек"
       ],
       "lemmas": [
         "расписание",
@@ -83,8 +73,7 @@
                   "LOWER": {
                     "IN": [
                       "от",
-                      "из",
-                      "from"
+                      "из"
                     ]
                   }
                 },
@@ -96,8 +85,7 @@
             }
           ],
           "aliases": [
-            "откуда",
-            "departure"
+            "откуда"
           ]
         },
         {
@@ -112,8 +100,7 @@
                   "LOWER": {
                     "IN": [
                       "до",
-                      "в",
-                      "to"
+                      "в"
                     ]
                   }
                 },
@@ -125,8 +112,7 @@
             }
           ],
           "aliases": [
-            "куда",
-            "destination"
+            "куда"
           ]
         },
         {
@@ -139,11 +125,11 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "REGEX": "\\d{1,2}:\\d{2}"
+                    "REGEX": ".*"
                   }
                 }
               ],
-              "label": "TIME"
+              "label": "время"
             },
             {
               "pattern": [
@@ -152,10 +138,7 @@
                     "IN": [
                       "утром",
                       "днем",
-                      "вечером",
-                      "morning",
-                      "afternoon",
-                      "evening"
+                      "вечером"
                     ]
                   }
                 }
@@ -196,11 +179,9 @@
         ],
         [
           {
-            "TEXT": "train"
+            "TEXT": "поезд"
           },
-          {
-            "TEXT": "schedule"
-          }
+          {}
         ],
         [
           {
@@ -210,7 +191,7 @@
             "TEXT": "is"
           },
           {
-            "TEXT": "train"
+            "TEXT": "поезд"
           }
         ]
       ],
@@ -232,7 +213,7 @@
           ],
           [
             {
-              "LOWER": "from"
+              "LOWER": "от"
             },
             {
               "IS_ALPHA": true,
@@ -269,7 +250,7 @@
           [
             {
               "TEXT": {
-                "REGEX": "\\d{1,2}:\\d{2}"
+                "REGEX": ".*"
               }
             }
           ],
@@ -279,10 +260,7 @@
                 "IN": [
                   "утром",
                   "днем",
-                  "вечером",
-                  "morning",
-                  "afternoon",
-                  "evening"
+                  "вечером"
                 ]
               }
             }
@@ -306,12 +284,6 @@
             "from_station": "Санкт-Петербурга",
             "to_station": "Москвы"
           }
-        },
-        {
-          "text": "train schedule to London",
-          "parameters": {
-            "to_station": "London"
-          }
         }
       ],
       "boost": 1.2
@@ -334,12 +306,13 @@
     [
       {
         "TEXT": {
-          "REGEX": "no|not"
+          "REGEX": ".*"
         }
       },
       {
-        "TEXT": "train"
+        "TEXT": "поезд"
       }
     ]
-  ]
+  ],
+  "language": "ru"
 }

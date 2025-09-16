@@ -3,7 +3,7 @@
  */
 
 import { ReactNode } from 'react';
-import { DonationData, DonationListItem, ValidationResult, JsonSchema } from './api';
+import { DonationData, DonationListItem, ValidationResult, JsonSchema, HandlerLanguageInfo } from './api';
 
 // UI Component Props
 export interface BadgeProps {
@@ -253,4 +253,26 @@ export interface MonitoringData {
     message: string;
     component?: string;
   }>;
+}
+
+// ============================================================
+// LANGUAGE-AWARE COMPONENT PROPS (Phase 3)
+// ============================================================
+
+// Language-aware HandlerList component props (Phase 3)
+export interface HandlerLanguageListProps {
+  handlers: HandlerLanguageInfo[];
+  selectedHandler: string | null;
+  selectedLanguage: string | null;
+  onSelect: (handlerName: string) => void;
+  onLanguageSelect: (handlerName: string, language: string) => void;
+  onCreateLanguage: (handlerName: string, language: string, copyFrom?: string) => void;
+  onDeleteLanguage: (handlerName: string, language: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  filterLanguageCount: 'all' | 'single' | 'multiple';
+  onFilterLanguageCountChange: (filter: 'all' | 'single' | 'multiple') => void;
+  hasChanges?: Record<string, Record<string, boolean>>; // handler -> language -> hasChanges
+  loading?: boolean;
+  error?: string | null;
 }

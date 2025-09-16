@@ -10,6 +10,8 @@ import { AlertCircle, Trash2, FileText, ChevronDown, ChevronRight } from 'lucide
 
 // Import components
 import HandlerList from '@/components/donations/HandlerList';
+import LanguageTabs, { LanguageInfo } from '@/components/donations/LanguageTabs';
+import CrossLanguageValidation from '@/components/donations/CrossLanguageValidation';
 import ApplyChangesBar from '@/components/donations/ApplyChangesBar';
 
 // Import existing form components
@@ -25,9 +27,15 @@ import ExamplesEditor from '@/components/editors/ExamplesEditor';
 import apiClient from '@/utils/apiClient';
 import type { 
   DonationData, 
-  DonationListItem,
   ValidationResult,
-  JsonSchema
+  JsonSchema,
+  HandlerLanguageInfo,
+  DonationHandlerListResponse,
+  LanguageDonationContentResponse,
+  // Phase 4: Cross-language validation types
+  ValidationReport,
+  CompletenessReport,
+  CrossLanguageValidationResponse
 } from '@/types';
 
 // Note: Utility functions available for future use
@@ -60,7 +68,7 @@ function MethodDonationEditor({
 }: MethodDonationEditorProps) {
   const v = value ?? { description: '', handler_domain: '', method_donations: [] };
   const set = (k: keyof DonationData, val: any): void => {
-    onChange({ ...(v ?? {}), [k]: val });
+    onChange({ ...(value ?? {}), [k]: val });
   };
 
   // Helper functions for method expansion state
@@ -246,8 +254,8 @@ function MethodDonationEditor({
 }
 
 const DonationsPage: React.FC = () => {
-  // Core state
-  const [handlersList, setHandlersList] = useState<DonationListItem[]>([]);
+  // Core state - Updated for language-aware architecture
+  const [handlersList, setHandlersList] = useState<HandlerLanguageInfo[]>([]);
   const [donations, setDonations] = useState<Record<string, DonationData>>({});
   const [originalDonations, setOriginalDonations] = useState<Record<string, DonationData>>({});
   const [schema, setSchema] = useState<JsonSchema | null>(null);
@@ -262,10 +270,6 @@ const DonationsPage: React.FC = () => {
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterDomain, setFilterDomain] = useState('');
-  const [filterMethodCount, setFilterMethodCount] = useState('');
-  const [filterModified, setFilterModified] = useState(false);
-  const [bulkSelection, setBulkSelection] = useState<string[]>([]);
   const [showRawJson, setShowRawJson] = useState(false);
   
   // Method collapsible state - track expanded methods by handler:methodIndex
@@ -273,6 +277,99 @@ const DonationsPage: React.FC = () => {
 
   // Validation state
   const [validationResults, setValidationResults] = useState<Record<string, ValidationResult>>({});
+
+  // Language support state  
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
+  const [languageCountFilter, setLanguageCountFilter] = useState<'all' | 'single' | 'multiple'>('all');
+  
+  // Phase 4: Cross-language validation state
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  const [completenessReport, setCompletenessReport] = useState<CompletenessReport | null>(null);
+
+  // Helper functions for language management
+  const getAvailableLanguagesForHandler = (handlerName: string): LanguageInfo[] => {
+    const handler = handlersList.find(h => h.handler_name === handlerName);
+    if (!handler) return [];
+    
+    return handler.languages.map(lang => {
+      const donationKey = `${handlerName}:${lang}`;
+      const donation = donations[donationKey];
+      const methodCount = donation?.method_donations?.length || 0;
+      const hasValidationErrors = validationResults[donationKey] && !validationResults[donationKey].valid;
+      
+      return {
+        code: lang,
+        label: lang.toUpperCase(),
+        status: hasValidationErrors ? 'error' as const : 'loaded' as const,
+        methodCount,
+        lastModified: new Date().toISOString(),
+        validationErrors: hasValidationErrors ? validationResults[donationKey].errors.length : 0
+      };
+    });
+  };
+
+  const getSupportedLanguages = (): string[] => {
+    const handler = handlersList.find(h => h.handler_name === selectedHandler);
+    return handler?.supported_languages || ['en', 'ru'];
+  };
+
+  const convertToNestedHasChanges = (flatChanges: Record<string, boolean>): Record<string, Record<string, boolean>> => {
+    const nested: Record<string, Record<string, boolean>> = {};
+    
+    for (const [key, hasChanged] of Object.entries(flatChanges)) {
+      if (key.includes(':')) {
+        const [handlerName, language] = key.split(':');
+        if (!nested[handlerName]) {
+          nested[handlerName] = {};
+        }
+        nested[handlerName][language] = hasChanged;
+      }
+    }
+    
+    return nested;
+  };
+
+  const handleCreateLanguage = async (language: string, templateFrom?: string) => {
+    if (!selectedHandler) return;
+    
+    try {
+      await apiClient.createLanguage(selectedHandler, language, { 
+        copyFrom: templateFrom,
+        useTemplate: !templateFrom 
+      });
+      
+      // Reload handlers to get updated language list
+      await loadHandlers();
+      
+      // Switch to the new language
+      setSelectedLanguage(language);
+    } catch (err) {
+      console.error('Failed to create language:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create language');
+    }
+  };
+
+  const handleDeleteLanguage = async (language: string) => {
+    if (!selectedHandler) return;
+    
+    try {
+      await apiClient.deleteLanguage(selectedHandler, language);
+      
+      // Reload handlers to get updated language list
+      await loadHandlers();
+      
+      // Switch to default language if current language was deleted
+      if (selectedLanguage === language) {
+        const handler = handlersList.find(h => h.handler_name === selectedHandler);
+        if (handler && handler.languages.length > 0) {
+          setSelectedLanguage(handler.default_language || handler.languages[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete language:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete language');
+    }
+  };
 
   // Helper function for method expansion state
   const toggleMethodExpansion = (handlerName: string, methodIndex: number): void => {
@@ -293,6 +390,64 @@ const DonationsPage: React.FC = () => {
     });
   };
 
+  // Phase 4: Cross-language validation functions
+  const loadCrossLanguageValidation = async (handlerName: string) => {
+    if (!handlerName) return;
+    
+    try {
+      const response: CrossLanguageValidationResponse = await apiClient.getCrossLanguageValidation(handlerName);
+      
+      setValidationReport(response.parameter_report || null);
+      setCompletenessReport(response.completeness_report || null);
+    } catch (err) {
+      // Gracefully handle 404 - the cross-language validation API might not be implemented yet
+      if (err instanceof Error && err.message.includes('404')) {
+        console.warn('Cross-language validation API not implemented yet - feature will be hidden');
+        setValidationReport(null);
+        setCompletenessReport(null);
+        return;
+      }
+      
+      console.error('Failed to load cross-language validation:', err);
+      setValidationReport(null);
+      setCompletenessReport(null);
+    }
+  };
+
+  const handleRefreshValidation = useCallback(() => {
+    if (selectedHandler) {
+      loadCrossLanguageValidation(selectedHandler);
+    }
+  }, [selectedHandler]);
+
+  const handleSyncParameters = useCallback(async (sourceLanguage: string, targetLanguages: string[]) => {
+    if (!selectedHandler) return;
+    
+    try {
+      await apiClient.syncParameters(selectedHandler, sourceLanguage, targetLanguages);
+      
+      // Refresh validation after sync
+      await loadCrossLanguageValidation(selectedHandler);
+      
+      // Reload donations for affected languages
+      for (const targetLang of targetLanguages) {
+        await loadDonation(selectedHandler, targetLang);
+      }
+      
+      console.log(`Successfully synced parameters from ${sourceLanguage} to ${targetLanguages.join(', ')}`);
+    } catch (err) {
+      // Handle 404 gracefully - the sync API might not be implemented yet
+      if (err instanceof Error && err.message.includes('404')) {
+        console.warn('Parameter sync API not implemented yet');
+        setError('Parameter synchronization feature is not available yet. Please sync parameters manually.');
+        return;
+      }
+      
+      console.error('Failed to sync parameters:', err);
+      setError(err instanceof Error ? err.message : 'Failed to sync parameters');
+    }
+  }, [selectedHandler]);
+
   // Load initial data
   useEffect(() => {
     Promise.all([
@@ -301,24 +456,46 @@ const DonationsPage: React.FC = () => {
     ]);
   }, []);
 
-  // Load selected donation when handler changes
+  // Load selected donation when handler or language changes
   useEffect(() => {
-    if (selectedHandler && !donations[selectedHandler]) {
-      loadDonation(selectedHandler);
+    if (selectedHandler && selectedLanguage) {
+      const donationKey = `${selectedHandler}:${selectedLanguage}`;
+      if (!donations[donationKey]) {
+        loadDonation(selectedHandler, selectedLanguage);
+      }
     }
-  }, [selectedHandler, donations]);
+  }, [selectedHandler, selectedLanguage, donations]);
+
+  // Load cross-language validation when handler changes and has multiple languages
+  useEffect(() => {
+    if (selectedHandler) {
+      const handler = handlersList.find(h => h.handler_name === selectedHandler);
+      if (handler && handler.languages.length > 1) {
+        loadCrossLanguageValidation(selectedHandler);
+      } else {
+        // Clear validation for single-language handlers
+        setValidationReport(null);
+        setCompletenessReport(null);
+      }
+    }
+  }, [selectedHandler, handlersList]);
 
   const loadHandlers = async (): Promise<void> => {
     try {
       setLoadingHandlers(true);
       setError(null);
 
-      const response = await apiClient.getDonations();
-      setHandlersList(response.donations || []);
+      const response: DonationHandlerListResponse = await apiClient.getDonationHandlers();
+      setHandlersList(response.handlers || []);
 
       // Auto-select first handler if none selected
-      if (response.donations && response.donations.length > 0 && !selectedHandler) {
-        setSelectedHandler(response.donations[0].handler_name);
+      if (response.handlers && response.handlers.length > 0 && !selectedHandler) {
+        setSelectedHandler(response.handlers[0].handler_name);
+        // Also set default language for the first handler
+        const firstHandler = response.handlers[0];
+        if (firstHandler.languages.length > 0) {
+          setSelectedLanguage(firstHandler.default_language || firstHandler.languages[0]);
+        }
       }
     } catch (err) {
       console.error('Failed to load handlers:', err);
@@ -332,7 +509,7 @@ const DonationsPage: React.FC = () => {
     try {
       setLoadingSchema(true);
       const response = await apiClient.getDonationSchema();
-      setSchema(response.schema as JsonSchema);
+      setSchema(response.json_schema as JsonSchema);
     } catch (err) {
       console.error('Failed to load schema:', err);
       // Schema loading failure is not critical, continue without it
@@ -341,16 +518,24 @@ const DonationsPage: React.FC = () => {
     }
   };
 
-  const loadDonation = async (handlerName: string): Promise<void> => {
+  const loadDonation = async (handlerName: string, language?: string): Promise<void> => {
+    const targetLanguage = language || selectedLanguage;
+    if (!targetLanguage) {
+      console.warn('No language selected for loading donation');
+      return;
+    }
+    
     try {
-      const response = await apiClient.getDonation(handlerName);
+      const response: LanguageDonationContentResponse = await apiClient.getLanguageDonation(handlerName, targetLanguage);
+      const donationKey = `${handlerName}:${targetLanguage}`;
+      
       setDonations(prev => ({
         ...prev,
-        [handlerName]: response.donation_data as DonationData
+        [donationKey]: response.donation_data as DonationData
       }));
       setOriginalDonations(prev => ({
         ...prev,
-        [handlerName]: JSON.parse(JSON.stringify(response.donation_data as DonationData))
+        [donationKey]: JSON.parse(JSON.stringify(response.donation_data as DonationData))
       }));
     } catch (err) {
       // Handle 404 errors gracefully - some handlers might not have donation files yet
@@ -395,8 +580,10 @@ const DonationsPage: React.FC = () => {
 
   // Get global parameter names for the current donation
   const globalParamNames = useMemo(() => {
-    if (!selectedHandler || !donations[selectedHandler]) return [];
-    const donation = donations[selectedHandler];
+    if (!selectedHandler || !selectedLanguage) return [];
+    const donationKey = `${selectedHandler}:${selectedLanguage}`;
+    if (!donations[donationKey]) return [];
+    const donation = donations[donationKey];
     const allParams = new Set<string>();
     
     donation.method_donations?.forEach(method => {
@@ -407,24 +594,30 @@ const DonationsPage: React.FC = () => {
   }, [donations, selectedHandler]);
 
   const handleSave = async (): Promise<void> => {
-    if (!selectedHandler) return;
+    if (!selectedHandler || !selectedLanguage) return;
 
     try {
       setSaveStatus('saving');
       setError(null);
 
-      const donationData = donations[selectedHandler];
-      await apiClient.updateDonation(selectedHandler, donationData);
+      const donationKey = `${selectedHandler}:${selectedLanguage}`;
+      const donationData = donations[donationKey];
+      
+      if (!donationData) {
+        throw new Error('No donation data to save');
+      }
+
+      await apiClient.updateLanguageDonation(selectedHandler, selectedLanguage, donationData);
 
       // Update original to mark as saved
       setOriginalDonations(prev => ({
         ...prev,
-        [selectedHandler]: JSON.parse(JSON.stringify(donationData))
+        [donationKey]: JSON.parse(JSON.stringify(donationData))
       }));
 
       setHasChanges(prev => ({
         ...prev,
-        [selectedHandler]: false
+        [donationKey]: false
       }));
 
       setSaveStatus('saved');
@@ -439,29 +632,35 @@ const DonationsPage: React.FC = () => {
   };
 
   const handleValidate = async (): Promise<ValidationResult> => {
-    if (!selectedHandler) {
-      return { valid: false, errors: ['No handler selected'], warnings: [] };
+    if (!selectedHandler || !selectedLanguage) {
+      return { valid: false, errors: ['No handler or language selected'], warnings: [] };
     }
 
     try {
-      const donationData = donations[selectedHandler];
-      const response = await apiClient.validateDonation(selectedHandler, donationData);
+      const donationKey = `${selectedHandler}:${selectedLanguage}`;
+      const donationData = donations[donationKey];
+      
+      if (!donationData) {
+        return { valid: false, errors: ['No donation data to validate'], warnings: [] };
+      }
+      
+      const response = await apiClient.validateLanguageDonation(selectedHandler, selectedLanguage, donationData);
       
       // Convert new API response structure to legacy ValidationResult format
       const validationResult: ValidationResult = {
         valid: response.is_valid,
-        errors: response.errors?.map(err => err.msg) || [],
-        warnings: response.warnings?.map(warn => warn.message) || [],
+        errors: response.errors?.map((err: any) => err.msg) || [],
+        warnings: response.warnings?.map((warn: any) => warn.message) || [],
         details: response
       };
 
       setValidationResults(prev => ({
         ...prev,
-        [selectedHandler]: validationResult
+        [donationKey]: validationResult
       }));
 
       return validationResult;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Validation failed:', err);
       const errorResult: ValidationResult = {
         valid: false,
@@ -541,39 +740,74 @@ const DonationsPage: React.FC = () => {
       {/* Handler List */}
       <HandlerList
         handlers={handlersList}
-        selectedHandler={selectedHandler || undefined}
+        selectedHandler={selectedHandler}
+        selectedLanguage={selectedLanguage}
         onSelect={setSelectedHandler}
+        onLanguageSelect={(handlerName, language) => {
+          setSelectedHandler(handlerName);
+          setSelectedLanguage(language);
+        }}
+        onCreateLanguage={handleCreateLanguage}
+        onDeleteLanguage={handleDeleteLanguage}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        filterDomain={filterDomain}
-        onFilterDomainChange={setFilterDomain}
-        filterMethodCount={filterMethodCount}
-        onFilterMethodCountChange={setFilterMethodCount}
-        filterModified={filterModified}
-        onFilterModifiedChange={setFilterModified}
-        bulkSelection={bulkSelection}
-        onBulkSelectionChange={setBulkSelection}
-        hasChanges={hasChanges}
+        filterLanguageCount={languageCountFilter}
+        onFilterLanguageCountChange={setLanguageCountFilter}
+        hasChanges={convertToNestedHasChanges(hasChanges)}
         loading={loadingHandlers}
-        error={error || undefined}
+        error={error}
       />
 
       {/* Main Editor Area */}
       <div className="flex-1 flex flex-col">
         {selectedHandler ? (
           <>
+            {/* Language Tabs */}
+            <LanguageTabs
+              activeLanguage={selectedLanguage}
+              availableLanguages={getAvailableLanguagesForHandler(selectedHandler)}
+              supportedLanguages={getSupportedLanguages()}
+              onLanguageChange={setSelectedLanguage}
+              onCreateLanguage={handleCreateLanguage}
+              onDeleteLanguage={handleDeleteLanguage}
+              disabled={saveStatus === 'saving'}
+              // Phase 4: Cross-language validation props
+              handlerName={selectedHandler}
+              validationReport={validationReport}
+              completenessReport={completenessReport}
+              onRefreshValidation={handleRefreshValidation}
+              onSyncParameters={handleSyncParameters}
+            />
+
+            {/* Cross-Language Validation Panel */}
+            {selectedHandler && (
+              <div className="border-b border-gray-200 p-4 bg-gray-50">
+                <CrossLanguageValidation
+                  handlerName={selectedHandler}
+                  handlerInfo={handlersList.find(h => h.handler_name === selectedHandler)!}
+                  activeLanguage={selectedLanguage}
+                  validationReport={validationReport}
+                  completenessReport={completenessReport}
+                  onRefreshValidation={handleRefreshValidation}
+                  onSyncParameters={handleSyncParameters}
+                  isLoading={saveStatus === 'saving'}
+                  disabled={saveStatus === 'saving'}
+                />
+              </div>
+            )}
+
             {/* Header */}
             <div className="border-b border-gray-200 p-6 bg-white">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">{selectedHandler}</h1>
-                  {donations[selectedHandler] && (
+                  {selectedLanguage && donations[`${selectedHandler}:${selectedLanguage}`] && (
                     <p className="text-gray-600 mt-1">
-                      {donations[selectedHandler].description || 'No description'}
+                      {donations[`${selectedHandler}:${selectedLanguage}`].description || 'No description'}
                     </p>
                   )}
                 </div>
-                {hasChanges[selectedHandler] && (
+                {selectedHandler && selectedLanguage && hasChanges[`${selectedHandler}:${selectedLanguage}`] && (
                   <Badge variant="warning">Unsaved Changes</Badge>
                 )}
               </div>
@@ -581,10 +815,10 @@ const DonationsPage: React.FC = () => {
 
             {/* Editor Content */}
             <div className="flex-1 overflow-auto p-6">
-              {donations[selectedHandler] ? (
+              {selectedLanguage && donations[`${selectedHandler}:${selectedLanguage}`] ? (
                 <div>
                   {/* Show notice for empty donations */}
-                  {donations[selectedHandler].method_donations?.length === 0 && (
+                  {donations[`${selectedHandler}:${selectedLanguage}`].method_donations?.length === 0 && (
                     <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                       <div className="flex items-start">
                         <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
@@ -599,11 +833,11 @@ const DonationsPage: React.FC = () => {
                   )}
                   
                   <MethodDonationEditor
-                    value={donations[selectedHandler]}
-                    onChange={(newDonation) => handleDonationChange(selectedHandler, newDonation)}
+                    value={donations[`${selectedHandler}:${selectedLanguage}`]}
+                    onChange={(newDonation) => handleDonationChange(`${selectedHandler}:${selectedLanguage}`, newDonation)}
                     globalParamNames={globalParamNames}
                     schema={schema || undefined}
-                    validationResult={validationResults[selectedHandler]}
+                    validationResult={selectedLanguage ? validationResults[`${selectedHandler}:${selectedLanguage}`] : undefined}
                     disabled={saveStatus === 'saving'}
                     showRawJson={showRawJson}
                     onToggleRawJson={() => setShowRawJson(!showRawJson)}
@@ -635,9 +869,9 @@ const DonationsPage: React.FC = () => {
 
       {/* Apply Changes Bar */}
       <ApplyChangesBar
-        visible={!!(selectedHandler && hasChanges[selectedHandler])}
+        visible={!!(selectedHandler && selectedLanguage && hasChanges[`${selectedHandler}:${selectedLanguage}`])}
         selectedHandler={selectedHandler || undefined}
-        hasUnsavedChanges={selectedHandler ? hasChanges[selectedHandler] || false : false}
+        hasUnsavedChanges={selectedHandler && selectedLanguage ? hasChanges[`${selectedHandler}:${selectedLanguage}`] || false : false}
         onSave={handleSave}
         onValidate={handleValidate}
         onCancel={handleCancel}

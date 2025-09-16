@@ -4,23 +4,9 @@
   "donation_version": "1.0",
   "handler_domain": "provider_control",
   "description": "Provider switching and management across all components",
-  "intent_name_patterns": [
-    "provider.switch",
-    "provider.list",
-    "provider.control"
-  ],
-  "action_patterns": [
-    "switch",
-    "change",
-    "list",
-    "show",
-    "control"
-  ],
-  "domain_patterns": [
-    "provider",
-    "control",
-    "management"
-  ],
+  "intent_name_patterns": [],
+  "action_patterns": [],
+  "domain_patterns": [],
   "global_parameters": [
     {
       "name": "language",
@@ -28,8 +14,8 @@
       "required": false,
       "default_value": "ru",
       "choices": [
-        "ru",
-        "en"
+        "русский",
+        "английский"
       ],
       "description": "Response language preference"
     }
@@ -43,18 +29,12 @@
         "переключись на",
         "смени провайдер",
         "используй провайдер",
-        "switch provider",
         "переключись на аудио",
         "смени llm",
         "используй asr",
-        "switch to audio",
-        "change provider",
-        "use provider",
         "переключи на",
-        "switch component",
         "смени компонент",
-        "переключись на провайдер",
-        "change component provider"
+        "переключись на провайдер"
       ],
       "lemmas": [
         "переключаться",
@@ -62,10 +42,7 @@
         "использовать",
         "провайдер",
         "компонент",
-        "аудио",
-        "llm",
-        "asr",
-        "tts"
+        "аудио"
       ],
       "parameters": [
         {
@@ -73,10 +50,6 @@
           "type": "choice",
           "required": false,
           "choices": [
-            "audio",
-            "llm",
-            "asr",
-            "tts",
             "аудио",
             "распознавание",
             "голос",
@@ -90,7 +63,6 @@
                   "LOWER": {
                     "IN": [
                       "аудио",
-                      "audio",
                       "звук"
                     ]
                   }
@@ -103,7 +75,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "llm",
                       "модель",
                       "лл"
                     ]
@@ -117,7 +88,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "asr",
                       "распознавание",
                       "речь"
                     ]
@@ -131,7 +101,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "tts",
                       "голос",
                       "синтез"
                     ]
@@ -171,10 +140,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "IN": [
-                      "switch",
-                      "change"
-                    ]
+                    "IN": []
                   }
                 },
                 {
@@ -206,10 +172,7 @@
         [
           {
             "TEXT": {
-              "IN": [
-                "switch",
-                "change"
-              ]
+              "IN": []
             }
           },
           {
@@ -226,27 +189,14 @@
           {
             "LOWER": {
               "IN": [
-                "аудио",
-                "llm",
-                "asr",
-                "tts"
+                "аудио"
               ]
             }
           }
         ],
         [
           {
-            "TEXT": "switch"
-          },
-          {
-            "LOWER": {
-              "IN": [
-                "audio",
-                "llm",
-                "asr",
-                "tts"
-              ]
-            }
+            "TEXT": "переключить"
           },
           {
             "TEXT": "provider"
@@ -262,7 +212,7 @@
         ],
         [
           {
-            "TEXT": "change"
+            "TEXT": "изменить"
           },
           {
             "TEXT": "provider"
@@ -292,7 +242,6 @@
               "LOWER": {
                 "IN": [
                   "аудио",
-                  "audio",
                   "звук"
                 ]
               }
@@ -302,7 +251,6 @@
             {
               "LOWER": {
                 "IN": [
-                  "llm",
                   "модель",
                   "лл"
                 ]
@@ -313,7 +261,6 @@
             {
               "LOWER": {
                 "IN": [
-                  "asr",
                   "распознавание",
                   "речь"
                 ]
@@ -324,7 +271,6 @@
             {
               "LOWER": {
                 "IN": [
-                  "tts",
                   "голос",
                   "синтез"
                 ]
@@ -347,10 +293,7 @@
           [
             {
               "TEXT": {
-                "IN": [
-                  "switch",
-                  "change"
-                ]
+                "IN": []
               }
             },
             {
@@ -371,24 +314,10 @@
           }
         },
         {
-          "text": "switch audio provider to sounddevice",
-          "parameters": {
-            "component": "audio",
-            "provider": "sounddevice"
-          }
-        },
-        {
           "text": "смени asr на whisper",
           "parameters": {
             "component": "asr",
             "provider": "whisper"
-          }
-        },
-        {
-          "text": "use silero for tts",
-          "parameters": {
-            "component": "tts",
-            "provider": "silero"
           }
         }
       ],
@@ -402,17 +331,12 @@
         "покажи провайдеры",
         "список провайдеров",
         "какие провайдеры",
-        "show providers",
         "покажи аудио провайдеры",
         "список llm",
         "asr провайдеры",
-        "tts providers",
         "доступные провайдеры",
-        "available providers",
         "провайдеры компонентов",
-        "component providers",
-        "все провайдеры",
-        "all providers"
+        "все провайдеры"
       ],
       "lemmas": [
         "показывать",
@@ -428,15 +352,10 @@
           "type": "choice",
           "required": false,
           "choices": [
-            "audio",
-            "llm",
-            "asr",
-            "tts",
             "аудио",
             "распознавание",
             "голос",
             "модель",
-            "all",
             "все"
           ],
           "description": "Component to list providers for (optional - lists all if not specified)",
@@ -447,7 +366,6 @@
                   "LOWER": {
                     "IN": [
                       "аудио",
-                      "audio",
                       "звук"
                     ]
                   }
@@ -460,7 +378,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "llm",
                       "модель",
                       "лл"
                     ]
@@ -474,7 +391,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "asr",
                       "распознавание",
                       "речь"
                     ]
@@ -488,7 +404,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "tts",
                       "голос",
                       "синтез"
                     ]
@@ -503,7 +418,6 @@
                   "LOWER": {
                     "IN": [
                       "все",
-                      "all",
                       "всех"
                     ]
                   }
@@ -537,9 +451,7 @@
           }
         ],
         [
-          {
-            "TEXT": "show"
-          },
+          {},
           {
             "TEXT": "providers"
           }
@@ -559,10 +471,7 @@
           {
             "LOWER": {
               "IN": [
-                "аудио",
-                "llm",
-                "asr",
-                "tts"
+                "аудио"
               ]
             }
           },
@@ -571,19 +480,7 @@
           }
         ],
         [
-          {
-            "TEXT": "show"
-          },
-          {
-            "LOWER": {
-              "IN": [
-                "audio",
-                "llm",
-                "asr",
-                "tts"
-              ]
-            }
-          },
+          {},
           {
             "TEXT": "providers"
           }
@@ -628,7 +525,6 @@
               "LOWER": {
                 "IN": [
                   "аудио",
-                  "audio",
                   "звук"
                 ]
               }
@@ -638,7 +534,6 @@
             {
               "LOWER": {
                 "IN": [
-                  "llm",
                   "модель",
                   "лл"
                 ]
@@ -649,7 +544,6 @@
             {
               "LOWER": {
                 "IN": [
-                  "asr",
                   "распознавание",
                   "речь"
                 ]
@@ -660,7 +554,6 @@
             {
               "LOWER": {
                 "IN": [
-                  "tts",
                   "голос",
                   "синтез"
                 ]
@@ -672,7 +565,6 @@
               "LOWER": {
                 "IN": [
                   "все",
-                  "all",
                   "всех"
                 ]
               }
@@ -692,21 +584,9 @@
           }
         },
         {
-          "text": "show llm providers",
-          "parameters": {
-            "component": "llm"
-          }
-        },
-        {
           "text": "доступные tts провайдеры",
           "parameters": {
             "component": "tts"
-          }
-        },
-        {
-          "text": "all providers",
-          "parameters": {
-            "component": "all"
           }
         }
       ],
@@ -736,14 +616,15 @@
     [
       {
         "TEXT": {
-          "REGEX": "no|not"
+          "REGEX": ".*"
         }
       },
       {
         "TEXT": {
-          "REGEX": "switch|change|provider"
+          "REGEX": ".*"
         }
       }
     ]
-  ]
+  ],
+  "language": "ru"
 }

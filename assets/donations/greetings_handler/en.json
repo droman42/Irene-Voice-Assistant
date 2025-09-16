@@ -37,15 +37,6 @@
       "intent_suffix": "hello",
       "description": "Handle hello and greeting messages",
       "phrases": [
-        "привет",
-        "здравствуй",
-        "здравствуйте",
-        "добро пожаловать",
-        "приветствую",
-        "рада видеть",
-        "доброе утро",
-        "добрый день",
-        "добрый вечер",
         "hello",
         "hi",
         "hey",
@@ -55,16 +46,7 @@
         "good evening",
         "how are you"
       ],
-      "lemmas": [
-        "привет",
-        "здравствовать",
-        "приветствовать",
-        "добрый",
-        "доброе",
-        "утро",
-        "день",
-        "вечер"
-      ],
+      "lemmas": [],
       "parameters": [
         {
           "name": "time_of_day",
@@ -79,18 +61,7 @@
           "description": "Time-specific greeting",
           "extraction_patterns": [
             {
-              "pattern": [
-                {
-                  "LEMMA": {
-                    "IN": [
-                      "утро",
-                      "день",
-                      "вечер",
-                      "ночь"
-                    ]
-                  }
-                }
-              ],
+              "pattern": [],
               "label": "TIME_OF_DAY"
             },
             {
@@ -109,41 +80,14 @@
               "label": "TIME_OF_DAY"
             }
           ],
-          "aliases": [
-            "время"
-          ]
+          "aliases": []
         }
       ],
       "token_patterns": [
         [
           {
-            "LEMMA": {
-              "IN": [
-                "привет",
-                "здравствовать",
-                "приветствовать"
-              ]
-            }
-          }
-        ],
-        [
-          {
             "TEXT": {
               "REGEX": "hello|hi|hey"
-            }
-          }
-        ],
-        [
-          {
-            "LEMMA": "добрый"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "утро",
-                "день",
-                "вечер"
-              ]
             }
           }
         ],
@@ -162,15 +106,11 @@
         "TIME_OF_DAY": [
           [
             {
-              "LEMMA": "добрый"
+              "LEMMA": "good"
             },
             {
               "LEMMA": {
-                "IN": [
-                  "утро",
-                  "день",
-                  "вечер"
-                ]
+                "IN": []
               }
             }
           ],
@@ -187,16 +127,6 @@
         ]
       },
       "examples": [
-        {
-          "text": "привет",
-          "parameters": {}
-        },
-        {
-          "text": "доброе утро",
-          "parameters": {
-            "time_of_day": "morning"
-          }
-        },
         {
           "text": "hello",
           "parameters": {}
@@ -215,12 +145,6 @@
       "intent_suffix": "goodbye",
       "description": "Handle goodbye and farewell messages",
       "phrases": [
-        "пока",
-        "до свидания",
-        "прощай",
-        "бывай",
-        "до встречи",
-        "всего доброго",
         "goodbye",
         "bye",
         "farewell",
@@ -228,13 +152,7 @@
         "take care",
         "good luck"
       ],
-      "lemmas": [
-        "пока",
-        "прощать",
-        "свидание",
-        "встреча",
-        "добрый"
-      ],
+      "lemmas": [],
       "parameters": [
         {
           "name": "return_time",
@@ -245,7 +163,7 @@
             {
               "pattern": [
                 {
-                  "LOWER": "до"
+                  "LOWER": "until"
                 },
                 {
                   "IS_ALPHA": true
@@ -254,40 +172,14 @@
               "label": "RETURN_TIME"
             }
           ],
-          "aliases": [
-            "когда",
-            "время"
-          ]
+          "aliases": []
         }
       ],
       "token_patterns": [
         [
           {
-            "LEMMA": {
-              "IN": [
-                "пока",
-                "прощать"
-              ]
-            }
-          }
-        ],
-        [
-          {
             "TEXT": {
               "REGEX": "goodbye|bye|farewell"
-            }
-          }
-        ],
-        [
-          {
-            "LEMMA": "до"
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "свидание",
-                "встреча"
-              ]
             }
           }
         ],
@@ -312,14 +204,11 @@
         "RETURN_TIME": [
           [
             {
-              "LOWER": "до"
+              "LOWER": "until"
             },
             {
               "LEMMA": {
-                "IN": [
-                  "встреча",
-                  "свидание"
-                ]
+                "IN": []
               }
             }
           ],
@@ -340,14 +229,6 @@
       },
       "examples": [
         {
-          "text": "пока",
-          "parameters": {}
-        },
-        {
-          "text": "до свидания",
-          "parameters": {}
-        },
-        {
           "text": "goodbye",
           "parameters": {}
         },
@@ -365,31 +246,14 @@
       "intent_suffix": "welcome",
       "description": "Handle welcome responses and acknowledgments",
       "phrases": [
-        "добро пожаловать",
-        "рад встрече",
-        "приятно познакомиться",
         "welcome",
         "nice to meet you",
         "pleased to meet you",
         "glad to see you"
       ],
-      "lemmas": [
-        "добро",
-        "пожаловать",
-        "рад",
-        "встреча",
-        "познакомиться"
-      ],
+      "lemmas": [],
       "parameters": [],
       "token_patterns": [
-        [
-          {
-            "LEMMA": "добро"
-          },
-          {
-            "LEMMA": "пожаловать"
-          }
-        ],
         [
           {
             "TEXT": "welcome"
@@ -420,10 +284,6 @@
       ],
       "examples": [
         {
-          "text": "добро пожаловать",
-          "parameters": {}
-        },
-        {
           "text": "welcome",
           "parameters": {}
         },
@@ -439,18 +299,12 @@
     [
       {
         "LEMMA": {
-          "IN": [
-            "нет",
-            "не"
-          ]
+          "IN": []
         }
       },
       {
         "LEMMA": {
-          "IN": [
-            "привет",
-            "пока"
-          ]
+          "IN": []
         }
       }
     ],
@@ -466,5 +320,6 @@
         }
       }
     ]
-  ]
+  ],
+  "language": "en"
 }

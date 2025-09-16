@@ -4,21 +4,9 @@
   "donation_version": "1.0",
   "handler_domain": "translation",
   "description": "Text translation commands via LLM",
-  "intent_name_patterns": [
-    "translation.translate",
-    "translation.specific",
-    "llm.translate"
-  ],
-  "action_patterns": [
-    "translate",
-    "translation",
-    "convert"
-  ],
-  "domain_patterns": [
-    "translation",
-    "language",
-    "llm"
-  ],
+  "intent_name_patterns": [],
+  "action_patterns": [],
+  "domain_patterns": [],
   "global_parameters": [
     {
       "name": "language",
@@ -26,8 +14,8 @@
       "required": false,
       "default_value": "ru",
       "choices": [
-        "ru",
-        "en"
+        "русский",
+        "английский"
       ],
       "description": "Response language preference"
     }
@@ -41,15 +29,10 @@
         "переведи",
         "переводи",
         "перевод",
-        "translate",
-        "translation",
         "переведи текст",
         "сделай перевод",
         "переведи на",
-        "translate to",
         "переводить",
-        "make translation",
-        "convert to",
         "конвертируй",
         "переложи на",
         "перефразируй на",
@@ -84,9 +67,7 @@
             },
             {
               "pattern": [
-                {
-                  "TEXT": "translate"
-                },
+                {},
                 {
                   "IS_ALPHA": true,
                   "OP": "+"
@@ -108,11 +89,7 @@
           "default_value": "английский",
           "choices": [
             "русский",
-            "английский",
-            "spanish",
-            "french",
-            "german",
-            "chinese"
+            "английский"
           ],
           "description": "Target language for translation",
           "extraction_patterns": [
@@ -140,18 +117,6 @@
               "pattern": [
                 {
                   "TEXT": "to"
-                },
-                {
-                  "LOWER": {
-                    "IN": [
-                      "russian",
-                      "english",
-                      "spanish",
-                      "french",
-                      "german",
-                      "chinese"
-                    ]
-                  }
                 }
               ],
               "label": "TARGET_LANGUAGE"
@@ -170,9 +135,7 @@
           }
         ],
         [
-          {
-            "TEXT": "translate"
-          }
+          {}
         ],
         [
           {
@@ -194,9 +157,7 @@
           }
         ],
         [
-          {
-            "TEXT": "translate"
-          },
+          {},
           {
             "IS_ALPHA": true,
             "OP": "+"
@@ -215,9 +176,7 @@
             }
           ],
           [
-            {
-              "TEXT": "translate"
-            },
+            {},
             {
               "IS_ALPHA": true,
               "OP": "+"
@@ -248,14 +207,7 @@
             },
             {
               "LOWER": {
-                "IN": [
-                  "russian",
-                  "english",
-                  "spanish",
-                  "french",
-                  "german",
-                  "chinese"
-                ]
+                "IN": []
               }
             }
           ]
@@ -279,12 +231,6 @@
           "parameters": {
             "target_language": "английский"
           }
-        },
-        {
-          "text": "translate to russian",
-          "parameters": {
-            "target_language": "russian"
-          }
         }
       ],
       "boost": 1.3
@@ -297,14 +243,9 @@
         "переведи фразу",
         "переведи слово",
         "переведи текст на",
-        "translate phrase",
-        "translate word",
-        "translate text to",
         "переведи 'текст' на",
-        "translate 'text' to",
         "конвертируй в",
         "сделай перевод на",
-        "make translation to",
         "переложи на язык"
       ],
       "lemmas": [
@@ -382,11 +323,7 @@
           "required": true,
           "choices": [
             "русский",
-            "английский",
-            "spanish",
-            "french",
-            "german",
-            "chinese"
+            "английский"
           ],
           "description": "Target language for specific translation",
           "extraction_patterns": [
@@ -414,18 +351,6 @@
               "pattern": [
                 {
                   "TEXT": "to"
-                },
-                {
-                  "LOWER": {
-                    "IN": [
-                      "russian",
-                      "english",
-                      "spanish",
-                      "french",
-                      "german",
-                      "chinese"
-                    ]
-                  }
                 }
               ],
               "label": "TARGET_LANGUAGE"
@@ -457,16 +382,10 @@
           }
         ],
         [
-          {
-            "TEXT": "translate"
-          },
+          {},
           {
             "TEXT": {
-              "IN": [
-                "phrase",
-                "word",
-                "text"
-              ]
+              "IN": []
             }
           },
           {
@@ -489,9 +408,7 @@
           }
         ],
         [
-          {
-            "TEXT": "translate"
-          },
+          {},
           {
             "TEXT": "'"
           },
@@ -578,14 +495,7 @@
             },
             {
               "LOWER": {
-                "IN": [
-                  "russian",
-                  "english",
-                  "spanish",
-                  "french",
-                  "german",
-                  "chinese"
-                ]
+                "IN": []
               }
             }
           ]
@@ -646,14 +556,15 @@
     [
       {
         "TEXT": {
-          "REGEX": "no|not"
+          "REGEX": ".*"
         }
       },
       {
         "TEXT": {
-          "REGEX": "translate|translation"
+          "REGEX": ".*"
         }
       }
     ]
-  ]
+  ],
+  "language": "ru"
 }

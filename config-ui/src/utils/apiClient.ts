@@ -7,17 +7,27 @@
 
 import type {
   ApiError,
-  DonationsListResponse,
-  DonationResponse,
   SchemaResponse,
-  UpdateDonationRequest,
-  UpdateDonationResponse,
-  ValidateDonationRequest,
-  ValidateDonationResponse,
   IntentStatusResponse,
   IntentHandlersResponse,
   ReloadResponse,
-  DonationData
+  // Language-aware donation types
+  DonationHandlerListResponse,
+  LanguageDonationContentResponse,
+  LanguageDonationUpdateRequest,
+  LanguageDonationUpdateResponse,
+  LanguageDonationValidationRequest,
+  LanguageDonationValidationResponse,
+  CreateLanguageRequest,
+  CreateLanguageResponse,
+  DeleteLanguageResponse,
+  ReloadDonationResponse,
+  // Phase 4: Cross-language validation types
+  CrossLanguageValidationResponse,
+  SyncParametersRequest,
+  SyncParametersResponse,
+  SuggestTranslationsRequest,
+  SuggestTranslationsResponse
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -110,61 +120,18 @@ class IreneApiClient {
     });
   }
 
+  /**
+   * Make a DELETE request
+   */
+  async delete<T = any>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
+    });
+  }
+
   // ============================================================
-  // DONATIONS API METHODS
+  // SYSTEM METHODS
   // ============================================================
-
-  /**
-   * Get list of all donations with metadata
-   */
-  async getDonations(): Promise<DonationsListResponse> {
-    return this.get<DonationsListResponse>('/intents/donations');
-  }
-
-  /**
-   * Get specific donation content
-   */
-  async getDonation(handlerName: string): Promise<DonationResponse> {
-    return this.get<DonationResponse>(`/intents/donations/${encodeURIComponent(handlerName)}`);
-  }
-
-  /**
-   * Update donation content with optional validation and reload
-   */
-  async updateDonation(
-    handlerName: string, 
-    donationData: DonationData, 
-    options: {
-      validateBeforeSave?: boolean;
-      triggerReload?: boolean;
-    } = {}
-  ): Promise<UpdateDonationResponse> {
-    const requestData: UpdateDonationRequest = {
-      donation_data: donationData,
-      validate_before_save: options.validateBeforeSave !== false, // Default to true
-      trigger_reload: options.triggerReload !== false, // Default to true
-    };
-
-    return this.put<UpdateDonationResponse>(
-      `/intents/donations/${encodeURIComponent(handlerName)}`, 
-      requestData
-    );
-  }
-
-  /**
-   * Validate donation data without saving (dry-run)
-   */
-  async validateDonation(handlerName: string, donationData: DonationData): Promise<ValidateDonationResponse> {
-    const requestData: ValidateDonationRequest = {
-      donation_data: donationData,
-      handler_name: handlerName,
-    };
-
-    return this.post<ValidateDonationResponse>(
-      `/intents/donations/${encodeURIComponent(handlerName)}/validate`, 
-      requestData
-    );
-  }
 
   /**
    * Get donation JSON schema for validation
@@ -178,6 +145,167 @@ class IreneApiClient {
    */
   async reloadIntentSystem(): Promise<ReloadResponse> {
     return this.post<ReloadResponse>('/intents/reload', {});
+  }
+
+  // ============================================================
+  // LANGUAGE-AWARE DONATION METHODS
+  // ============================================================
+
+  /**
+   * List all handlers with language information
+   */
+  async getDonationHandlers(): Promise<DonationHandlerListResponse> {
+    return this.get<DonationHandlerListResponse>('/intents/donations');
+  }
+
+  /**
+   * Get available languages for a handler
+   */
+  async getHandlerLanguages(handlerName: string): Promise<string[]> {
+    return this.get<string[]>(`/intents/donations/${encodeURIComponent(handlerName)}/languages`);
+  }
+
+  /**
+   * Get language-specific donation content for editing
+   */
+  async getLanguageDonation(handlerName: string, language: string): Promise<LanguageDonationContentResponse> {
+    return this.get<LanguageDonationContentResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`
+    );
+  }
+
+  /**
+   * Update language-specific donation
+   */
+  async updateLanguageDonation(
+    handlerName: string, 
+    language: string, 
+    donationData: any,
+    options: {
+      validateBeforeSave?: boolean;
+      triggerReload?: boolean;
+    } = {}
+  ): Promise<LanguageDonationUpdateResponse> {
+    const requestData: LanguageDonationUpdateRequest = {
+      donation_data: donationData,
+      validate_before_save: options.validateBeforeSave ?? true,
+      trigger_reload: options.triggerReload ?? true,
+    };
+
+    return this.put<LanguageDonationUpdateResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`,
+      requestData
+    );
+  }
+
+  /**
+   * Validate language-specific donation without saving
+   */
+  async validateLanguageDonation(
+    handlerName: string, 
+    language: string, 
+    donationData: any
+  ): Promise<LanguageDonationValidationResponse> {
+    const requestData: LanguageDonationValidationRequest = {
+      donation_data: donationData,
+    };
+
+    return this.post<LanguageDonationValidationResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}/validate`,
+      requestData
+    );
+  }
+
+  /**
+   * Create a new language file for a handler
+   */
+  async createLanguage(
+    handlerName: string, 
+    language: string, 
+    options: {
+      copyFrom?: string;
+      useTemplate?: boolean;
+    } = {}
+  ): Promise<CreateLanguageResponse> {
+    const requestData: CreateLanguageRequest = {
+      copy_from: options.copyFrom,
+      use_template: options.useTemplate ?? false,
+    };
+
+    return this.post<CreateLanguageResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}/create`,
+      requestData
+    );
+  }
+
+  /**
+   * Delete a language file for a handler
+   */
+  async deleteLanguage(handlerName: string, language: string): Promise<DeleteLanguageResponse> {
+    return this.delete<DeleteLanguageResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`
+    );
+  }
+
+  /**
+   * Trigger unified donation reload for a handler
+   */
+  async reloadHandlerDonation(handlerName: string): Promise<ReloadDonationResponse> {
+    return this.post<ReloadDonationResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/reload`,
+      {}
+    );
+  }
+
+  // ============================================================
+  // PHASE 4: CROSS-LANGUAGE VALIDATION METHODS
+  // ============================================================
+
+  /**
+   * Get cross-language validation report for a handler
+   */
+  async getCrossLanguageValidation(handlerName: string): Promise<CrossLanguageValidationResponse> {
+    return this.get<CrossLanguageValidationResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/cross-validation`
+    );
+  }
+
+  /**
+   * Sync parameter structures across languages
+   */
+  async syncParameters(
+    handlerName: string,
+    sourceLanguage: string,
+    targetLanguages: string[]
+  ): Promise<SyncParametersResponse> {
+    const requestData: SyncParametersRequest = {
+      source_language: sourceLanguage,
+      target_languages: targetLanguages,
+    };
+
+    return this.post<SyncParametersResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/sync-parameters`,
+      requestData
+    );
+  }
+
+  /**
+   * Get translation suggestions for missing phrases
+   */
+  async suggestTranslations(
+    handlerName: string,
+    sourceLanguage: string,
+    targetLanguage: string
+  ): Promise<SuggestTranslationsResponse> {
+    const requestData: SuggestTranslationsRequest = {
+      source_language: sourceLanguage,
+      target_language: targetLanguage,
+    };
+
+    return this.post<SuggestTranslationsResponse>(
+      `/intents/donations/${encodeURIComponent(handlerName)}/suggest-translations`,
+      requestData
+    );
   }
 
   // ============================================================

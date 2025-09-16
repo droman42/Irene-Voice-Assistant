@@ -273,6 +273,11 @@
       "title": "Handler Domain",
       "type": "string"
     },
+    "language": {
+      "description": "Language code for this donation file (e.g., 'en', 'ru')",
+      "title": "Language",
+      "type": "string"
+    },
     "description": {
       "anyOf": [
         {

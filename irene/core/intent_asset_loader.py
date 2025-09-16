@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 
 from .donations import (
-    HandlerDonation, DonationValidationConfig, DonationDiscoveryError,
+    HandlerDonation, MethodDonation, DonationValidationConfig, DonationDiscoveryError,
     KeywordDonation, ParameterSpec, ParameterType
 )
 
@@ -34,7 +34,9 @@ class AssetLoaderConfig:
         validate_spacy_patterns: bool = False,
         strict_mode: bool = False,
         default_language: str = "ru",
-        fallback_language: str = "en"
+        fallback_language: str = "en",
+        supported_languages: List[str] = None,
+        enable_language_filtering: bool = True
     ):
         self.validate_json_schema = validate_json_schema
         self.validate_method_existence = validate_method_existence
@@ -42,6 +44,8 @@ class AssetLoaderConfig:
         self.strict_mode = strict_mode
         self.default_language = default_language
         self.fallback_language = fallback_language
+        self.supported_languages = supported_languages or ["ru", "en"]
+        self.enable_language_filtering = enable_language_filtering
 
 
 class IntentAssetLoader:
@@ -408,26 +412,114 @@ class IntentAssetLoader:
     # ============================================================
     
     async def _load_donations(self, handler_names: List[str]) -> None:
-        """Load JSON donations (migrate existing donation loader logic)"""
+        """Load language-separated donation files and merge for unified processing"""
         donations_dir = self.assets_root / "donations"
         
         for handler_name in handler_names:
-            json_path = donations_dir / f"{handler_name}.json"
+            asset_handler_name = self._get_asset_handler_name(handler_name)
+            language_donation_dir = donations_dir / asset_handler_name
             
-            try:
-                if not json_path.exists():
-                    self._add_warning(f"Missing JSON donation file for handler '{handler_name}': {json_path}")
-                    continue
+            # Load language-separated structure (only supported format)
+            if language_donation_dir.exists() and language_donation_dir.is_dir():
+                await self._load_language_separated_donations(language_donation_dir, handler_name)
+            else:
+                self._add_warning(f"No language-separated donation directory found for handler '{handler_name}': {language_donation_dir}")
+    
+    async def _load_language_separated_donations(self, lang_dir: Path, handler_name: str) -> None:
+        """Load and merge language-specific donation files into unified donation"""
+        language_donations = {}
+        
+        # Load each language file
+        for lang_file in lang_dir.glob("*.json"):
+            language = lang_file.stem
+            if language in self.config.supported_languages:
+                try:
+                    lang_donation = await self._load_and_validate_donation(lang_file, handler_name)
+                    language_donations[language] = lang_donation
+                    logger.debug(f"Loaded {language} donation for handler '{handler_name}'")
+                except Exception as e:
+                    self._add_warning(f"Failed to load {language} donation for handler '{handler_name}': {e}")
+        
+        if not language_donations:
+            self._add_warning(f"No valid language donations found for handler '{handler_name}' in {lang_dir}")
+            return
+        
+        # Merge into unified HandlerDonation for optimal processing
+        merged_donation = self._merge_language_donations(language_donations, handler_name)
+        self.donations[handler_name] = merged_donation
+        
+        logger.info(f"Merged {len(language_donations)} language donations for handler '{handler_name}'")
+    
+    def _merge_language_donations(self, language_donations: Dict[str, HandlerDonation], handler_name: str) -> HandlerDonation:
+        """Merge language-specific donations into unified donation for NLU processing"""
+        # Use first donation as base structure
+        base_donation = next(iter(language_donations.values()))
+        
+        # First pass: collect all phrases and metadata by method key
+        method_data = {}
+        
+        for language, donation in language_donations.items():
+            for method_donation in donation.method_donations:
+                method_key = f"{method_donation.method_name}#{method_donation.intent_suffix}"
                 
-                # Load and validate JSON donation
-                donation = await self._load_and_validate_donation(json_path, handler_name)
-                self.donations[handler_name] = donation
+                if method_key not in method_data:
+                    method_data[method_key] = {
+                        'method_name': method_donation.method_name,
+                        'intent_suffix': method_donation.intent_suffix,
+                        'description': method_donation.description,
+                        'phrases': [],
+                        'parameters': method_donation.parameters,
+                        'lemmas': [],
+                        'token_patterns': method_donation.token_patterns or [],
+                        'slot_patterns': method_donation.slot_patterns or {},
+                        'examples': [],
+                        'boost': method_donation.boost
+                    }
                 
-                logger.debug(f"Loaded donation for handler '{handler_name}': {len(donation.method_donations)} methods")
+                # Accumulate phrases from all languages
+                method_data[method_key]['phrases'].extend(method_donation.phrases)
                 
-            except Exception as e:
-                error_msg = f"Failed to load donation for handler '{handler_name}': {e}"
-                self._add_error(error_msg)
+                # Merge other language-specific fields
+                if method_donation.lemmas:
+                    method_data[method_key]['lemmas'].extend(method_donation.lemmas)
+                if method_donation.examples:
+                    method_data[method_key]['examples'].extend(method_donation.examples)
+        
+        # Second pass: create MethodDonation objects with accumulated data
+        merged_methods = []
+        for method_key, data in method_data.items():
+            if data['phrases']:  # Only create if we have phrases
+                merged_method = MethodDonation(
+                    method_name=data['method_name'],
+                    intent_suffix=data['intent_suffix'],
+                    description=data['description'],
+                    phrases=data['phrases'],
+                    parameters=data['parameters'],
+                    lemmas=data['lemmas'],
+                    token_patterns=data['token_patterns'],
+                    slot_patterns=data['slot_patterns'],
+                    examples=data['examples'],
+                    boost=data['boost']
+                )
+                merged_methods.append(merged_method)
+        
+        # Create unified donation with merged methods
+        return HandlerDonation(
+            schema_version=base_donation.schema_version,
+            donation_version=base_donation.donation_version,
+            handler_domain=base_donation.handler_domain,
+            description=base_donation.description,
+            method_donations=merged_methods,
+            intent_name_patterns=base_donation.intent_name_patterns,
+            action_patterns=base_donation.action_patterns,
+            domain_patterns=base_donation.domain_patterns,
+            fallback_conditions=base_donation.fallback_conditions,
+            additional_recognition_patterns=base_donation.additional_recognition_patterns,
+            language_detection=base_donation.language_detection,
+            train_keywords=base_donation.train_keywords,
+            global_parameters=base_donation.global_parameters,
+            negative_patterns=base_donation.negative_patterns
+        )
     
     def _get_asset_handler_name(self, handler_name: str) -> str:
         """Map handler file name to asset directory name"""
@@ -436,6 +528,159 @@ class IntentAssetLoader:
             return handler_name
         # For files without suffix, add _handler
         return f"{handler_name}_handler"
+    
+    # ============================================================
+    # LANGUAGE-SEPARATED FILE ACCESS FOR EDITOR (Phase 3C)
+    # ============================================================
+    
+    def get_donation_for_language_editing(self, handler_name: str, language: str) -> Optional[HandlerDonation]:
+        """Get language-specific donation for editing purposes"""
+        asset_handler_name = self._get_asset_handler_name(handler_name)
+        lang_file = self.assets_root / "donations" / asset_handler_name / f"{language}.json"
+        
+        if lang_file.exists():
+            try:
+                with open(lang_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return HandlerDonation(**data)
+            except Exception as e:
+                logger.error(f"Failed to load {language} donation for {handler_name}: {e}")
+                return None
+        
+        return None
+    
+    def save_donation_for_language(self, handler_name: str, language: str, donation: HandlerDonation) -> bool:
+        """Save language-specific donation for editing"""
+        try:
+            asset_handler_name = self._get_asset_handler_name(handler_name)
+            lang_dir = self.assets_root / "donations" / asset_handler_name
+            lang_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Convert to dict and add explicit language field
+            donation_dict = donation.dict()
+            donation_dict["language"] = language
+            
+            lang_file = lang_dir / f"{language}.json"
+            with open(lang_file, 'w', encoding='utf-8') as f:
+                json.dump(donation_dict, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Saved {language} donation for handler '{handler_name}' to {lang_file}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to save {language} donation for {handler_name}: {e}")
+            return False
+    
+    async def reload_unified_donation(self, handler_name: str) -> bool:
+        """Reload unified donation after language file changes"""
+        try:
+            asset_handler_name = self._get_asset_handler_name(handler_name)
+            lang_dir = self.assets_root / "donations" / asset_handler_name
+            
+            if lang_dir.exists():
+                # Clear existing donation
+                if handler_name in self.donations:
+                    del self.donations[handler_name]
+                
+                # Reload language-separated donations
+                await self._load_language_separated_donations(lang_dir, handler_name)
+                logger.info(f"Reloaded unified donation for handler '{handler_name}'")
+                return True
+            else:
+                logger.warning(f"No donation directory found for handler '{handler_name}': {lang_dir}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to reload donation for {handler_name}: {e}")
+            return False
+    
+    def get_available_languages_for_handler(self, handler_name: str) -> List[str]:
+        """Get list of available language files for handler"""
+        asset_handler_name = self._get_asset_handler_name(handler_name)
+        lang_dir = self.assets_root / "donations" / asset_handler_name
+        
+        if not lang_dir.exists():
+            return []
+        
+        return [lang_file.stem for lang_file in lang_dir.glob("*.json")]
+    
+    def get_all_handlers_with_languages(self) -> Dict[str, List[str]]:
+        """Get all handlers with their available languages"""
+        donations_dir = self.assets_root / "donations"
+        handlers_languages = {}
+        
+        if not donations_dir.exists():
+            return handlers_languages
+        
+        for handler_dir in donations_dir.iterdir():
+            if handler_dir.is_dir():
+                # Convert asset handler name back to handler name
+                handler_name = handler_dir.name
+                if handler_name.endswith("_handler"):
+                    handler_name = handler_name[:-8]  # Remove "_handler" suffix
+                
+                languages = [lang_file.stem for lang_file in handler_dir.glob("*.json")]
+                if languages:
+                    handlers_languages[handler_name] = sorted(languages)
+        
+        return handlers_languages
+    
+    def validate_cross_language_consistency(self, handler_name: str) -> Dict[str, Any]:
+        """Validate consistency across language files for a handler"""
+        languages = self.get_available_languages_for_handler(handler_name)
+        
+        if len(languages) < 2:
+            return {
+                "parameter_consistency": True,
+                "missing_methods": [],
+                "extra_methods": []
+            }
+        
+        # Load all language donations for comparison
+        language_donations = {}
+        for language in languages:
+            donation = self.get_donation_for_language_editing(handler_name, language)
+            if donation:
+                language_donations[language] = donation
+        
+        if not language_donations:
+            return {
+                "parameter_consistency": False,
+                "missing_methods": [],
+                "extra_methods": []
+            }
+        
+        # Check method consistency
+        all_methods = set()
+        methods_by_lang = {}
+        
+        for language, donation in language_donations.items():
+            methods = {f"{m.method_name}#{m.intent_suffix}" for m in donation.method_donations}
+            all_methods.update(methods)
+            methods_by_lang[language] = methods
+        
+        # Find missing and extra methods per language
+        missing_methods = []
+        extra_methods = []
+        
+        base_methods = next(iter(methods_by_lang.values()))
+        for language, methods in methods_by_lang.items():
+            missing = base_methods - methods
+            extra = methods - base_methods
+            
+            if missing:
+                missing_methods.extend([f"{language}: {method}" for method in missing])
+            if extra:
+                extra_methods.extend([f"{language}: {method}" for method in extra])
+        
+        # Check parameter consistency (simplified check)
+        parameter_consistency = len(set(len(methods) for methods in methods_by_lang.values())) == 1
+        
+        return {
+            "parameter_consistency": parameter_consistency,
+            "missing_methods": missing_methods,
+            "extra_methods": extra_methods
+        }
     
     async def _load_templates(self, handler_names: List[str]) -> None:
         """Load response templates (Category B: YAML/JSON/Markdown parsing)"""
@@ -678,42 +923,6 @@ class IntentAssetLoader:
         
         return templates
     
-    async def _load_language_templates(self, lang_dir: Path) -> Dict[str, str]:
-        """Load template files for a specific language (YAML and JSON formats only) - LEGACY"""
-        templates = {}
-        
-        for template_file in lang_dir.iterdir():
-            if template_file.is_file():
-                template_name = template_file.stem
-                
-                try:
-                    if template_file.suffix == '.yaml':
-                        with open(template_file, 'r', encoding='utf-8') as f:
-                            data = yaml.safe_load(f)
-                            if isinstance(data, list):
-                                templates[template_name] = data
-                            elif isinstance(data, dict):
-                                templates.update(data)
-                            else:
-                                templates[template_name] = str(data)
-                    
-                    elif template_file.suffix == '.json':
-                        with open(template_file, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                            if isinstance(data, list):
-                                templates[template_name] = data
-                            elif isinstance(data, dict):
-                                templates.update(data)
-                            else:
-                                templates[template_name] = str(data)
-                    
-                    else:
-                        logger.debug(f"Skipping unknown template file type: {template_file}")
-                
-                except Exception as e:
-                    self._add_warning(f"Failed to load template {template_file}: {e}")
-        
-        return templates
     
     def _add_error(self, error_msg: str):
         """Add validation error"""

@@ -52,7 +52,7 @@ export async function testDonationWorkflow(): Promise<WorkflowTestResults> {
     const schemaStart = Date.now();
     try {
       const schemaResponse = await apiClient.getDonationSchema();
-      if (schemaResponse.schema && typeof schemaResponse.schema === 'object') {
+      if (schemaResponse.json_schema && typeof schemaResponse.json_schema === 'object') {
         results.tests[1].status = 'passed';
         results.tests[1].duration = Date.now() - schemaStart;
       } else {
@@ -66,56 +66,59 @@ export async function testDonationWorkflow(): Promise<WorkflowTestResults> {
       results.success = false;
     }
 
-    // Test 3: Donations List Loading
-    results.tests.push({ name: 'Donations List Loading', status: 'running' });
+    // Test 3: Handlers List Loading (Language-Aware)
+    results.tests.push({ name: 'Handlers List Loading', status: 'running' });
     const listStart = Date.now();
     try {
-      const donationsResponse = await apiClient.getDonations();
-      if (donationsResponse.donations && Array.isArray(donationsResponse.donations)) {
+      const handlersResponse = await apiClient.getDonationHandlers();
+      if (handlersResponse.handlers && Array.isArray(handlersResponse.handlers)) {
         results.tests[2].status = 'passed';
         results.tests[2].duration = Date.now() - listStart;
       } else {
         results.tests[2].status = 'failed';
-        results.tests[2].error = 'Invalid donations list format';
+        results.tests[2].error = 'Invalid handlers list format';
         results.success = false;
       }
     } catch (error) {
       results.tests[2].status = 'failed';
-      results.tests[2].error = error instanceof Error ? error.message : 'Donations list loading failed';
+      results.tests[2].error = error instanceof Error ? error.message : 'Handlers list loading failed';
       results.success = false;
     }
 
-    // Test 4: Individual Donation Loading (if donations exist)
-    const donationsResponse = await apiClient.getDonations();
-    if (donationsResponse.donations.length > 0) {
-      const firstDonation = donationsResponse.donations[0];
-      results.tests.push({ name: 'Individual Donation Loading', status: 'running' });
+    // Test 4: Language-Specific Donation Loading (if handlers exist)
+    const handlersResponse = await apiClient.getDonationHandlers();
+    if (handlersResponse.handlers.length > 0) {
+      const firstHandler = handlersResponse.handlers[0];
+      const testLanguage = firstHandler.languages[0] || 'en'; // Use first available language
+      
+      results.tests.push({ name: 'Language-Specific Donation Loading', status: 'running' });
       const donationStart = Date.now();
       
       try {
-        const donationResponse = await apiClient.getDonation(firstDonation.name);
-        if (donationResponse.donation_data && donationResponse.handler_name) {
+        const donationResponse = await apiClient.getLanguageDonation(firstHandler.handler_name, testLanguage);
+        if (donationResponse.donation_data && donationResponse.handler_name && donationResponse.language) {
           results.tests[3].status = 'passed';
           results.tests[3].duration = Date.now() - donationStart;
         } else {
           results.tests[3].status = 'failed';
-          results.tests[3].error = 'Invalid donation data format';
+          results.tests[3].error = 'Invalid language donation data format';
           results.success = false;
         }
       } catch (error) {
         results.tests[3].status = 'failed';
-        results.tests[3].error = error instanceof Error ? error.message : 'Donation loading failed';
+        results.tests[3].error = error instanceof Error ? error.message : 'Language donation loading failed';
         results.success = false;
       }
 
-      // Test 5: Validation (dry-run)
-      results.tests.push({ name: 'Validation Test', status: 'running' });
+      // Test 5: Language-Specific Validation (dry-run)
+      results.tests.push({ name: 'Language Validation Test', status: 'running' });
       const validationStart = Date.now();
       
       try {
-        const donationResponse = await apiClient.getDonation(firstDonation.name);
-        const validationResponse = await apiClient.validateDonation(
-          firstDonation.name, 
+        const donationResponse = await apiClient.getLanguageDonation(firstHandler.handler_name, testLanguage);
+        const validationResponse = await apiClient.validateLanguageDonation(
+          firstHandler.handler_name,
+          testLanguage,
           donationResponse.donation_data
         );
         

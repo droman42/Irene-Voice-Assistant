@@ -2,7 +2,7 @@
   "$schema": "../v1.0.json",
   "schema_version": "1.0",
   "donation_version": "1.0",
-  "handler_domain": "timer",
+  "handler_domain": "таймер",
   "description": "Timer functionality with duration and message support",
   "global_parameters": [
     {
@@ -13,24 +13,8 @@
       "description": "Whether to retain state across sessions"
     }
   ],
-  "intent_name_patterns": [
-    "timer.set",
-    "timer.cancel",
-    "timer.list",
-    "timer.status"
-  ],
-  "action_patterns": [
-    "set",
-    "cancel",
-    "list",
-    "status",
-    "create",
-    "remove",
-    "start",
-    "stop",
-    "pause",
-    "resume"
-  ],
+  "intent_name_patterns": [],
+  "action_patterns": [],
   "stop_command_patterns": [
     "стоп таймер",
     "останови таймер",
@@ -39,13 +23,7 @@
     "отмени таймер",
     "убери таймер",
     "стоп будильник",
-    "останови будильник",
-    "stop timer",
-    "cancel timer",
-    "halt timer",
-    "remove timer",
-    "stop alarm",
-    "cancel alarm"
+    "останови будильник"
   ],
   "action_domain_priority": 70,
   "method_donations": [
@@ -61,12 +39,7 @@
         "установи напоминание",
         "напомни через",
         "разбуди через",
-        "таймер на",
-        "set timer",
-        "start timer",
-        "set alarm",
-        "start alarm",
-        "remind me in"
+        "таймер на"
       ],
       "lemmas": [
         "поставить",
@@ -99,7 +72,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "REGEX": "^\\d+$"
+                    "REGEX": ".*"
                   }
                 }
               ],
@@ -164,15 +137,10 @@
         },
         {
           "name": "unit",
-          "type": "choice",
+          "type": "string",
           "required": false,
           "default_value": "minutes",
           "description": "Time unit for duration",
-          "choices": [
-            "seconds",
-            "minutes",
-            "hours"
-          ],
           "extraction_patterns": [
             {
               "pattern": [
@@ -194,11 +162,7 @@
                   "LOWER": {
                     "IN": [
                       "сек",
-                      "мин",
-                      "ч",
-                      "seconds",
-                      "minutes",
-                      "hours"
+                      "мин"
                     ]
                   }
                 }
@@ -308,12 +272,12 @@
         [
           {
             "TEXT": {
-              "REGEX": "set|start"
+              "REGEX": ".*"
             }
           },
           {
             "TEXT": {
-              "REGEX": "timer|alarm"
+              "REGEX": ".*"
             }
           }
         ]
@@ -337,18 +301,14 @@
           [
             {
               "TEXT": {
-                "REGEX": "^\\d+$"
+                "REGEX": ".*"
               }
             },
             {
               "LOWER": {
                 "IN": [
                   "мин",
-                  "сек",
-                  "ч",
-                  "minutes",
-                  "seconds",
-                  "hours"
+                  "сек"
                 ]
               }
             }
@@ -371,11 +331,7 @@
               "LOWER": {
                 "IN": [
                   "сек",
-                  "мин",
-                  "ч",
-                  "seconds",
-                  "minutes",
-                  "hours"
+                  "мин"
                 ]
               }
             }
@@ -424,13 +380,6 @@
             "duration": 30,
             "unit": "seconds"
           }
-        },
-        {
-          "text": "set timer for 10 minutes",
-          "parameters": {
-            "duration": 10,
-            "unit": "minutes"
-          }
         }
       ],
       "boost": 1.2
@@ -444,11 +393,7 @@
         "убери таймер",
         "стоп таймер",
         "останови таймер",
-        "удали таймер",
-        "cancel timer",
-        "stop timer",
-        "remove timer",
-        "delete timer"
+        "удали таймер"
       ],
       "lemmas": [
         "отменить",
@@ -470,7 +415,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "REGEX": "\\d+"
+                    "REGEX": ".*"
                   }
                 }
               ],
@@ -478,8 +423,7 @@
             }
           ],
           "aliases": [
-            "номер",
-            "id"
+            "номер"
           ]
         }
       ],
@@ -501,11 +445,11 @@
         [
           {
             "TEXT": {
-              "REGEX": "cancel|stop|remove"
+              "REGEX": ".*"
             }
           },
           {
-            "TEXT": "timer"
+            "TEXT": "таймер"
           }
         ]
       ],
@@ -516,10 +460,6 @@
         },
         {
           "text": "стоп таймер",
-          "parameters": {}
-        },
-        {
-          "text": "cancel timer",
           "parameters": {}
         }
       ],
@@ -533,11 +473,7 @@
         "покажи таймеры",
         "список таймеров",
         "мои таймеры",
-        "активные таймеры",
-        "show timers",
-        "list timers",
-        "my timers",
-        "active timers"
+        "активные таймеры"
       ],
       "lemmas": [
         "показать",
@@ -563,11 +499,11 @@
         [
           {
             "TEXT": {
-              "REGEX": "show|list"
+              "REGEX": ".*"
             }
           },
           {
-            "TEXT": "timer"
+            "TEXT": "таймер"
           }
         ],
         [
@@ -587,10 +523,6 @@
         {
           "text": "мои таймеры",
           "parameters": {}
-        },
-        {
-          "text": "list timers",
-          "parameters": {}
         }
       ],
       "boost": 1.0
@@ -602,10 +534,7 @@
       "phrases": [
         "статус таймеров",
         "состояние таймеров",
-        "как дела с таймерами",
-        "timer status",
-        "timer state",
-        "how are timers"
+        "как дела с таймерами"
       ],
       "lemmas": [
         "статус",
@@ -629,11 +558,11 @@
         ],
         [
           {
-            "TEXT": "timer"
+            "TEXT": "таймер"
           },
           {
             "TEXT": {
-              "REGEX": "status|state"
+              "REGEX": ".*"
             }
           }
         ]
@@ -641,10 +570,6 @@
       "examples": [
         {
           "text": "статус таймеров",
-          "parameters": {}
-        },
-        {
-          "text": "timer status",
           "parameters": {}
         }
       ],
@@ -669,11 +594,11 @@
     [
       {
         "TEXT": {
-          "REGEX": "no|not|without"
+          "REGEX": ".*"
         }
       },
       {
-        "TEXT": "timer"
+        "TEXT": "таймер"
       }
     ]
   ],
@@ -686,5 +611,6 @@
     "статус таймера|сколько осталось|время таймера",
     "\\d+\\s*(секунд|сек|минут|мин|час|часа|часов)",
     "на\\s+\\d+|через\\s+\\d+"
-  ]
+  ],
+  "language": "ru"
 }

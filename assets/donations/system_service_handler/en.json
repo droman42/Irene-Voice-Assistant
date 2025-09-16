@@ -1,0 +1,372 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "service",
+  "description": "System service status, statistics, and health monitoring",
+  "intent_name_patterns": [
+    "service.status",
+    "service.stats",
+    "service.health"
+  ],
+  "action_patterns": [
+    "status",
+    "stats",
+    "health",
+    "check"
+  ],
+  "domain_patterns": [
+    "service"
+  ],
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "ru",
+        "en"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_service_status",
+      "intent_suffix": "status",
+      "description": "Show current service status and basic information",
+      "phrases": [
+        "service status",
+        "system status",
+        "check status"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "component",
+          "type": "string",
+          "required": false,
+          "description": "Specific service component to check",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": "status"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "COMPONENT"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "service"
+          },
+          {
+            "TEXT": "status"
+          }
+        ],
+        [
+          {
+            "TEXT": "system"
+          },
+          {
+            "TEXT": "status"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "COMPONENT": [
+          [
+            {
+              "LEMMA": "status"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ],
+          [
+            {
+              "TEXT": "status"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "service status",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.4
+    },
+    {
+      "method_name": "_handle_service_stats",
+      "intent_suffix": "stats",
+      "description": "Show detailed service statistics and metrics",
+      "phrases": [
+        "service stats",
+        "service statistics",
+        "information about service"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "metric_type",
+          "type": "choice",
+          "required": false,
+          "choices": [
+            "performance",
+            "memory",
+            "cpu",
+            "network",
+            "all"
+          ],
+          "description": "Type of statistics to show",
+          "extraction_patterns": [
+            {
+              "pattern": [],
+              "label": "METRIC_TYPE"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "performance",
+                      "memory",
+                      "cpu",
+                      "network"
+                    ]
+                  }
+                }
+              ],
+              "label": "METRIC_TYPE"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "service"
+          },
+          {
+            "TEXT": {
+              "REGEX": "stats|statistics"
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "information"
+          },
+          {
+            "TEXT": "about"
+          },
+          {
+            "TEXT": "service"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "METRIC_TYPE": [
+          [
+            {
+              "LOWER": {
+                "IN": []
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "performance",
+                  "memory",
+                  "cpu",
+                  "network"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "service stats",
+          "parameters": {}
+        },
+        {
+          "text": "service statistics",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_service_health",
+      "intent_suffix": "health",
+      "description": "Check service health and diagnostic information",
+      "phrases": [
+        "service health",
+        "system health",
+        "everything ok",
+        "is everything working"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "detailed",
+          "type": "boolean",
+          "required": false,
+          "default_value": false,
+          "description": "Show detailed health information",
+          "extraction_patterns": [
+            {
+              "pattern": [],
+              "label": "DETAILED"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "detailed",
+                      "full",
+                      "complete"
+                    ]
+                  }
+                }
+              ],
+              "label": "DETAILED"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "service"
+          },
+          {
+            "TEXT": "health"
+          }
+        ],
+        [
+          {
+            "TEXT": "system"
+          },
+          {
+            "TEXT": "health"
+          }
+        ],
+        [
+          {
+            "TEXT": "everything"
+          },
+          {
+            "TEXT": "ok"
+          }
+        ],
+        [
+          {
+            "TEXT": "is"
+          },
+          {
+            "TEXT": "everything"
+          },
+          {
+            "TEXT": "working"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "DETAILED": [
+          [
+            {
+              "LOWER": {
+                "IN": []
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "detailed",
+                  "full",
+                  "complete"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "service health",
+          "parameters": {}
+        },
+        {
+          "text": "detailed system health",
+          "parameters": {
+            "detailed": true
+          }
+        },
+        {
+          "text": "everything ok",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "service|status|health"
+        }
+      }
+    ]
+  ],
+  "language": "en"
+}

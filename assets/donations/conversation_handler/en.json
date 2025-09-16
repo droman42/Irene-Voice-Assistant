@@ -39,23 +39,12 @@
       "intent_suffix": "start",
       "description": "Start a new conversation or chat session",
       "phrases": [
-        "поболтаем",
-        "поговорим",
-        "давай поговорим",
-        "начинаем диалог",
-        "хочу с тобой общаться",
         "let's talk",
         "let's chat",
         "let's have a conversation",
         "I want to chat with you"
       ],
-      "lemmas": [
-        "поболтать",
-        "поговорить",
-        "общаться",
-        "диалог",
-        "разговор"
-      ],
+      "lemmas": [],
       "parameters": [
         {
           "name": "topic",
@@ -68,8 +57,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "о",
-                      "про",
                       "about"
                     ]
                   }
@@ -82,23 +69,11 @@
             }
           ],
           "aliases": [
-            "тема",
             "subject"
           ]
         }
       ],
       "token_patterns": [
-        [
-          {
-            "LEMMA": {
-              "IN": [
-                "поболтать",
-                "поговорить",
-                "общаться"
-              ]
-            }
-          }
-        ],
         [
           {
             "TEXT": "let's"
@@ -107,14 +82,6 @@
             "TEXT": {
               "REGEX": "talk|chat"
             }
-          }
-        ],
-        [
-          {
-            "LEMMA": "давай"
-          },
-          {
-            "LEMMA": "поговорить"
           }
         ],
         [
@@ -139,10 +106,7 @@
           [
             {
               "LOWER": {
-                "IN": [
-                  "о",
-                  "про"
-                ]
+                "IN": []
               }
             },
             {
@@ -163,16 +127,6 @@
       },
       "examples": [
         {
-          "text": "давай поговорим",
-          "parameters": {}
-        },
-        {
-          "text": "поболтаем о погоде",
-          "parameters": {
-            "topic": "погоде"
-          }
-        },
-        {
           "text": "let's chat",
           "parameters": {}
         },
@@ -190,40 +144,13 @@
       "intent_suffix": "end",
       "description": "End the current conversation",
       "phrases": [
-        "закончим разговор",
-        "хватит болтать",
-        "конец диалога",
         "stop talking",
         "end conversation",
         "that's enough"
       ],
-      "lemmas": [
-        "закончить",
-        "конец",
-        "хватить",
-        "разговор",
-        "диалог"
-      ],
+      "lemmas": [],
       "parameters": [],
       "token_patterns": [
-        [
-          {
-            "LEMMA": {
-              "IN": [
-                "закончить",
-                "конец"
-              ]
-            }
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "разговор",
-                "диалог"
-              ]
-            }
-          }
-        ],
         [
           {
             "TEXT": {
@@ -235,21 +162,9 @@
               "REGEX": "talking|conversation"
             }
           }
-        ],
-        [
-          {
-            "LEMMA": "хватить"
-          },
-          {
-            "LEMMA": "болтать"
-          }
         ]
       ],
       "examples": [
-        {
-          "text": "закончим разговор",
-          "parameters": {}
-        },
         {
           "text": "stop talking",
           "parameters": {}
@@ -262,40 +177,13 @@
       "intent_suffix": "clear",
       "description": "Clear conversation history",
       "phrases": [
-        "очисти историю",
-        "сбрось контекст",
-        "забудь все",
         "clear history",
         "reset context",
         "forget everything"
       ],
-      "lemmas": [
-        "очистить",
-        "сбросить",
-        "забыть",
-        "история",
-        "контекст"
-      ],
+      "lemmas": [],
       "parameters": [],
       "token_patterns": [
-        [
-          {
-            "LEMMA": {
-              "IN": [
-                "очистить",
-                "сбросить"
-              ]
-            }
-          },
-          {
-            "LEMMA": {
-              "IN": [
-                "история",
-                "контекст"
-              ]
-            }
-          }
-        ],
         [
           {
             "TEXT": {
@@ -307,21 +195,9 @@
               "REGEX": "history|context"
             }
           }
-        ],
-        [
-          {
-            "LEMMA": "забыть"
-          },
-          {
-            "LEMMA": "все"
-          }
         ]
       ],
       "examples": [
-        {
-          "text": "очисти историю",
-          "parameters": {}
-        },
         {
           "text": "clear history",
           "parameters": {}
@@ -334,23 +210,12 @@
       "intent_suffix": "reference",
       "description": "Handle reference questions and information requests",
       "phrases": [
-        "что такое",
-        "кто такой",
-        "расскажи о",
-        "объясни",
-        "справка",
         "what is",
         "who is",
         "tell me about",
         "explain this to me"
       ],
-      "lemmas": [
-        "что",
-        "кто",
-        "рассказать",
-        "объяснить",
-        "справка"
-      ],
+      "lemmas": [],
       "parameters": [
         {
           "name": "query_topic",
@@ -360,17 +225,6 @@
           "extraction_patterns": [
             {
               "pattern": [
-                {
-                  "LEMMA": {
-                    "IN": [
-                      "что",
-                      "кто"
-                    ]
-                  }
-                },
-                {
-                  "LEMMA": "такой"
-                },
                 {
                   "IS_ALPHA": true
                 }
@@ -395,37 +249,11 @@
             }
           ],
           "aliases": [
-            "тема",
-            "предмет",
             "subject"
           ]
         }
       ],
       "token_patterns": [
-        [
-          {
-            "LEMMA": "что"
-          },
-          {
-            "LEMMA": "такой"
-          }
-        ],
-        [
-          {
-            "LEMMA": "кто"
-          },
-          {
-            "LEMMA": "такой"
-          }
-        ],
-        [
-          {
-            "LEMMA": "рассказать"
-          },
-          {
-            "LEMMA": "о"
-          }
-        ],
         [
           {
             "TEXT": {
@@ -453,14 +281,11 @@
           [
             {
               "LEMMA": {
-                "IN": [
-                  "что",
-                  "кто"
-                ]
+                "IN": []
               }
             },
             {
-              "LEMMA": "такой"
+              "LEMMA": "such"
             },
             {
               "IS_ALPHA": true,
@@ -483,10 +308,10 @@
           ],
           [
             {
-              "LEMMA": "рассказать"
+              "LEMMA": "tell"
             },
             {
-              "LEMMA": "о"
+              "LEMMA": "about"
             },
             {
               "IS_ALPHA": true,
@@ -496,18 +321,6 @@
         ]
       },
       "examples": [
-        {
-          "text": "что такое Python",
-          "parameters": {
-            "query_topic": "Python"
-          }
-        },
-        {
-          "text": "расскажи о машинном обучении",
-          "parameters": {
-            "query_topic": "машинном обучении"
-          }
-        },
         {
           "text": "what is artificial intelligence",
           "parameters": {
@@ -522,21 +335,12 @@
       "intent_suffix": "general",
       "description": "Handle general conversation continuation and fallback",
       "phrases": [
-        "продолжим",
-        "еще поговорим",
-        "дальше",
-        "что еще",
         "continue",
         "let's continue",
         "what else",
         "go on"
       ],
-      "lemmas": [
-        "продолжить",
-        "еще",
-        "дальше",
-        "что"
-      ],
+      "lemmas": [],
       "parameters": [
         {
           "name": "context_reference",
@@ -549,8 +353,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "это",
-                      "то",
                       "that",
                       "this"
                     ]
@@ -560,23 +362,10 @@
               "label": "CONTEXT_REF"
             }
           ],
-          "aliases": [
-            "контекст",
-            "ссылка"
-          ]
+          "aliases": []
         }
       ],
       "token_patterns": [
-        [
-          {
-            "LEMMA": {
-              "IN": [
-                "продолжить",
-                "продолжим"
-              ]
-            }
-          }
-        ],
         [
           {
             "TEXT": {
@@ -591,14 +380,6 @@
         ],
         [
           {
-            "LEMMA": "что"
-          },
-          {
-            "LEMMA": "еще"
-          }
-        ],
-        [
-          {
             "TEXT": "what"
           },
           {
@@ -607,14 +388,6 @@
         ]
       ],
       "examples": [
-        {
-          "text": "продолжим",
-          "parameters": {}
-        },
-        {
-          "text": "что еще",
-          "parameters": {}
-        },
         {
           "text": "continue",
           "parameters": {}
@@ -627,19 +400,12 @@
     [
       {
         "LEMMA": {
-          "IN": [
-            "нет",
-            "не",
-            "стоп"
-          ]
+          "IN": []
         }
       },
       {
         "LEMMA": {
-          "IN": [
-            "разговор",
-            "диалог"
-          ]
+          "IN": []
         }
       }
     ],
@@ -655,5 +421,6 @@
         }
       }
     ]
-  ]
+  ],
+  "language": "en"
 }

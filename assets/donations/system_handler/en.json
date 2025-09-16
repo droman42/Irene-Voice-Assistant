@@ -1,0 +1,353 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "system",
+  "description": "System information, help, and status operations",
+  "intent_name_patterns": [
+    "system.status",
+    "system.help",
+    "system.version",
+    "system.info"
+  ],
+  "action_patterns": [
+    "status",
+    "help",
+    "version",
+    "info",
+    "statistics"
+  ],
+  "domain_patterns": [
+    "system"
+  ],
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "ru",
+        "en"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_help_request",
+      "intent_suffix": "help",
+      "description": "Provide help information and command list",
+      "phrases": [
+        "help",
+        "commands",
+        "what can you do",
+        "how to use",
+        "usage",
+        "instructions"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "topic",
+          "type": "string",
+          "required": false,
+          "description": "Specific help topic",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "about",
+                      "with"
+                    ]
+                  }
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "HELP_TOPIC"
+            }
+          ],
+          "aliases": [
+            "subject"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "help|commands"
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": "can"
+          },
+          {
+            "TEXT": "you"
+          },
+          {
+            "TEXT": "do"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "HELP_TOPIC": [
+          [
+            {
+              "LOWER": "by"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ],
+          [
+            {
+              "LOWER": "about"
+            },
+            {
+              "IS_ALPHA": true,
+              "OP": "+"
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "help",
+          "parameters": {}
+        },
+        {
+          "text": "help with timers",
+          "parameters": {
+            "topic": "timers"
+          }
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_status_request",
+      "intent_suffix": "status",
+      "description": "Show system status and health information",
+      "phrases": [
+        "status",
+        "state",
+        "how are you",
+        "system health",
+        "are you working",
+        "everything ok"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "component",
+          "type": "string",
+          "required": false,
+          "description": "Specific component to check",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "COMPONENT"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "status|state"
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "how"
+          },
+          {
+            "TEXT": "are"
+          },
+          {
+            "TEXT": "you"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "status",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_version_request",
+      "intent_suffix": "version",
+      "description": "Show version information",
+      "phrases": [
+        "version",
+        "what version",
+        "build info",
+        "release info"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "version"
+          }
+        ],
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": "version"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "what version",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_info_request",
+      "intent_suffix": "info",
+      "description": "Show detailed system information",
+      "phrases": [
+        "info",
+        "information",
+        "details",
+        "about system"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "info_type",
+          "type": "choice",
+          "required": false,
+          "choices": [
+            "system",
+            "performance",
+            "configuration",
+            "logs"
+          ],
+          "description": "Type of information to show",
+          "extraction_patterns": [
+            {
+              "pattern": [],
+              "label": "INFO_TYPE"
+            }
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "info|information|details"
+            }
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "info",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.0
+    },
+    {
+      "method_name": "_handle_general_info",
+      "intent_suffix": "about",
+      "description": "General information about the assistant",
+      "phrases": [
+        "who are you",
+        "what are you",
+        "tell me about yourself",
+        "introduce yourself"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "who"
+          },
+          {
+            "TEXT": "are"
+          },
+          {
+            "TEXT": "you"
+          }
+        ],
+        [
+          {
+            "TEXT": "what"
+          },
+          {
+            "TEXT": "are"
+          },
+          {
+            "TEXT": "you"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "who are you",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.1
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "help|status"
+        }
+      }
+    ]
+  ],
+  "language": "en"
+}

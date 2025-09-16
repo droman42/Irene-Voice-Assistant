@@ -7,7 +7,6 @@ from typing import Dict, Any, Optional
 from .models import Intent, IntentResult, ConversationContext
 from .registry import IntentRegistry
 from ..core.metrics import get_metrics_collector, MetricsCollector
-# PHASE 5: Remove parameter extractor import - parameter extraction now integrated into NLU providers
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,6 @@ class IntentOrchestrator:
             registry: Intent registry containing available handlers
         """
         self.registry = registry
-        # PHASE 5: Remove parameter extractor - parameter extraction now integrated into NLU providers
         self.middleware: list = []
         self.error_handlers: Dict[str, callable] = {}
         self._use_donation_routing = True  # Phase 6: Enable donation-driven routing
@@ -39,7 +37,6 @@ class IntentOrchestrator:
         self.error_handlers[error_type] = handler
         logger.info(f"Added error handler for: {error_type}")
     
-    # PHASE 5: Remove set_parameter_extractor method - parameter extraction now integrated into NLU providers
     
     def enable_donation_routing(self, enabled: bool = True):
         """Enable or disable donation-driven routing."""
@@ -96,7 +93,6 @@ class IntentOrchestrator:
                     processed_intent
                 )
             
-            # PHASE 5: Remove parameter extraction logic - it's already done in NLU providers
             # Intent already contains extracted parameters from recognize_with_parameters
             
             # Execute the intent using donation-driven routing if available

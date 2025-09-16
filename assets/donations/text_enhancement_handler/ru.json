@@ -4,25 +4,9 @@
   "donation_version": "1.0",
   "handler_domain": "text_enhancement",
   "description": "Text improvement and enhancement commands via LLM",
-  "intent_name_patterns": [
-    "text.enhance",
-    "text.improve",
-    "text.correct",
-    "llm.enhance"
-  ],
-  "action_patterns": [
-    "enhance",
-    "improve",
-    "correct",
-    "fix",
-    "better"
-  ],
-  "domain_patterns": [
-    "text",
-    "enhancement",
-    "improvement",
-    "llm"
-  ],
+  "intent_name_patterns": [],
+  "action_patterns": [],
+  "domain_patterns": [],
   "global_parameters": [
     {
       "name": "language",
@@ -30,8 +14,8 @@
       "required": false,
       "default_value": "ru",
       "choices": [
-        "ru",
-        "en"
+        "русский",
+        "английский"
       ],
       "description": "Response language preference"
     }
@@ -45,18 +29,11 @@
         "улучши",
         "улучшить",
         "улучши текст",
-        "enhance",
-        "enhance text",
         "сделай лучше",
-        "make better",
         "оптимизируй",
-        "optimize",
         "модернизируй",
-        "modernize",
         "доработай",
-        "refine",
         "усовершенствуй",
-        "improve quality",
         "поправь стиль"
       ],
       "lemmas": [
@@ -218,12 +195,6 @@
           }
         },
         {
-          "text": "enhance this sentence",
-          "parameters": {
-            "text": "this sentence"
-          }
-        },
-        {
           "text": "улучши",
           "parameters": {}
         },
@@ -242,20 +213,12 @@
         "исправь",
         "исправить",
         "поправь",
-        "fix",
-        "correct",
         "исправь текст",
-        "fix text",
         "поправь ошибки",
-        "fix errors",
         "исправь грамматику",
-        "fix grammar",
         "подкорректируй",
-        "adjust",
         "отредактируй",
-        "edit",
-        "почисти",
-        "clean up"
+        "почисти"
       ],
       "lemmas": [
         "исправлять",
@@ -294,10 +257,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "IN": [
-                      "fix",
-                      "correct"
-                    ]
+                    "IN": []
                   }
                 },
                 {
@@ -320,10 +280,10 @@
           "required": false,
           "default_value": "general",
           "choices": [
-            "grammar",
-            "style",
-            "clarity",
-            "general"
+            "общее",
+            "стиль",
+            "грамматика",
+            "словарь"
           ],
           "description": "Type of improvement to make",
           "extraction_patterns": [
@@ -343,18 +303,7 @@
               "label": "IMPROVEMENT_TYPE"
             },
             {
-              "pattern": [
-                {
-                  "LOWER": {
-                    "IN": [
-                      "grammar",
-                      "style",
-                      "clarity",
-                      "general"
-                    ]
-                  }
-                }
-              ],
+              "pattern": [],
               "label": "IMPROVEMENT_TYPE"
             }
           ],
@@ -379,10 +328,7 @@
         [
           {
             "TEXT": {
-              "IN": [
-                "fix",
-                "correct"
-              ]
+              "IN": []
             }
           }
         ],
@@ -419,10 +365,7 @@
         [
           {
             "TEXT": {
-              "IN": [
-                "fix",
-                "correct"
-              ]
+              "IN": []
             }
           },
           {
@@ -467,10 +410,7 @@
           [
             {
               "TEXT": {
-                "IN": [
-                  "fix",
-                  "correct"
-                ]
+                "IN": []
               }
             },
             {
@@ -495,12 +435,7 @@
           [
             {
               "LOWER": {
-                "IN": [
-                  "grammar",
-                  "style",
-                  "clarity",
-                  "general"
-                ]
+                "IN": []
               }
             }
           ]
@@ -514,22 +449,9 @@
           }
         },
         {
-          "text": "fix grammar in this sentence",
-          "parameters": {
-            "text": "this sentence",
-            "improvement_type": "grammar"
-          }
-        },
-        {
           "text": "поправь ошибки",
           "parameters": {
             "improvement_type": "general"
-          }
-        },
-        {
-          "text": "correct style",
-          "parameters": {
-            "improvement_type": "style"
           }
         }
       ],
@@ -543,20 +465,12 @@
         "поправь",
         "поправить",
         "подправь",
-        "correct",
-        "adjust",
         "поправь грамматику",
-        "correct grammar",
         "подправь стиль",
-        "adjust style",
         "исправь ошибки",
-        "fix mistakes",
         "корректировка",
-        "correction",
         "правка",
-        "editing",
-        "редактура",
-        "proofreading"
+        "редактура"
       ],
       "lemmas": [
         "поправлять",
@@ -595,10 +509,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "IN": [
-                      "correct",
-                      "adjust"
-                    ]
+                    "IN": []
                   }
                 },
                 {
@@ -617,16 +528,9 @@
         },
         {
           "name": "correction_type",
-          "type": "choice",
+          "type": "string",
           "required": false,
           "default_value": "all",
-          "choices": [
-            "grammar",
-            "spelling",
-            "punctuation",
-            "style",
-            "all"
-          ],
           "description": "Type of correction to apply",
           "extraction_patterns": [
             {
@@ -646,19 +550,7 @@
               "label": "CORRECTION_TYPE"
             },
             {
-              "pattern": [
-                {
-                  "LOWER": {
-                    "IN": [
-                      "grammar",
-                      "spelling",
-                      "punctuation",
-                      "style",
-                      "all"
-                    ]
-                  }
-                }
-              ],
+              "pattern": [],
               "label": "CORRECTION_TYPE"
             }
           ],
@@ -683,10 +575,7 @@
         [
           {
             "TEXT": {
-              "IN": [
-                "correct",
-                "adjust"
-              ]
+              "IN": []
             }
           }
         ],
@@ -723,10 +612,7 @@
         [
           {
             "TEXT": {
-              "IN": [
-                "correct",
-                "adjust"
-              ]
+              "IN": []
             }
           },
           {
@@ -771,10 +657,7 @@
           [
             {
               "TEXT": {
-                "IN": [
-                  "correct",
-                  "adjust"
-                ]
+                "IN": []
               }
             },
             {
@@ -800,13 +683,7 @@
           [
             {
               "LOWER": {
-                "IN": [
-                  "grammar",
-                  "spelling",
-                  "punctuation",
-                  "style",
-                  "all"
-                ]
+                "IN": []
               }
             }
           ]
@@ -821,21 +698,9 @@
           }
         },
         {
-          "text": "correct spelling errors",
-          "parameters": {
-            "correction_type": "spelling"
-          }
-        },
-        {
           "text": "подправь этот текст",
           "parameters": {
             "text": "этот текст"
-          }
-        },
-        {
-          "text": "adjust style",
-          "parameters": {
-            "correction_type": "style"
           }
         }
       ],
@@ -865,14 +730,15 @@
     [
       {
         "TEXT": {
-          "REGEX": "no|not"
+          "REGEX": ".*"
         }
       },
       {
         "TEXT": {
-          "REGEX": "enhance|improve|correct|fix"
+          "REGEX": ".*"
         }
       }
     ]
-  ]
+  ],
+  "language": "ru"
 }

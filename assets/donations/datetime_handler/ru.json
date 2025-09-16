@@ -18,31 +18,16 @@
       "required": false,
       "default_value": "ru",
       "choices": [
-        "ru",
-        "en"
+        "русский",
+        "английский"
       ],
       "description": "Response language preference"
     }
   ],
-  "intent_name_patterns": [
-    "datetime.current_time",
-    "datetime.current_date",
-    "datetime.current_datetime"
-  ],
-  "action_patterns": [
-    "current_time",
-    "current_date",
-    "get_time",
-    "get_date"
-  ],
+  "intent_name_patterns": [],
+  "action_patterns": [],
   "language_detection": {
-    "english_indicators": [
-      "time",
-      "date",
-      "what time",
-      "what date",
-      "current"
-    ],
+    "english_indicators": [],
     "russian_indicators": [
       "время",
       "дата",
@@ -61,12 +46,7 @@
         "сколько времени",
         "который час",
         "время",
-        "скажи время",
-        "what time",
-        "current time",
-        "what's the time",
-        "tell me the time",
-        "time now"
+        "скажи время"
       ],
       "lemmas": [
         "время",
@@ -88,8 +68,7 @@
                   "LOWER": {
                     "IN": [
                       "в",
-                      "по",
-                      "in"
+                      "по"
                     ]
                   }
                 },
@@ -112,9 +91,8 @@
           "required": false,
           "default_value": "12hour",
           "choices": [
-            "12hour",
-            "24hour",
-            "verbose"
+            "текст",
+            "аудио"
           ],
           "description": "Time format preference",
           "extraction_patterns": [
@@ -122,7 +100,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "REGEX": "\\d{1,2}[-:]\\d{2}"
+                    "REGEX": ".*"
                   }
                 }
               ],
@@ -153,7 +131,7 @@
             "TEXT": "what"
           },
           {
-            "TEXT": "time"
+            "TEXT": "время"
           }
         ],
         [
@@ -161,7 +139,7 @@
             "TEXT": "current"
           },
           {
-            "TEXT": "time"
+            "TEXT": "время"
           }
         ],
         [
@@ -207,7 +185,7 @@
           [
             {
               "TEXT": {
-                "REGEX": "\\d{1,2}[-:]\\d{2}"
+                "REGEX": ".*"
               }
             }
           ]
@@ -227,16 +205,6 @@
           "parameters": {
             "location": "Москве"
           }
-        },
-        {
-          "text": "what time is it",
-          "parameters": {}
-        },
-        {
-          "text": "current time in London",
-          "parameters": {
-            "location": "London"
-          }
         }
       ],
       "boost": 1.3
@@ -249,11 +217,7 @@
         "какое число",
         "какая дата",
         "сегодня",
-        "дата",
-        "what date",
-        "today's date",
-        "current date",
-        "what day is it"
+        "дата"
       ],
       "lemmas": [
         "число",
@@ -269,10 +233,8 @@
           "required": false,
           "default_value": "full",
           "choices": [
-            "short",
-            "full",
-            "iso",
-            "verbose"
+            "текст",
+            "аудио"
           ],
           "description": "Date format preference",
           "extraction_patterns": [
@@ -280,7 +242,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "REGEX": "\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}"
+                    "REGEX": ".*"
                   }
                 }
               ],
@@ -293,9 +255,9 @@
           "type": "choice",
           "required": false,
           "choices": [
-            "today",
-            "tomorrow",
-            "yesterday"
+            "сегодня",
+            "завтра",
+            "вчера"
           ],
           "description": "Relative date reference",
           "extraction_patterns": [
@@ -306,10 +268,7 @@
                     "IN": [
                       "сегодня",
                       "завтра",
-                      "вчера",
-                      "today",
-                      "tomorrow",
-                      "yesterday"
+                      "вчера"
                     ]
                   }
                 }
@@ -345,16 +304,16 @@
           },
           {
             "TEXT": {
-              "REGEX": "date|day"
+              "REGEX": ".*"
             }
           }
         ],
         [
           {
-            "TEXT": "today"
+            "TEXT": "сегодня"
           },
           {
-            "TEXT": "date"
+            "TEXT": "дата"
           }
         ],
         [
@@ -362,7 +321,7 @@
             "TEXT": "current"
           },
           {
-            "TEXT": "date"
+            "TEXT": "дата"
           }
         ]
       ],
@@ -371,7 +330,7 @@
           [
             {
               "TEXT": {
-                "REGEX": "\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}"
+                "REGEX": ".*"
               }
             }
           ]
@@ -391,11 +350,7 @@
           [
             {
               "LOWER": {
-                "IN": [
-                  "today",
-                  "tomorrow",
-                  "yesterday"
-                ]
+                "IN": []
               }
             }
           ]
@@ -409,17 +364,7 @@
         {
           "text": "какая дата сегодня",
           "parameters": {
-            "relative": "today"
-          }
-        },
-        {
-          "text": "what date is it",
-          "parameters": {}
-        },
-        {
-          "text": "today's date",
-          "parameters": {
-            "relative": "today"
+            "relative": "сегодня"
           }
         }
       ],
@@ -432,17 +377,12 @@
       "phrases": [
         "дата и время",
         "полная дата",
-        "время и дата",
-        "date and time",
-        "full datetime",
-        "timestamp",
-        "current datetime"
+        "время и дата"
       ],
       "lemmas": [
         "дата",
         "время",
-        "полный",
-        "timestamp"
+        "полный"
       ],
       "parameters": [
         {
@@ -455,7 +395,7 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "REGEX": "UTC|GMT|[A-Z]{3,4}"
+                    "REGEX": ".*"
                   }
                 }
               ],
@@ -463,8 +403,7 @@
             }
           ],
           "aliases": [
-            "зона",
-            "zone"
+            "зона"
           ]
         },
         {
@@ -473,10 +412,8 @@
           "required": false,
           "default_value": "readable",
           "choices": [
-            "iso",
-            "readable",
-            "unix",
-            "verbose"
+            "текст",
+            "аудио"
           ],
           "description": "Datetime format preference"
         }
@@ -500,13 +437,13 @@
         ],
         [
           {
-            "TEXT": "date"
+            "TEXT": "дата"
           },
           {
             "TEXT": "and"
           },
           {
-            "TEXT": "time"
+            "TEXT": "время"
           }
         ],
         [
@@ -531,7 +468,7 @@
           [
             {
               "TEXT": {
-                "REGEX": "UTC|GMT|[A-Z]{3,4}"
+                "REGEX": ".*"
               }
             }
           ]
@@ -545,16 +482,6 @@
         {
           "text": "полная дата",
           "parameters": {}
-        },
-        {
-          "text": "date and time",
-          "parameters": {}
-        },
-        {
-          "text": "current datetime UTC",
-          "parameters": {
-            "timezone": "UTC"
-          }
         }
       ],
       "boost": 1.1
@@ -582,22 +509,20 @@
     [
       {
         "TEXT": {
-          "REGEX": "no|not"
+          "REGEX": ".*"
         }
       },
       {
         "TEXT": {
-          "REGEX": "time|date"
+          "REGEX": ".*"
         }
       }
     ]
   ],
   "additional_recognition_patterns": [
     "дата|какая дата|какое число|сегодня",
-    "date|what date|today",
     "время|сколько времени|который час",
-    "time|what time|current time",
-    "дата и время|время и дата",
-    "date and time|time and date"
-  ]
+    "дата и время|время и дата"
+  ],
+  "language": "ru"
 }

@@ -4,26 +4,9 @@
   "donation_version": "1.0",
   "handler_domain": "speech_recognition",
   "description": "ASR configuration and speech recognition management",
-  "intent_name_patterns": [
-    "asr.show",
-    "asr.switch",
-    "asr.language",
-    "asr.config",
-    "speech.recognition"
-  ],
-  "action_patterns": [
-    "show",
-    "switch",
-    "configure",
-    "language",
-    "recognition"
-  ],
-  "domain_patterns": [
-    "asr",
-    "speech",
-    "recognition",
-    "configuration"
-  ],
+  "intent_name_patterns": [],
+  "action_patterns": [],
+  "domain_patterns": [],
   "global_parameters": [
     {
       "name": "language",
@@ -31,8 +14,8 @@
       "required": false,
       "default_value": "ru",
       "choices": [
-        "ru",
-        "en"
+        "русский",
+        "английский"
       ],
       "description": "Response language preference"
     }
@@ -46,24 +29,17 @@
         "покажи распознавание",
         "покажи провайдеры asr",
         "показать речь",
-        "show recognition",
-        "show asr providers",
-        "speech recognition info",
         "список распознавания",
         "asr информация",
-        "recognition providers",
         "покажи asr",
-        "show speech",
-        "распознавание речи",
-        "speech recognition"
+        "распознавание речи"
       ],
       "lemmas": [
         "показывать",
         "распознавание",
         "речь",
         "провайдер",
-        "информация",
-        "asr"
+        "информация"
       ],
       "parameters": [],
       "token_patterns": [
@@ -76,15 +52,10 @@
           }
         ],
         [
-          {
-            "TEXT": "show"
-          },
+          {},
           {
             "TEXT": {
-              "IN": [
-                "recognition",
-                "asr"
-              ]
+              "IN": []
             }
           }
         ],
@@ -100,9 +71,7 @@
           }
         ],
         [
-          {
-            "TEXT": "show"
-          },
+          {},
           {
             "TEXT": "asr"
           },
@@ -138,9 +107,7 @@
           {
             "TEXT": "asr"
           },
-          {
-            "TEXT": "information"
-          }
+          {}
         ],
         [
           {
@@ -168,14 +135,6 @@
         {
           "text": "показать asr провайдеры",
           "parameters": {}
-        },
-        {
-          "text": "show recognition",
-          "parameters": {}
-        },
-        {
-          "text": "speech recognition info",
-          "parameters": {}
         }
       ],
       "boost": 1.3
@@ -188,22 +147,15 @@
         "переключись на whisper",
         "смени asr",
         "используй vosk",
-        "switch to whisper",
         "переключи распознавание",
         "смени провайдер asr",
-        "switch asr provider",
         "используй google asr",
-        "change to vosk",
-        "переключись на google",
-        "switch recognition",
-        "change asr",
-        "use different asr"
+        "переключись на google"
       ],
       "lemmas": [
         "переключаться",
         "менять",
         "использовать",
-        "asr",
         "распознавание",
         "провайдер"
       ],
@@ -213,10 +165,6 @@
           "type": "choice",
           "required": true,
           "choices": [
-            "whisper",
-            "vosk",
-            "google_cloud",
-            "azure",
             "виспер",
             "воск",
             "гугл",
@@ -235,10 +183,6 @@
                 {
                   "LOWER": {
                     "IN": [
-                      "whisper",
-                      "vosk",
-                      "google",
-                      "azure",
                       "виспер",
                       "воск",
                       "гугл"
@@ -252,24 +196,11 @@
               "pattern": [
                 {
                   "TEXT": {
-                    "IN": [
-                      "switch",
-                      "change"
-                    ]
+                    "IN": []
                   }
                 },
                 {
                   "TEXT": "to"
-                },
-                {
-                  "LOWER": {
-                    "IN": [
-                      "whisper",
-                      "vosk",
-                      "google",
-                      "azure"
-                    ]
-                  }
                 }
               ],
               "label": "PROVIDER"
@@ -293,10 +224,6 @@
           {
             "LOWER": {
               "IN": [
-                "whisper",
-                "vosk",
-                "google",
-                "azure",
                 "виспер",
                 "воск",
                 "гугл"
@@ -307,24 +234,11 @@
         [
           {
             "TEXT": {
-              "IN": [
-                "switch",
-                "change"
-              ]
+              "IN": []
             }
           },
           {
             "TEXT": "to"
-          },
-          {
-            "LOWER": {
-              "IN": [
-                "whisper",
-                "vosk",
-                "google",
-                "azure"
-              ]
-            }
           }
         ],
         [
@@ -337,7 +251,7 @@
         ],
         [
           {
-            "TEXT": "change"
+            "TEXT": "изменить"
           },
           {
             "TEXT": "asr"
@@ -346,29 +260,11 @@
         [
           {
             "LEMMA": "использовать"
-          },
-          {
-            "LOWER": {
-              "IN": [
-                "whisper",
-                "vosk",
-                "google"
-              ]
-            }
           }
         ],
         [
           {
             "TEXT": "use"
-          },
-          {
-            "LOWER": {
-              "IN": [
-                "whisper",
-                "vosk",
-                "google"
-              ]
-            }
           }
         ],
         [
@@ -381,7 +277,7 @@
         ],
         [
           {
-            "TEXT": "switch"
+            "TEXT": "переключить"
           },
           {
             "TEXT": "recognition"
@@ -400,10 +296,6 @@
             {
               "LOWER": {
                 "IN": [
-                  "whisper",
-                  "vosk",
-                  "google",
-                  "azure",
                   "виспер",
                   "воск",
                   "гугл"
@@ -414,10 +306,7 @@
           [
             {
               "TEXT": {
-                "IN": [
-                  "switch",
-                  "change"
-                ]
+                "IN": []
               }
             },
             {
@@ -425,12 +314,7 @@
             },
             {
               "LOWER": {
-                "IN": [
-                  "whisper",
-                  "vosk",
-                  "google",
-                  "azure"
-                ]
+                "IN": []
               }
             }
           ]
@@ -444,21 +328,9 @@
           }
         },
         {
-          "text": "switch to vosk",
-          "parameters": {
-            "provider": "vosk"
-          }
-        },
-        {
           "text": "смени asr на google",
           "parameters": {
             "provider": "google"
-          }
-        },
-        {
-          "text": "use azure asr",
-          "parameters": {
-            "provider": "azure"
           }
         }
       ],
@@ -472,15 +344,9 @@
         "переключи язык",
         "смени язык распознавания",
         "используй русский",
-        "switch language",
-        "change recognition language",
-        "use english",
         "язык на русский",
-        "language to english",
         "переключись на английский",
-        "change to russian",
-        "распознавание на",
-        "recognition in"
+        "распознавание на"
       ],
       "lemmas": [
         "переключать",
@@ -498,12 +364,7 @@
             "русский",
             "английский",
             "немецкий",
-            "французский",
-            "spanish",
-            "russian",
-            "english",
-            "german",
-            "french"
+            "французский"
           ],
           "description": "Language to switch ASR to",
           "extraction_patterns": [
@@ -526,34 +387,22 @@
                   }
                 }
               ],
-              "label": "LANGUAGE"
+              "label": "язык"
             },
             {
               "pattern": [
                 {
-                  "TEXT": "language"
+                  "TEXT": "язык"
                 },
                 {
                   "TEXT": "to"
-                },
-                {
-                  "LOWER": {
-                    "IN": [
-                      "russian",
-                      "english",
-                      "german",
-                      "french",
-                      "spanish"
-                    ]
-                  }
                 }
               ],
-              "label": "LANGUAGE"
+              "label": "язык"
             }
           ],
           "aliases": [
             "локаль",
-            "locale",
             "речь"
           ]
         }
@@ -569,10 +418,10 @@
         ],
         [
           {
-            "TEXT": "switch"
+            "TEXT": "переключить"
           },
           {
-            "TEXT": "language"
+            "TEXT": "язык"
           }
         ],
         [
@@ -588,13 +437,13 @@
         ],
         [
           {
-            "TEXT": "change"
+            "TEXT": "изменить"
           },
           {
             "TEXT": "recognition"
           },
           {
-            "TEXT": "language"
+            "TEXT": "язык"
           }
         ],
         [
@@ -617,20 +466,10 @@
         ],
         [
           {
-            "TEXT": "language"
+            "TEXT": "язык"
           },
           {
             "TEXT": "to"
-          },
-          {
-            "LOWER": {
-              "IN": [
-                "russian",
-                "english",
-                "german",
-                "french"
-              ]
-            }
           }
         ],
         [
@@ -649,14 +488,6 @@
         [
           {
             "TEXT": "use"
-          },
-          {
-            "LOWER": {
-              "IN": [
-                "russian",
-                "english"
-              ]
-            }
           }
         ]
       ],
@@ -682,20 +513,14 @@
           ],
           [
             {
-              "TEXT": "language"
+              "TEXT": "язык"
             },
             {
               "TEXT": "to"
             },
             {
               "LOWER": {
-                "IN": [
-                  "russian",
-                  "english",
-                  "german",
-                  "french",
-                  "spanish"
-                ]
+                "IN": []
               }
             }
           ]
@@ -709,21 +534,9 @@
           }
         },
         {
-          "text": "switch language to english",
-          "parameters": {
-            "language": "english"
-          }
-        },
-        {
           "text": "смени язык распознавания на английский",
           "parameters": {
             "language": "английский"
-          }
-        },
-        {
-          "text": "use russian recognition",
-          "parameters": {
-            "language": "russian"
           }
         }
       ],
@@ -737,15 +550,9 @@
         "настрой качество",
         "улучши распознавание",
         "высокое качество asr",
-        "configure quality",
-        "improve recognition",
-        "high quality asr",
         "качество распознавания",
-        "recognition quality",
         "настройки asr",
-        "asr settings",
-        "точность распознавания",
-        "recognition accuracy"
+        "точность распознавания"
       ],
       "lemmas": [
         "настраивать",
@@ -762,10 +569,6 @@
           "required": false,
           "default_value": "high",
           "choices": [
-            "low",
-            "medium",
-            "high",
-            "ultra",
             "низкое",
             "среднее",
             "высокое",
@@ -781,21 +584,16 @@
                       "низкое",
                       "среднее",
                       "высокое",
-                      "максимальное",
-                      "low",
-                      "medium",
-                      "high",
-                      "ultra"
+                      "максимальное"
                     ]
                   }
                 }
               ],
-              "label": "QUALITY"
+              "label": "качество"
             }
           ],
           "aliases": [
             "уровень",
-            "level",
             "степень"
           ]
         }
@@ -810,11 +608,9 @@
           }
         ],
         [
+          {},
           {
-            "TEXT": "configure"
-          },
-          {
-            "TEXT": "quality"
+            "TEXT": "качество"
           }
         ],
         [
@@ -849,16 +645,7 @@
         ],
         [
           {
-            "LOWER": {
-              "IN": [
-                "high",
-                "low",
-                "medium"
-              ]
-            }
-          },
-          {
-            "TEXT": "quality"
+            "TEXT": "качество"
           }
         ],
         [
@@ -874,7 +661,7 @@
             "TEXT": "recognition"
           },
           {
-            "TEXT": "quality"
+            "TEXT": "качество"
           }
         ]
       ],
@@ -887,11 +674,7 @@
                   "низкое",
                   "среднее",
                   "высокое",
-                  "максимальное",
-                  "low",
-                  "medium",
-                  "high",
-                  "ultra"
+                  "максимальное"
                 ]
               }
             }
@@ -906,20 +689,8 @@
           }
         },
         {
-          "text": "configure high quality",
-          "parameters": {
-            "quality": "high"
-          }
-        },
-        {
           "text": "улучши распознавание",
           "parameters": {}
-        },
-        {
-          "text": "medium quality asr",
-          "parameters": {
-            "quality": "medium"
-          }
         }
       ],
       "boost": 1.0
@@ -932,15 +703,9 @@
         "настрой микрофон",
         "смени микрофон",
         "используй другой микрофон",
-        "configure microphone",
-        "change microphone",
-        "use different microphone",
         "микрофон для asr",
-        "microphone for asr",
         "настройки микрофона",
-        "microphone settings",
-        "выбери микрофон",
-        "select microphone"
+        "выбери микрофон"
       ],
       "lemmas": [
         "настраивать",
@@ -976,32 +741,27 @@
                   "IS_ALPHA": true
                 }
               ],
-              "label": "MICROPHONE"
+              "label": "микрофон"
             },
             {
               "pattern": [
                 {
                   "TEXT": {
-                    "IN": [
-                      "configure",
-                      "use",
-                      "select"
-                    ]
+                    "IN": []
                   }
                 },
                 {
-                  "TEXT": "microphone"
+                  "TEXT": "микрофон"
                 },
                 {
                   "IS_ALPHA": true
                 }
               ],
-              "label": "MICROPHONE"
+              "label": "микрофон"
             }
           ],
           "aliases": [
             "устройство",
-            "device",
             "девайс"
           ]
         }
@@ -1016,11 +776,9 @@
           }
         ],
         [
+          {},
           {
-            "TEXT": "configure"
-          },
-          {
-            "TEXT": "microphone"
+            "TEXT": "микрофон"
           }
         ],
         [
@@ -1033,10 +791,10 @@
         ],
         [
           {
-            "TEXT": "change"
+            "TEXT": "изменить"
           },
           {
-            "TEXT": "microphone"
+            "TEXT": "микрофон"
           }
         ],
         [
@@ -1052,7 +810,7 @@
             "TEXT": "use"
           },
           {
-            "TEXT": "microphone"
+            "TEXT": "микрофон"
           }
         ],
         [
@@ -1068,10 +826,10 @@
         ],
         [
           {
-            "TEXT": "microphone"
+            "TEXT": "микрофон"
           },
           {
-            "TEXT": "for"
+            "TEXT": "для"
           },
           {
             "TEXT": "asr"
@@ -1086,11 +844,9 @@
           }
         ],
         [
+          {},
           {
-            "TEXT": "select"
-          },
-          {
-            "TEXT": "microphone"
+            "TEXT": "микрофон"
           }
         ]
       ],
@@ -1116,15 +872,11 @@
           [
             {
               "TEXT": {
-                "IN": [
-                  "configure",
-                  "use",
-                  "select"
-                ]
+                "IN": []
               }
             },
             {
-              "TEXT": "microphone"
+              "TEXT": "микрофон"
             },
             {
               "IS_ALPHA": true
@@ -1138,21 +890,9 @@
           "parameters": {}
         },
         {
-          "text": "configure default microphone",
-          "parameters": {
-            "microphone": "default"
-          }
-        },
-        {
           "text": "используй микрофон usb",
           "parameters": {
             "microphone": "usb"
-          }
-        },
-        {
-          "text": "select built-in microphone",
-          "parameters": {
-            "microphone": "built-in"
           }
         }
       ],
@@ -1173,7 +913,6 @@
         "LEMMA": {
           "IN": [
             "распознавание",
-            "asr",
             "микрофон"
           ]
         }
@@ -1182,14 +921,15 @@
     [
       {
         "TEXT": {
-          "REGEX": "no|not"
+          "REGEX": ".*"
         }
       },
       {
         "TEXT": {
-          "REGEX": "recognition|asr|microphone"
+          "REGEX": ".*"
         }
       }
     ]
-  ]
+  ],
+  "language": "ru"
 }

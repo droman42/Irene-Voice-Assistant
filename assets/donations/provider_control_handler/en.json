@@ -1,0 +1,560 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "provider_control",
+  "description": "Provider switching and management across all components",
+  "intent_name_patterns": [
+    "provider.switch",
+    "provider.list",
+    "provider.control"
+  ],
+  "action_patterns": [
+    "switch",
+    "change",
+    "list",
+    "show",
+    "control"
+  ],
+  "domain_patterns": [
+    "provider",
+    "control",
+    "management"
+  ],
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "ru",
+        "en"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_switch_provider",
+      "intent_suffix": "switch",
+      "description": "Switch provider for any component",
+      "phrases": [
+        "switch provider",
+        "switch to audio",
+        "change provider",
+        "use provider",
+        "switch component",
+        "change component provider"
+      ],
+      "lemmas": [
+        "llm",
+        "asr",
+        "tts"
+      ],
+      "parameters": [
+        {
+          "name": "component",
+          "type": "choice",
+          "required": false,
+          "choices": [
+            "audio",
+            "llm",
+            "asr",
+            "tts"
+          ],
+          "description": "Component type to switch provider for",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "audio"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "llm"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "asr"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "tts"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            }
+          ],
+          "aliases": []
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "description": "Provider name to switch to",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "TEXT": "on"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "PROVIDER"
+            },
+            {
+              "pattern": [
+                {
+                  "TEXT": {
+                    "IN": [
+                      "switch",
+                      "change"
+                    ]
+                  }
+                },
+                {
+                  "TEXT": "to"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "PROVIDER"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "on"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "switch",
+                "change"
+              ]
+            }
+          },
+          {
+            "TEXT": "to"
+          }
+        ],
+        [
+          {
+            "TEXT": "on"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "llm",
+                "asr",
+                "tts"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "switch"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "audio",
+                "llm",
+                "asr",
+                "tts"
+              ]
+            }
+          },
+          {
+            "TEXT": "provider"
+          }
+        ],
+        [
+          {
+            "TEXT": "change"
+          },
+          {
+            "TEXT": "provider"
+          }
+        ],
+        [
+          {
+            "TEXT": "use"
+          },
+          {
+            "TEXT": "provider"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "COMPONENT": [
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "audio"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "llm"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "asr"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "tts"
+                ]
+              }
+            }
+          ]
+        ],
+        "PROVIDER": [
+          [
+            {
+              "LEMMA": "switch"
+            },
+            {
+              "TEXT": "on"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ],
+          [
+            {
+              "TEXT": {
+                "IN": [
+                  "switch",
+                  "change"
+                ]
+              }
+            },
+            {
+              "TEXT": "to"
+            },
+            {
+              "IS_ALPHA": true
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "switch audio provider to sounddevice",
+          "parameters": {
+            "component": "audio",
+            "provider": "sounddevice"
+          }
+        },
+        {
+          "text": "use silero for tts",
+          "parameters": {
+            "component": "tts",
+            "provider": "silero"
+          }
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_list_providers",
+      "intent_suffix": "list",
+      "description": "List providers for specific component or all components",
+      "phrases": [
+        "show providers",
+        "tts providers",
+        "available providers",
+        "component providers",
+        "all providers"
+      ],
+      "lemmas": [],
+      "parameters": [
+        {
+          "name": "component",
+          "type": "choice",
+          "required": false,
+          "choices": [
+            "audio",
+            "llm",
+            "asr",
+            "tts",
+            "all"
+          ],
+          "description": "Component to list providers for (optional - lists all if not specified)",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "audio"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "llm"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "asr"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "tts"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            },
+            {
+              "pattern": [
+                {
+                  "LOWER": {
+                    "IN": [
+                      "all"
+                    ]
+                  }
+                }
+              ],
+              "label": "COMPONENT"
+            }
+          ],
+          "aliases": []
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "show"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "TEXT": "list"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "LOWER": {
+              "IN": [
+                "llm",
+                "asr",
+                "tts"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "show"
+          },
+          {
+            "LOWER": {
+              "IN": [
+                "audio",
+                "llm",
+                "asr",
+                "tts"
+              ]
+            }
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "TEXT": "available"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ],
+        [
+          {
+            "TEXT": "all"
+          },
+          {
+            "TEXT": "providers"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "COMPONENT": [
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "audio"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "llm"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "asr"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "tts"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "LOWER": {
+                "IN": [
+                  "all"
+                ]
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "show llm providers",
+          "parameters": {
+            "component": "llm"
+          }
+        },
+        {
+          "text": "all providers",
+          "parameters": {
+            "component": "all"
+          }
+        }
+      ],
+      "boost": 1.2
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": []
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": "no|not"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": "switch|change|provider"
+        }
+      }
+    ]
+  ],
+  "language": "en"
+}

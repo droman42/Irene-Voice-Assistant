@@ -1,0 +1,401 @@
+{
+  "$schema": "../v1.0.json",
+  "schema_version": "1.0",
+  "donation_version": "1.0",
+  "handler_domain": "greeting",
+  "description": "Greeting and farewell interactions with context-aware responses",
+  "intent_name_patterns": [],
+  "action_patterns": [],
+  "domain_patterns": [],
+  "global_parameters": [
+    {
+      "name": "language",
+      "type": "choice",
+      "required": false,
+      "default_value": "ru",
+      "choices": [
+        "русский",
+        "английский"
+      ],
+      "description": "Response language preference"
+    }
+  ],
+  "method_donations": [
+    {
+      "method_name": "_handle_greeting",
+      "intent_suffix": "hello",
+      "description": "Handle hello and greeting messages",
+      "phrases": [
+        "привет",
+        "здравствуй",
+        "здравствуйте",
+        "добро пожаловать",
+        "приветствую",
+        "рада видеть",
+        "доброе утро",
+        "добрый день",
+        "добрый вечер"
+      ],
+      "lemmas": [
+        "привет",
+        "здравствовать",
+        "приветствовать",
+        "добрый",
+        "доброе",
+        "утро",
+        "день",
+        "вечер"
+      ],
+      "parameters": [
+        {
+          "name": "time_of_day",
+          "type": "choice",
+          "required": false,
+          "choices": [
+            "утро",
+            "день",
+            "вечер",
+            "ночь"
+          ],
+          "description": "Time-specific greeting",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LEMMA": {
+                    "IN": [
+                      "утро",
+                      "день",
+                      "вечер",
+                      "ночь"
+                    ]
+                  }
+                }
+              ],
+              "label": "TIME_OF_DAY"
+            },
+            {
+              "pattern": [],
+              "label": "TIME_OF_DAY"
+            }
+          ],
+          "aliases": [
+            "время"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "привет",
+                "здравствовать",
+                "приветствовать"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": ".*"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "добрый"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "утро",
+                "день",
+                "вечер"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "добрый"
+          },
+          {
+            "TEXT": {
+              "REGEX": ".*"
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "TIME_OF_DAY": [
+          [
+            {
+              "LEMMA": "добрый"
+            },
+            {
+              "LEMMA": {
+                "IN": [
+                  "утро",
+                  "день",
+                  "вечер"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": "добрый"
+            },
+            {
+              "TEXT": {
+                "REGEX": ".*"
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "привет",
+          "parameters": {}
+        },
+        {
+          "text": "доброе утро",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_farewell",
+      "intent_suffix": "goodbye",
+      "description": "Handle goodbye and farewell messages",
+      "phrases": [
+        "пока",
+        "до свидания",
+        "прощай",
+        "бывай",
+        "до встречи",
+        "всего доброго"
+      ],
+      "lemmas": [
+        "пока",
+        "прощать",
+        "свидание",
+        "встреча",
+        "добрый"
+      ],
+      "parameters": [
+        {
+          "name": "return_time",
+          "type": "string",
+          "required": false,
+          "description": "When planning to return",
+          "extraction_patterns": [
+            {
+              "pattern": [
+                {
+                  "LOWER": "до"
+                },
+                {
+                  "IS_ALPHA": true
+                }
+              ],
+              "label": "RETURN_TIME"
+            }
+          ],
+          "aliases": [
+            "когда",
+            "время"
+          ]
+        }
+      ],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "пока",
+                "прощать"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": ".*"
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "до"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "свидание",
+                "встреча"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "see"
+          },
+          {
+            "TEXT": "you"
+          }
+        ],
+        [
+          {
+            "TEXT": "take"
+          },
+          {
+            "TEXT": "care"
+          }
+        ]
+      ],
+      "slot_patterns": {
+        "RETURN_TIME": [
+          [
+            {
+              "LOWER": "до"
+            },
+            {
+              "LEMMA": {
+                "IN": [
+                  "встреча",
+                  "свидание"
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "TEXT": "see"
+            },
+            {
+              "TEXT": "you"
+            },
+            {
+              "TEXT": {
+                "REGEX": ".*"
+              }
+            }
+          ]
+        ]
+      },
+      "examples": [
+        {
+          "text": "пока",
+          "parameters": {}
+        },
+        {
+          "text": "до свидания",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_welcome",
+      "intent_suffix": "welcome",
+      "description": "Handle welcome responses and acknowledgments",
+      "phrases": [
+        "добро пожаловать",
+        "рад встрече",
+        "приятно познакомиться"
+      ],
+      "lemmas": [
+        "добро",
+        "пожаловать",
+        "рад",
+        "встреча",
+        "познакомиться"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "добро"
+          },
+          {
+            "LEMMA": "пожаловать"
+          }
+        ],
+        [
+          {
+            "TEXT": "welcome"
+          }
+        ],
+        [
+          {
+            "TEXT": "nice"
+          },
+          {
+            "TEXT": "to"
+          },
+          {
+            "TEXT": "meet"
+          }
+        ],
+        [
+          {
+            "TEXT": "pleased"
+          },
+          {
+            "TEXT": "to"
+          },
+          {
+            "TEXT": "meet"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "добро пожаловать",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.1
+    }
+  ],
+  "negative_patterns": [
+    [
+      {
+        "LEMMA": {
+          "IN": [
+            "нет",
+            "не"
+          ]
+        }
+      },
+      {
+        "LEMMA": {
+          "IN": [
+            "привет",
+            "пока"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "TEXT": {
+          "REGEX": ".*"
+        }
+      },
+      {
+        "TEXT": {
+          "REGEX": ".*"
+        }
+      }
+    ]
+  ],
+  "language": "ru"
+}

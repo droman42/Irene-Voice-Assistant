@@ -209,7 +209,6 @@ class IntentComponent(Component, WebAPIPlugin):
     # which is called during post-initialization coordination to ensure proper timing
     # 
     # async def _inject_handler_dependencies(self, core) -> None:
-    #     """OLD METHOD - Inject component dependencies into intent handlers during initialization"""
     #     # This method had timing issues because it ran during component initialization
     #     # when other components (like LLM) might not be available yet.
     #     # Replaced by post_initialize_handler_dependencies() for proper deferred injection.
@@ -310,11 +309,21 @@ class IntentComponent(Component, WebAPIPlugin):
                 IntentSystemStatusResponse, IntentHandlersResponse, IntentHandlerInfo,
                 IntentActionCancelRequest, IntentActionResponse, IntentActiveActionsResponse,
                 IntentRegistryResponse, IntentReloadResponse,
-                # Donation management schemas
-                DonationListResponse, DonationContentResponse, DonationUpdateRequest, DonationUpdateResponse,
-                DonationValidationRequest, DonationValidationResponse, DonationSchemaResponse,
-                DonationMetadata, ValidationError, ValidationWarning
+                # Language-aware donation management schemas (Phase 3)
+                DonationHandlerListResponse, HandlerLanguageInfo, LanguageDonationContentResponse,
+                LanguageDonationUpdateRequest, LanguageDonationUpdateResponse,
+                LanguageDonationValidationRequest, LanguageDonationValidationResponse,
+                CreateLanguageRequest, CreateLanguageResponse, DeleteLanguageResponse,
+                ReloadDonationResponse, CrossLanguageValidation, LanguageDonationMetadata,
+                # Schema-related types still needed
+                DonationSchemaResponse, DonationMetadata, ValidationError, ValidationWarning,
+                # Phase 4: Cross-language validation schemas
+                CrossLanguageValidationResponse, ValidationReportSchema, CompletenessReportSchema,
+                SyncParametersRequest, SyncParametersResponse,
+                SuggestTranslationsRequest, SuggestTranslationsResponse,
+                TranslationSuggestionsSchema, MissingPhraseInfo
             )
+            from ..core.donations import HandlerDonation
             
             router = APIRouter()
             
@@ -423,171 +432,8 @@ class IntentComponent(Component, WebAPIPlugin):
                 )
             
             # ============================================================
-            # DONATION MANAGEMENT ENDPOINTS
+            # DONATION SCHEMA ENDPOINT
             # ============================================================
-            
-            @router.get("/donations", response_model=DonationListResponse)
-            async def list_donations():
-                """List all donations with metadata"""
-                if not self.handler_manager:
-                    raise HTTPException(503, "Intent system not initialized")
-                
-                try:
-                    asset_loader = self.handler_manager._asset_loader
-                    donations_list = asset_loader.list_all_donations()
-                    
-                    metadata_list = []
-                    for donation_dict in donations_list:
-                        metadata_list.append(DonationMetadata(**donation_dict))
-                    
-                    return DonationListResponse(
-                        success=True,
-                        donations=metadata_list,
-                        total_count=len(metadata_list)
-                    )
-                except Exception as e:
-                    raise HTTPException(500, f"Failed to list donations: {str(e)}")
-            
-            @router.get("/donations/{handler_name}", response_model=DonationContentResponse)
-            async def get_donation(handler_name: str):
-                """Get specific donation JSON content"""
-                if not self.handler_manager:
-                    raise HTTPException(503, "Intent system not initialized")
-                
-                try:
-                    asset_loader = self.handler_manager._asset_loader
-                    
-                    # Try to get donation from cache first (for enabled handlers)
-                    donation = asset_loader.get_donation(handler_name)
-                    
-                    # If not in cache, try on-demand loading for configuration UI
-                    if not donation:
-                        donation = await asset_loader.load_donation_on_demand(handler_name)
-                        if not donation:
-                            raise HTTPException(404, f"Donation not found for handler '{handler_name}'")
-                    
-                    # Get metadata
-                    metadata_dict = asset_loader.get_donation_metadata(handler_name)
-                    if not metadata_dict:
-                        raise HTTPException(404, f"Metadata not found for handler '{handler_name}'")
-                    
-                    metadata = DonationMetadata(**metadata_dict)
-                    
-                    # Convert donation to dict for response
-                    donation_data = donation.dict()
-                    
-                    return DonationContentResponse(
-                        success=True,
-                        handler_name=handler_name,
-                        donation_data=donation_data,
-                        metadata=metadata
-                    )
-                except HTTPException:
-                    raise
-                except Exception as e:
-                    raise HTTPException(500, f"Failed to get donation: {str(e)}")
-            
-            @router.put("/donations/{handler_name}", response_model=DonationUpdateResponse)
-            async def update_donation(handler_name: str, request: DonationUpdateRequest):
-                """Update donation and trigger hot reload"""
-                if not self.handler_manager:
-                    raise HTTPException(503, "Intent system not initialized")
-                
-                try:
-                    asset_loader = self.handler_manager._asset_loader
-                    validation_passed = True
-                    errors = []
-                    warnings = []
-                    
-                    # Validate before saving if requested
-                    if request.validate_before_save:
-                        is_valid, error_list, warning_list = await asset_loader.validate_donation_data(
-                            handler_name, request.donation_data
-                        )
-                        validation_passed = is_valid
-                        errors = [ValidationError(**err) for err in error_list]
-                        warnings = [ValidationWarning(**warn) for warn in warning_list]
-                        
-                        if not is_valid:
-                            return DonationUpdateResponse(
-                                success=False,
-                                handler_name=handler_name,
-                                validation_passed=False,
-                                reload_triggered=False,
-                                backup_created=False,
-                                errors=errors,
-                                warnings=warnings
-                            )
-                    
-                    # Save donation
-                    saved = await asset_loader.save_donation(handler_name, request.donation_data)
-                    if not saved:
-                        raise HTTPException(500, "Failed to save donation file")
-                    
-                    # Trigger reload if requested
-                    reload_triggered = False
-                    if request.trigger_reload:
-                        try:
-                            # Handle both dict and Pydantic config objects
-                            if isinstance(self._config, dict):
-                                handlers_config = self._config.get("handlers", {})
-                            else:
-                                handlers_config = getattr(self._config, "handlers", {})
-                            await self.handler_manager.reload_handlers(handlers_config)
-                            
-                            # Update references
-                            self.intent_registry = self.handler_manager.get_registry()
-                            self.intent_orchestrator = self.handler_manager.get_orchestrator()
-                            reload_triggered = True
-                        except Exception as e:
-                            logger.warning(f"Donation saved but reload failed: {e}")
-                    
-                    return DonationUpdateResponse(
-                        success=True,
-                        handler_name=handler_name,
-                        validation_passed=validation_passed,
-                        reload_triggered=reload_triggered,
-                        backup_created=True,  # Asset loader creates backups by default
-                        errors=errors,
-                        warnings=warnings
-                    )
-                except HTTPException:
-                    raise
-                except Exception as e:
-                    raise HTTPException(500, f"Failed to update donation: {str(e)}")
-            
-            @router.post("/donations/{handler_name}/validate", response_model=DonationValidationResponse)
-            async def validate_donation(handler_name: str, request: DonationValidationRequest):
-                """Validate donation without saving (dry-run)"""
-                if not self.handler_manager:
-                    raise HTTPException(503, "Intent system not initialized")
-                
-                try:
-                    asset_loader = self.handler_manager._asset_loader
-                    
-                    is_valid, error_list, warning_list = await asset_loader.validate_donation_data(
-                        handler_name, request.donation_data
-                    )
-                    
-                    errors = [ValidationError(**err) for err in error_list]
-                    warnings = [ValidationWarning(**warn) for warn in warning_list]
-                    
-                    validation_types = ["pydantic"]
-                    if asset_loader.config.validate_json_schema:
-                        validation_types.append("schema")
-                    if asset_loader.config.validate_method_existence:
-                        validation_types.append("method_existence")
-                    
-                    return DonationValidationResponse(
-                        success=True,
-                        handler_name=handler_name,
-                        is_valid=is_valid,
-                        errors=errors,
-                        warnings=warnings,
-                        validation_types=validation_types
-                    )
-                except Exception as e:
-                    raise HTTPException(500, f"Failed to validate donation: {str(e)}")
             
             @router.get("/schema", response_model=DonationSchemaResponse)
             async def get_donation_schema():
@@ -618,7 +464,7 @@ class IntentComponent(Component, WebAPIPlugin):
                         
                         return DonationSchemaResponse(
                             success=True,
-                            schema=basic_schema,
+                            json_schema=basic_schema,
                             schema_version="1.0",
                             supported_versions=["1.0"]
                         )
@@ -628,7 +474,7 @@ class IntentComponent(Component, WebAPIPlugin):
                     
                     return DonationSchemaResponse(
                         success=True,
-                        schema=schema_data,
+                        json_schema=schema_data,
                         schema_version="1.0",
                         supported_versions=["1.0"]
                     )
@@ -673,6 +519,509 @@ class IntentComponent(Component, WebAPIPlugin):
                         handlers=[],
                         error=f"Reload failed: {str(e)}"
                     )
+            
+            # ============================================================
+            # LANGUAGE-AWARE DONATION ENDPOINTS
+            # ============================================================
+            
+            @router.get("/donations", response_model=DonationHandlerListResponse)
+            async def list_donation_handlers():
+                """List all handlers with language information"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    handlers_languages = asset_loader.get_all_handlers_with_languages()
+                    
+                    handlers_info = []
+                    for handler_name, languages in handlers_languages.items():
+                        handlers_info.append(HandlerLanguageInfo(
+                            handler_name=handler_name,
+                            languages=languages,
+                            total_languages=len(languages),
+                            supported_languages=asset_loader.config.supported_languages,
+                            default_language=asset_loader.config.default_language
+                        ))
+                    
+                    return DonationHandlerListResponse(
+                        success=True,
+                        handlers=handlers_info,
+                        total_handlers=len(handlers_info)
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to list donation handlers: {str(e)}")
+            
+            # ============================================================
+            # Phase 4: Cross-Language Validation and Synchronization
+            # ============================================================
+            
+            @router.get("/donations/{handler_name}/cross-validation", response_model=CrossLanguageValidationResponse)
+            async def get_cross_language_validation(handler_name: str):
+                """Get cross-language validation report for a handler"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Import the validator
+                    from ..core.cross_language_validator import CrossLanguageValidator
+                    validator = CrossLanguageValidator(asset_loader.assets_root, asset_loader)
+                    
+                    # Run both validations
+                    parameter_report = validator.validate_parameter_consistency(handler_name)
+                    completeness_report = validator.validate_method_completeness(handler_name)
+                    
+                    # Convert to schema objects
+                    
+                    parameter_schema = ValidationReportSchema(
+                        handler_name=parameter_report.handler_name,
+                        languages_checked=parameter_report.languages_checked,
+                        parameter_consistency=parameter_report.parameter_consistency,
+                        missing_parameters=parameter_report.missing_parameters,
+                        extra_parameters=parameter_report.extra_parameters,
+                        type_mismatches=parameter_report.type_mismatches,
+                        warnings=parameter_report.warnings,
+                        timestamp=parameter_report.timestamp
+                    )
+                    
+                    completeness_schema = CompletenessReportSchema(
+                        handler_name=completeness_report.handler_name,
+                        languages_checked=completeness_report.languages_checked,
+                        method_completeness=completeness_report.method_completeness,
+                        missing_methods=completeness_report.missing_methods,
+                        extra_methods=completeness_report.extra_methods,
+                        all_methods=list(completeness_report.all_methods),
+                        method_counts_by_language=completeness_report.method_counts_by_language,
+                        warnings=completeness_report.warnings,
+                        timestamp=completeness_report.timestamp
+                    )
+                    
+                    return CrossLanguageValidationResponse(
+                        success=True,
+                        validation_type="comprehensive",
+                        parameter_report=parameter_schema,
+                        completeness_report=completeness_schema
+                    )
+                    
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to validate cross-language consistency: {str(e)}")
+            
+            @router.post("/donations/{handler_name}/sync-parameters", response_model=SyncParametersResponse)
+            async def sync_parameters(handler_name: str, request: SyncParametersRequest):
+                """Sync parameter structures across languages"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Import the validator
+                    from ..core.cross_language_validator import CrossLanguageValidator
+                    validator = CrossLanguageValidator(asset_loader.assets_root, asset_loader)
+                    
+                    # Check source language exists
+                    available_languages = asset_loader.get_available_languages_for_handler(handler_name)
+                    if request.source_language not in available_languages:
+                        raise HTTPException(404, f"Source language '{request.source_language}' not found for handler '{handler_name}'")
+                    
+                    # Validate target languages
+                    invalid_targets = [lang for lang in request.target_languages if lang not in available_languages]
+                    if invalid_targets:
+                        raise HTTPException(404, f"Target languages not found: {invalid_targets}")
+                    
+                    # Perform synchronization
+                    sync_results = validator.sync_parameters_across_languages(
+                        handler_name, 
+                        request.source_language, 
+                        request.target_languages
+                    )
+                    
+                    # Determine which languages were updated vs skipped
+                    updated_languages = [lang for lang, success in sync_results.items() if success]
+                    skipped_languages = [lang for lang, success in sync_results.items() if not success]
+                    
+                    return SyncParametersResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        source_language=request.source_language,
+                        sync_results=sync_results,
+                        updated_languages=updated_languages,
+                        skipped_languages=skipped_languages
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to sync parameters: {str(e)}")
+            
+            @router.post("/donations/{handler_name}/suggest-translations", response_model=SuggestTranslationsResponse)
+            async def suggest_translations(handler_name: str, request: SuggestTranslationsRequest):
+                """Get translation suggestions for missing phrases"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Import the validator
+                    from ..core.cross_language_validator import CrossLanguageValidator
+                    validator = CrossLanguageValidator(asset_loader.assets_root, asset_loader)
+                    
+                    # Check languages exist
+                    available_languages = asset_loader.get_available_languages_for_handler(handler_name)
+                    if request.source_language not in available_languages:
+                        raise HTTPException(404, f"Source language '{request.source_language}' not found for handler '{handler_name}'")
+                    
+                    # Target language may not exist yet - that's fine for suggestions
+                    
+                    # Get translation suggestions
+                    suggestions = validator.suggest_translations(
+                        handler_name,
+                        request.source_language,
+                        request.target_language
+                    )
+                    
+                    # Convert to schema
+                    
+                    missing_phrases_schema = []
+                    for phrase_info in suggestions.missing_phrases:
+                        missing_phrases_schema.append(MissingPhraseInfo(
+                            method_key=phrase_info['method_key'],
+                            source_phrases=phrase_info['source_phrases'],
+                            target_phrases=phrase_info['target_phrases'],
+                            missing_count=phrase_info['missing_count'],
+                            coverage_ratio=phrase_info['coverage_ratio']
+                        ))
+                    
+                    suggestions_schema = TranslationSuggestionsSchema(
+                        handler_name=suggestions.handler_name,
+                        source_language=suggestions.source_language,
+                        target_language=suggestions.target_language,
+                        missing_phrases=missing_phrases_schema,
+                        missing_methods=suggestions.missing_methods,
+                        confidence_scores=suggestions.confidence_scores,
+                        timestamp=suggestions.timestamp
+                    )
+                    
+                    return SuggestTranslationsResponse(
+                        success=True,
+                        suggestions=suggestions_schema
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to generate translation suggestions: {str(e)}")
+            
+            @router.get("/donations/{handler_name}/languages", response_model=List[str])
+            async def get_handler_languages(handler_name: str):
+                """Get available languages for a handler"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    languages = asset_loader.get_available_languages_for_handler(handler_name)
+                    
+                    if not languages:
+                        raise HTTPException(404, f"No language files found for handler '{handler_name}'")
+                    
+                    return languages
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get handler languages: {str(e)}")
+            
+            @router.get("/donations/{handler_name}/{language}", response_model=LanguageDonationContentResponse)
+            async def get_language_donation(handler_name: str, language: str):
+                """Get language-specific donation content for editing"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Get language-specific donation
+                    donation = asset_loader.get_donation_for_language_editing(handler_name, language)
+                    if not donation:
+                        raise HTTPException(404, f"Language '{language}' not found for handler '{handler_name}'")
+                    
+                    # Get metadata
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "donations" / asset_handler_name / f"{language}.json"
+                    
+                    if not lang_file.exists():
+                        raise HTTPException(404, f"Language file not found: {lang_file}")
+                    
+                    stat = lang_file.stat()
+                    metadata = LanguageDonationMetadata(
+                        file_path=f"{asset_handler_name}/{language}.json",
+                        language=language,
+                        file_size=stat.st_size,
+                        last_modified=stat.st_mtime
+                    )
+                    
+                    # Get available languages
+                    available_languages = asset_loader.get_available_languages_for_handler(handler_name)
+                    
+                    # Get cross-language validation
+                    cross_validation = asset_loader.validate_cross_language_consistency(handler_name)
+                    
+                    return LanguageDonationContentResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        donation_data=donation.dict(),
+                        metadata=metadata,
+                        available_languages=available_languages,
+                        cross_language_validation=CrossLanguageValidation(**cross_validation)
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get language donation: {str(e)}")
+            
+            @router.put("/donations/{handler_name}/{language}", response_model=LanguageDonationUpdateResponse)
+            async def update_language_donation(handler_name: str, language: str, request: LanguageDonationUpdateRequest):
+                """Update language-specific donation and trigger unified reload"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    validation_passed = True
+                    errors = []
+                    warnings = []
+                    
+                    # Validate before saving if requested
+                    if request.validate_before_save:
+                        is_valid, error_list, warning_list = await asset_loader.validate_donation_data(
+                            handler_name, request.donation_data
+                        )
+                        validation_passed = is_valid
+                        errors = [ValidationError(**err) for err in error_list]
+                        warnings = [ValidationWarning(**warn) for warn in warning_list]
+                        
+                        if not is_valid:
+                            return LanguageDonationUpdateResponse(
+                                success=False,
+                                handler_name=handler_name,
+                                language=language,
+                                validation_passed=False,
+                                reload_triggered=False,
+                                backup_created=False,
+                                errors=errors,
+                                warnings=warnings
+                            )
+                    
+                    # Create HandlerDonation object and save
+                    try:
+                        donation = HandlerDonation(**request.donation_data)
+                        saved = asset_loader.save_donation_for_language(handler_name, language, donation)
+                        if not saved:
+                            raise HTTPException(500, "Failed to save language donation file")
+                    except Exception as e:
+                        raise HTTPException(400, f"Invalid donation data: {str(e)}")
+                    
+                    # Trigger unified donation reload if requested
+                    reload_triggered = False
+                    if request.trigger_reload:
+                        try:
+                            reload_success = await asset_loader.reload_unified_donation(handler_name)
+                            if reload_success:
+                                # Also trigger handler reload if this is an enabled handler
+                                if isinstance(self._config, dict):
+                                    handlers_config = self._config.get("handlers", {})
+                                else:
+                                    handlers_config = getattr(self._config, "handlers", {})
+                                
+                                enabled_handlers = handlers_config.get("enabled", [])
+                                if handler_name in enabled_handlers:
+                                    await self.handler_manager.reload_handlers(handlers_config)
+                                    self.intent_registry = self.handler_manager.get_registry()
+                                    self.intent_orchestrator = self.handler_manager.get_orchestrator()
+                                
+                                reload_triggered = True
+                        except Exception as e:
+                            logger.warning(f"Language donation saved but reload failed: {e}")
+                    
+                    return LanguageDonationUpdateResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        validation_passed=validation_passed,
+                        reload_triggered=reload_triggered,
+                        backup_created=True,  # TODO: Implement backup for language files
+                        errors=errors,
+                        warnings=warnings
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to update language donation: {str(e)}")
+            
+            @router.post("/donations/{handler_name}/{language}/validate", response_model=LanguageDonationValidationResponse)
+            async def validate_language_donation(handler_name: str, language: str, request: LanguageDonationValidationRequest):
+                """Validate language-specific donation without saving"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    is_valid, error_list, warning_list = await asset_loader.validate_donation_data(
+                        handler_name, request.donation_data
+                    )
+                    
+                    errors = [ValidationError(**err) for err in error_list]
+                    warnings = [ValidationWarning(**warn) for warn in warning_list]
+                    
+                    validation_types = ["pydantic"]
+                    if asset_loader.config.validate_json_schema:
+                        validation_types.append("schema")
+                    if asset_loader.config.validate_method_existence:
+                        validation_types.append("method_existence")
+                    
+                    return LanguageDonationValidationResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        is_valid=is_valid,
+                        errors=errors,
+                        warnings=warnings,
+                        validation_types=validation_types
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to validate language donation: {str(e)}")
+            
+            @router.delete("/donations/{handler_name}/{language}", response_model=DeleteLanguageResponse)
+            async def delete_language(handler_name: str, language: str):
+                """Delete a language file for a handler"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "donations" / asset_handler_name / f"{language}.json"
+                    
+                    if not lang_file.exists():
+                        raise HTTPException(404, f"Language '{language}' not found for handler '{handler_name}'")
+                    
+                    # Check if this is the last language
+                    available_languages = asset_loader.get_available_languages_for_handler(handler_name)
+                    if len(available_languages) <= 1:
+                        raise HTTPException(400, "Cannot delete the last language file for a handler")
+                    
+                    lang_file.unlink()
+                    
+                    return DeleteLanguageResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        deleted=True
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to delete language: {str(e)}")
+            
+            @router.post("/donations/{handler_name}/{language}/create", response_model=CreateLanguageResponse)
+            async def create_language(handler_name: str, language: str, request: CreateLanguageRequest):
+                """Create a new language file for a handler"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "donations" / asset_handler_name / f"{language}.json"
+                    
+                    if lang_file.exists():
+                        raise HTTPException(409, f"Language '{language}' already exists for handler '{handler_name}'")
+                    
+                    copied_from = None
+                    if request.copy_from and not request.use_template:
+                        # Copy from existing language
+                        source_donation = asset_loader.get_donation_for_language_editing(handler_name, request.copy_from)
+                        if not source_donation:
+                            raise HTTPException(404, f"Source language '{request.copy_from}' not found")
+                        
+                        saved = asset_loader.save_donation_for_language(handler_name, language, source_donation)
+                        copied_from = request.copy_from
+                    else:
+                        # Create empty template
+                        # Get any existing language as template structure
+                        available_languages = asset_loader.get_available_languages_for_handler(handler_name)
+                        if available_languages:
+                            template_donation = asset_loader.get_donation_for_language_editing(handler_name, available_languages[0])
+                            if template_donation:
+                                # Clear phrases but keep structure
+                                for method_donation in template_donation.method_donations:
+                                    method_donation.phrases = []
+                                    method_donation.examples = []
+                                    if hasattr(method_donation, 'lemmas'):
+                                        method_donation.lemmas = []
+                                
+                                saved = asset_loader.save_donation_for_language(handler_name, language, template_donation)
+                            else:
+                                raise HTTPException(500, "Failed to create template donation")
+                        else:
+                            raise HTTPException(400, "Cannot create language file: no existing languages to use as template")
+                    
+                    if not saved:
+                        raise HTTPException(500, "Failed to save new language file")
+                    
+                    return CreateLanguageResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        created=True,
+                        copied_from=copied_from
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to create language: {str(e)}")
+            
+            @router.post("/donations/{handler_name}/reload", response_model=ReloadDonationResponse)
+            async def reload_handler_donation(handler_name: str):
+                """Trigger unified donation reload for a handler"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Get available languages before reload
+                    available_languages = asset_loader.get_available_languages_for_handler(handler_name)
+                    
+                    # Reload unified donation
+                    reloaded = await asset_loader.reload_unified_donation(handler_name)
+                    
+                    if reloaded:
+                        # Also trigger handler reload if this is an enabled handler
+                        if isinstance(self._config, dict):
+                            handlers_config = self._config.get("handlers", {})
+                        else:
+                            handlers_config = getattr(self._config, "handlers", {})
+                        
+                        enabled_handlers = handlers_config.get("enabled", [])
+                        if handler_name in enabled_handlers:
+                            await self.handler_manager.reload_handlers(handlers_config)
+                            self.intent_registry = self.handler_manager.get_registry()
+                            self.intent_orchestrator = self.handler_manager.get_orchestrator()
+                    
+                    return ReloadDonationResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        reloaded=reloaded,
+                        merged_languages=available_languages
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to reload donation: {str(e)}")
             
             return router
             

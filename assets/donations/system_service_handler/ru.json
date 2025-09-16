@@ -4,20 +4,9 @@
   "donation_version": "1.0",
   "handler_domain": "service",
   "description": "System service status, statistics, and health monitoring",
-  "intent_name_patterns": [
-    "service.status",
-    "service.stats",
-    "service.health"
-  ],
-  "action_patterns": [
-    "status",
-    "stats",
-    "health",
-    "check"
-  ],
-  "domain_patterns": [
-    "service"
-  ],
+  "intent_name_patterns": [],
+  "action_patterns": [],
+  "domain_patterns": [],
   "global_parameters": [
     {
       "name": "language",
@@ -25,8 +14,8 @@
       "required": false,
       "default_value": "ru",
       "choices": [
-        "ru",
-        "en"
+        "русский",
+        "английский"
       ],
       "description": "Response language preference"
     }
@@ -37,14 +26,11 @@
       "intent_suffix": "status",
       "description": "Show current service status and basic information",
       "phrases": [
-        "service status",
         "статус сервиса",
         "состояние сервиса",
         "как работает сервис",
         "сервис работает",
-        "system status",
-        "проверь статус",
-        "check status"
+        "проверь статус"
       ],
       "lemmas": [
         "статус",
@@ -74,7 +60,7 @@
             {
               "pattern": [
                 {
-                  "TEXT": "status"
+                  "TEXT": "статус"
                 },
                 {
                   "IS_ALPHA": true
@@ -95,7 +81,7 @@
             "TEXT": "service"
           },
           {
-            "TEXT": "status"
+            "TEXT": "статус"
           }
         ],
         [
@@ -130,7 +116,7 @@
             "TEXT": "system"
           },
           {
-            "TEXT": "status"
+            "TEXT": "статус"
           }
         ],
         [
@@ -154,7 +140,7 @@
           ],
           [
             {
-              "TEXT": "status"
+              "TEXT": "статус"
             },
             {
               "IS_ALPHA": true
@@ -163,10 +149,6 @@
         ]
       },
       "examples": [
-        {
-          "text": "service status",
-          "parameters": {}
-        },
         {
           "text": "статус сервиса",
           "parameters": {}
@@ -189,14 +171,11 @@
       "intent_suffix": "stats",
       "description": "Show detailed service statistics and metrics",
       "phrases": [
-        "service stats",
         "статистика сервиса",
         "статистика системы",
-        "service statistics",
         "метрики сервиса",
         "показатели сервиса",
-        "данные о работе",
-        "information about service"
+        "данные о работе"
       ],
       "lemmas": [
         "статистика",
@@ -209,15 +188,8 @@
       "parameters": [
         {
           "name": "metric_type",
-          "type": "choice",
+          "type": "string",
           "required": false,
-          "choices": [
-            "performance",
-            "memory",
-            "cpu",
-            "network",
-            "all"
-          ],
           "description": "Type of statistics to show",
           "extraction_patterns": [
             {
@@ -236,18 +208,7 @@
               "label": "METRIC_TYPE"
             },
             {
-              "pattern": [
-                {
-                  "LOWER": {
-                    "IN": [
-                      "performance",
-                      "memory",
-                      "cpu",
-                      "network"
-                    ]
-                  }
-                }
-              ],
+              "pattern": [],
               "label": "METRIC_TYPE"
             }
           ],
@@ -264,7 +225,7 @@
           },
           {
             "TEXT": {
-              "REGEX": "stats|statistics"
+              "REGEX": ".*"
             }
           }
         ],
@@ -309,11 +270,9 @@
           }
         ],
         [
+          {},
           {
-            "TEXT": "information"
-          },
-          {
-            "TEXT": "about"
+            "TEXT": "о"
           },
           {
             "TEXT": "service"
@@ -337,22 +296,13 @@
           [
             {
               "LOWER": {
-                "IN": [
-                  "performance",
-                  "memory",
-                  "cpu",
-                  "network"
-                ]
+                "IN": []
               }
             }
           ]
         ]
       },
       "examples": [
-        {
-          "text": "service stats",
-          "parameters": {}
-        },
         {
           "text": "статистика сервиса",
           "parameters": {}
@@ -362,10 +312,6 @@
           "parameters": {
             "metric_type": "performance"
           }
-        },
-        {
-          "text": "service statistics",
-          "parameters": {}
         }
       ],
       "boost": 1.3
@@ -375,15 +321,11 @@
       "intent_suffix": "health",
       "description": "Check service health and diagnostic information",
       "phrases": [
-        "service health",
         "здоровье сервиса",
         "здоровье системы",
-        "system health",
         "диагностика сервиса",
         "проверка работы",
-        "всё ли в порядке",
-        "everything ok",
-        "is everything working"
+        "всё ли в порядке"
       ],
       "lemmas": [
         "здоровье",
@@ -417,17 +359,7 @@
               "label": "DETAILED"
             },
             {
-              "pattern": [
-                {
-                  "LOWER": {
-                    "IN": [
-                      "detailed",
-                      "full",
-                      "complete"
-                    ]
-                  }
-                }
-              ],
+              "pattern": [],
               "label": "DETAILED"
             }
           ],
@@ -533,11 +465,7 @@
           [
             {
               "LOWER": {
-                "IN": [
-                  "detailed",
-                  "full",
-                  "complete"
-                ]
+                "IN": []
               }
             }
           ]
@@ -545,25 +473,11 @@
       },
       "examples": [
         {
-          "text": "service health",
-          "parameters": {}
-        },
-        {
           "text": "здоровье сервиса",
           "parameters": {}
         },
         {
           "text": "всё ли в порядке",
-          "parameters": {}
-        },
-        {
-          "text": "detailed system health",
-          "parameters": {
-            "detailed": true
-          }
-        },
-        {
-          "text": "everything ok",
           "parameters": {}
         }
       ],
@@ -593,14 +507,15 @@
     [
       {
         "TEXT": {
-          "REGEX": "no|not"
+          "REGEX": ".*"
         }
       },
       {
         "TEXT": {
-          "REGEX": "service|status|health"
+          "REGEX": ".*"
         }
       }
     ]
-  ]
+  ],
+  "language": "ru"
 }
