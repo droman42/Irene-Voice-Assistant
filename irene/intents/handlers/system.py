@@ -8,10 +8,13 @@ Adapted from core_commands.py for the new intent architecture.
 import logging
 import time
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Type, TYPE_CHECKING
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +30,28 @@ class SystemIntentHandler(IntentHandler):
     - Time/date queries
     """
     
-    def __init__(self):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__()
         self.start_time = time.time()
+        
+        # Configuration injection via Pydantic SystemHandlerConfig
+        if config:
+            self.config = config
+            self.allow_shutdown = config.get("allow_shutdown", False)
+            self.allow_restart = config.get("allow_restart", False)
+            self.info_detail_level = config.get("info_detail_level", "basic")
+            logger.info(f"SystemIntentHandler initialized with config: allow_shutdown={self.allow_shutdown}, allow_restart={self.allow_restart}, info_detail_level={self.info_detail_level}")
+        else:
+            # Fallback defaults (should not be used in production with proper config)
+            self.config = {
+                "allow_shutdown": False,
+                "allow_restart": False,
+                "info_detail_level": "basic"
+            }
+            self.allow_shutdown = False
+            self.allow_restart = False
+            self.info_detail_level = "basic"
+            logger.warning("SystemIntentHandler initialized without configuration - using fallback defaults")
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod
@@ -51,6 +73,22 @@ class SystemIntentHandler(IntentHandler):
     def get_platform_support(cls) -> List[str]:
         """System handler supports all platforms"""
         return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata methods
+    @classmethod
+    def get_config_schema(cls) -> Type["BaseModel"]:
+        """Return configuration schema for system handler"""
+        from ...config.models import SystemHandlerConfig
+        return SystemHandlerConfig
+    
+    @classmethod
+    def get_config_defaults(cls) -> Dict[str, Any]:
+        """Return default configuration values matching TOML"""
+        return {
+            "allow_shutdown": False,     # matches config-master.toml line 445
+            "allow_restart": False,      # matches config-master.toml line 446
+            "info_detail_level": "basic" # matches config-master.toml line 447
+        }
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process system intents"""

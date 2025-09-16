@@ -14,12 +14,15 @@ Requires: pydantic>=2.0.0, pydantic-settings>=2.0.0
 
 import os
 import re
+import logging
 from typing import Optional, Any, Dict, List, Type, Union
 from pathlib import Path
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 
 class LogLevel(str, Enum):
@@ -631,7 +634,7 @@ class IntentSystemConfig(BaseModel):
     
     @model_validator(mode='after')
     def validate_handler_configurations(self):
-        """Validate handler-specific configurations for enabled handlers"""
+        """Validate handler-specific configurations using metadata-driven discovery"""
         if not self.enabled:
             return self
         
@@ -642,7 +645,8 @@ class IntentSystemConfig(BaseModel):
         if not enabled_handlers:
             raise ValueError("At least one intent handler must remain enabled after applying disabled list")
         
-        # Validate that each enabled handler has proper configuration
+        # Dynamic configuration validation using metadata discovery
+        # Always define handler_config_mapping for orphaned config check
         handler_config_mapping = {
             "conversation": self.conversation,
             "train_schedule": self.train_schedule,
@@ -653,15 +657,46 @@ class IntentSystemConfig(BaseModel):
             "system": self.system
         }
         
-        # Check for enabled handlers without configurations
-        missing_configs = []
-        for handler_name in enabled_handlers:
-            if handler_name not in handler_config_mapping:
-                missing_configs.append(handler_name)
-        
-        if missing_configs:
-            raise ValueError(f"Enabled handlers missing configuration classes: {missing_configs}. "
-                           f"Please add configuration classes for these handlers in IntentSystemConfig.")
+        try:
+            from ..utils.loader import dynamic_loader
+            
+            # Discover handler classes to check their configuration requirements
+            handler_classes = dynamic_loader.discover_providers("irene.intents.handlers", enabled_handlers)
+            
+            missing_configs = []
+            for handler_name, handler_class in handler_classes.items():
+                # Check if handler declares it needs configuration via metadata
+                if hasattr(handler_class, 'requires_configuration') and handler_class.requires_configuration():
+                    # Look for configuration using multiple naming patterns
+                    config_patterns = [
+                        handler_name,  # Direct mapping: "conversation" -> self.conversation
+                        handler_name.replace('_handler', ''),  # "text_enhancement_handler" -> self.text_enhancement
+                        handler_name.replace('_intent_handler', ''),  # Future compatibility
+                    ]
+                    
+                    config_found = any(hasattr(self, pattern) for pattern in config_patterns)
+                    if not config_found:
+                        # Get schema name for better error message
+                        config_requirements = handler_class.get_config_requirements()
+                        schema_name = config_requirements.get("schema_name", "Unknown")
+                        missing_configs.append(f"{handler_name} (needs {schema_name})")
+            
+            if missing_configs:
+                raise ValueError(f"Enabled handlers missing configuration classes: {missing_configs}. "
+                               f"Please add configuration classes for these handlers in IntentSystemConfig.")
+                
+        except ImportError:
+            # Fallback to hardcoded validation if dynamic loader unavailable
+            logger.warning("Dynamic loader unavailable, falling back to hardcoded validation")
+            
+            missing_configs = []
+            for handler_name in enabled_handlers:
+                if handler_name not in handler_config_mapping:
+                    missing_configs.append(handler_name)
+            
+            if missing_configs:
+                raise ValueError(f"Enabled handlers missing configuration classes: {missing_configs}. "
+                               f"Please add configuration classes for these handlers in IntentSystemConfig.")
         
         # Check for orphaned configurations (configurations for disabled handlers)
         final_disabled = set(self.handlers.disabled)

@@ -6,10 +6,14 @@ Supports both asset configuration (TODO #4) and build dependencies (TODO #5).
 Enables configuration-driven systems and external package integration.
 
 Relocated from irene/providers/base.py in TODO #5 Phase 0.
+Enhanced with configuration metadata support for dynamic validation.
 """
 
 from abc import ABC
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 
 class EntryPointMetadata(ABC):
@@ -48,6 +52,57 @@ class EntryPointMetadata(ABC):
             "model_urls": cls._get_default_model_urls()
         }
     
+    # 🆕 Configuration metadata methods (Configuration-driven validation)
+    @classmethod
+    def get_config_schema(cls) -> Optional[Type["BaseModel"]]:
+        """
+        Return Pydantic configuration schema if entry-point needs configuration.
+        
+        Returns:
+            Pydantic BaseModel class for configuration validation, or None if no config needed
+        """
+        return None
+    
+    @classmethod
+    def get_config_defaults(cls) -> Dict[str, Any]:
+        """
+        Return default configuration values.
+        
+        Returns:
+            Dictionary of default configuration values
+        """
+        return {}
+    
+    @classmethod
+    def requires_configuration(cls) -> bool:
+        """
+        Check if this entry-point requires configuration.
+        
+        Returns:
+            True if configuration is required, False otherwise
+        """
+        return cls.get_config_schema() is not None
+    
+    @classmethod
+    def get_config_requirements(cls) -> Dict[str, Any]:
+        """
+        Get comprehensive configuration requirements metadata.
+        
+        Returns:
+            Dictionary containing configuration metadata:
+            - required: Whether configuration is required
+            - schema: Pydantic schema class if available
+            - defaults: Default configuration values
+            - schema_name: Name of the configuration schema class
+        """
+        schema = cls.get_config_schema()
+        return {
+            "required": schema is not None,
+            "schema": schema,
+            "defaults": cls.get_config_defaults(),
+            "schema_name": schema.__name__ if schema else None
+        }
+
     # 🆕 Build dependency methods (TODO #5)
     @classmethod
     def get_python_dependencies(cls) -> List[str]:

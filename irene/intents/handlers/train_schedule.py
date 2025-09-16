@@ -7,11 +7,14 @@ Supports Russian voice commands for train departures.
 
 import logging
 from datetime import datetime, date
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Type, TYPE_CHECKING
 import asyncio
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -319,7 +322,40 @@ class TrainScheduleIntentHandler(IntentHandler):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """Train schedule handler needs HTTP client for API requests"""
-        return ["httpx>=0.25.0"] 
+        return ["httpx>=0.25.0"]
+    
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Train schedule handler has no system dependencies"""
+        return {
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
+        }
+    
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Train schedule handler supports all platforms"""
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata methods
+    @classmethod
+    def get_config_schema(cls) -> Type["BaseModel"]:
+        """Return configuration schema for train schedule handler"""
+        from ...config.models import TrainScheduleHandlerConfig
+        return TrainScheduleHandlerConfig
+    
+    @classmethod
+    def get_config_defaults(cls) -> Dict[str, Any]:
+        """Return default configuration values matching TOML"""
+        return {
+            "api_key": "",                # matches config-master.toml line 420
+            "from_station": "s9600681",   # matches config-master.toml line 421
+            "to_station": "s2000002",     # matches config-master.toml line 422
+            "max_results": 3,             # matches config-master.toml line 423
+            "request_timeout": 10         # matches config-master.toml line 424
+        } 
     
 def create_handler(config: Optional[Dict[str, Any]] = None) -> TrainScheduleIntentHandler:
     """Factory function to create train schedule handler with configuration"""

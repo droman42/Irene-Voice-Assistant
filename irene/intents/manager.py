@@ -133,7 +133,7 @@ class IntentHandlerManager:
     
     def _get_handler_config(self, handler_name: str) -> Optional[Dict[str, Any]]:
         """
-        Get configuration for a specific handler.
+        Get configuration for a specific handler using metadata-driven discovery.
         
         Args:
             handler_name: Name of the handler
@@ -144,32 +144,40 @@ class IntentHandlerManager:
         if not self._intent_system_config:
             return None
         
-        # Map handler names to configuration attributes in IntentSystemConfig
-        handler_config_mapping = {
-            "conversation": "conversation",
-            "train_schedule": "train_schedule", 
-            "timer": "timer",
-            "random_handler": "random_handler"
-        }
-        
-        config_attr = handler_config_mapping.get(handler_name)
-        if not config_attr:
+        # Check if handler actually requires configuration
+        handler_class = self._handler_classes.get(handler_name)
+        if not handler_class or not hasattr(handler_class, 'requires_configuration'):
             return None
         
-        # Get configuration from Pydantic model or dict
-        if hasattr(self._intent_system_config, config_attr):
-            handler_config = getattr(self._intent_system_config, config_attr)
-            
-            # Convert Pydantic model to dict if needed
-            if hasattr(handler_config, 'model_dump'):
-                return handler_config.model_dump()
-            elif hasattr(handler_config, 'dict'):
-                return handler_config.dict()
-            else:
-                return handler_config
-        elif isinstance(self._intent_system_config, dict):
-            return self._intent_system_config.get(config_attr)
+        if not handler_class.requires_configuration():
+            return None  # Handler doesn't need configuration
         
+        # Dynamic configuration discovery using multiple naming patterns
+        config_patterns = [
+            handler_name,  # Direct mapping: "conversation" -> self.conversation
+            handler_name.replace('_handler', ''),  # "text_enhancement_handler" -> self.text_enhancement
+            handler_name.replace('_intent_handler', ''),  # Future compatibility
+        ]
+        
+        # Try each pattern to find configuration
+        for pattern in config_patterns:
+            if hasattr(self._intent_system_config, pattern):
+                handler_config = getattr(self._intent_system_config, pattern)
+                
+                # Convert Pydantic model to dict if needed
+                if hasattr(handler_config, 'model_dump'):
+                    return handler_config.model_dump()
+                elif hasattr(handler_config, 'dict'):
+                    return handler_config.dict()
+                else:
+                    return handler_config
+            elif isinstance(self._intent_system_config, dict):
+                config_value = self._intent_system_config.get(pattern)
+                if config_value is not None:
+                    return config_value
+        
+        # If no configuration found but handler requires it, log warning
+        logger.warning(f"Handler '{handler_name}' requires configuration but none found. Tried patterns: {config_patterns}")
         return None
     
 

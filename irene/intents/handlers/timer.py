@@ -8,11 +8,14 @@ Adapted from timer_plugin.py for the new intent architecture.
 import asyncio
 import re
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Type, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +76,21 @@ class TimerIntentHandler(IntentHandler):
     def get_platform_support(cls) -> List[str]:
         """Timer handler supports all platforms"""
         return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata methods
+    @classmethod
+    def get_config_schema(cls) -> Type["BaseModel"]:
+        """Return configuration schema for timer handler"""
+        from ...config.models import TimerHandlerConfig
+        return TimerHandlerConfig
+    
+    @classmethod
+    def get_config_defaults(cls) -> Dict[str, Any]:
+        """Return default configuration values matching TOML"""
+        return {
+            "min_seconds": 1,        # matches config-master.toml line 427
+            "max_seconds": 86400     # matches config-master.toml line 428
+        }
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process timer intents"""

@@ -8,10 +8,13 @@ Provides random number generation, coin flips, and dice rolls.
 import random
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Type, TYPE_CHECKING
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +73,22 @@ class RandomIntentHandler(IntentHandler):
     def get_platform_support(cls) -> List[str]:
         """Random handler supports all platforms"""
         return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata methods
+    @classmethod
+    def get_config_schema(cls) -> Type["BaseModel"]:
+        """Return configuration schema for random handler"""
+        from ...config.models import RandomHandlerConfig
+        return RandomHandlerConfig
+    
+    @classmethod
+    def get_config_defaults(cls) -> Dict[str, Any]:
+        """Return default configuration values matching TOML"""
+        return {
+            "default_max_number": 100,    # matches config-master.toml line 431
+            "max_range_size": 1000000,    # matches config-master.toml line 432
+            "default_dice_sides": 6       # matches config-master.toml line 433
+        }
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process random intents"""

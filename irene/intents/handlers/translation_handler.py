@@ -6,10 +6,13 @@ in LLMComponent. Delegates to LLMComponent for actual functionality.
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, TYPE_CHECKING
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -221,3 +224,28 @@ class TranslationIntentHandler(IntentHandler):
             },
             success=False
         )
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Translation handler has no external dependencies - uses LLM component"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Translation handler has no system dependencies"""
+        return {
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
+        }
+    
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Translation handler supports all platforms"""
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata: No configuration needed
+    # This handler delegates to LLM component and uses asset loader for language mappings
+    # No get_config_schema() method = no configuration required

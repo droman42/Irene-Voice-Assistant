@@ -7,10 +7,13 @@ Adapted from conversation_plugin.py for the new intent architecture.
 
 import logging
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Type, TYPE_CHECKING
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +101,23 @@ class ConversationIntentHandler(IntentHandler):
     def get_platform_support(cls) -> List[str]:
         """Conversation handler supports all platforms"""
         return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata methods
+    @classmethod
+    def get_config_schema(cls) -> Type["BaseModel"]:
+        """Return configuration schema for conversation handler"""
+        from ...config.models import ConversationHandlerConfig
+        return ConversationHandlerConfig
+    
+    @classmethod
+    def get_config_defaults(cls) -> Dict[str, Any]:
+        """Return default configuration values matching TOML"""
+        return {
+            "session_timeout": 1800,  # matches config-master.toml line 414
+            "max_sessions": 50,       # matches config-master.toml line 415
+            "max_context_length": 10, # matches config-master.toml line 416
+            "default_conversation_confidence": 0.6  # matches config-master.toml line 417
+        }
         
     async def can_handle(self, intent: Intent) -> bool:
         """Check if this handler can process conversation intents"""

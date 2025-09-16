@@ -254,3 +254,28 @@ class TextEnhancementIntentHandler(IntentHandler):
             },
             success=False
         )
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """Text enhancement handler needs no external dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Text enhancement handler has no system dependencies"""
+        return {
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
+        }
+        
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Text enhancement handler supports all platforms"""
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata: No configuration needed
+    # This handler delegates to LLM component and uses JSON donations only
+    # No get_config_schema() method = no configuration required

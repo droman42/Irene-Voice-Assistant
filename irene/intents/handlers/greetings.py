@@ -240,4 +240,22 @@ class GreetingsIntentHandler(IntentHandler):
         except Exception:
             return None
     
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """Greetings handler has no system dependencies - pure Python logic"""
+        return {
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
+        }
+    
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """Greetings handler supports all platforms"""
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata: No configuration needed
+    # This handler uses asset loader for template data only
+    # No get_config_schema() method = no configuration required
  

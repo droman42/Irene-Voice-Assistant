@@ -284,4 +284,23 @@ class DateTimeIntentHandler(IntentHandler):
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
         """DateTime handler needs date utilities"""
-        return ["python-dateutil>=2.8.0"] 
+        return ["python-dateutil>=2.8.0"]
+    
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """DateTime handler has no system dependencies"""
+        return {
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
+        }
+    
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """DateTime handler supports all platforms"""
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata: No configuration needed
+    # This handler uses asset loader for localization data only
+    # No get_config_schema() method = no configuration required 

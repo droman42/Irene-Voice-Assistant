@@ -8,10 +8,13 @@ Provides system service status and statistics information.
 import asyncio
 import logging
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, TYPE_CHECKING
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -263,3 +266,28 @@ class SystemServiceIntentHandler(IntentHandler):
                 f"SystemServiceIntentHandler: Template '{template_name}' missing required format argument: {e}. "
                 f"Check assets/templates/system_service/{language}/status_messages.yaml for correct placeholders."
             )
+    
+    # Build dependency methods (TODO #5 Phase 2)
+    @classmethod
+    def get_python_dependencies(cls) -> List[str]:
+        """System service handler has no external dependencies"""
+        return []
+        
+    @classmethod
+    def get_platform_dependencies(cls) -> Dict[str, List[str]]:
+        """System service handler has no system dependencies"""
+        return {
+            "linux.ubuntu": [],
+            "linux.alpine": [],
+            "macos": [],
+            "windows": []
+        }
+    
+    @classmethod
+    def get_platform_support(cls) -> List[str]:
+        """System service handler supports all platforms"""
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    # Configuration metadata: No configuration needed
+    # This handler provides system service information using asset loader templates
+    # No get_config_schema() method = no configuration required
