@@ -173,6 +173,53 @@ class IntentAssetLoader:
             self._add_error(error_msg)
             return False
     
+    def _create_backup(self, file_path: Path, backup_type: str, identifier: str, language: str = None) -> bool:
+        """
+        Create a backup of an existing file before modification.
+        
+        Args:
+            file_path: Path to the file to backup
+            backup_type: Type of asset ('donations', 'templates', 'prompts', 'localization')
+            identifier: Handler name or domain name
+            language: Language code (optional, for language-specific backups)
+            
+        Returns:
+            True if backup was created or file doesn't exist, False on error
+        """
+        if not file_path.exists():
+            return True  # No need to backup non-existent file
+        
+        try:
+            # Determine backup directory based on asset type
+            if backup_type == "localization":
+                backup_dir = self.assets_root / "localization" / "backups"
+            else:
+                backup_dir = self.assets_root / backup_type / "backups"
+            
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate backup filename with timestamp
+            from datetime import datetime
+            current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Build backup filename based on whether language is specified
+            if language:
+                backup_filename = f"{identifier}_{language}_{current_datetime}{file_path.suffix}"
+            else:
+                backup_filename = f"{identifier}_{current_datetime}{file_path.suffix}"
+            
+            backup_path = backup_dir / backup_filename
+            
+            # Copy existing file to backup location
+            import shutil
+            shutil.copy2(file_path, backup_path)
+            logger.info(f"Created backup: {backup_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to create backup for {file_path}: {e}")
+            return False
+
     async def validate_donation_data(self, handler_name: str, donation_data: dict) -> tuple[bool, list, list]:
         """Validate donation data without saving (dry-run)
         
@@ -549,27 +596,40 @@ class IntentAssetLoader:
         
         return None
     
-    def save_donation_for_language(self, handler_name: str, language: str, donation: HandlerDonation) -> bool:
-        """Save language-specific donation for editing"""
+    def save_donation_for_language(self, handler_name: str, language: str, donation: HandlerDonation, create_backup: bool = True) -> tuple[bool, bool]:
+        """Save language-specific donation for editing with backup support
+        
+        Returns:
+            tuple: (save_success, backup_created)
+        """
+        backup_created = False
         try:
             asset_handler_name = self._get_asset_handler_name(handler_name)
             lang_dir = self.assets_root / "donations" / asset_handler_name
             lang_dir.mkdir(parents=True, exist_ok=True)
             
+            lang_file = lang_dir / f"{language}.json"
+            
+            # Create backup if requested and file exists
+            if create_backup and lang_file.exists():
+                backup_created = self._create_backup(lang_file, "donations", handler_name, language)
+                if not backup_created:
+                    logger.warning(f"Backup creation failed for {lang_file}, proceeding with save")
+            
             # Convert to dict and add explicit language field
             donation_dict = donation.dict()
             donation_dict["language"] = language
             
-            lang_file = lang_dir / f"{language}.json"
+            # Write new content
             with open(lang_file, 'w', encoding='utf-8') as f:
                 json.dump(donation_dict, f, indent=2, ensure_ascii=False)
             
             logger.info(f"Saved {language} donation for handler '{handler_name}' to {lang_file}")
-            return True
+            return True, backup_created
             
         except Exception as e:
             logger.error(f"Failed to save {language} donation for {handler_name}: {e}")
-            return False
+            return False, backup_created
     
     async def reload_unified_donation(self, handler_name: str) -> bool:
         """Reload unified donation after language file changes"""
@@ -644,22 +704,35 @@ class IntentAssetLoader:
         
         return None
     
-    def save_template_for_language(self, handler_name: str, language: str, template_data: Dict[str, Any]) -> bool:
-        """Save language-specific template data for editing"""
+    def save_template_for_language(self, handler_name: str, language: str, template_data: Dict[str, Any], create_backup: bool = True) -> tuple[bool, bool]:
+        """Save language-specific template data for editing with backup support
+        
+        Returns:
+            tuple: (save_success, backup_created)
+        """
+        backup_created = False
         asset_handler_name = self._get_asset_handler_name(handler_name)
         lang_dir = self.assets_root / "templates" / asset_handler_name
         lang_dir.mkdir(parents=True, exist_ok=True)
         
         lang_file = lang_dir / f"{language}.yaml"
+        
         try:
+            # Create backup if requested and file exists
+            if create_backup and lang_file.exists():
+                backup_created = self._create_backup(lang_file, "templates", handler_name, language)
+                if not backup_created:
+                    logger.warning(f"Backup creation failed for {lang_file}, proceeding with save")
+            
+            # Write new content
             with open(lang_file, 'w', encoding='utf-8') as f:
                 yaml.dump(template_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
             
             logger.info(f"Saved {language} template for handler '{handler_name}' to {lang_file}")
-            return True
+            return True, backup_created
         except Exception as e:
             logger.error(f"Failed to save template file {lang_file}: {e}")
-            return False
+            return False, backup_created
     
     async def reload_templates_for_handler(self, handler_name: str) -> bool:
         """Reload templates for a specific handler after language file changes"""
@@ -821,22 +894,35 @@ class IntentAssetLoader:
         
         return None
     
-    def save_prompt_for_language(self, handler_name: str, language: str, prompt_data: Dict[str, Any]) -> bool:
-        """Save language-specific prompt data for editing"""
+    def save_prompt_for_language(self, handler_name: str, language: str, prompt_data: Dict[str, Any], create_backup: bool = True) -> tuple[bool, bool]:
+        """Save language-specific prompt data for editing with backup support
+        
+        Returns:
+            tuple: (save_success, backup_created)
+        """
+        backup_created = False
         asset_handler_name = self._get_asset_handler_name(handler_name)
         lang_dir = self.assets_root / "prompts" / asset_handler_name
         lang_dir.mkdir(parents=True, exist_ok=True)
         
+        lang_file = lang_dir / f"{language}.yaml"
+        
         try:
-            lang_file = lang_dir / f"{language}.yaml"
+            # Create backup if requested and file exists
+            if create_backup and lang_file.exists():
+                backup_created = self._create_backup(lang_file, "prompts", handler_name, language)
+                if not backup_created:
+                    logger.warning(f"Backup creation failed for {lang_file}, proceeding with save")
+            
+            # Write new content
             with open(lang_file, 'w', encoding='utf-8') as f:
                 yaml.dump(prompt_data, f, default_flow_style=False, allow_unicode=True, indent=2)
             
             logger.info(f"Saved {language} prompt for handler '{handler_name}' to {lang_file}")
-            return True
+            return True, backup_created
         except Exception as e:
             logger.error(f"Failed to save prompt file: {e}")
-            return False
+            return False, backup_created
     
     async def reload_prompts_for_handler(self, handler_name: str) -> bool:
         """Reload prompts for a specific handler after language file changes"""
@@ -898,22 +984,34 @@ class IntentAssetLoader:
             logger.error(f"Failed to load localization for domain '{domain}', language '{language}': {e}")
             return None
     
-    def save_localization_for_domain(self, domain: str, language: str, localization_data: Dict[str, Any]) -> bool:
-        """Save language-specific localization data"""
+    def save_localization_for_domain(self, domain: str, language: str, localization_data: Dict[str, Any], create_backup: bool = True) -> tuple[bool, bool]:
+        """Save language-specific localization data with backup support
+        
+        Returns:
+            tuple: (save_success, backup_created)
+        """
+        backup_created = False
         domain_dir = self.assets_root / "localization" / domain
         domain_dir.mkdir(parents=True, exist_ok=True)
         
         lang_file = domain_dir / f"{language}.yaml"
         
         try:
+            # Create backup if requested and file exists
+            if create_backup and lang_file.exists():
+                backup_created = self._create_backup(lang_file, "localization", domain, language)
+                if not backup_created:
+                    logger.warning(f"Backup creation failed for {lang_file}, proceeding with save")
+            
+            # Write new content
             with open(lang_file, 'w', encoding='utf-8') as f:
                 yaml.dump(localization_data, f, default_flow_style=False, allow_unicode=True, indent=2)
             
             logger.info(f"Saved {language} localization for domain '{domain}' to {lang_file}")
-            return True
+            return True, backup_created
         except Exception as e:
             logger.error(f"Failed to save localization for domain '{domain}', language '{language}': {e}")
-            return False
+            return False, backup_created
     
     async def reload_localizations_for_domain(self, domain: str) -> bool:
         """Reload localization data for a domain"""

@@ -834,7 +834,7 @@ class IntentComponent(Component, WebAPIPlugin):
                     # Create HandlerDonation object and save
                     try:
                         donation = HandlerDonation(**request.donation_data)
-                        saved = asset_loader.save_donation_for_language(handler_name, language, donation)
+                        saved, backup_created = asset_loader.save_donation_for_language(handler_name, language, donation)
                         if not saved:
                             raise HTTPException(500, "Failed to save language donation file")
                     except Exception as e:
@@ -868,7 +868,7 @@ class IntentComponent(Component, WebAPIPlugin):
                         language=language,
                         validation_passed=validation_passed,
                         reload_triggered=reload_triggered,
-                        backup_created=True,  # TODO: Implement backup for language files
+                        backup_created=backup_created,
                         errors=errors,
                         warnings=warnings
                     )
@@ -964,7 +964,7 @@ class IntentComponent(Component, WebAPIPlugin):
                         if not source_donation:
                             raise HTTPException(404, f"Source language '{request.copy_from}' not found")
                         
-                        saved = asset_loader.save_donation_for_language(handler_name, language, source_donation)
+                        saved, _ = asset_loader.save_donation_for_language(handler_name, language, source_donation)
                         copied_from = request.copy_from
                     else:
                         # Create empty template
@@ -980,7 +980,7 @@ class IntentComponent(Component, WebAPIPlugin):
                                     if hasattr(method_donation, 'lemmas'):
                                         method_donation.lemmas = []
                                 
-                                saved = asset_loader.save_donation_for_language(handler_name, language, template_donation)
+                                saved, _ = asset_loader.save_donation_for_language(handler_name, language, template_donation)
                             else:
                                 raise HTTPException(500, "Failed to create template donation")
                         else:
@@ -1179,7 +1179,7 @@ class IntentComponent(Component, WebAPIPlugin):
                     
                     # Save template data
                     try:
-                        saved = asset_loader.save_template_for_language(handler_name, language, request.template_data)
+                        saved, backup_created = asset_loader.save_template_for_language(handler_name, language, request.template_data)
                         if not saved:
                             raise HTTPException(500, "Failed to save template language file")
                     except Exception as e:
@@ -1308,7 +1308,7 @@ class IntentComponent(Component, WebAPIPlugin):
                         }
                     
                     # Save the new language file
-                    saved = asset_loader.save_template_for_language(handler_name, language, template_data)
+                    saved, _ = asset_loader.save_template_for_language(handler_name, language, template_data)
                     if not saved:
                         raise HTTPException(500, "Failed to create template language file")
                     
@@ -1487,7 +1487,7 @@ class IntentComponent(Component, WebAPIPlugin):
                     
                     # Save prompt data
                     try:
-                        saved = asset_loader.save_prompt_for_language(handler_name, language, prompt_data_dict)
+                        saved, backup_created = asset_loader.save_prompt_for_language(handler_name, language, prompt_data_dict)
                         if not saved:
                             raise HTTPException(500, "Failed to save prompt language file")
                     except Exception as e:
@@ -1631,7 +1631,7 @@ class IntentComponent(Component, WebAPIPlugin):
                         }
                     
                     # Save the new language file
-                    saved = asset_loader.save_prompt_for_language(handler_name, language, prompt_data)
+                    saved, _ = asset_loader.save_prompt_for_language(handler_name, language, prompt_data)
                     if not saved:
                         raise HTTPException(500, "Failed to create prompt language file")
                     
@@ -1792,7 +1792,7 @@ class IntentComponent(Component, WebAPIPlugin):
                     
                     # Save localization data
                     try:
-                        saved = asset_loader.save_localization_for_domain(domain, language, request.localization_data)
+                        saved, backup_created = asset_loader.save_localization_for_domain(domain, language, request.localization_data)
                         if not saved:
                             raise HTTPException(500, "Failed to save localization language file")
                     except Exception as e:
@@ -1939,7 +1939,7 @@ class IntentComponent(Component, WebAPIPlugin):
                             }
                     
                     # Save the new language file
-                    saved = asset_loader.save_localization_for_domain(domain, language, localization_data)
+                    saved, _ = asset_loader.save_localization_for_domain(domain, language, localization_data)
                     if not saved:
                         raise HTTPException(500, "Failed to create localization language file")
                     
