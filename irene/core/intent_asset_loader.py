@@ -879,6 +879,179 @@ class IntentAssetLoader:
         
         return handlers_languages
     
+    # ============================================================
+    # LOCALIZATION ASSET MANAGEMENT (Phase 8)
+    # ============================================================
+    
+    def get_localization_for_domain_editing(self, domain: str, language: str) -> Optional[Dict[str, Any]]:
+        """Get language-specific localization data for editing"""
+        domain_dir = self.assets_root / "localization" / domain
+        lang_file = domain_dir / f"{language}.yaml"
+        
+        if not lang_file.exists():
+            return None
+        
+        try:
+            with open(lang_file, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            logger.error(f"Failed to load localization for domain '{domain}', language '{language}': {e}")
+            return None
+    
+    def save_localization_for_domain(self, domain: str, language: str, localization_data: Dict[str, Any]) -> bool:
+        """Save language-specific localization data"""
+        domain_dir = self.assets_root / "localization" / domain
+        domain_dir.mkdir(parents=True, exist_ok=True)
+        
+        lang_file = domain_dir / f"{language}.yaml"
+        
+        try:
+            with open(lang_file, 'w', encoding='utf-8') as f:
+                yaml.dump(localization_data, f, default_flow_style=False, allow_unicode=True, indent=2)
+            
+            logger.info(f"Saved {language} localization for domain '{domain}' to {lang_file}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save localization for domain '{domain}', language '{language}': {e}")
+            return False
+    
+    async def reload_localizations_for_domain(self, domain: str) -> bool:
+        """Reload localization data for a domain"""
+        try:
+            # For localizations, we reload the specific domain's files
+            domain_dir = self.assets_root / "localization" / domain
+            if domain_dir.exists():
+                merged_localization = {}
+                for lang_file in domain_dir.glob("*.yaml"):
+                    language = lang_file.stem
+                    if language in self.config.supported_languages:
+                        with open(lang_file, 'r', encoding='utf-8') as f:
+                            lang_data = yaml.safe_load(f)
+                            if lang_data:
+                                merged_localization[language] = lang_data
+                
+                # Update cache with merged data
+                self.localizations[domain] = merged_localization
+                logger.info(f"Reloaded localizations for domain '{domain}' with {len(merged_localization)} languages")
+                return True
+            else:
+                logger.warning(f"Domain directory not found for reload: {domain_dir}")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to reload localizations for domain '{domain}': {e}")
+            return False
+    
+    def get_available_localization_languages_for_domain(self, domain: str) -> List[str]:
+        """Get list of available localization language files for domain"""
+        lang_dir = self.assets_root / "localization" / domain
+        
+        if not lang_dir.exists():
+            return []
+        
+        return [lang_file.stem for lang_file in lang_dir.glob("*.yaml")]
+    
+    def get_domains_with_localizations(self) -> Dict[str, List[str]]:
+        """Get all domains that have localization files with their available languages"""
+        domains_languages = {}
+        localizations_dir = self.assets_root / "localization"
+        
+        if not localizations_dir.exists():
+            return domains_languages
+        
+        for domain_dir in localizations_dir.iterdir():
+            if domain_dir.is_dir():
+                domain = domain_dir.name
+                languages = [lang_file.stem for lang_file in domain_dir.glob("*.yaml")]
+                if languages:
+                    domains_languages[domain] = sorted(languages)
+        
+        return domains_languages
+    
+    async def validate_localization_data(self, domain: str, localization_data: Dict[str, Any]) -> tuple[bool, List[Dict[str, str]], List[Dict[str, str]]]:
+        """Validate localization data structure"""
+        errors = []
+        warnings = []
+        
+        try:
+            # Basic YAML structure validation
+            if not isinstance(localization_data, dict):
+                errors.append({
+                    "field": "root",
+                    "message": "Localization data must be a dictionary/object",
+                    "severity": "error"
+                })
+                return False, errors, warnings
+            
+            # Check localization entries
+            for key, value in localization_data.items():
+                if not isinstance(key, str):
+                    errors.append({
+                        "field": key,
+                        "message": "Localization keys must be strings",
+                        "severity": "error"
+                    })
+                    continue
+                
+                # Validate value types (can be string, list, or dict)
+                if not isinstance(value, (str, list, dict)):
+                    warnings.append({
+                        "field": key,
+                        "message": f"Localization value has unexpected type: {type(value).__name__}",
+                        "severity": "warning"
+                    })
+                    continue
+                
+                # Check for empty values
+                if value is None or (isinstance(value, (str, list, dict)) and len(value) == 0):
+                    warnings.append({
+                        "field": key,
+                        "message": "Empty localization value",
+                        "severity": "warning"
+                    })
+            
+            # Domain-specific validation checks
+            await self._validate_domain_specific_localization(domain, localization_data, errors, warnings)
+            
+            return len(errors) == 0, errors, warnings
+            
+        except Exception as e:
+            errors.append({
+                "field": "validation",
+                "message": f"Validation failed: {str(e)}",
+                "severity": "error"
+            })
+            return False, errors, warnings
+    
+    async def _validate_domain_specific_localization(self, domain: str, data: Dict[str, Any], errors: List[Dict[str, str]], warnings: List[Dict[str, str]]) -> None:
+        """Domain-specific localization validation"""
+        # Add domain-specific validation rules
+        if domain == "datetime":
+            # Check for required datetime fields
+            required_fields = ["weekdays", "months", "templates"]
+            for field in required_fields:
+                if field not in data:
+                    warnings.append({
+                        "field": field,
+                        "message": f"Missing expected datetime field: {field}",
+                        "severity": "warning"
+                    })
+        elif domain == "components":
+            # Check for component mappings
+            if "component_mappings" not in data:
+                warnings.append({
+                    "field": "component_mappings",
+                    "message": "Missing component_mappings field",
+                    "severity": "warning"
+                })
+        elif domain == "commands":
+            # Check for stop patterns
+            if "stop_patterns" not in data:
+                warnings.append({
+                    "field": "stop_patterns", 
+                    "message": "Missing stop_patterns field",
+                    "severity": "warning"
+                })
+    
     async def validate_prompt_data(self, handler_name: str, prompt_data: Dict[str, Any]) -> tuple[bool, List[Dict[str, str]], List[Dict[str, str]]]:
         """Validate prompt data structure"""
         errors = []

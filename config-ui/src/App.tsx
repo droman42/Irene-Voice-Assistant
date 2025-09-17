@@ -16,6 +16,7 @@ import OverviewPage from '@/pages/OverviewPage'
 import DonationsPage from '@/pages/DonationsPage'
 import TemplatesPage from '@/pages/TemplatesPage'
 import PromptsPage from '@/pages/PromptsPage'
+import LocalizationsPage from '@/pages/LocalizationsPage'
 import MonitoringPage from '@/pages/MonitoringPage'
 import ConfigurationPage from '@/pages/ConfigurationPage'
 
@@ -40,6 +41,9 @@ const App: React.FC = () => {
           
           {/* Prompts management */}
           <Route path="/prompts" element={<PromptsPage />} />
+          
+          {/* Localizations management */}
+          <Route path="/localizations" element={<LocalizationsPage />} />
           
           {/* Monitoring dashboard */}
           <Route path="/monitoring" element={<MonitoringPage />} />

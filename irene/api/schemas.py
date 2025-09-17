@@ -967,6 +967,99 @@ class PromptHandlerListResponse(BaseAPIResponse):
 
 
 # ============================================================
+# LOCALIZATION MANAGEMENT SCHEMAS (Phase 8)
+# ============================================================
+
+class LocalizationMetadata(BaseModel):
+    """Metadata for a language-specific localization file"""
+    file_path: str = Field(description="Relative file path from assets root")
+    language: str = Field(description="Language code")
+    file_size: int = Field(description="File size in bytes")
+    last_modified: float = Field(description="Last modification timestamp")
+    entry_count: int = Field(description="Number of localization entries in the file")
+
+
+class LocalizationContentResponse(BaseAPIResponse):
+    """Response for language-specific localization content retrieval"""
+    domain: str = Field(description="Domain name")
+    language: str = Field(description="Current language")
+    localization_data: Dict[str, Any] = Field(description="Complete localization YAML content")
+    metadata: LocalizationMetadata = Field(description="File metadata")
+    available_languages: List[str] = Field(description="Other available languages")
+    schema_info: Dict[str, Any] = Field(description="Expected keys and their types")
+
+
+class LocalizationUpdateRequest(BaseAPIRequest):
+    """Request to update a language-specific localization file"""
+    localization_data: Dict[str, Any] = Field(description="Localization data to save")
+    validate_before_save: bool = Field(default=True, description="Whether to validate before saving")
+    trigger_reload: bool = Field(default=True, description="Whether to trigger localization reload")
+
+
+class LocalizationUpdateResponse(BaseAPIResponse):
+    """Response for language-specific localization update operation"""
+    domain: str = Field(description="Domain name being updated")
+    language: str = Field(description="Language being updated")
+    validation_passed: bool = Field(description="Whether validation passed")
+    reload_triggered: bool = Field(description="Whether localization reload was triggered")
+    backup_created: bool = Field(description="Whether backup was created")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+
+
+class LocalizationValidationRequest(BaseAPIRequest):
+    """Request to validate localization data without saving"""
+    localization_data: Dict[str, Any] = Field(description="Localization data to validate")
+
+
+class LocalizationValidationResponse(BaseAPIResponse):
+    """Response for language-specific localization validation operation"""
+    domain: str = Field(description="Domain name being validated")
+    language: str = Field(description="Language being validated")
+    is_valid: bool = Field(description="Whether localization is valid")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+    validation_types: List[str] = Field(description="Types of validation performed")
+
+
+class CreateLocalizationLanguageRequest(BaseAPIRequest):
+    """Request to create a new language file for localization"""
+    copy_from: Optional[str] = Field(default=None, description="Language to copy from")
+    use_template: bool = Field(default=False, description="Use empty template instead of copying")
+
+
+class CreateLocalizationLanguageResponse(BaseAPIResponse):
+    """Response for localization language creation operation"""
+    domain: str = Field(description="Domain name")
+    language: str = Field(description="Created language")
+    created: bool = Field(description="Whether language file was created")
+    copied_from: Optional[str] = Field(default=None, description="Language copied from")
+
+
+class DeleteLocalizationLanguageResponse(BaseAPIResponse):
+    """Response for localization language deletion operation"""
+    domain: str = Field(description="Domain name")
+    language: str = Field(description="Deleted language")
+    deleted: bool = Field(description="Whether language file was deleted")
+    backup_created: bool = Field(description="Whether backup was created before deletion")
+
+
+class DomainLanguageInfo(BaseModel):
+    """Information about a domain and its available languages"""
+    domain: str = Field(description="Domain name")
+    languages: List[str] = Field(description="Available language codes")
+    total_languages: int = Field(description="Total number of languages available")
+    supported_languages: List[str] = Field(description="Configured supported languages")
+    default_language: str = Field(description="System default language")
+
+
+class LocalizationDomainListResponse(BaseAPIResponse):
+    """Response for listing domains with localization language info"""
+    domains: List[DomainLanguageInfo] = Field(description="List of domains with language info")
+    total_domains: int = Field(description="Total number of domains")
+
+
+# ============================================================
 # INTENT SYSTEM SCHEMAS (EXISTING)
 # ============================================================
 

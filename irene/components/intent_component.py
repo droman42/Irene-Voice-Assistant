@@ -331,7 +331,12 @@ class IntentComponent(Component, WebAPIPlugin):
                 CreatePromptLanguageRequest, CreatePromptLanguageResponse, DeletePromptLanguageResponse,
                 PromptHandlerListResponse,
                 CreateTemplateLanguageRequest, CreateTemplateLanguageResponse, DeleteTemplateLanguageResponse,
-                TemplateHandlerListResponse, TemplateMetadata
+                TemplateHandlerListResponse, TemplateMetadata,
+                # Phase 8: Localization management schemas
+                LocalizationContentResponse, LocalizationUpdateRequest, LocalizationUpdateResponse,
+                LocalizationValidationRequest, LocalizationValidationResponse, LocalizationMetadata,
+                CreateLocalizationLanguageRequest, CreateLocalizationLanguageResponse, DeleteLocalizationLanguageResponse,
+                LocalizationDomainListResponse, DomainLanguageInfo
             )
             from ..core.donations import HandlerDonation
             
@@ -1645,6 +1650,314 @@ class IntentComponent(Component, WebAPIPlugin):
                     raise
                 except Exception as e:
                     raise HTTPException(500, f"Failed to create prompt language: {str(e)}")
+            
+            # ============================================================
+            # LOCALIZATION MANAGEMENT ENDPOINTS (Phase 8)
+            # ============================================================
+            
+            @router.get("/localizations", response_model=LocalizationDomainListResponse)
+            async def get_localization_domains():
+                """List all domains with localization language info"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    domains_languages = asset_loader.get_domains_with_localizations()
+                    
+                    domains_info = []
+                    for domain, languages in domains_languages.items():
+                        domains_info.append(DomainLanguageInfo(
+                            domain=domain,
+                            languages=languages,
+                            total_languages=len(languages),
+                            supported_languages=asset_loader.config.supported_languages,
+                            default_language=asset_loader.config.default_language
+                        ))
+                    
+                    return LocalizationDomainListResponse(
+                        success=True,
+                        domains=domains_info,
+                        total_domains=len(domains_info)
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get localization domains: {str(e)}")
+            
+            @router.get("/localizations/{domain}/languages", response_model=List[str])
+            async def get_localization_domain_languages(domain: str):
+                """Get available languages for a domain's localizations"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    languages = asset_loader.get_available_localization_languages_for_domain(domain)
+                    
+                    if not languages:
+                        raise HTTPException(404, f"No localization language files found for domain '{domain}'")
+                    
+                    return languages
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get localization domain languages: {str(e)}")
+            
+            @router.get("/localizations/{domain}/{language}", response_model=LocalizationContentResponse)
+            async def get_language_localization(domain: str, language: str):
+                """Get language-specific localization content for editing"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Get language-specific localization data
+                    localization_data = asset_loader.get_localization_for_domain_editing(domain, language)
+                    if localization_data is None:
+                        raise HTTPException(404, f"Language '{language}' not found for domain '{domain}' localizations")
+                    
+                    # Get metadata
+                    lang_file = asset_loader.assets_root / "localization" / domain / f"{language}.yaml"
+                    
+                    if not lang_file.exists():
+                        raise HTTPException(404, f"Localization language file not found: {lang_file}")
+                    
+                    stat = lang_file.stat()
+                    metadata = LocalizationMetadata(
+                        file_path=f"{domain}/{language}.yaml",
+                        language=language,
+                        file_size=stat.st_size,
+                        last_modified=stat.st_mtime,
+                        entry_count=len(localization_data) if isinstance(localization_data, dict) else 0
+                    )
+                    
+                    # Get available languages
+                    available_languages = asset_loader.get_available_localization_languages_for_domain(domain)
+                    
+                    # Schema info for localization structure
+                    schema_info = {
+                        "expected_keys": list(localization_data.keys()) if isinstance(localization_data, dict) else [],
+                        "key_types": {
+                            key: type(value).__name__.lower() for key, value in localization_data.items()
+                        } if isinstance(localization_data, dict) else {},
+                        "domain_description": f"Localization data for {domain} domain"
+                    }
+                    
+                    return LocalizationContentResponse(
+                        success=True,
+                        domain=domain,
+                        language=language,
+                        localization_data=localization_data,
+                        metadata=metadata,
+                        available_languages=available_languages,
+                        schema_info=schema_info
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get language localization: {str(e)}")
+            
+            @router.put("/localizations/{domain}/{language}", response_model=LocalizationUpdateResponse)
+            async def update_language_localization(domain: str, language: str, request: LocalizationUpdateRequest):
+                """Update language-specific localization and trigger reload"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    validation_passed = True
+                    errors = []
+                    warnings = []
+                    
+                    # Validate before saving if requested
+                    if request.validate_before_save:
+                        is_valid, error_list, warning_list = await asset_loader.validate_localization_data(
+                            domain, request.localization_data
+                        )
+                        validation_passed = is_valid
+                        errors = [ValidationError(**err) for err in error_list]
+                        warnings = [ValidationWarning(**warn) for warn in warning_list]
+                        
+                        if not is_valid:
+                            return LocalizationUpdateResponse(
+                                success=False,
+                                domain=domain,
+                                language=language,
+                                validation_passed=False,
+                                reload_triggered=False,
+                                backup_created=False,
+                                errors=errors,
+                                warnings=warnings
+                            )
+                    
+                    # Save localization data
+                    try:
+                        saved = asset_loader.save_localization_for_domain(domain, language, request.localization_data)
+                        if not saved:
+                            raise HTTPException(500, "Failed to save localization language file")
+                    except Exception as e:
+                        raise HTTPException(400, f"Invalid localization data: {str(e)}")
+                    
+                    # Trigger localization reload if requested
+                    reload_triggered = False
+                    if request.trigger_reload:
+                        try:
+                            reload_success = await asset_loader.reload_localizations_for_domain(domain)
+                            if reload_success:
+                                reload_triggered = True
+                        except Exception as e:
+                            logger.warning(f"Localization saved but reload failed: {e}")
+                    
+                    return LocalizationUpdateResponse(
+                        success=True,
+                        domain=domain,
+                        language=language,
+                        validation_passed=validation_passed,
+                        reload_triggered=reload_triggered,
+                        backup_created=False,  # TODO: Implement backup functionality
+                        errors=errors,
+                        warnings=warnings
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to update language localization: {str(e)}")
+            
+            @router.post("/localizations/{domain}/{language}/validate", response_model=LocalizationValidationResponse)
+            async def validate_language_localization(domain: str, language: str, request: LocalizationValidationRequest):
+                """Validate language-specific localization data without saving"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    is_valid, error_list, warning_list = await asset_loader.validate_localization_data(
+                        domain, request.localization_data
+                    )
+                    
+                    errors = [ValidationError(**err) for err in error_list]
+                    warnings = [ValidationWarning(**warn) for warn in warning_list]
+                    
+                    return LocalizationValidationResponse(
+                        success=True,
+                        domain=domain,
+                        language=language,
+                        is_valid=is_valid,
+                        errors=errors,
+                        warnings=warnings,
+                        validation_types=["yaml_structure", "localization_types", "domain_specific"]
+                    )
+                    
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to validate localization: {str(e)}")
+            
+            @router.delete("/localizations/{domain}/{language}", response_model=DeleteLocalizationLanguageResponse)
+            async def delete_localization_language(domain: str, language: str):
+                """Delete language-specific localization file"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    lang_file = asset_loader.assets_root / "localization" / domain / f"{language}.yaml"
+                    
+                    if not lang_file.exists():
+                        raise HTTPException(404, f"Localization language file not found: {lang_file}")
+                    
+                    # Delete the file
+                    lang_file.unlink()
+                    
+                    # Reload localizations to update cache
+                    await asset_loader.reload_localizations_for_domain(domain)
+                    
+                    return DeleteLocalizationLanguageResponse(
+                        success=True,
+                        domain=domain,
+                        language=language,
+                        deleted=True,
+                        backup_created=False  # TODO: Implement backup functionality
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to delete localization language: {str(e)}")
+            
+            @router.post("/localizations/{domain}/{language}", response_model=CreateLocalizationLanguageResponse)
+            async def create_localization_language(domain: str, language: str, request: CreateLocalizationLanguageRequest):
+                """Create new language file for localization"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    lang_file = asset_loader.assets_root / "localization" / domain / f"{language}.yaml"
+                    
+                    if lang_file.exists():
+                        raise HTTPException(409, f"Localization language file already exists: {lang_file}")
+                    
+                    # Create new localization data
+                    localization_data = {}
+                    copied_from = None
+                    
+                    if request.copy_from and not request.use_template:
+                        # Copy from existing language
+                        source_data = asset_loader.get_localization_for_domain_editing(domain, request.copy_from)
+                        if source_data:
+                            localization_data = source_data
+                            copied_from = request.copy_from
+                        else:
+                            raise HTTPException(404, f"Source language '{request.copy_from}' not found for copying")
+                    elif request.use_template:
+                        # Use domain-specific template
+                        if domain == "commands":
+                            localization_data = {
+                                "stop_patterns": ["stop", "halt", "cancel"]
+                            }
+                        elif domain == "components":
+                            localization_data = {
+                                "component_mappings": {
+                                    "audio": "audio",
+                                    "sound": "audio"
+                                }
+                            }
+                        elif domain == "datetime":
+                            localization_data = {
+                                "weekdays": ["Monday", "Tuesday", "Wednesday"],
+                                "months": ["January", "February", "March"],
+                                "templates": {
+                                    "date_full": "Today is {weekday}, {month} {day}, {year}"
+                                }
+                            }
+                        else:
+                            localization_data = {
+                                "example_key": "example_value",
+                                "example_list": ["item1", "item2"],
+                                "example_dict": {"key": "value"}
+                            }
+                    
+                    # Save the new language file
+                    saved = asset_loader.save_localization_for_domain(domain, language, localization_data)
+                    if not saved:
+                        raise HTTPException(500, "Failed to create localization language file")
+                    
+                    # Reload localizations to update cache
+                    await asset_loader.reload_localizations_for_domain(domain)
+                    
+                    return CreateLocalizationLanguageResponse(
+                        success=True,
+                        domain=domain,
+                        language=language,
+                        created=True,
+                        copied_from=copied_from
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to create localization language: {str(e)}")
             
             return router
             

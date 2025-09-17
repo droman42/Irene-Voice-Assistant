@@ -48,7 +48,17 @@ import type {
   PromptValidationResponse,
   CreatePromptLanguageRequest,
   CreatePromptLanguageResponse,
-  DeletePromptLanguageResponse
+  DeletePromptLanguageResponse,
+  // Localization types
+  LocalizationDomainListResponse,
+  LocalizationContentResponse,
+  LocalizationUpdateRequest,
+  LocalizationUpdateResponse,
+  LocalizationValidationRequest,
+  LocalizationValidationResponse,
+  CreateLocalizationLanguageRequest,
+  CreateLocalizationLanguageResponse,
+  DeleteLocalizationLanguageResponse
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -556,6 +566,106 @@ class IreneApiClient {
 
     return this.post<CreatePromptLanguageResponse>(
       `/intents/prompts/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`,
+      requestData
+    );
+  }
+
+  // ========================================
+  // LOCALIZATION MANAGEMENT METHODS (Phase 8)
+  // ========================================
+
+  /**
+   * Get all domains with their available languages
+   */
+  async getLocalizationDomains(): Promise<LocalizationDomainListResponse> {
+    return this.get<LocalizationDomainListResponse>('/intents/localizations');
+  }
+
+  /**
+   * Get available languages for a domain
+   */
+  async getLocalizationDomainLanguages(domain: string): Promise<string[]> {
+    return this.get<string[]>(`/intents/localizations/${encodeURIComponent(domain)}/languages`);
+  }
+
+  /**
+   * Get language-specific localization content
+   */
+  async getLanguageLocalization(domain: string, language: string): Promise<LocalizationContentResponse> {
+    return this.get<LocalizationContentResponse>(
+      `/intents/localizations/${encodeURIComponent(domain)}/${encodeURIComponent(language)}`
+    );
+  }
+
+  /**
+   * Update language-specific localization
+   */
+  async updateLanguageLocalization(
+    domain: string, 
+    language: string, 
+    localizationData: Record<string, any>,
+    options: {
+      validateBeforeSave?: boolean;
+      triggerReload?: boolean;
+    } = {}
+  ): Promise<LocalizationUpdateResponse> {
+    const requestData: LocalizationUpdateRequest = {
+      localization_data: localizationData,
+      validate_before_save: options.validateBeforeSave ?? true,
+      trigger_reload: options.triggerReload ?? true
+    };
+
+    return this.put<LocalizationUpdateResponse>(
+      `/intents/localizations/${encodeURIComponent(domain)}/${encodeURIComponent(language)}`,
+      requestData
+    );
+  }
+
+  /**
+   * Validate language-specific localization without saving
+   */
+  async validateLanguageLocalization(
+    domain: string, 
+    language: string, 
+    localizationData: Record<string, any>
+  ): Promise<LocalizationValidationResponse> {
+    const requestData: LocalizationValidationRequest = {
+      localization_data: localizationData
+    };
+
+    return this.post<LocalizationValidationResponse>(
+      `/intents/localizations/${encodeURIComponent(domain)}/${encodeURIComponent(language)}/validate`,
+      requestData
+    );
+  }
+
+  /**
+   * Delete language-specific localization file
+   */
+  async deleteLocalizationLanguage(domain: string, language: string): Promise<DeleteLocalizationLanguageResponse> {
+    return this.delete<DeleteLocalizationLanguageResponse>(
+      `/intents/localizations/${encodeURIComponent(domain)}/${encodeURIComponent(language)}`
+    );
+  }
+
+  /**
+   * Create new language file for localization
+   */
+  async createLocalizationLanguage(
+    domain: string, 
+    language: string, 
+    options: {
+      copyFrom?: string;
+      useTemplate?: boolean;
+    } = {}
+  ): Promise<CreateLocalizationLanguageResponse> {
+    const requestData: CreateLocalizationLanguageRequest = {
+      copy_from: options.copyFrom,
+      use_template: options.useTemplate ?? false
+    };
+
+    return this.post<CreateLocalizationLanguageResponse>(
+      `/intents/localizations/${encodeURIComponent(domain)}/${encodeURIComponent(language)}`,
       requestData
     );
   }

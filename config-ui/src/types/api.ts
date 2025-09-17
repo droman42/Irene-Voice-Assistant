@@ -477,3 +477,89 @@ export interface PromptHandlerListResponse extends BaseApiResponse {
   handlers: HandlerLanguageInfo[];
   total_handlers: number;
 }
+
+// ============================================================
+// LOCALIZATION MANAGEMENT TYPES (Phase 8)
+// ============================================================
+
+export interface LocalizationMetadata {
+  file_path: string;
+  language: string;
+  file_size: number;
+  last_modified: number;
+  entry_count: number;
+}
+
+export interface LocalizationContentResponse extends BaseApiResponse {
+  domain: string;
+  language: string;
+  localization_data: Record<string, any>;
+  metadata: LocalizationMetadata;
+  available_languages: string[];
+  schema_info: {
+    expected_keys: string[];
+    key_types: Record<string, string>;
+    domain_description: string;
+  };
+}
+
+export interface LocalizationUpdateRequest {
+  localization_data: Record<string, any>;
+  validate_before_save?: boolean;
+  trigger_reload?: boolean;
+}
+
+export interface LocalizationUpdateResponse extends BaseApiResponse {
+  domain: string;
+  language: string;
+  validation_passed: boolean;
+  reload_triggered: boolean;
+  backup_created: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+export interface LocalizationValidationRequest {
+  localization_data: Record<string, any>;
+}
+
+export interface LocalizationValidationResponse extends BaseApiResponse {
+  domain: string;
+  language: string;
+  is_valid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+  validation_types: string[];
+}
+
+export interface CreateLocalizationLanguageRequest {
+  copy_from?: string;
+  use_template?: boolean;
+}
+
+export interface CreateLocalizationLanguageResponse extends BaseApiResponse {
+  domain: string;
+  language: string;
+  created: boolean;
+  copied_from?: string;
+}
+
+export interface DeleteLocalizationLanguageResponse extends BaseApiResponse {
+  domain: string;
+  language: string;
+  deleted: boolean;
+  backup_created: boolean;
+}
+
+export interface DomainLanguageInfo {
+  domain: string;
+  languages: string[];
+  total_languages: number;
+  supported_languages: string[];
+  default_language: string;
+}
+
+export interface LocalizationDomainListResponse extends BaseApiResponse {
+  domains: DomainLanguageInfo[];
+  total_domains: number;
+}

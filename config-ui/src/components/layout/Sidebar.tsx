@@ -16,7 +16,8 @@ import {
   Settings,
   Menu,
   LucideIcon,
-  MessageSquare
+  MessageSquare,
+  Globe
 } from 'lucide-react';
 import type { SidebarProps } from '@/types';
 
@@ -57,6 +58,13 @@ const navigationSections: NavigationSection[] = [
     icon: MessageSquare,
     path: '/prompts',
     description: 'Edit LLM prompts'
+  },
+  {
+    id: 'localizations',
+    title: 'Localizations',
+    icon: Globe,
+    path: '/localizations',
+    description: 'Edit localization data'
   },
   {
     id: 'monitoring',
