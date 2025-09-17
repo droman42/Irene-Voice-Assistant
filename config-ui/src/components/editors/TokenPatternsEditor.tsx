@@ -1,5 +1,5 @@
-import { Plus, Trash2 } from 'lucide-react';
-import KeyValueEditor from './KeyValueEditor';
+import { Plus, Trash2, Info } from 'lucide-react';
+import SpacyAttributeEditor from './SpacyAttributeEditor';
 import type { TokenPatternsEditorProps } from '@/types';
 
 export default function TokenPatternsEditor({
@@ -39,9 +39,23 @@ export default function TokenPatternsEditor({
 
   return (
     <div className="mb-4">
-      <div className="font-medium mb-2">Token Patterns</div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="font-medium">Token Patterns</div>
+        <button
+          className="p-1 text-gray-400 hover:text-gray-600"
+          title="Token patterns use spaCy's powerful pattern matching. Each pattern is a sequence of tokens with specific attributes."
+        >
+          <Info className="w-4 h-4" />
+        </button>
+      </div>
       {patterns.length === 0 ? (
-        <div className="text-sm text-gray-500 mb-2">No patterns</div>
+        <div className="text-sm text-gray-500 mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="font-medium text-blue-800 mb-1">No token patterns defined</div>
+          <div className="text-blue-700">
+            Token patterns allow precise matching of text using spaCy's linguistic analysis. 
+            Add a pattern to match specific sequences of words, parts of speech, or other token attributes.
+          </div>
+        </div>
       ) : null}
       <div className="flex flex-col gap-3">
         {patterns.map((pat, pi) => (
@@ -71,9 +85,8 @@ export default function TokenPatternsEditor({
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <KeyValueEditor
-                    label="Attributes"
-                    object={tok ?? {}}
+                  <SpacyAttributeEditor
+                    value={tok ?? {}}
                     onChange={(o) => updateToken(pi, ti, o)}
                     disabled={disabled}
                   />

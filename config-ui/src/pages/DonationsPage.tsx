@@ -64,8 +64,9 @@ function MethodDonationEditor({
   disabled = false,
   selectedHandler,
   expandedMethods,
-  onToggleMethodExpansion
-}: MethodDonationEditorProps) {
+  onToggleMethodExpansion,
+  currentLanguage
+}: MethodDonationEditorProps & { currentLanguage?: string }) {
   const v = value ?? { description: '', handler_domain: '', method_donations: [] };
   const set = (k: keyof DonationData, val: any): void => {
     onChange({ ...(value ?? {}), [k]: val });
@@ -85,21 +86,62 @@ function MethodDonationEditor({
   return (
     <div className="space-y-6">
       <Section title="Basic Information" defaultCollapsed={false}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            label="Description"
-            value={v.description || ''}
-            onChange={(val) => set('description', val)}
-            disabled={disabled}
-            required
-          />
-          <Input
-            label="Domain"
-            value={v.handler_domain || ''}
-            onChange={(val) => set('handler_domain', val)}
-            disabled={disabled}
-            required
-          />
+        <div className="space-y-4">
+          {/* Structural/Metadata fields - Read only */}
+          <div className="p-4 bg-gray-50 rounded-lg border">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Structure & Metadata (Read-only)</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <Input
+                  label="Handler Domain"
+                  value={v.handler_domain || ''}
+                  onChange={() => {}} // No-op since it's readonly
+                  disabled={true}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Defines which handler this donation belongs to</p>
+              </div>
+              <div>
+                <Input
+                  label="Language"
+                  value={currentLanguage || 'Unknown'}
+                  onChange={() => {}} // No-op since it's readonly
+                  disabled={true}
+                />
+                <p className="text-xs text-gray-500 mt-1">Language code for this donation file</p>
+              </div>
+              <div>
+                <Input
+                  label="Schema Version"
+                  value={v.schema_version || '1.0'}
+                  onChange={() => {}} // No-op since it's readonly
+                  disabled={true}
+                />
+                <p className="text-xs text-gray-500 mt-1">JSON schema version used</p>
+              </div>
+              <div>
+                <Input
+                  label="Donation Version"
+                  value={v.donation_version || '1.0'}
+                  onChange={() => {}} // No-op since it's readonly
+                  disabled={true}
+                />
+                <p className="text-xs text-gray-500 mt-1">Content version for caching</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Content fields - Editable */}
+          <div>
+            <Input
+              label="Description"
+              value={v.description || ''}
+              onChange={(val) => set('description', val)}
+              disabled={disabled}
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">Human-readable description of this handler's functionality</p>
+          </div>
         </div>
       </Section>
 
@@ -146,31 +188,33 @@ function MethodDonationEditor({
                 {/* Collapsible Content */}
                 {isExpanded && (
                   <div className="p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                      <Input
-                        label="Method name"
-                        value={method.method_name || ''}
-                        onChange={(val) => {
-                          const newMethods = [...(v.method_donations || [])];
-                          newMethods[idx] = { ...method, method_name: val };
-                          set('method_donations', newMethods);
-                        }}
-                        disabled={disabled}
-                        required
-                      />
-                      <Input
-                        label="Intent suffix"
-                        value={method.intent_suffix || ''}
-                        onChange={(val) => {
-                          const newMethods = [...(v.method_donations || [])];
-                          newMethods[idx] = { ...method, intent_suffix: val };
-                          set('method_donations', newMethods);
-                        }}
-                        disabled={disabled}
-                        placeholder="e.g., hello, goodbye"
-                      />
+                    {/* Method Structure - Read only */}
+                    <div className="p-3 bg-gray-50 rounded-lg border mb-4">
+                      <h5 className="text-xs font-medium text-gray-600 mb-2">Method Structure (Read-only)</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <Input
+                            label="Method name"
+                            value={method.method_name || ''}
+                            onChange={() => {}} // No-op since it's readonly
+                            disabled={true}
+                            required
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Python method name - must match handler code</p>
+                        </div>
+                        <div>
+                          <Input
+                            label="Intent suffix"
+                            value={method.intent_suffix || ''}
+                            onChange={() => {}} // No-op since it's readonly
+                            disabled={true}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Defines intent routing structure</p>
+                        </div>
+                      </div>
                     </div>
                     
+                    {/* Method Content - Editable */}
                     <div className="mb-4">
                       <Input
                         label="Description"
@@ -183,6 +227,7 @@ function MethodDonationEditor({
                         disabled={disabled}
                         placeholder="Describe what this method does"
                       />
+                      <p className="text-xs text-gray-500 mt-1">Human-readable description of method functionality</p>
                     </div>
 
                     {/* Method-specific editors */}
@@ -845,6 +890,7 @@ const DonationsPage: React.FC = () => {
                     selectedHandler={selectedHandler}
                     expandedMethods={expandedMethods}
                     onToggleMethodExpansion={toggleMethodExpansion}
+                    currentLanguage={selectedLanguage}
                   />
                 </div>
               ) : (
