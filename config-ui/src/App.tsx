@@ -15,6 +15,7 @@ import Layout from '@/components/layout/Layout'
 import OverviewPage from '@/pages/OverviewPage'
 import DonationsPage from '@/pages/DonationsPage'
 import TemplatesPage from '@/pages/TemplatesPage'
+import PromptsPage from '@/pages/PromptsPage'
 import MonitoringPage from '@/pages/MonitoringPage'
 import ConfigurationPage from '@/pages/ConfigurationPage'
 
@@ -36,6 +37,9 @@ const App: React.FC = () => {
           
           {/* Templates management */}
           <Route path="/templates" element={<TemplatesPage />} />
+          
+          {/* Prompts management */}
+          <Route path="/prompts" element={<PromptsPage />} />
           
           {/* Monitoring dashboard */}
           <Route path="/monitoring" element={<MonitoringPage />} />

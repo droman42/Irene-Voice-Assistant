@@ -37,7 +37,18 @@ import type {
   TemplateValidationResponse,
   CreateTemplateLanguageRequest,
   CreateTemplateLanguageResponse,
-  DeleteTemplateLanguageResponse
+  DeleteTemplateLanguageResponse,
+  // Prompt management types (Phase 7)
+  PromptHandlerListResponse,
+  PromptContentResponse,
+  PromptDefinition,
+  PromptUpdateRequest,
+  PromptUpdateResponse,
+  PromptValidationRequest,
+  PromptValidationResponse,
+  CreatePromptLanguageRequest,
+  CreatePromptLanguageResponse,
+  DeletePromptLanguageResponse
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -445,6 +456,106 @@ class IreneApiClient {
 
     return this.post<CreateTemplateLanguageResponse>(
       `/intents/templates/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`,
+      requestData
+    );
+  }
+
+  // ============================================================
+  // PROMPT MANAGEMENT API (Phase 7)
+  // ============================================================
+
+  /**
+   * Get all handlers with prompt language info
+   */
+  async getPromptHandlers(): Promise<PromptHandlerListResponse> {
+    return this.get<PromptHandlerListResponse>('/intents/prompts');
+  }
+
+  /**
+   * Get available languages for a handler's prompts
+   */
+  async getPromptHandlerLanguages(handlerName: string): Promise<string[]> {
+    return this.get<string[]>(`/intents/prompts/${encodeURIComponent(handlerName)}/languages`);
+  }
+
+  /**
+   * Get language-specific prompt content
+   */
+  async getLanguagePrompt(handlerName: string, language: string): Promise<PromptContentResponse> {
+    return this.get<PromptContentResponse>(
+      `/intents/prompts/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`
+    );
+  }
+
+  /**
+   * Update language-specific prompt
+   */
+  async updateLanguagePrompt(
+    handlerName: string, 
+    language: string, 
+    promptData: Record<string, PromptDefinition>,
+    options: {
+      validateBeforeSave?: boolean;
+      triggerReload?: boolean;
+    } = {}
+  ): Promise<PromptUpdateResponse> {
+    const requestData: PromptUpdateRequest = {
+      prompt_data: promptData,
+      validate_before_save: options.validateBeforeSave ?? true,
+      trigger_reload: options.triggerReload ?? true
+    };
+
+    return this.put<PromptUpdateResponse>(
+      `/intents/prompts/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`,
+      requestData
+    );
+  }
+
+  /**
+   * Validate language-specific prompt without saving
+   */
+  async validateLanguagePrompt(
+    handlerName: string, 
+    language: string, 
+    promptData: Record<string, PromptDefinition>
+  ): Promise<PromptValidationResponse> {
+    const requestData: PromptValidationRequest = {
+      prompt_data: promptData
+    };
+
+    return this.post<PromptValidationResponse>(
+      `/intents/prompts/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}/validate`,
+      requestData
+    );
+  }
+
+  /**
+   * Delete language-specific prompt file
+   */
+  async deletePromptLanguage(handlerName: string, language: string): Promise<DeletePromptLanguageResponse> {
+    return this.delete<DeletePromptLanguageResponse>(
+      `/intents/prompts/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`
+    );
+  }
+
+  /**
+   * Create new language file for prompt
+   */
+  async createPromptLanguage(
+    handlerName: string, 
+    language: string, 
+    options: {
+      copyFrom?: string;
+      useTemplate?: boolean;
+    } = {}
+  ): Promise<CreatePromptLanguageResponse> {
+    const requestData: CreatePromptLanguageRequest = {
+      copy_from: options.copyFrom,
+      use_template: options.useTemplate ?? false
+    };
+
+    return this.post<CreatePromptLanguageResponse>(
+      `/intents/prompts/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`,
       requestData
     );
   }

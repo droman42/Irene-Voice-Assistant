@@ -15,7 +15,8 @@ import {
   Activity, 
   Settings,
   Menu,
-  LucideIcon
+  LucideIcon,
+  MessageSquare
 } from 'lucide-react';
 import type { SidebarProps } from '@/types';
 
@@ -49,6 +50,13 @@ const navigationSections: NavigationSection[] = [
     icon: Code,
     path: '/templates',
     description: 'Edit response templates'
+  },
+  {
+    id: 'prompts',
+    title: 'Prompts',
+    icon: MessageSquare,
+    path: '/prompts',
+    description: 'Edit LLM prompts'
   },
   {
     id: 'monitoring',

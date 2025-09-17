@@ -24,7 +24,7 @@ const TemplateKeyEditor: React.FC<TemplateKeyEditorProps> = ({
   onChange,
   onDelete
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   // Key names are read-only since they connect to code
 
   const getValueType = (): 'string' | 'array' | 'object' => {
@@ -184,7 +184,7 @@ const TemplateKeyEditor: React.FC<TemplateKeyEditorProps> = ({
           ) : (
             <ChevronRight className="w-4 h-4" />
           )}
-          <span>Template Key</span>
+          <span>{templateKey}</span>
         </button>
         
         <button

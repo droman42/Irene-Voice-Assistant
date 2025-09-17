@@ -325,6 +325,11 @@ class IntentComponent(Component, WebAPIPlugin):
                 # Phase 6: Template management schemas
                 TemplateContentResponse, TemplateUpdateRequest, TemplateUpdateResponse,
                 TemplateValidationRequest, TemplateValidationResponse,
+                # Phase 7: Prompt management schemas  
+                PromptContentResponse, PromptUpdateRequest, PromptUpdateResponse,
+                PromptValidationRequest, PromptValidationResponse, PromptDefinition, PromptMetadata,
+                CreatePromptLanguageRequest, CreatePromptLanguageResponse, DeletePromptLanguageResponse,
+                PromptHandlerListResponse,
                 CreateTemplateLanguageRequest, CreateTemplateLanguageResponse, DeleteTemplateLanguageResponse,
                 TemplateHandlerListResponse, TemplateMetadata
             )
@@ -1317,6 +1322,329 @@ class IntentComponent(Component, WebAPIPlugin):
                     raise
                 except Exception as e:
                     raise HTTPException(500, f"Failed to create template language: {str(e)}")
+            
+            # ============================================================
+            # PROMPT MANAGEMENT ENDPOINTS (Phase 7)
+            # ============================================================
+            
+            @router.get("/prompts", response_model=PromptHandlerListResponse)
+            async def get_prompt_handlers():
+                """List all handlers with prompt language info"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    handlers_languages = asset_loader.get_handlers_with_prompts()
+                    
+                    handlers_info = []
+                    for handler_name, languages in handlers_languages.items():
+                        handlers_info.append(HandlerLanguageInfo(
+                            handler_name=handler_name,
+                            languages=languages,
+                            total_languages=len(languages),
+                            supported_languages=asset_loader.config.supported_languages,
+                            default_language=asset_loader.config.default_language
+                        ))
+                    
+                    return PromptHandlerListResponse(
+                        success=True,
+                        handlers=handlers_info,
+                        total_handlers=len(handlers_info)
+                    )
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get prompt handlers: {str(e)}")
+            
+            @router.get("/prompts/{handler_name}/languages", response_model=List[str])
+            async def get_prompt_handler_languages(handler_name: str):
+                """Get available languages for a handler's prompts"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    languages = asset_loader.get_available_prompt_languages_for_handler(handler_name)
+                    
+                    if not languages:
+                        raise HTTPException(404, f"No prompt language files found for handler '{handler_name}'")
+                    
+                    return languages
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get prompt handler languages: {str(e)}")
+            
+            @router.get("/prompts/{handler_name}/{language}", response_model=PromptContentResponse)
+            async def get_language_prompt(handler_name: str, language: str):
+                """Get language-specific prompt content for editing"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Get language-specific prompt data
+                    prompt_data = asset_loader.get_prompt_for_language_editing(handler_name, language)
+                    if prompt_data is None:
+                        raise HTTPException(404, f"Language '{language}' not found for handler '{handler_name}' prompts")
+                    
+                    # Convert to PromptDefinition objects
+                    structured_prompts = {}
+                    for prompt_name, prompt_def in prompt_data.items():
+                        if isinstance(prompt_def, dict):
+                            structured_prompts[prompt_name] = PromptDefinition(
+                                description=prompt_def.get("description", ""),
+                                usage_context=prompt_def.get("usage_context", ""),
+                                variables=prompt_def.get("variables", []),
+                                prompt_type=prompt_def.get("prompt_type", "system"),
+                                content=prompt_def.get("content", "")
+                            )
+                    
+                    # Get metadata
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "prompts" / asset_handler_name / f"{language}.yaml"
+                    
+                    if not lang_file.exists():
+                        raise HTTPException(404, f"Prompt language file not found: {lang_file}")
+                    
+                    stat = lang_file.stat()
+                    metadata = PromptMetadata(
+                        file_path=f"{asset_handler_name}/{language}.yaml",
+                        language=language,
+                        file_size=stat.st_size,
+                        last_modified=stat.st_mtime,
+                        prompt_count=len(structured_prompts)
+                    )
+                    
+                    # Get available languages
+                    available_languages = asset_loader.get_available_prompt_languages_for_handler(handler_name)
+                    
+                    # Schema info for prompt structure
+                    schema_info = {
+                        "required_fields": ["description", "usage_context", "prompt_type", "content"],
+                        "prompt_types": ["system", "template", "user"]
+                    }
+                    
+                    return PromptContentResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        prompt_data=structured_prompts,
+                        metadata=metadata,
+                        available_languages=available_languages,
+                        schema_info=schema_info
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to get language prompt: {str(e)}")
+            
+            @router.put("/prompts/{handler_name}/{language}", response_model=PromptUpdateResponse)
+            async def update_language_prompt(handler_name: str, language: str, request: PromptUpdateRequest):
+                """Update language-specific prompt and trigger reload"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    validation_passed = True
+                    errors = []
+                    warnings = []
+                    
+                    # Convert PromptDefinition objects to dict format for saving
+                    prompt_data_dict = {}
+                    for prompt_name, prompt_def in request.prompt_data.items():
+                        if hasattr(prompt_def, 'dict'):
+                            prompt_data_dict[prompt_name] = prompt_def.dict()
+                        else:
+                            prompt_data_dict[prompt_name] = prompt_def
+                    
+                    # Validate before saving if requested
+                    if request.validate_before_save:
+                        is_valid, error_list, warning_list = await asset_loader.validate_prompt_data(
+                            handler_name, prompt_data_dict
+                        )
+                        validation_passed = is_valid
+                        errors = [ValidationError(**err) for err in error_list]
+                        warnings = [ValidationWarning(**warn) for warn in warning_list]
+                        
+                        if not is_valid:
+                            return PromptUpdateResponse(
+                                success=False,
+                                handler_name=handler_name,
+                                language=language,
+                                validation_passed=False,
+                                reload_triggered=False,
+                                backup_created=False,
+                                errors=errors,
+                                warnings=warnings
+                            )
+                    
+                    # Save prompt data
+                    try:
+                        saved = asset_loader.save_prompt_for_language(handler_name, language, prompt_data_dict)
+                        if not saved:
+                            raise HTTPException(500, "Failed to save prompt language file")
+                    except Exception as e:
+                        raise HTTPException(400, f"Invalid prompt data: {str(e)}")
+                    
+                    # Trigger prompt reload if requested
+                    reload_triggered = False
+                    if request.trigger_reload:
+                        try:
+                            reload_success = await asset_loader.reload_prompts_for_handler(handler_name)
+                            if reload_success:
+                                reload_triggered = True
+                        except Exception as e:
+                            logger.warning(f"Prompt saved but reload failed: {e}")
+                    
+                    return PromptUpdateResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        validation_passed=validation_passed,
+                        reload_triggered=reload_triggered,
+                        backup_created=False,  # TODO: Implement backup functionality
+                        errors=errors,
+                        warnings=warnings
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to update language prompt: {str(e)}")
+            
+            @router.post("/prompts/{handler_name}/{language}/validate", response_model=PromptValidationResponse)
+            async def validate_language_prompt(handler_name: str, language: str, request: PromptValidationRequest):
+                """Validate language-specific prompt data without saving"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    
+                    # Convert PromptDefinition objects to dict format for validation
+                    prompt_data_dict = {}
+                    for prompt_name, prompt_def in request.prompt_data.items():
+                        if hasattr(prompt_def, 'dict'):
+                            prompt_data_dict[prompt_name] = prompt_def.dict()
+                        else:
+                            prompt_data_dict[prompt_name] = prompt_def
+                    
+                    is_valid, error_list, warning_list = await asset_loader.validate_prompt_data(
+                        handler_name, prompt_data_dict
+                    )
+                    
+                    errors = [ValidationError(**err) for err in error_list]
+                    warnings = [ValidationWarning(**warn) for warn in warning_list]
+                    
+                    return PromptValidationResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        is_valid=is_valid,
+                        errors=errors,
+                        warnings=warnings,
+                        validation_types=["yaml_structure", "prompt_metadata", "prompt_types"]
+                    )
+                    
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to validate prompt: {str(e)}")
+            
+            @router.delete("/prompts/{handler_name}/{language}", response_model=DeletePromptLanguageResponse)
+            async def delete_prompt_language(handler_name: str, language: str):
+                """Delete language-specific prompt file"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "prompts" / asset_handler_name / f"{language}.yaml"
+                    
+                    if not lang_file.exists():
+                        raise HTTPException(404, f"Prompt language file not found: {lang_file}")
+                    
+                    # Delete the file
+                    lang_file.unlink()
+                    
+                    # Reload prompts to update cache
+                    await asset_loader.reload_prompts_for_handler(handler_name)
+                    
+                    return DeletePromptLanguageResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        deleted=True,
+                        backup_created=False  # TODO: Implement backup functionality
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to delete prompt language: {str(e)}")
+            
+            @router.post("/prompts/{handler_name}/{language}", response_model=CreatePromptLanguageResponse)
+            async def create_prompt_language(handler_name: str, language: str, request: CreatePromptLanguageRequest):
+                """Create new language file for prompt"""
+                if not self.handler_manager:
+                    raise HTTPException(503, "Intent system not initialized")
+                
+                try:
+                    asset_loader = self.handler_manager._asset_loader
+                    asset_handler_name = asset_loader._get_asset_handler_name(handler_name)
+                    lang_file = asset_loader.assets_root / "prompts" / asset_handler_name / f"{language}.yaml"
+                    
+                    if lang_file.exists():
+                        raise HTTPException(409, f"Prompt language file already exists: {lang_file}")
+                    
+                    # Create new prompt data
+                    prompt_data = {}
+                    copied_from = None
+                    
+                    if request.copy_from and not request.use_template:
+                        # Copy from existing language
+                        source_data = asset_loader.get_prompt_for_language_editing(handler_name, request.copy_from)
+                        if source_data:
+                            prompt_data = source_data
+                            copied_from = request.copy_from
+                        else:
+                            raise HTTPException(404, f"Source language '{request.copy_from}' not found for copying")
+                    elif request.use_template:
+                        # Use empty template
+                        prompt_data = {
+                            "main_prompt": {
+                                "description": "Main system prompt for this handler",
+                                "usage_context": "Used when processing user requests",
+                                "variables": [
+                                    {"name": "user_input", "description": "The user's input text"},
+                                    {"name": "context", "description": "Current conversation context"}
+                                ],
+                                "prompt_type": "system",
+                                "content": "You are a helpful AI assistant. Process the user's request: {user_input}"
+                            }
+                        }
+                    
+                    # Save the new language file
+                    saved = asset_loader.save_prompt_for_language(handler_name, language, prompt_data)
+                    if not saved:
+                        raise HTTPException(500, "Failed to create prompt language file")
+                    
+                    # Reload prompts to update cache
+                    await asset_loader.reload_prompts_for_handler(handler_name)
+                    
+                    return CreatePromptLanguageResponse(
+                        success=True,
+                        handler_name=handler_name,
+                        language=language,
+                        created=True,
+                        copied_from=copied_from
+                    )
+                    
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(500, f"Failed to create prompt language: {str(e)}")
             
             return router
             

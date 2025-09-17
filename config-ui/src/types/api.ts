@@ -392,3 +392,88 @@ export interface TemplateHandlerListResponse extends BaseApiResponse {
   handlers: HandlerLanguageInfo[];
   total_handlers: number;
 }
+
+// ============================================================
+// PROMPT MANAGEMENT TYPES (Phase 7)
+// ============================================================
+
+export interface PromptDefinition {
+  description: string;
+  usage_context: string;
+  variables: Array<{ name: string; description: string }>;
+  prompt_type: 'system' | 'template' | 'user';
+  content: string;
+}
+
+export interface PromptMetadata {
+  file_path: string;
+  language: string;
+  file_size: number;
+  last_modified: number;
+  prompt_count: number;
+}
+
+export interface PromptContentResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  prompt_data: Record<string, PromptDefinition>;
+  metadata: PromptMetadata;
+  available_languages: string[];
+  schema_info: {
+    required_fields: string[];
+    prompt_types: string[];
+  };
+}
+
+export interface PromptUpdateRequest {
+  prompt_data: Record<string, PromptDefinition>;
+  validate_before_save?: boolean;
+  trigger_reload?: boolean;
+}
+
+export interface PromptUpdateResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  validation_passed: boolean;
+  reload_triggered: boolean;
+  backup_created: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+export interface PromptValidationRequest {
+  prompt_data: Record<string, PromptDefinition>;
+}
+
+export interface PromptValidationResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  is_valid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+  validation_types: string[];
+}
+
+export interface CreatePromptLanguageRequest {
+  copy_from?: string;
+  use_template?: boolean;
+}
+
+export interface CreatePromptLanguageResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  created: boolean;
+  copied_from?: string;
+}
+
+export interface DeletePromptLanguageResponse extends BaseApiResponse {
+  handler_name: string;
+  language: string;
+  deleted: boolean;
+  backup_created: boolean;
+}
+
+export interface PromptHandlerListResponse extends BaseApiResponse {
+  handlers: HandlerLanguageInfo[];
+  total_handlers: number;
+}

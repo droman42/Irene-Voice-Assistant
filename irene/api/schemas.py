@@ -874,6 +874,99 @@ class TemplateHandlerListResponse(BaseAPIResponse):
 
 
 # ============================================================
+# PROMPT MANAGEMENT SCHEMAS (Phase 7)
+# ============================================================
+
+class PromptDefinition(BaseModel):
+    """Prompt definition with metadata"""
+    description: str = Field(description="Description of the prompt")
+    usage_context: str = Field(description="Context where this prompt is used")
+    variables: List[Dict[str, str]] = Field(default=[], description="List of variable definitions")
+    prompt_type: str = Field(default="system", description="Type of prompt: system, template, user")
+    content: str = Field(description="The actual prompt content")
+
+
+class PromptMetadata(BaseModel):
+    """Metadata for a language-specific prompt file"""
+    file_path: str = Field(description="e.g., 'conversation_handler/en.yaml'")
+    language: str = Field(description="Language code")
+    file_size: int = Field(description="File size in bytes")
+    last_modified: float = Field(description="Last modification timestamp")
+    prompt_count: int = Field(description="Number of prompts in the file")
+
+
+class PromptContentResponse(BaseAPIResponse):
+    """Response for language-specific prompt content retrieval"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Current language")
+    prompt_data: Dict[str, PromptDefinition] = Field(description="Complete prompt YAML content")
+    metadata: PromptMetadata = Field(description="File metadata")
+    available_languages: List[str] = Field(description="Other available languages")
+    schema_info: Dict[str, Any] = Field(description="Required fields and prompt types")
+
+
+class PromptUpdateRequest(BaseAPIRequest):
+    """Request to update a language-specific prompt file"""
+    prompt_data: Dict[str, PromptDefinition] = Field(description="Complete prompt YAML data")
+    validate_before_save: bool = Field(default=True, description="Whether to validate before saving")
+    trigger_reload: bool = Field(default=True, description="Whether to trigger reload after save")
+
+
+class PromptUpdateResponse(BaseAPIResponse):
+    """Response for language-specific prompt update operation"""
+    handler_name: str = Field(description="Updated handler name")
+    language: str = Field(description="Updated language")
+    validation_passed: bool = Field(description="Whether validation passed")
+    reload_triggered: bool = Field(description="Whether prompt reload was triggered")
+    backup_created: bool = Field(description="Whether backup was created")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+
+
+class PromptValidationRequest(BaseAPIRequest):
+    """Request to validate language-specific prompt data without saving"""
+    prompt_data: Dict[str, PromptDefinition] = Field(description="Prompt data to validate")
+
+
+class PromptValidationResponse(BaseAPIResponse):
+    """Response for language-specific prompt validation operation"""
+    handler_name: str = Field(description="Handler name being validated")
+    language: str = Field(description="Language being validated")
+    is_valid: bool = Field(description="Whether prompt is valid")
+    errors: List[ValidationError] = Field(default=[], description="Validation errors")
+    warnings: List[ValidationWarning] = Field(default=[], description="Validation warnings")
+    validation_types: List[str] = Field(description="Types of validation performed")
+
+
+class CreatePromptLanguageRequest(BaseAPIRequest):
+    """Request to create a new language file for prompt"""
+    copy_from: Optional[str] = Field(default=None, description="Language to copy from")
+    use_template: bool = Field(default=False, description="Use empty template instead of copying")
+
+
+class CreatePromptLanguageResponse(BaseAPIResponse):
+    """Response for prompt language creation operation"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Created language")
+    created: bool = Field(description="Whether language file was created")
+    copied_from: Optional[str] = Field(default=None, description="Language copied from")
+
+
+class DeletePromptLanguageResponse(BaseAPIResponse):
+    """Response for prompt language deletion operation"""
+    handler_name: str = Field(description="Handler name")
+    language: str = Field(description="Deleted language")
+    deleted: bool = Field(description="Whether language file was deleted")
+    backup_created: bool = Field(description="Whether backup was created before deletion")
+
+
+class PromptHandlerListResponse(BaseAPIResponse):
+    """Response for listing handlers with prompt language info"""
+    handlers: List[HandlerLanguageInfo] = Field(description="List of handlers with language info")
+    total_handlers: int = Field(description="Total number of handlers")
+
+
+# ============================================================
 # INTENT SYSTEM SCHEMAS (EXISTING)
 # ============================================================
 

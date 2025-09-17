@@ -802,6 +802,165 @@ class IntentAssetLoader:
             "extra_methods": extra_methods
         }
     
+    # ============================================================
+    # PROMPT MANAGEMENT API (Phase 7)
+    # ============================================================
+    
+    def get_prompt_for_language_editing(self, handler_name: str, language: str) -> Optional[Dict[str, Any]]:
+        """Get language-specific prompt data for editing purposes"""
+        asset_handler_name = self._get_asset_handler_name(handler_name)
+        lang_file = self.assets_root / "prompts" / asset_handler_name / f"{language}.yaml"
+        
+        if lang_file.exists():
+            try:
+                with open(lang_file, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f) or {}
+            except Exception as e:
+                logger.error(f"Failed to load prompt file {lang_file}: {e}")
+                return None
+        
+        return None
+    
+    def save_prompt_for_language(self, handler_name: str, language: str, prompt_data: Dict[str, Any]) -> bool:
+        """Save language-specific prompt data for editing"""
+        asset_handler_name = self._get_asset_handler_name(handler_name)
+        lang_dir = self.assets_root / "prompts" / asset_handler_name
+        lang_dir.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            lang_file = lang_dir / f"{language}.yaml"
+            with open(lang_file, 'w', encoding='utf-8') as f:
+                yaml.dump(prompt_data, f, default_flow_style=False, allow_unicode=True, indent=2)
+            
+            logger.info(f"Saved {language} prompt for handler '{handler_name}' to {lang_file}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save prompt file: {e}")
+            return False
+    
+    async def reload_prompts_for_handler(self, handler_name: str) -> bool:
+        """Reload prompts for a specific handler after language file changes"""
+        try:
+            await self._load_prompts([handler_name])
+            logger.info(f"Reloaded prompts for handler '{handler_name}'")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to reload prompts for handler '{handler_name}': {e}")
+            return False
+    
+    def get_available_prompt_languages_for_handler(self, handler_name: str) -> List[str]:
+        """Get list of available prompt language files for handler"""
+        asset_handler_name = self._get_asset_handler_name(handler_name)
+        lang_dir = self.assets_root / "prompts" / asset_handler_name
+        
+        if not lang_dir.exists():
+            return []
+        
+        return [lang_file.stem for lang_file in lang_dir.glob("*.yaml")]
+    
+    def get_handlers_with_prompts(self) -> Dict[str, List[str]]:
+        """Get all handlers that have prompt files with their available languages"""
+        handlers_languages = {}
+        prompts_dir = self.assets_root / "prompts"
+        
+        if not prompts_dir.exists():
+            return handlers_languages
+        
+        for handler_dir in prompts_dir.iterdir():
+            if handler_dir.is_dir():
+                # Convert asset handler name back to handler name
+                handler_name = handler_dir.name
+                if handler_name.endswith("_handler"):
+                    handler_name = handler_name[:-8]  # Remove "_handler" suffix
+                
+                languages = [lang_file.stem for lang_file in handler_dir.glob("*.yaml")]
+                if languages:
+                    handlers_languages[handler_name] = sorted(languages)
+        
+        return handlers_languages
+    
+    async def validate_prompt_data(self, handler_name: str, prompt_data: Dict[str, Any]) -> tuple[bool, List[Dict[str, str]], List[Dict[str, str]]]:
+        """Validate prompt data structure"""
+        errors = []
+        warnings = []
+        
+        try:
+            # Basic YAML structure validation
+            if not isinstance(prompt_data, dict):
+                errors.append({
+                    "field": "root",
+                    "message": "Prompt data must be a dictionary/object",
+                    "severity": "error"
+                })
+                return False, errors, warnings
+            
+            # Check prompt definitions
+            for prompt_name, prompt_def in prompt_data.items():
+                if not isinstance(prompt_name, str):
+                    errors.append({
+                        "field": prompt_name,
+                        "message": "Prompt names must be strings",
+                        "severity": "error"
+                    })
+                    continue
+                
+                # Validate prompt definition structure
+                if not isinstance(prompt_def, dict):
+                    errors.append({
+                        "field": prompt_name,
+                        "message": "Prompt definitions must be objects with metadata",
+                        "severity": "error"
+                    })
+                    continue
+                
+                # Check required fields
+                required_fields = ["description", "usage_context", "prompt_type", "content"]
+                for field in required_fields:
+                    if field not in prompt_def:
+                        errors.append({
+                            "field": f"{prompt_name}.{field}",
+                            "message": f"Required field '{field}' is missing",
+                            "severity": "error"
+                        })
+                
+                # Validate prompt type
+                if "prompt_type" in prompt_def:
+                    valid_types = ["system", "template", "user"]
+                    if prompt_def["prompt_type"] not in valid_types:
+                        warnings.append({
+                            "field": f"{prompt_name}.prompt_type",
+                            "message": f"Prompt type '{prompt_def['prompt_type']}' not in recommended types: {valid_types}",
+                            "severity": "warning"
+                        })
+                
+                # Validate variables structure
+                if "variables" in prompt_def:
+                    variables = prompt_def["variables"]
+                    if not isinstance(variables, list):
+                        errors.append({
+                            "field": f"{prompt_name}.variables",
+                            "message": "Variables must be a list",
+                            "severity": "error"
+                        })
+                    else:
+                        for i, var in enumerate(variables):
+                            if not isinstance(var, dict) or "name" not in var:
+                                warnings.append({
+                                    "field": f"{prompt_name}.variables[{i}]",
+                                    "message": "Variable should have 'name' and 'description' fields",
+                                    "severity": "warning"
+                                })
+            
+            return len(errors) == 0, errors, warnings
+            
+        except Exception as e:
+            errors.append({
+                "field": "validation",
+                "message": f"Validation error: {str(e)}",
+                "severity": "error"
+            })
+            return False, errors, warnings
+    
     async def _load_templates(self, handler_names: List[str]) -> None:
         """Load response templates (Category B: YAML/JSON/Markdown parsing)"""
         templates_dir = self.assets_root / "templates"
