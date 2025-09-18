@@ -1,13 +1,22 @@
-import { Plus, Trash2, Info } from 'lucide-react';
+import { Plus, Trash2, Info, RefreshCw, AlertTriangle } from 'lucide-react';
 import SpacyAttributeEditor from './SpacyAttributeEditor';
 import type { TokenPatternsEditorProps } from '@/types';
+
+interface EnhancedTokenPatternsEditorProps extends TokenPatternsEditorProps {
+  currentLemmas?: string[];
+  onLemmasSync?: (extractedLemmas: string[]) => void;
+  showSyncIndicator?: boolean;
+}
 
 export default function TokenPatternsEditor({
   value, 
   onChange, 
   globalParams,
-  disabled = false
-}: TokenPatternsEditorProps) {
+  disabled = false,
+  currentLemmas = [],
+  onLemmasSync,
+  showSyncIndicator = false
+}: EnhancedTokenPatternsEditorProps) {
   const patterns: Array<Array<Record<string, any>>> = value ?? [];
   
   const addPattern = (): void => {
@@ -37,16 +46,72 @@ export default function TokenPatternsEditor({
     onChange(next);
   };
 
+  // Extract lemmas from token patterns
+  const extractLemmasFromPatterns = (): string[] => {
+    const extractedLemmas: Set<string> = new Set();
+    
+    patterns.forEach(pattern => {
+      pattern.forEach(token => {
+        if (token.LEMMA) {
+          if (typeof token.LEMMA === 'string') {
+            extractedLemmas.add(token.LEMMA);
+          } else if (token.LEMMA.IN && Array.isArray(token.LEMMA.IN)) {
+            token.LEMMA.IN.forEach((lemma: string) => extractedLemmas.add(lemma));
+          }
+        }
+      });
+    });
+
+    return Array.from(extractedLemmas);
+  };
+
+  // Check if current lemmas are out of sync with token patterns
+  const getUnsyncedLemmas = (): string[] => {
+    const extractedLemmas = extractLemmasFromPatterns();
+    return extractedLemmas.filter(lemma => !currentLemmas.includes(lemma));
+  };
+
+
+  const unsyncedLemmas = getUnsyncedLemmas();
+  const hasUnsyncedLemmas = unsyncedLemmas.length > 0;
+
   return (
     <div className="mb-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="font-medium">Token Patterns</div>
-        <button
-          className="p-1 text-gray-400 hover:text-gray-600"
-          title="Token patterns use spaCy's powerful pattern matching. Each pattern is a sequence of tokens with specific attributes."
-        >
-          <Info className="w-4 h-4" />
-        </button>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="font-medium">Token Patterns</div>
+          <button
+            className="p-1 text-gray-400 hover:text-gray-600"
+            title="Token patterns use spaCy's powerful pattern matching. Each pattern is a sequence of tokens with specific attributes."
+          >
+            <Info className="w-4 h-4" />
+          </button>
+        </div>
+        
+        {/* Sync controls */}
+        <div className="flex items-center space-x-2">
+          {showSyncIndicator && hasUnsyncedLemmas && (
+            <div className="flex items-center text-amber-600 text-xs">
+              <AlertTriangle className="w-3 h-3 mr-1" />
+              {unsyncedLemmas.length} unsynced lemma{unsyncedLemmas.length !== 1 ? 's' : ''}
+            </div>
+          )}
+          {onLemmasSync && hasUnsyncedLemmas && (
+            <button
+              type="button"
+              onClick={() => {
+                const extractedLemmas = extractLemmasFromPatterns();
+                onLemmasSync(extractedLemmas);
+              }}
+              disabled={disabled}
+              className="flex items-center text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 disabled:opacity-50"
+              title={`Sync ${unsyncedLemmas.length} lemma(s) to method lemmas`}
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Sync Lemmas
+            </button>
+          )}
+        </div>
       </div>
       {patterns.length === 0 ? (
         <div className="text-sm text-gray-500 mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -115,6 +180,7 @@ export default function TokenPatternsEditor({
       >
         <Plus className="w-4 h-4" /> Add pattern
       </button>
+
     </div>
   );
 }

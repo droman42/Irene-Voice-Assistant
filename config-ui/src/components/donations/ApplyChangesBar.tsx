@@ -74,6 +74,7 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
     setValidationResult(null);
   };
 
+
   if (!visible) return null;
 
   const hasValidationErrors = validationResult && !validationResult.valid;
@@ -81,7 +82,7 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
   const canApply = !isApplying && !loading && (!validationResult || validationResult.valid);
 
   return (
-    <div className="border-t border-gray-200 bg-white px-6 py-4 shadow-lg">
+    <div className="fixed bottom-0 left-0 right-0 border-t border-gray-200 bg-white px-6 py-4 shadow-lg z-50">
       <div className="flex items-center justify-between">
         {/* Left side - Status */}
         <div className="flex items-center space-x-3">
@@ -128,6 +129,7 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
             <X className="w-4 h-4 mr-2" />
             Cancel
           </button>
+
 
           {/* Apply Button */}
           <button

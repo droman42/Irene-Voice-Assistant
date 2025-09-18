@@ -109,6 +109,9 @@ export interface TokenPatternsEditorProps {
   onChange: (value: Array<Array<Record<string, any>>>) => void;
   globalParams?: string[];
   disabled?: boolean;
+  currentLemmas?: string[];
+  onLemmasSync?: (extractedLemmas: string[]) => void;
+  showSyncIndicator?: boolean;
 }
 
 export interface SlotPatternsEditorProps {
