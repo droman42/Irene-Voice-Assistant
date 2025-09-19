@@ -123,20 +123,32 @@ POST   /intents/reload                              # Reload entire intent syste
 GET    /intents/schema                              # Get donation JSON schema
 ```
 
-### 2. Configuration Management APIs
+### 2. Configuration Management APIs ✅ FULLY IMPLEMENTED
 
-**New ConfigurationComponent with WebAPI Interface**:
+**ConfigurationComponent WebAPI Endpoints**:
 ```python
-# TOML configuration management
-GET    /config                                      # Get current TOML configuration
-GET    /config/schema                               # Get configuration schema/structure
-PUT    /config/sections/{section_name}              # Update specific TOML section
-POST   /config/sections/{section_name}/validate     # Test section configuration
-POST   /config/sections/{section_name}/preview      # Preview TOML output
-POST   /config/apply                                # Apply all pending changes
+# Core configuration operations
+GET    /config                                      # Get complete TOML configuration (CoreConfig)
+GET    /config/schema                               # Get Pydantic schema metadata for widgets
+GET    /config/schema/{section_name}                # Get specific section schema with field metadata
+PUT    /config/sections/{section_name}              # Update section + auto-backup + hot-reload
+POST   /config/sections/{section_name}/validate     # Validate section without saving
+GET    /config/providers/{component_name}           # Get available providers for dropdowns  
+GET    /config/status                               # Get configuration system health status
+```
 
-# Widget specifications
-GET    /config/widgets                              # Get widget definitions for UI
+**Response Models** (from `irene/api/schemas.py`):
+```python
+# Core configuration
+CoreConfig                 # Complete system configuration with all sections
+
+# Update operations  
+ConfigUpdateResponse       # success, message, reload_triggered, backup_created
+ConfigValidationResponse   # success, valid, data, validation_errors
+ConfigStatusResponse       # success, config_path, config_exists, hot_reload_active, etc.
+
+# Schema and provider data
+Dict[str, Any]            # Flexible schema metadata and provider information
 ```
 
 ### 3. Enhanced Monitoring APIs
@@ -153,21 +165,101 @@ GET    /monitoring/system/overview                  # System overview stats
 WS     /ws/monitoring/live                          # Live monitoring updates
 ```
 
-### 4. Configuration Widget System
+### 4. Configuration Schema System ✅ IMPLEMENTED
 
-**Widget Definition API**:
+**Pydantic Schema Introspection**:
 ```python
-# Widget specifications for config sections
+# Automatic widget generation from existing Pydantic models
+# GET /config/schema returns field metadata for all sections:
 {
   "tts": {
-    "enabled": {"type": "boolean", "label": "Enable TTS"},
-    "default_provider": {"type": "select", "options": ["console", "elevenlabs"], "label": "Default Provider"},
-    "providers": {
-      "elevenlabs": {
-        "api_key": {"type": "password", "label": "API Key"},
-        "voice_id": {"type": "string", "label": "Voice ID"}
+    "fields": {
+      "enabled": {"type": "boolean", "description": "Enable TTS component", "required": false},
+      "default_provider": {"type": "string", "description": "Default TTS provider", "required": false},
+      "providers": {"type": "object", "description": "Provider-specific configurations"}
+    }
+  }
+}
+
+# GET /config/providers/{component} returns available provider options:
+{
+  "console": {"name": "console", "description": "Console TTS provider", "enabled_by_default": true},
+  "elevenlabs": {"name": "elevenlabs", "description": "ElevenLabs TTS provider", "enabled_by_default": false}
+}
+```
+
+### 5. Response Schema Reference for Frontend
+
+**Configuration Response Models** (TypeScript interfaces can be auto-generated):
+
+```typescript
+// Core configuration model (GET /config)
+interface CoreConfig {
+  name: string;
+  version: string;
+  debug: boolean;
+  system: SystemConfig;
+  inputs: InputConfig;
+  components: ComponentConfig;
+  tts: TTSConfig;
+  audio: AudioConfig;
+  asr: ASRConfig;
+  llm: LLMConfig;
+  // ... all component configurations
+}
+
+// Update response (PUT /config/sections/{section})
+interface ConfigUpdateResponse {
+  success: boolean;
+  timestamp: number;
+  message: string;
+  reload_triggered: boolean;
+  backup_created?: string;  // Path to backup file in backups/ subfolder
+}
+
+// Validation response (POST /config/sections/{section}/validate)
+interface ConfigValidationResponse {
+  success: boolean;
+  timestamp: number;
+  valid: boolean;
+  data?: any;  // Validated configuration data
+  validation_errors?: ValidationError[];  // Pydantic validation errors
+}
+
+// Status response (GET /config/status)
+interface ConfigStatusResponse {
+  success: boolean;
+  timestamp: number;
+  config_path?: string;
+  config_exists: boolean;
+  hot_reload_active: boolean;
+  component_initialized: boolean;
+  last_modified?: number;
+  file_size?: number;
+}
+
+// Schema metadata (GET /config/schema, GET /config/schema/{section})
+interface SchemaMetadata {
+  [sectionName: string]: {
+    fields: {
+      [fieldName: string]: {
+        type: string;           // "boolean", "string", "integer", "array", "object"
+        description: string;    // Field description for tooltips
+        required: boolean;      // Whether field is required
+        default?: any;         // Default value
+        constraints?: any;     // Validation constraints
       }
     }
+  }
+}
+
+// Provider information (GET /config/providers/{component})
+interface ProviderInfo {
+  [providerName: string]: {
+    name: string;
+    description: string;
+    version: string;
+    enabled_by_default: boolean;
   }
 }
 ```
@@ -418,17 +510,13 @@ const ConfigurationPage = () => {
   // Load initial data
   useEffect(() => {
     Promise.all([
-      apiClient.get('/config'),
-      apiClient.get('/config/widgets')
-    ]).then(([configData, widgetData]) => {
+      apiClient.getConfig(),                    // GET /config → CoreConfig
+      apiClient.getConfigSchema()               // GET /config/schema → Schema metadata
+    ]).then(([configData, schemaData]) => {
       setConfig(configData);
-      setWidgets(widgetData);
+      setSchema(schemaData);                    // Use schema for widget generation
     }).catch((error) => {
-      if (error.status === 501) {
-        console.warn('Widget specification system not yet implemented');
-        // Fallback to basic string inputs for now
-        setWidgets({});
-      }
+      console.error('Failed to load configuration:', error);
     });
   }, []);
 
@@ -542,13 +630,16 @@ class IreneApiClient {
 
   // Configuration API
   async getConfig() { return this.request('/config'); }
-  async getConfigWidgets() { return this.request('/config/widgets'); }
+  async getConfigSchema() { return this.request('/config/schema'); }
+  async getSectionSchema(section) { return this.request(`/config/schema/${section}`); }
   async updateConfigSection(section, data) { 
     return this.request(`/config/sections/${section}`, { method: 'PUT', body: JSON.stringify(data) }); 
   }
   async validateConfigSection(section, data) { 
     return this.request(`/config/sections/${section}/validate`, { method: 'POST', body: JSON.stringify(data) }); 
   }
+  async getProviders(component) { return this.request(`/config/providers/${component}`); }
+  async getConfigStatus() { return this.request('/config/status'); }
 
   // Monitoring API
   async getMonitoringData() { return this.request('/monitoring/dashboard/data'); }
@@ -689,44 +780,52 @@ async def get_intent_system_status():
 - Hot reload integration with existing handler management
 - Status endpoint for system overview
 
-#### 1.2 Configuration API (New ConfigurationComponent) ✅ FULLY IMPLEMENTED
+#### 1.2 Configuration API (ConfigurationComponent) ✅ PRODUCTION READY
 ```python
-# Priority: HIGH - Core requirement for configuration management
 # Location: irene/components/configuration_component.py
-# Status: ✅ FULLY IMPLEMENTED - Complete backend with all endpoints functional
+# Status: ✅ PRODUCTION READY - Complete implementation with comprehensive features
+# Response Models: Centralized in irene/api/schemas.py
 
-@router.get("/config")
+@router.get("/config", response_model=CoreConfig)
 async def get_current_config():
-    """Get current TOML configuration as nested dict"""
+    """Get complete TOML configuration using CoreConfig Pydantic model"""
     
-@router.get("/config/schema")
+@router.get("/config/schema", response_model=Dict[str, Any])
 async def get_config_schema():
-    """Get Pydantic field metadata for auto-generating widgets"""
+    """Get Pydantic field metadata for automatic widget generation"""
     
-@router.get("/config/schema/{section_name}")
+@router.get("/config/schema/{section_name}", response_model=Dict[str, Any])
 async def get_section_schema(section_name: str):
     """Get specific section schema with field types, defaults, constraints"""
     
-@router.put("/config/sections/{section_name}")
+@router.put("/config/sections/{section_name}", response_model=ConfigUpdateResponse)
 async def update_config_section(section_name: str, data: dict):
-    """Update specific TOML section with file-based hot-reload trigger"""
+    """Update section + create backup in backups/ + trigger hot-reload"""
     
-@router.post("/config/sections/{section_name}/validate")
+@router.post("/config/sections/{section_name}/validate", response_model=ConfigValidationResponse)
 async def validate_config_section(section_name: str, data: dict):
-    """Validate section configuration using existing Pydantic models"""
+    """Dry-run validation using existing Pydantic models"""
     
-@router.get("/config/providers/{component_name}")
+@router.get("/config/providers/{component_name}", response_model=Dict[str, Any])
 async def get_available_providers(component_name: str):
     """Get available providers for dynamic dropdown population"""
+    
+@router.get("/config/status", response_model=ConfigStatusResponse)
+async def get_configuration_status():
+    """Get configuration system health and status information"""
 ```
 
-**✅ Implementation Complete:**
-- **Pydantic Schema Introspection**: Auto-extract field metadata from existing models (✅ implemented)
-- **File-Based Hot-Reload**: API changes save to TOML → trigger existing hot-reload (✅ implemented)
-- **Config Path Tracking**: System uses exact config file path specified at startup (✅ implemented)
-- **Automatic Backup**: Timestamped backups created before each configuration change (✅ implemented)
-- **Generic Widget Generation**: 80% coverage through automatic Pydantic field mapping (✅ implemented)
-- **Provider Discovery**: Dynamic provider enumeration for dropdowns (✅ implemented)
+**✅ Production Features Implemented:**
+- **Complete Swagger Documentation**: All endpoints with proper response models and documentation
+- **Centralized Response Schemas**: ConfigUpdateResponse, ConfigValidationResponse, ConfigStatusResponse
+- **Automatic Backup System**: Creates timestamped backups in `backups/` subfolder before changes
+- **Pydantic Schema Introspection**: Auto-extracts field metadata for 80% automatic widget generation
+- **File-Based Hot-Reload**: Configuration changes trigger existing hot-reload infrastructure  
+- **Provider Discovery**: Dynamic enumeration of available providers for dropdown widgets
+- **Real-time Validation**: Dry-run validation using existing Pydantic models
+- **Configuration Status**: Health monitoring and system status endpoints
+- **Error Handling**: Comprehensive error handling with proper HTTP status codes
+- **Type Safety**: Full type safety using existing CoreConfig and component models
 
 #### 1.3 Monitoring API Enhancement 🚧 NOT IMPLEMENTED
 ```python

@@ -470,12 +470,18 @@ class ConfigurationComponent(Component, WebAPIPlugin):
             return "string"
     
     async def _create_config_backup(self, config_path: Path) -> Optional[Path]:
-        """Create timestamped backup of current configuration"""
+        """Create timestamped backup of current configuration in backups subfolder"""
         if not config_path or not config_path.exists():
             return None
             
+        # Create backups directory if it doesn't exist
+        backups_dir = config_path.parent / "backups"
+        backups_dir.mkdir(exist_ok=True)
+        
+        # Generate backup filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = config_path.parent / f"{config_path.stem}_backup_{timestamp}{config_path.suffix}"
+        backup_filename = f"{config_path.stem}_backup_{timestamp}{config_path.suffix}"
+        backup_path = backups_dir / backup_filename
         
         try:
             shutil.copy2(config_path, backup_path)
