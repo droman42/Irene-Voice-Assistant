@@ -24,6 +24,31 @@ from .donations import (
 logger = logging.getLogger(__name__)
 
 
+def _should_skip_directory(dir_name: str) -> bool:
+    """
+    Check if directory should be skipped in handler discovery.
+    
+    Args:
+        dir_name: Directory name to check
+        
+    Returns:
+        True if directory should be skipped (system/cache directories)
+    """
+    # System directories that should never be treated as handlers
+    SYSTEM_DIRS = {
+        'backups', 'schemas', 'cache', 'temp', 'tmp', 'logs',
+        '.git', '.svn', '.hg', '__pycache__', '.pytest_cache',
+        'node_modules', '.DS_Store', 'Thumbs.db',
+        '.idea', '.vscode', '.vs'
+    }
+    
+    return (
+        dir_name in SYSTEM_DIRS or
+        dir_name.startswith('.') or
+        (dir_name.startswith('__') and dir_name.endswith('__'))
+    )
+
+
 class AssetLoaderConfig:
     """Configuration for IntentAssetLoader behavior"""
     
@@ -673,7 +698,7 @@ class IntentAssetLoader:
             return handlers_languages
         
         for handler_dir in donations_dir.iterdir():
-            if handler_dir.is_dir():
+            if handler_dir.is_dir() and not _should_skip_directory(handler_dir.name):
                 # Convert asset handler name back to handler name
                 handler_name = handler_dir.name
                 if handler_name.endswith("_handler"):
@@ -763,7 +788,7 @@ class IntentAssetLoader:
             return handlers_languages
         
         for handler_dir in templates_dir.iterdir():
-            if handler_dir.is_dir():
+            if handler_dir.is_dir() and not _should_skip_directory(handler_dir.name):
                 # Convert asset handler name back to handler name
                 handler_name = handler_dir.name
                 if handler_name.endswith('_handler'):
@@ -953,7 +978,7 @@ class IntentAssetLoader:
             return handlers_languages
         
         for handler_dir in prompts_dir.iterdir():
-            if handler_dir.is_dir():
+            if handler_dir.is_dir() and not _should_skip_directory(handler_dir.name):
                 # Convert asset handler name back to handler name
                 handler_name = handler_dir.name
                 if handler_name.endswith("_handler"):
