@@ -73,14 +73,6 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         return []  # All platforms
     
 
-    def get_component_dependencies(self) -> List[str]:
-        """Get list of required component dependencies."""
-        return []  # ASR is foundational, no component dependencies
-    
-    def get_service_dependencies(self) -> Dict[str, type]:
-        """Get list of required service dependencies."""
-        return {}  # No service dependencies
-    
     def __init__(self):
         super().__init__()
         self.providers: Dict[str, ASRProvider] = {}  # Proper ABC type hint

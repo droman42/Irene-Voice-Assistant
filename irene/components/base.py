@@ -16,6 +16,13 @@ class Component(EntryPointMetadata, ABC):
     
     def __init__(self):
         """Initialize the component."""
+        # Avoid name setting conflicts with property-defined names
+        if not hasattr(self, '_name_initialized'):
+            # Only set name if not defined as property
+            if not hasattr(self.__class__, 'name') or not isinstance(getattr(self.__class__, 'name'), property):
+                self.name = self.__class__.__name__.lower().replace('component', '')
+            self._name_initialized = True
+        
         # Use property-compatible name access for logging
         component_name = getattr(self, 'name', self.__class__.__name__)
         self.logger = logging.getLogger(f"{__name__}.{component_name}")
@@ -209,6 +216,18 @@ class Component(EntryPointMetadata, ABC):
             return next(iter(self.providers.values()))
         return None
     
+    def is_dependencies_available(self) -> bool:
+        """Check if component Python dependencies are available (ComponentManager method)"""
+        dependencies = self.get_python_dependencies()
+        try:
+            for dependency in dependencies:
+                # Extract module name from dependency specification
+                module_name = dependency.split('>=')[0].split('<=')[0].split('==')[0].split('>')[0].split('<')[0].split('~=')[0].split('[')[0].strip()
+                __import__(module_name)
+            return True
+        except ImportError:
+            return False
+    
     async def is_available(self) -> bool:
         """
         Check if the component is available and functioning.
@@ -324,11 +343,12 @@ class Component(EntryPointMetadata, ABC):
             "providers": list(self.providers.keys())
         }
     
-    # Build dependency methods (TODO #5 Phase 2)
+    # Build dependency methods - ComponentManager integration
     @classmethod
+    @abstractmethod
     def get_python_dependencies(cls) -> List[str]:
-        """Components coordinate providers - minimal direct dependencies"""
-        return []
+        """Return list of required Python modules"""
+        pass
         
     @classmethod
     def get_platform_dependencies(cls) -> Dict[str, List[str]]:
@@ -343,4 +363,39 @@ class Component(EntryPointMetadata, ABC):
     @classmethod
     def get_platform_support(cls) -> List[str]:
         """Components support all platforms"""
-        return ["linux.ubuntu", "linux.alpine", "macos", "windows"] 
+        return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
+    
+    def get_component_dependencies(self) -> list[str]:
+        """Return list of required component dependencies"""
+        return []  # Default: no dependencies
+
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Return dict of required service dependencies {name: expected_type}"""
+        return {}  # Default: no service dependencies
+    
+    async def start(self, core) -> bool:
+        """Start the component with error handling (used by ComponentManager)"""
+        if not self.is_dependencies_available():
+            self.logger.warning(f"Component {self.name} Python dependencies not available")
+            return False
+            
+        try:
+            await self.initialize(core)
+            self.initialized = True
+            self.logger.info(f"Component {self.name} started successfully")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to start component {self.name}: {e}")
+            return False
+
+    async def stop(self) -> None:
+        """Stop the component with cleanup (used by ComponentManager)"""
+        if not self.initialized:
+            return
+            
+        try:
+            await self.shutdown()
+            self.initialized = False
+            self.logger.info(f"Component {self.name} stopped successfully")
+        except Exception as e:
+            self.logger.error(f"Error stopping component {self.name}: {e}") 

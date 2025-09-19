@@ -38,10 +38,6 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     """
     
 
-    def get_component_dependencies(self) -> List[str]:
-        """Get list of required component dependencies."""
-        return []  # Audio is foundational, no component dependencies
-    
     def get_service_dependencies(self) -> Dict[str, type]:
         """Get list of required service dependencies."""
         return {}  # No service dependencies

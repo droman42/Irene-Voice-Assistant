@@ -80,10 +80,6 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         return []  # All platforms
     
 
-    def get_component_dependencies(self) -> List[str]:
-        """Get list of required component dependencies."""
-        return []  # Voice trigger works independently with audio hardware
-    
     def get_service_dependencies(self) -> Dict[str, type]:
         """Get list of required service dependencies."""
         return {}  # No service dependencies

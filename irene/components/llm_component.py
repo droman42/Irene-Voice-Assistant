@@ -64,14 +64,6 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
         return []  # All platforms
     
 
-    def get_component_dependencies(self) -> List[str]:
-        """Get list of required component dependencies."""
-        return []  # LLM can work independently
-    
-    def get_service_dependencies(self) -> Dict[str, type]:
-        """Get list of required service dependencies."""
-        return {}  # No service dependencies
-    
     def __init__(self):
         super().__init__()
         self.providers: Dict[str, LLMProvider] = {}  # Proper ABC type hint

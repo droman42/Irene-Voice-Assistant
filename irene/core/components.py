@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ..config.models import CoreConfig, ComponentConfig
 from ..utils.loader import DependencyChecker, get_component_status
+from ..components.base import Component
 
 logger = logging.getLogger(__name__)
 
@@ -39,92 +40,6 @@ class ComponentInfo:
     def __post_init__(self):
         if self.dependencies is None:
             self.dependencies = []
-
-
-class Component(ABC):
-    """
-    Base class for all optional components.
-    
-    Provides lifecycle management and graceful dependency handling with
-    dependency injection support.
-    """
-    
-    def __init__(self):
-        self.name = self.__class__.__name__.lower().replace('component', '')
-        self.initialized = False
-        self.logger = logging.getLogger(f"component.{self.name}")
-        self.config = None
-        self.injected_dependencies = {}
-        
-    @abstractmethod
-    def get_python_dependencies(self) -> list[str]:
-        """Return list of required Python modules"""
-        pass
-    
-    def get_component_dependencies(self) -> list[str]:
-        """Return list of required component dependencies"""
-        return []
-    
-    def get_service_dependencies(self) -> Dict[str, type]:
-        """Return dict of required service dependencies {name: expected_type}"""
-        return {}
-        
-    def inject_dependency(self, name: str, dependency: Any) -> None:
-        """Inject a dependency into this component"""
-        self.injected_dependencies[name] = dependency
-        
-    def get_dependency(self, name: str) -> Optional[Any]:
-        """Get an injected dependency"""
-        return self.injected_dependencies.get(name)
-        
-    @abstractmethod
-    async def initialize(self, core) -> None:
-        """Initialize the component with core reference"""
-        pass
-        
-    @abstractmethod
-    async def shutdown(self) -> None:
-        """Shutdown and cleanup the component"""
-        pass
-        
-    def is_available(self) -> bool:
-        """Check if component Python dependencies are available"""
-        dependencies = self.get_python_dependencies()
-        try:
-            for dependency in dependencies:
-                # Extract module name from dependency specification (e.g., "fastapi>=0.100.0" -> "fastapi")
-                module_name = dependency.split('>=')[0].split('<=')[0].split('==')[0].split('>')[0].split('<')[0].split('~=')[0].split('[')[0].strip()
-                __import__(module_name)
-            return True
-        except ImportError:
-            return False
-        
-    async def start(self, core) -> bool:
-        """Start the component with error handling and dependency injection"""
-        if not self.is_available():
-            self.logger.warning(f"Component {self.name} Python dependencies not available")
-            return False
-            
-        try:
-            await self.initialize(core)
-            self.initialized = True
-            self.logger.info(f"Component {self.name} started successfully")
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to start component {self.name}: {e}")
-            return False
-            
-    async def stop(self) -> None:
-        """Stop the component with cleanup"""
-        if not self.initialized:
-            return
-            
-        try:
-            await self.shutdown()
-            self.initialized = False
-            self.logger.info(f"Component {self.name} stopped successfully")
-        except Exception as e:
-            self.logger.error(f"Error stopping component {self.name}: {e}")
 
 
 class DependencyResolver:

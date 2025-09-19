@@ -258,14 +258,6 @@ class IntentComponent(Component, WebAPIPlugin):
             logger.error(f"Failed to inject intent handler dependencies during post-initialization: {e}")
             # Don't re-raise - this is graceful degradation
 
-    def get_component_dependencies(self) -> List[str]:
-        """Get list of required component dependencies."""
-        return []  # Intent system is independent - NLU depends on it, not the other way around
-    
-    def get_service_dependencies(self) -> Dict[str, type]:
-        """Get list of required service dependencies."""
-        return {}  # No service dependencies
-    
     def get_providers_info(self) -> str:
         """Implementation of abstract method - Intent system doesn't use traditional providers"""
         if not self.handler_manager:

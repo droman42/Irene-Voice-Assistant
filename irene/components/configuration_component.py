@@ -67,6 +67,19 @@ class ConfigurationComponent(Component, WebAPIPlugin):
     @property
     def platforms(self) -> List[str]:
         return []  # All platforms
+    
+    def get_python_dependencies(self) -> list[str]:
+        """Return list of required Python modules for ConfigurationComponent"""
+        return ["fastapi", "pydantic"]  # Required for WebAPI and configuration validation
+    
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Get list of required service dependencies."""
+        return {}  # No service dependencies
+    
+    @property
+    def optional_dependencies(self) -> list[str]:
+        """Optional Python dependencies for enhanced functionality"""
+        return []  # No optional dependencies
         
     async def initialize(self, core):
         """Initialize with reference to ConfigManager and active config path"""
@@ -82,6 +95,11 @@ class ConfigurationComponent(Component, WebAPIPlugin):
             
         self.initialized = True
         logger.info(f"ConfigurationComponent initialized with config path: {self.active_config_path}")
+    
+    async def shutdown(self) -> None:
+        """Shutdown the configuration component"""
+        self.initialized = False
+        logger.info("ConfigurationComponent shutdown completed")
     
     def get_providers_info(self) -> str:
         """Configuration management - no providers needed"""

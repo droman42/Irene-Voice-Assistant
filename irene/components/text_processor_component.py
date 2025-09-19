@@ -171,14 +171,6 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         return []  # All platforms
     
 
-    def get_component_dependencies(self) -> List[str]:
-        """Get list of required component dependencies."""
-        return []  # Text processor is foundational
-    
-    def get_service_dependencies(self) -> Dict[str, type]:
-        """Get list of required service dependencies."""
-        return {}  # No service dependencies
-        
     async def improve(self, text: str, context: ConversationContext, stage: str = "general") -> str:
         """
         Improve text using stage-specific providers or fallback to legacy processor.
