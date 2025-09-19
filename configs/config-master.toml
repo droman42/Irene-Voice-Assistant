@@ -90,6 +90,7 @@ nlu = true                         # Natural language understanding component
 text_processor = true              # Text processing pipeline component
 intent_system = true               # Intent handling component (essential)
 monitoring = true                  # Monitoring and metrics component (Phase 3 infrastructure)
+configuration = true               # Configuration management component (Web API)
 
 # ============================================================
 # TTS (TEXT-TO-SPEECH) COMPONENT CONFIGURATION

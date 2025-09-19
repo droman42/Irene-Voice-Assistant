@@ -160,7 +160,6 @@ class ComponentConfig(BaseModel):
     nlu: bool = Field(default=False, description="Enable natural language understanding component")
     text_processor: bool = Field(default=False, description="Enable text processing pipeline component")
     intent_system: bool = Field(default=True, description="Enable intent handling component (essential)")
-    vad: bool = Field(default=False, description="Enable voice activity detection for audio processing")
     monitoring: bool = Field(default=True, description="Enable monitoring and metrics component (Phase 3 infrastructure)")
     configuration: bool = Field(default=False, description="Enable configuration management component (Web API)")
 

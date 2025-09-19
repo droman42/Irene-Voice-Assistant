@@ -58,7 +58,14 @@ import type {
   LocalizationValidationResponse,
   CreateLocalizationLanguageRequest,
   CreateLocalizationLanguageResponse,
-  DeleteLocalizationLanguageResponse
+  DeleteLocalizationLanguageResponse,
+  // Configuration management types
+  CoreConfig,
+  ConfigSchemaResponse,
+  ConfigUpdateResponse,
+  ConfigValidationResponse,
+  ConfigStatusResponse,
+  ProvidersResponse
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -568,6 +575,59 @@ class IreneApiClient {
       `/intents/prompts/${encodeURIComponent(handlerName)}/${encodeURIComponent(language)}`,
       requestData
     );
+  }
+
+  // ============================================================
+  // CONFIGURATION MANAGEMENT API 
+  // ============================================================
+
+  /**
+   * Get complete TOML configuration
+   */
+  async getConfig(): Promise<CoreConfig> {
+    return this.get<CoreConfig>('/configuration/config');
+  }
+
+  /**
+   * Get configuration schema for all sections
+   */
+  async getConfigSchema(): Promise<ConfigSchemaResponse> {
+    return this.get<ConfigSchemaResponse>('/configuration/config/schema');
+  }
+
+  /**
+   * Get specific section schema
+   */
+  async getSectionSchema(sectionName: string): Promise<ConfigSchemaResponse> {
+    return this.get<ConfigSchemaResponse>(`/configuration/config/schema/${encodeURIComponent(sectionName)}`);
+  }
+
+  /**
+   * Update specific configuration section
+   */
+  async updateConfigSection(sectionName: string, data: any): Promise<ConfigUpdateResponse> {
+    return this.put<ConfigUpdateResponse>(`/configuration/config/sections/${encodeURIComponent(sectionName)}`, data);
+  }
+
+  /**
+   * Validate configuration section without saving
+   */
+  async validateConfigSection(sectionName: string, data: any): Promise<ConfigValidationResponse> {
+    return this.post<ConfigValidationResponse>(`/configuration/config/sections/${encodeURIComponent(sectionName)}/validate`, data);
+  }
+
+  /**
+   * Get available providers for a component
+   */
+  async getAvailableProviders(componentName: string): Promise<ProvidersResponse> {
+    return this.get<ProvidersResponse>(`/configuration/config/providers/${encodeURIComponent(componentName)}`);
+  }
+
+  /**
+   * Get configuration system status
+   */
+  async getConfigStatus(): Promise<ConfigStatusResponse> {
+    return this.get<ConfigStatusResponse>('/configuration/config/status');
   }
 
   // ========================================

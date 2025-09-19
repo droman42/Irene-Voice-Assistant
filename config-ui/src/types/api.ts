@@ -563,3 +563,316 @@ export interface LocalizationDomainListResponse extends BaseApiResponse {
   domains: DomainLanguageInfo[];
   total_domains: number;
 }
+
+// ============================================================
+// CONFIGURATION MANAGEMENT TYPES
+// ============================================================
+
+// Core configuration interface (matches CoreConfig from backend)
+export interface CoreConfig {
+  // Core settings
+  name: string;
+  version: string;
+  debug: boolean;
+  log_level: string;
+  
+  // Main configuration sections
+  system: SystemConfig;
+  inputs: InputConfig;
+  components: ComponentConfig;
+  assets: AssetConfig;
+  workflows: WorkflowConfig;
+  
+  // Component-specific configurations
+  tts: TTSConfig;
+  audio: AudioConfig;
+  asr: ASRConfig;
+  llm: LLMConfig;
+  voice_trigger: VoiceTriggerConfig;
+  nlu: NLUConfig;
+  text_processor: TextProcessorConfig;
+  intent_system: IntentSystemConfig;
+  vad: VADConfig;
+  monitoring: MonitoringConfig;
+  
+  // Language and locale
+  language: string;
+  timezone?: string;
+  
+  // Runtime settings
+  max_concurrent_commands: number;
+  command_timeout_seconds: number;
+  context_timeout_minutes: number;
+}
+
+// Configuration section interfaces (matching backend Pydantic models)
+export interface SystemConfig {
+  microphone_enabled: boolean;
+  audio_playback_enabled: boolean;
+  web_api_enabled: boolean;
+  web_port: number;
+}
+
+export interface InputConfig {
+  microphone: boolean;
+  web: boolean;
+  cli: boolean;
+  default_input: string;
+  microphone_config: MicrophoneInputConfig;
+  web_config: WebInputConfig;
+  cli_config: CLIInputConfig;
+}
+
+export interface MicrophoneInputConfig {
+  enabled: boolean;
+  device_id?: number;
+  sample_rate: number;
+  channels: number;
+  chunk_size: number;
+  buffer_queue_size: number;
+  auto_resample: boolean;
+  resample_quality: string;
+}
+
+export interface WebInputConfig {
+  enabled: boolean;
+  websocket_enabled: boolean;
+  rest_api_enabled: boolean;
+}
+
+export interface CLIInputConfig {
+  enabled: boolean;
+  prompt_prefix: string;
+  history_enabled: boolean;
+}
+
+export interface ComponentConfig {
+  tts: boolean;
+  asr: boolean;
+  audio: boolean;
+  llm: boolean;
+  voice_trigger: boolean;
+  nlu: boolean;
+  text_processor: boolean;
+  intent_system: boolean;
+  vad: boolean;
+  monitoring: boolean;
+}
+
+export interface TTSConfig {
+  enabled: boolean;
+  default_provider?: string;
+  fallback_providers: string[];
+  providers: Record<string, Record<string, any>>;
+}
+
+export interface AudioConfig {
+  enabled: boolean;
+  default_provider?: string;
+  fallback_providers: string[];
+  concurrent_playback: boolean;
+  providers: Record<string, Record<string, any>>;
+}
+
+export interface ASRConfig {
+  enabled: boolean;
+  default_provider?: string;
+  fallback_providers: string[];
+  sample_rate?: number;
+  channels: number;
+  allow_resampling: boolean;
+  resample_quality: string;
+  providers: Record<string, Record<string, any>>;
+}
+
+export interface LLMConfig {
+  enabled: boolean;
+  default_provider?: string;
+  fallback_providers: string[];
+  providers: Record<string, Record<string, any>>;
+}
+
+export interface VoiceTriggerConfig {
+  enabled: boolean;
+  default_provider?: string;
+  wake_words: string[];
+  confidence_threshold: number;
+  buffer_seconds: number;
+  timeout_seconds: number;
+  sample_rate?: number;
+  channels: number;
+  allow_resampling: boolean;
+  resample_quality: string;
+  strict_validation: boolean;
+  providers: Record<string, Record<string, any>>;
+}
+
+export interface NLUConfig {
+  enabled: boolean;
+  default_provider?: string;
+  confidence_threshold: number;
+  fallback_intent: string;
+  provider_cascade_order: string[];
+  max_cascade_attempts: number;
+  cascade_timeout_ms: number;
+  cache_recognition_results: boolean;
+  cache_ttl_seconds: number;
+  auto_detect_language: boolean;
+  language_detection_confidence_threshold: number;
+  persist_language_preference: boolean;
+  supported_languages: string[];
+  default_language: string;
+  providers: Record<string, Record<string, any>>;
+}
+
+export interface TextProcessorConfig {
+  enabled: boolean;
+  stages: string[];
+  normalizers: Record<string, Record<string, any>>;
+  providers: Record<string, Record<string, any>>;
+}
+
+export interface IntentSystemConfig {
+  enabled: boolean;
+  confidence_threshold: number;
+  fallback_intent: string;
+  handlers: IntentHandlerListConfig;
+  // Handler-specific configurations would be included here
+  [key: string]: any;
+}
+
+export interface IntentHandlerListConfig {
+  enabled: string[];
+  disabled: string[];
+  auto_discover: boolean;
+  discovery_paths: string[];
+  asset_validation: Record<string, any>;
+}
+
+export interface VADConfig {
+  enabled: boolean;
+  energy_threshold: number;
+  sensitivity: number;
+  voice_duration_ms: number;
+  silence_duration_ms: number;
+  max_segment_duration_s: number;
+  voice_frames_required: number;
+  silence_frames_required: number;
+  use_zero_crossing_rate: boolean;
+  adaptive_threshold: boolean;
+  noise_percentile: number;
+  voice_multiplier: number;
+  processing_timeout_ms: number;
+  buffer_size_frames: number;
+  normalize_for_asr: boolean;
+  asr_target_rms: number;
+  enable_fallback_to_original: boolean;
+}
+
+export interface MonitoringConfig {
+  enabled: boolean;
+  metrics_enabled: boolean;
+  dashboard_enabled: boolean;
+  notifications_enabled: boolean;
+  debug_tools_enabled: boolean;
+  memory_management_enabled: boolean;
+  notifications_default_channel: string;
+  notifications_tts_enabled: boolean;
+  notifications_web_enabled: boolean;
+  metrics_monitoring_interval: number;
+  metrics_retention_hours: number;
+  memory_cleanup_interval: number;
+  memory_aggressive_cleanup: boolean;
+  debug_auto_inspect_failures: boolean;
+  debug_max_history: number;
+  analytics_dashboard_enabled: boolean;
+  analytics_refresh_interval: number;
+}
+
+export interface AssetConfig {
+  assets_root: string;
+  auto_create_dirs: boolean;
+  cleanup_on_startup: boolean;
+  auto_download: boolean;
+  download_timeout_seconds: number;
+  max_download_retries: number;
+  verify_downloads: boolean;
+  cache_enabled: boolean;
+  max_cache_size_mb: number;
+  cache_ttl_hours: number;
+  preload_essential_models: boolean;
+  model_compression: boolean;
+  concurrent_downloads: number;
+}
+
+export interface WorkflowConfig {
+  enabled: string[];
+  default: string;
+  unified_voice_assistant: UnifiedVoiceAssistantWorkflowConfig;
+}
+
+export interface UnifiedVoiceAssistantWorkflowConfig {
+  voice_trigger_enabled: boolean;
+  asr_enabled: boolean;
+  text_processing_enabled: boolean;
+  nlu_enabled: boolean;
+  intent_execution_enabled: boolean;
+  llm_enabled: boolean;
+  tts_enabled: boolean;
+  audio_enabled: boolean;
+  monitoring_enabled: boolean;
+  enable_vad_processing: boolean;
+}
+
+// Configuration schema metadata (from Pydantic introspection)
+export interface ConfigFieldSchema {
+  type: string;
+  description: string;
+  required: boolean;
+  default?: any;
+  constraints?: Record<string, any>;
+  properties?: Record<string, ConfigFieldSchema>; // For nested objects
+}
+
+export interface ConfigSectionSchema {
+  fields: Record<string, ConfigFieldSchema>;
+  title: string;
+  description: string;
+}
+
+export interface ConfigSchemaResponse {
+  [sectionName: string]: ConfigSectionSchema;
+}
+
+// Configuration API responses (matching backend schemas)
+export interface ConfigUpdateResponse extends BaseApiResponse {
+  message: string;
+  reload_triggered: boolean;
+  backup_created?: string;
+}
+
+export interface ConfigValidationResponse extends BaseApiResponse {
+  valid: boolean;
+  data?: Record<string, any>;
+  validation_errors?: ValidationError[];
+}
+
+export interface ConfigStatusResponse extends BaseApiResponse {
+  config_path?: string;
+  config_exists: boolean;
+  hot_reload_active: boolean;
+  component_initialized: boolean;
+  last_modified?: number;
+  file_size?: number;
+}
+
+export interface ProviderInfo {
+  name: string;
+  description: string;
+  version: string;
+  enabled_by_default: boolean;
+}
+
+export interface ProvidersResponse {
+  [providerName: string]: ProviderInfo;
+}

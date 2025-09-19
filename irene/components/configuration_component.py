@@ -21,7 +21,8 @@ from ..config.manager import ConfigManager
 from ..config.models import (
     CoreConfig, TTSConfig, AudioConfig, ASRConfig, LLMConfig, 
     VoiceTriggerConfig, NLUConfig, TextProcessorConfig, IntentSystemConfig,
-    SystemConfig, InputConfig, ComponentConfig, AssetConfig, WorkflowConfig
+    SystemConfig, InputConfig, ComponentConfig, AssetConfig, WorkflowConfig,
+    VADConfig, MicrophoneInputConfig, WebInputConfig, CLIInputConfig
 )
 from ..api.schemas import (
     BaseAPIResponse, ErrorResponse, ValidationError as APIValidationError,
@@ -405,7 +406,8 @@ class ConfigurationComponent(Component, WebAPIPlugin):
             "voice_trigger": VoiceTriggerConfig,
             "nlu": NLUConfig,
             "text_processor": TextProcessorConfig,
-            "intent_system": IntentSystemConfig
+            "intent_system": IntentSystemConfig,
+            "vad": VADConfig
         }
         
         for section_name, model_class in section_models.items():
@@ -417,75 +419,160 @@ class ConfigurationComponent(Component, WebAPIPlugin):
         """Extract field metadata from Pydantic model for widget generation"""
         if not model_class:
             return {}
+        
+        try:
+            from pydantic_core import PydanticUndefined
+        except ImportError:
+            # Fallback for older Pydantic versions
+            PydanticUndefined = None
             
         schema = {
             "fields": {},
             "title": getattr(model_class, "__name__", "Configuration"),
-            "description": getattr(model_class, "__doc__", "")
+            "description": getattr(model_class, "__doc__", "").strip() if getattr(model_class, "__doc__", "") else ""
         }
         
         # Get Pydantic model fields
         model_fields = model_class.model_fields if hasattr(model_class, 'model_fields') else {}
         
         for field_name, field_info in model_fields.items():
-            field_schema = {
-                "type": self._get_field_type(field_info),
-                "description": field_info.description or "",
-                "required": field_info.is_required() if hasattr(field_info, 'is_required') else True,
-                "default": field_info.default if hasattr(field_info, 'default') else None
-            }
-            
-            # Add constraints if available
-            if hasattr(field_info, 'constraints'):
-                constraints = field_info.constraints
-                if constraints:
-                    field_schema["constraints"] = constraints
-            
-            schema["fields"][field_name] = field_schema
+            try:
+                # Safely extract field information
+                field_type = self._get_field_type(field_info)
+                
+                # Get field description - check multiple possible locations
+                description = ""
+                if hasattr(field_info, 'description') and field_info.description:
+                    description = field_info.description
+                elif hasattr(field_info, 'json_schema_extra') and field_info.json_schema_extra:
+                    description = field_info.json_schema_extra.get('description', '')
+                
+                # For Pydantic v2, check if field is required by looking at default value
+                is_required = True
+                default_value = None
+                
+                if hasattr(field_info, 'default') and PydanticUndefined is not None:
+                    if field_info.default is not PydanticUndefined:
+                        is_required = False
+                        default_value = field_info.default
+                elif hasattr(field_info, 'default'):
+                    # Fallback for when PydanticUndefined is not available
+                    try:
+                        if field_info.default is not ...:  # Ellipsis is often used as undefined
+                            is_required = False
+                            default_value = field_info.default
+                    except:
+                        pass
+                
+                field_schema = {
+                    "type": field_type,
+                    "description": description,
+                    "required": is_required,
+                    "default": default_value
+                }
+                
+                # For object types (nested models), extract nested schema
+                if field_type == "object" and hasattr(field_info, 'annotation'):
+                    nested_schema = self._extract_nested_object_schema(field_info.annotation)
+                    if nested_schema:
+                        field_schema["properties"] = nested_schema
+                
+                # Add constraints if available (from field annotations)
+                if hasattr(field_info, 'json_schema_extra') and field_info.json_schema_extra:
+                    field_schema.update(field_info.json_schema_extra)
+                
+                schema["fields"][field_name] = field_schema
+                
+            except Exception as e:
+                logger.warning(f"Failed to extract schema for field {field_name}: {e}")
+                # Add a basic fallback schema
+                schema["fields"][field_name] = {
+                    "type": "string",
+                    "description": f"Field {field_name}",
+                    "required": False,
+                    "default": None
+                }
         
         return schema
     
     def _get_field_type(self, field_info) -> str:
         """Determine field type for widget generation"""
-        # Extract type from Pydantic field info
-        field_type = field_info.annotation if hasattr(field_info, 'annotation') else str
-        
-        # Map Python types to widget types
-        if field_type == bool:
-            return "boolean"
-        elif field_type == int:
-            return "integer"
-        elif field_type == float:
-            return "number"
-        elif field_type == str:
-            return "string"
-        elif hasattr(field_type, '__origin__'):
-            # Handle generic types like List, Dict, Optional
-            origin = field_type.__origin__
-            if origin == list:
-                return "array"
-            elif origin == dict:
-                return "object"
-            elif origin == Union:
-                # Handle Optional types
-                args = field_type.__args__
-                if len(args) == 2 and type(None) in args:
-                    # Optional type - get the non-None type
-                    non_none_type = next(arg for arg in args if arg != type(None))
-                    return self._get_field_type_from_annotation(non_none_type)
-        
-        return "string"  # Default fallback
+        try:
+            # Extract type from Pydantic field info
+            field_type = field_info.annotation if hasattr(field_info, 'annotation') else str
+            
+            return self._get_field_type_from_annotation(field_type)
+        except Exception as e:
+            logger.warning(f"Failed to determine field type: {e}")
+            return "string"  # Safe fallback
     
     def _get_field_type_from_annotation(self, annotation) -> str:
         """Helper to get field type from type annotation"""
-        if annotation == bool:
-            return "boolean"
-        elif annotation == int:
-            return "integer"
-        elif annotation == float:
-            return "number"
-        else:
+        try:
+            # Handle direct types
+            if annotation == bool:
+                return "boolean"
+            elif annotation == int:
+                return "integer"
+            elif annotation == float:
+                return "number"
+            elif annotation == str:
+                return "string"
+            elif hasattr(annotation, '__origin__'):
+                # Handle generic types like List, Dict, Optional
+                from typing import Union
+                origin = annotation.__origin__
+                if origin == list:
+                    return "array"
+                elif origin == dict:
+                    return "object"
+                elif origin == Union:
+                    # Handle Optional types
+                    args = annotation.__args__
+                    if len(args) == 2 and type(None) in args:
+                        # Optional type - get the non-None type
+                        non_none_type = next(arg for arg in args if arg != type(None))
+                        return self._get_field_type_from_annotation(non_none_type)
+            
+            # Check if it's a Pydantic BaseModel (nested configuration)
+            if hasattr(annotation, '__bases__') and any(
+                issubclass(base, BaseModel) for base in annotation.__bases__ 
+                if hasattr(base, '__name__')
+            ):
+                return "object"  # Nested Pydantic models should be objects
+            
+            # Check if it's an Enum
+            if hasattr(annotation, '__bases__') and any(base.__name__ == 'Enum' for base in annotation.__bases__):
+                return "string"  # Enums are represented as string choices
+                
+            return "string"  # Default fallback
+        except Exception as e:
+            logger.warning(f"Failed to parse annotation {annotation}: {e}")
             return "string"
+    
+    def _extract_nested_object_schema(self, annotation) -> Optional[Dict[str, Any]]:
+        """Extract schema for nested Pydantic models"""
+        try:
+            # Handle Optional[Model] types
+            from typing import Union
+            if hasattr(annotation, '__origin__') and annotation.__origin__ == Union:
+                args = annotation.__args__
+                if len(args) == 2 and type(None) in args:
+                    # Optional type - get the non-None type
+                    annotation = next(arg for arg in args if arg != type(None))
+            
+            # Check if it's a Pydantic BaseModel
+            if (hasattr(annotation, '__bases__') and 
+                any(issubclass(base, BaseModel) for base in annotation.__bases__ if hasattr(base, '__name__'))):
+                
+                # Recursively extract schema for the nested model
+                nested_model_schema = self._extract_model_schema(annotation)
+                return nested_model_schema.get("fields", {})
+            
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to extract nested schema for {annotation}: {e}")
+            return None
     
     async def _create_config_backup(self, config_path: Path) -> Optional[Path]:
         """Create timestamped backup of current configuration in backups subfolder"""
