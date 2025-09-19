@@ -43,20 +43,14 @@ def check_vosk_dependencies() -> bool:
 
 
 def list_audio_devices():
-    """List available audio input devices"""
-    try:
-        import sounddevice as sd  # type: ignore
-        print("🎤 Available Audio Input Devices:")
-        print("=" * 50)
-        devices = sd.query_devices()
-        for i, device in enumerate(devices):
-            if device['max_input_channels'] > 0:
-                default_marker = " (default)" if i == sd.default.device[0] else ""
-                print(f"{i:2d}: {device['name']}{default_marker}")
-                print(f"    Channels: {device['max_input_channels']}, "
-                      f"Sample rate: {device['default_samplerate']:.0f} Hz")
-    except ImportError:
+    """List available audio input devices (legacy function for CLI)"""
+    from ..utils.audio_devices import print_audio_devices, is_audio_available
+    
+    if not is_audio_available():
         print("❌ Sounddevice not available - install audio-input dependencies")
+        return
+    
+    print_audio_devices()
 
 
 class VoskRunner(BaseRunner):

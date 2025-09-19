@@ -1,7 +1,7 @@
 /**
  * ApplyChangesBar Component - Save workflow controls
  * 
- * Provides validation and save controls for donation changes,
+ * Provides validation and save controls for unsaved changes across all pages,
  * with visual feedback and error handling.
  */
 
@@ -32,7 +32,7 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
 
   // Handle validation
   const handleValidate = async (): Promise<void> => {
-    if (!selectedHandler || !onValidate) return;
+    if (!onValidate) return;
 
     setIsValidating(true);
     setValidationResult(null);
@@ -53,7 +53,7 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
 
   // Handle apply/save
   const handleApply = async (): Promise<void> => {
-    if (!selectedHandler || !onSave) return;
+    if (!onSave) return;
 
     setIsApplying(true);
     try {
@@ -74,7 +74,6 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
     setValidationResult(null);
   };
 
-
   if (!visible) return null;
 
   const hasValidationErrors = validationResult && !validationResult.valid;
@@ -90,7 +89,11 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
             <AlertCircle className="w-5 h-5 text-orange-500" />
             <span className="text-sm text-gray-700">
               {hasUnsavedChanges ? (
-                <>Unsaved changes in <strong>{selectedHandler}</strong></>
+                selectedHandler ? (
+                  <>Unsaved changes in <strong>{selectedHandler}</strong></>
+                ) : (
+                  <>Unsaved configuration changes</>
+                )
               ) : (
                 <>No pending changes</>
               )}
@@ -107,18 +110,20 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
         {/* Right side - Actions */}
         <div className="flex items-center space-x-3">
           {/* Validation Button */}
-          <button
-            onClick={handleValidate}
-            disabled={isValidating || loading}
-            className="inline-flex items-center px-3 py-2 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isValidating ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Eye className="w-4 h-4 mr-2" />
-            )}
-            {isValidating ? 'Validating...' : 'Validate'}
-          </button>
+          {onValidate && (
+            <button
+              onClick={handleValidate}
+              disabled={isValidating || loading}
+              className="inline-flex items-center px-3 py-2 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isValidating ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Eye className="w-4 h-4 mr-2" />
+              )}
+              {isValidating ? 'Validating...' : 'Validate'}
+            </button>
+          )}
 
           {/* Discard Button */}
           <button
@@ -129,7 +134,6 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
             <X className="w-4 h-4 mr-2" />
             Cancel
           </button>
-
 
           {/* Apply Button */}
           <button

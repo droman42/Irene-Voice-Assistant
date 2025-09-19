@@ -143,27 +143,19 @@ class MicrophoneInput(InputSource):
         
     def list_audio_devices(self) -> list[Dict[str, Any]]:
         """List available audio input devices"""
+        from ..utils.audio_devices import list_audio_input_devices
+        
         if not self.is_available():
             return []
             
-        try:
-            import sounddevice as sd  # type: ignore
-            devices = sd.query_devices()
-            input_devices = []
-            
-            for i, device in enumerate(devices):
-                if device['max_input_channels'] > 0:
-                    input_devices.append({
-                        'id': i,
-                        'name': device['name'],
-                        'channels': device['max_input_channels'],
-                        'samplerate': device['default_samplerate']
-                    })
-            
-            return input_devices
-        except Exception as e:
-            logger.error(f"Error listing audio devices: {e}")
-            return []
+        devices = list_audio_input_devices()
+        # Convert to legacy format for backward compatibility
+        return [{
+            'id': device['id'],
+            'name': device['name'],
+            'channels': device['channels'],
+            'samplerate': device['sample_rate']  # Note: different key name for legacy compatibility
+        } for device in devices]
         
     async def start_listening(self) -> None:
         """Initialize and start audio capture with proper device validation"""

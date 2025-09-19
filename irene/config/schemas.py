@@ -303,6 +303,27 @@ class IntentSystemComponentSchema(BaseModel):
 
 
 # ============================================================
+# AUDIO DEVICE SCHEMAS
+# ============================================================
+
+class AudioDeviceInfo(BaseModel):
+    """Audio input device information schema"""
+    id: int = Field(description="Device ID for selection")
+    name: str = Field(description="Human-readable device name")
+    channels: int = Field(description="Maximum input channels supported")
+    sample_rate: int = Field(description="Default sample rate in Hz")
+    is_default: bool = Field(description="Whether this is the system default input device")
+
+
+class AudioDevicesResponse(BaseModel):
+    """Response schema for available audio devices endpoint"""
+    success: bool = Field(default=True, description="Operation success status")
+    devices: List[AudioDeviceInfo] = Field(description="List of available audio input devices")
+    total_count: int = Field(description="Total number of devices found")
+    message: Optional[str] = Field(default=None, description="Optional status message")
+
+
+# ============================================================
 # SCHEMA VALIDATION UTILITIES
 # ============================================================
 

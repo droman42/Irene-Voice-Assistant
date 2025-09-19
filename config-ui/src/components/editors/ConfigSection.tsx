@@ -10,6 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Save, TestTube, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { ConfigWidget } from './ConfigWidgets';
+import MicrophoneConfigSection from './MicrophoneConfigSection';
 import type { FieldSchema } from './ConfigWidgets';
 
 interface ConfigSectionProps {
@@ -107,6 +108,18 @@ export const ConfigSection: React.FC<ConfigSectionProps> = ({
   
   const renderSubsections = () => {
     if (!data || typeof data !== 'object') return null;
+    
+    // Detect microphone configuration section
+    if (name.includes('microphone') && data.device_id !== undefined) {
+      return (
+        <MicrophoneConfigSection
+          data={data}
+          schema={schema}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      );
+    }
     
     // Detect provider subsections
     if (data.providers && typeof data.providers === 'object') {

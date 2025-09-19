@@ -876,3 +876,18 @@ export interface ProviderInfo {
 export interface ProvidersResponse {
   [providerName: string]: ProviderInfo;
 }
+
+export interface AudioDeviceInfo {
+  id: number;
+  name: string;
+  channels: number;
+  sample_rate: number;
+  is_default: boolean;
+}
+
+export interface AudioDevicesResponse {
+  success: boolean;
+  devices: AudioDeviceInfo[];
+  total_count: number;
+  message?: string;
+}

@@ -12,7 +12,7 @@ import { AlertCircle, Trash2, FileText, ChevronDown, ChevronRight, AlertTriangle
 import HandlerList from '@/components/donations/HandlerList';
 import LanguageTabs, { LanguageInfo } from '@/components/donations/LanguageTabs';
 import CrossLanguageValidation from '@/components/donations/CrossLanguageValidation';
-import ApplyChangesBar from '@/components/donations/ApplyChangesBar';
+import ApplyChangesBar from '@/components/common/ApplyChangesBar';
 
 // Import existing form components
 import Section from '@/components/ui/Section';

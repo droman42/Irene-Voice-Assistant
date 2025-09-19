@@ -12,7 +12,7 @@ import { AlertCircle, FileText, Code } from 'lucide-react';
 // Import reusable components from donations
 import HandlerList from '@/components/donations/HandlerList';
 import LanguageTabs, { LanguageInfo } from '@/components/donations/LanguageTabs';
-import ApplyChangesBar from '@/components/donations/ApplyChangesBar';
+import ApplyChangesBar from '@/components/common/ApplyChangesBar';
 
 // Import template-specific components
 import TemplateEditor from '@/components/editors/TemplateEditor';

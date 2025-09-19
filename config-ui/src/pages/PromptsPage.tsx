@@ -12,7 +12,7 @@ import { AlertCircle, MessageSquare, Code } from 'lucide-react';
 // Import reusable components from donations
 import HandlerList from '@/components/donations/HandlerList';
 import LanguageTabs, { LanguageInfo } from '@/components/donations/LanguageTabs';
-import ApplyChangesBar from '@/components/donations/ApplyChangesBar';
+import ApplyChangesBar from '@/components/common/ApplyChangesBar';
 
 // Import prompt-specific components
 import PromptEditor from '@/components/editors/PromptEditor';

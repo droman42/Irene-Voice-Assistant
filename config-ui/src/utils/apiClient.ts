@@ -65,7 +65,8 @@ import type {
   ConfigUpdateResponse,
   ConfigValidationResponse,
   ConfigStatusResponse,
-  ProvidersResponse
+  ProvidersResponse,
+  AudioDevicesResponse
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -621,6 +622,13 @@ class IreneApiClient {
    */
   async getAvailableProviders(componentName: string): Promise<ProvidersResponse> {
     return this.get<ProvidersResponse>(`/configuration/config/providers/${encodeURIComponent(componentName)}`);
+  }
+
+  /**
+   * Get available audio input devices for microphone configuration
+   */
+  async getAvailableAudioDevices(): Promise<AudioDevicesResponse> {
+    return this.get<AudioDevicesResponse>('/configuration/config/audio/devices');
   }
 
   /**

@@ -12,12 +12,14 @@ import { Settings, AlertCircle, CheckCircle, Loader, RefreshCw } from 'lucide-re
 import apiClient from '@/utils/apiClient';
 import ConfigSection from '@/components/editors/ConfigSection';
 import TomlPreview from '@/components/editors/TomlPreview';
-import type { CoreConfig, ConfigSchemaResponse } from '@/types/api';
+import ApplyChangesBar from '@/components/common/ApplyChangesBar';
+import type { CoreConfig, ConfigSchemaResponse, ConfigStatusResponse, ValidationResult } from '@/types/api';
 
 interface ConfigurationPageState {
   config: CoreConfig | null;
   originalConfig: CoreConfig | null;
   schema: ConfigSchemaResponse;
+  configStatus: ConfigStatusResponse | null;
   sectionChanges: Record<string, boolean>;
   loading: boolean;
   error: string | null;
@@ -29,6 +31,7 @@ const ConfigurationPage: React.FC = () => {
     config: null,
     originalConfig: null,
     schema: {} as ConfigSchemaResponse,
+    configStatus: null,
     sectionChanges: {},
     loading: true,
     error: null,
@@ -36,6 +39,16 @@ const ConfigurationPage: React.FC = () => {
   });
 
   const [showPreview, setShowPreview] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // Helper function to get config filename from path
+  const getConfigFileName = (): string => {
+    if (!state.configStatus?.config_path) {
+      return 'config.toml';
+    }
+    const path = state.configStatus.config_path;
+    return path.split(/[/\\]/).pop() || 'config.toml';
+  };
 
   // Define section order and grouping
   const sectionOrder = [
@@ -94,10 +107,11 @@ const ConfigurationPage: React.FC = () => {
         return;
       }
 
-      // Load configuration and schema in parallel
-      const [configData, schemaData] = await Promise.all([
+      // Load configuration, schema, and status in parallel
+      const [configData, schemaData, statusData] = await Promise.all([
         apiClient.getConfig(),
-        apiClient.getConfigSchema()
+        apiClient.getConfigSchema(),
+        apiClient.getConfigStatus()
       ]);
 
       setState(prev => ({
@@ -105,6 +119,7 @@ const ConfigurationPage: React.FC = () => {
         config: configData,
         originalConfig: JSON.parse(JSON.stringify(configData)), // Deep copy
         schema: schemaData,
+        configStatus: statusData,
         connectionStatus: 'connected',
         loading: false
       }));
@@ -184,6 +199,81 @@ const ConfigurationPage: React.FC = () => {
 
   const hasAnyChanges = Object.values(state.sectionChanges).some(Boolean);
 
+  // Handle saving all changes
+  const handleSaveAllChanges = async (): Promise<void> => {
+    if (!state.config) return;
+
+    try {
+      // Apply all changed sections
+      const changedSections = Object.entries(state.sectionChanges)
+        .filter(([_, hasChanges]) => hasChanges)
+        .map(([sectionName]) => sectionName);
+
+      for (const sectionName of changedSections) {
+        await applySection(sectionName);
+      }
+
+      setLastSaved(new Date());
+    } catch (error) {
+      console.error('Failed to save all changes:', error);
+      throw error;
+    }
+  };
+
+  // Handle validating all changes
+  const handleValidateAllChanges = async (): Promise<ValidationResult> => {
+    if (!state.config) {
+      return { valid: false, errors: ['No configuration loaded'], warnings: [] };
+    }
+
+    try {
+      const changedSections = Object.entries(state.sectionChanges)
+        .filter(([_, hasChanges]) => hasChanges)
+        .map(([sectionName]) => sectionName);
+
+      const allErrors: string[] = [];
+      const allWarnings: string[] = [];
+
+      // Validate all changed sections
+      for (const sectionName of changedSections) {
+        try {
+          const result = await validateSection(sectionName);
+          if (!result.valid && result.errors) {
+            allErrors.push(...result.errors.map(err => `${sectionName}: ${err}`));
+          }
+          if (result.warnings) {
+            allWarnings.push(...result.warnings.map(warn => `${sectionName}: ${warn}`));
+          }
+        } catch (error) {
+          allErrors.push(`${sectionName}: Validation failed - ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      return {
+        valid: allErrors.length === 0,
+        errors: allErrors,
+        warnings: allWarnings
+      };
+    } catch (error) {
+      return {
+        valid: false,
+        errors: [error instanceof Error ? error.message : 'Validation failed'],
+        warnings: []
+      };
+    }
+  };
+
+  // Handle canceling changes
+  const handleCancelChanges = (): void => {
+    if (state.originalConfig) {
+      setState(prev => ({
+        ...prev,
+        config: JSON.parse(JSON.stringify(prev.originalConfig)), // Deep copy
+        sectionChanges: {}
+      }));
+    }
+  };
+
   const renderConnectionStatus = () => {
     switch (state.connectionStatus) {
       case 'checking':
@@ -252,9 +342,17 @@ const ConfigurationPage: React.FC = () => {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              System Configuration
-            </h1>
+            <div className="flex items-center space-x-3 mb-2">
+              <h1 className="text-3xl font-bold text-gray-900">
+                System Configuration
+              </h1>
+              <span 
+                className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full cursor-help"
+                title={state.configStatus?.config_path || 'Configuration file'}
+              >
+                {getConfigFileName()}
+              </span>
+            </div>
             <p className="text-gray-600">
               Manage TOML configuration with automatic Pydantic validation and hot-reload.
             </p>
@@ -271,16 +369,6 @@ const ConfigurationPage: React.FC = () => {
           </div>
         </div>
 
-        {hasAnyChanges && (
-          <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <AlertCircle className="h-5 w-5 text-orange-500 mr-2" />
-              <span className="text-orange-800 font-medium">
-                You have unsaved changes. Remember to validate and apply sections individually.
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="flex gap-8">
@@ -313,6 +401,18 @@ const ConfigurationPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Apply Changes Bar */}
+      <ApplyChangesBar
+        visible={hasAnyChanges}
+        selectedHandler={getConfigFileName()}
+        hasUnsavedChanges={hasAnyChanges}
+        onSave={handleSaveAllChanges}
+        onValidate={handleValidateAllChanges}
+        onCancel={handleCancelChanges}
+        loading={state.loading}
+        lastSaved={lastSaved}
+      />
     </div>
   );
 };

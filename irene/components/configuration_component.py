@@ -24,6 +24,7 @@ from ..config.models import (
     SystemConfig, InputConfig, ComponentConfig, AssetConfig, WorkflowConfig,
     VADConfig, MicrophoneInputConfig, WebInputConfig, CLIInputConfig
 )
+from ..config.schemas import AudioDevicesResponse, AudioDeviceInfo
 from ..api.schemas import (
     BaseAPIResponse, ErrorResponse, ValidationError as APIValidationError,
     ConfigUpdateResponse, ConfigValidationResponse, ConfigStatusResponse
@@ -329,6 +330,46 @@ class ConfigurationComponent(Component, WebAPIPlugin):
                 logger.error(f"Failed to get providers for {component_name}: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to get providers: {str(e)}")
         
+        @router.get("/config/audio/devices", response_model=AudioDevicesResponse)
+        async def get_available_audio_devices():
+            """
+            Get available audio input devices for microphone configuration
+            
+            Returns comprehensive device information including capabilities,
+            formatted according to the AudioDevicesResponse schema.
+            """
+            try:
+                from ..utils.audio_devices import list_audio_input_devices, is_audio_available
+                
+                if not is_audio_available():
+                    return AudioDevicesResponse(
+                        success=False,
+                        devices=[],
+                        total_count=0,
+                        message="Audio device detection not available. Install audio dependencies with: uv add irene-voice-assistant[audio-input]"
+                    )
+                
+                device_data = list_audio_input_devices()
+                
+                # Convert to Pydantic models
+                devices = [AudioDeviceInfo(**device) for device in device_data]
+                
+                return AudioDevicesResponse(
+                    success=True,
+                    devices=devices,
+                    total_count=len(devices),
+                    message=f"Found {len(devices)} audio input device(s)" if devices else "No audio input devices found"
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to get audio devices: {e}")
+                return AudioDevicesResponse(
+                    success=False,
+                    devices=[],
+                    total_count=0,
+                    message=f"Failed to get audio devices: {str(e)}"
+                )
+
         @router.get("/config/status", response_model=ConfigStatusResponse)
         async def get_configuration_status():
             """
