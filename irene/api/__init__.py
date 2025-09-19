@@ -32,5 +32,9 @@ __all__ = [
     "ComponentInfo",
     "SystemStatusResponse",
     "CommandRequest",
-    "CommandResponse"
+    "CommandResponse",
+    # Configuration schemas
+    "ConfigUpdateResponse",
+    "ConfigValidationResponse",
+    "ConfigStatusResponse"
 ]

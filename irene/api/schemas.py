@@ -1489,3 +1489,31 @@ class PerformanceAnalyticsResponse(BaseAPIResponse):
     vad: Dict[str, Any] = Field(description="Voice Activity Detection metrics")
     components: Dict[str, Any] = Field(description="Component-specific metrics")
     timestamp: float = Field(description="Analytics timestamp")
+
+
+# ============================================================
+# CONFIGURATION MANAGEMENT SCHEMAS
+# ============================================================
+
+class ConfigUpdateResponse(BaseAPIResponse):
+    """Response for configuration section updates"""
+    message: str = Field(description="Update status message")
+    reload_triggered: bool = Field(description="Whether hot-reload was triggered")
+    backup_created: Optional[str] = Field(default=None, description="Path to backup file if created")
+
+
+class ConfigValidationResponse(BaseAPIResponse):
+    """Response for configuration validation"""
+    valid: bool = Field(description="Whether the configuration is valid")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Validated configuration data")
+    validation_errors: Optional[List[Dict[str, Any]]] = Field(default=None, description="Validation error details")
+
+
+class ConfigStatusResponse(BaseAPIResponse):
+    """Response for configuration system status"""
+    config_path: Optional[str] = Field(description="Path to active configuration file")
+    config_exists: bool = Field(description="Whether configuration file exists")
+    hot_reload_active: bool = Field(description="Whether hot-reload monitoring is active")
+    component_initialized: bool = Field(description="Whether ConfigurationComponent is initialized")
+    last_modified: Optional[float] = Field(default=None, description="Configuration file last modified timestamp")
+    file_size: Optional[int] = Field(default=None, description="Configuration file size in bytes")

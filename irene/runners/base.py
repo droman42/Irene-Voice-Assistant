@@ -82,7 +82,7 @@ class BaseRunner(ABC):
             config = await self._create_and_validate_config(parsed_args)
             
             # 7. Create and start assistant core
-            self.core = AsyncVACore(config)
+            self.core = AsyncVACore(config, config_path=parsed_args.config)
             
             if not getattr(parsed_args, 'quiet', False):
                 self._logger.info(f"Initializing Irene in {self.runner_config.name} mode...")

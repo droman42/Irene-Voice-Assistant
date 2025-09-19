@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Optional
 from dataclasses import dataclass
+from pathlib import Path
 
 from ..config.models import CoreConfig, ComponentConfig
 from ..plugins.manager import AsyncPluginManager
@@ -34,8 +35,9 @@ class AsyncVACore:
     - Concurrent request handling
     """
     
-    def __init__(self, config: CoreConfig):
+    def __init__(self, config: CoreConfig, config_path: Optional[Path] = None):
         self.config = config
+        self.config_path = config_path  # Store config path for component access
         self.component_manager = ComponentManager(config)
         self.plugin_manager = AsyncPluginManager()
         self.input_manager = InputManager(self.component_manager, config.inputs)
