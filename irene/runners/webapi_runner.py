@@ -11,6 +11,7 @@ import argparse
 import logging
 import sys
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import json
@@ -22,6 +23,7 @@ from ..utils.loader import get_component_status
 from ..utils.logging import setup_logging
 from .base import BaseRunner, RunnerConfig, check_component_dependencies, print_dependency_status
 from ..web_api.asyncapi import generate_base_asyncapi_spec, merge_asyncapi_specs
+from ..__version__ import __version__
 
 
 logger = logging.getLogger(__name__)
@@ -271,12 +273,24 @@ monitoring = true
         from fastapi.responses import HTMLResponse  # type: ignore
         from pydantic import BaseModel  # type: ignore
         
-        # Create FastAPI app
+        # Define lifespan context manager
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            """Handle application startup and shutdown"""
+            # Startup: nothing specific needed here for this application
+            yield
+            # Shutdown: cleanup web components
+            logger.info("Shutting down Web API server")
+            if self.web_input:
+                await self.web_input.stop_listening()
+        
+        # Create FastAPI app with lifespan
         app = FastAPI(
             title="Irene Voice Assistant API",
             description="Modern async voice assistant API with WebSocket support",
-            version="13.0.0",
-            debug=args.debug
+            version=__version__,
+            debug=args.debug,
+            lifespan=lifespan
         )
         
         # Add CORS middleware - Allow all origins for development
@@ -301,7 +315,7 @@ monitoring = true
             total_count: int
         
         # Root endpoint
-        @app.get("/", response_class=HTMLResponse)
+        @app.get("/", response_class=HTMLResponse, tags=["General"])
         async def root():
             """Serve a simple web interface"""
             html_content = """
@@ -323,7 +337,7 @@ monitoring = true
             <body>
                 <div class="container">
                     <h1>🤖 Irene Voice Assistant</h1>
-                    <p>Modern async voice assistant API - v13.0.0</p>
+                    <p>Modern async voice assistant API - v""" + __version__ + """</p>
                     
                     <div class="command-form">
                         <input type="text" id="commandInput" class="command-input" placeholder="Enter command..." />
@@ -382,7 +396,7 @@ monitoring = true
             return HTMLResponse(content=html_content)
         
         # Status endpoint
-        @app.get("/status", response_model=StatusResponse)
+        @app.get("/status", response_model=StatusResponse, tags=["General"])
         async def get_status():
             """Get assistant status and component information"""
             components = get_component_status()
@@ -395,7 +409,7 @@ monitoring = true
             )
         
         # Command execution endpoint
-        @app.post("/command", response_model=CommandResponse)
+        @app.post("/command", response_model=CommandResponse, tags=["General"])
         async def execute_command(request: CommandRequest):
             """Execute a voice assistant command via REST API"""
             try:
@@ -425,12 +439,12 @@ monitoring = true
                 )
         
         # Health check endpoint
-        @app.get("/health")
+        @app.get("/health", tags=["General"])
         async def health_check():
             """Health check endpoint"""
             return {
                 "status": "healthy",
-                "version": "13.0.0",
+                "version": __version__,
                 "timestamp": asyncio.get_event_loop().time()
             }
         
@@ -444,7 +458,7 @@ monitoring = true
         await self._add_asyncapi_endpoints(app)
         
         # Component info endpoint
-        @app.get("/components")
+        @app.get("/components", tags=["General"])
         async def get_component_info():
             """Get detailed component information"""
             info = {}
@@ -462,16 +476,6 @@ monitoring = true
                 }
             
             return info
-        
-        # Shutdown event
-        @app.on_event("shutdown")
-        async def shutdown_event():
-            """Handle app shutdown"""
-            logger.info("Shutting down Web API server")
-            
-            # Clean up web components
-            if self.web_input:
-                await self.web_input.stop_listening()
         
         return app
     
@@ -645,22 +649,7 @@ monitoring = true
             from pydantic import BaseModel  # type: ignore
             from typing import Dict, Any, Optional, List
             
-            # Request/Response models for intent management
-            class IntentExecutionRequest(BaseModel):
-                text: str
-                session_id: str = "default"
-                context: Optional[Dict[str, Any]] = None
-                wants_audio: bool = False  # Support TTS output for all entry points
-                skip_wake_word: bool = True
-                
-            class IntentExecutionResponse(BaseModel):
-                success: bool
-                intent_name: str
-                confidence: float
-                response_text: str
-                metadata: Dict[str, Any]
-                error: Optional[str] = None
-                
+            # Request/Response models for system capabilities
             class SystemCapabilitiesResponse(BaseModel):
                 version: str
                 components: Dict[str, Any]
@@ -670,71 +659,12 @@ monitoring = true
                 text_processing_providers: List[str]
                 workflows: List[str]
                 
-            @app.post("/intents/execute", response_model=IntentExecutionResponse)
-            async def execute_intent_directly(request: IntentExecutionRequest):
-                """Direct intent execution endpoint"""
-                try:
-                    if not self.core:
-                        raise HTTPException(status_code=503, detail="Assistant not initialized")
-                    
-                    # Use unified workflow interface (no more dual-path)
-                    result = await self.core.workflow_manager.process_text_input(
-                        text=request.text,
-                        session_id=request.session_id,
-                        wants_audio=request.wants_audio,
-                        client_context={"source": "webapi_intent"}
-                    )
-                    
-                    return IntentExecutionResponse(
-                        success=result.success,
-                        intent_name=request.text,  # Would need actual intent name from result
-                        confidence=result.confidence,
-                        response_text=result.text,
-                        metadata=result.metadata,
-                        error=result.error
-                    )
-                    
-                except Exception as e:
-                    logger.error(f"Intent execution error: {e}")
-                    return IntentExecutionResponse(
-                        success=False,
-                        intent_name="error",
-                        confidence=0.0,
-                        response_text="Sorry, there was an error processing your request.",
-                        metadata={},
-                        error=str(e)
-                    )
-            
-            @app.get("/intents/handlers")
-            async def get_intent_handlers():
-                """Get available intent handlers"""
-                try:
-                    # Get actual enabled handlers from intent component
-                    handlers = []
-                    if self.core and hasattr(self.core, 'components') and 'intent_system' in self.core.components:
-                        intent_component = self.core.components['intent_system']
-                        if hasattr(intent_component, 'handler_manager') and intent_component.handler_manager:
-                            handlers = list(intent_component.handler_manager.get_handlers().keys())
-                    
-                    # Fallback if intent system not available
-                    if not handlers:
-                        handlers = ["intent_system_not_initialized"]
-                    
-                    return {
-                        "handlers": handlers,
-                        "total": len(handlers),
-                        "description": "Available intent handlers in the system"
-                    }
-                    
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=str(e))
-            
-            @app.get("/system/capabilities", response_model=SystemCapabilitiesResponse)
+            @app.get("/system/capabilities", response_model=SystemCapabilitiesResponse, tags=["General"])
             async def get_system_capabilities():
                 """Get comprehensive system capabilities"""
                 try:
                     capabilities = {
-                        "version": "13.0.0",
+                        "version": __version__,
                         "components": {},
                         "intent_handlers": [],
                         "nlu_providers": ["hybrid_keyword_matcher", "spacy_nlu"],
@@ -759,13 +689,13 @@ monitoring = true
                 except Exception as e:
                     raise HTTPException(status_code=500, detail=str(e))
             
-            @app.get("/system/status")
+            @app.get("/system/status", tags=["General"])
             async def get_enhanced_system_status():
                 """Enhanced system status with intent system information"""
                 try:
                     status = {
                         "system": "healthy",
-                        "version": "13.0.0",
+                        "version": __version__,
                         "mode": "intent_system" if hasattr(self.core, 'workflow_manager') else "legacy",
                         "timestamp": time.time(),
                         "uptime": time.time() - getattr(self, '_start_time', time.time())

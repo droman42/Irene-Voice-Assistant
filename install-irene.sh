@@ -29,7 +29,7 @@ NC='\033[0m' # No Color
 
 # Script metadata
 SCRIPT_VERSION="1.0.0"
-IRENE_VERSION="13.0.0"
+IRENE_VERSION="15.0.0"
 
 # Default configuration
 DEFAULT_PROFILE="minimal"

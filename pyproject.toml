@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "irene-voice-assistant"
-version = "13.0.0"
+dynamic = ["version"]
 description = "Irene - Modern async voice assistant with optional components. Supports plugins and flexible deployment."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -363,3 +363,6 @@ dev = [
     "types-setuptools>=80.9.0.20250801",
     "types-urllib3>=1.26.25.14",
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "irene.__version__.__version__"}

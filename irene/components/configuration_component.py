@@ -407,6 +407,14 @@ class ConfigurationComponent(Component, WebAPIPlugin):
         
         return router
     
+    def get_api_prefix(self) -> str:
+        """Get URL prefix for configuration API endpoints"""
+        return "/configuration"
+    
+    def get_api_tags(self) -> List[str]:
+        """Get OpenAPI tags for configuration endpoints"""
+        return ["Configuration Management"]
+    
     def _get_section_model(self, section_name: str) -> Optional[Type[BaseModel]]:
         """Get Pydantic model for configuration section"""
         section_models = {

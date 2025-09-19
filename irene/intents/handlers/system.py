@@ -9,6 +9,7 @@ import logging
 import time
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Type, TYPE_CHECKING
+from ...__version__ import __version__
 
 from .base import IntentHandler
 from ..models import Intent, IntentResult, ConversationContext
@@ -211,7 +212,7 @@ class SystemIntentHandler(IntentHandler):
                 uptime_str = f"{uptime_minutes} минут"
         
         # TODO #15: Move hardcoded version to TOML configuration (not JSON donations)
-        version = "13.0.0"  # Should come from config
+        version = __version__
         status_text = self._get_template("status", language, uptime_str=uptime_str, version=version)
         
         return IntentResult(
@@ -230,7 +231,7 @@ class SystemIntentHandler(IntentHandler):
         # Use language from context (detected by NLU)
         language = context.language or "ru"
         
-        version = "13.0.0"  # TODO: Should come from config
+        version = __version__
         version_text = self._get_template("version", language, version=version)
         
         return IntentResult(
@@ -249,7 +250,7 @@ class SystemIntentHandler(IntentHandler):
         language = context.language or "ru"
         
         session_stats = self._get_session_stats(context)
-        version = "13.0.0"  # TODO: Should come from config
+        version = __version__
         
         info_text = self._get_template(
             "info", 
@@ -274,7 +275,7 @@ class SystemIntentHandler(IntentHandler):
         # Use language from context (detected by NLU)
         language = context.language or "ru"
         
-        version = "13.0.0"  # TODO: Should come from config
+        version = __version__
         info_text = self._get_template("general", language, version=version)
         
         return IntentResult(

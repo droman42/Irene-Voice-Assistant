@@ -1088,7 +1088,6 @@ wheels = [
 
 [[package]]
 name = "irene-voice-assistant"
-version = "13.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1295,12 +1294,12 @@ requires-dist = [
     { name = "google-auth", marker = "extra == 'cloud-asr'", specifier = ">=2.17.0" },
     { name = "google-cloud-speech", marker = "extra == 'cloud-asr'", specifier = ">=2.20.0" },
     { name = "httpx", marker = "extra == 'tts'", specifier = ">=0.25.0" },
+    { name = "irene-voice-assistant", extras = ["advanced-asr", "audio-input", "cloud-asr"], marker = "extra == 'audio-input-complete'" },
+    { name = "irene-voice-assistant", extras = ["advanced-asr", "cloud-asr", "llm", "voice", "wake-word-training"], marker = "extra == 'all'" },
+    { name = "irene-voice-assistant", extras = ["audio-input", "audio-output", "config-writing", "nlu", "text-multilingual", "tts", "voice-trigger", "web-api"], marker = "extra == 'voice'" },
     { name = "irene-voice-assistant", extras = ["audio-input", "cloud-asr"], marker = "extra == 'audio-input-enhanced'" },
-    { name = "irene-voice-assistant", extras = ["audio-input", "cloud-asr", "advanced-asr"], marker = "extra == 'audio-input-complete'" },
-    { name = "irene-voice-assistant", extras = ["audio-input", "tts", "audio-output", "voice-trigger", "nlu", "web-api", "text-multilingual", "config-writing"], marker = "extra == 'voice'" },
     { name = "irene-voice-assistant", extras = ["config-writing"], marker = "extra == 'headless'" },
-    { name = "irene-voice-assistant", extras = ["voice", "cloud-asr", "advanced-asr", "llm", "wake-word-training"], marker = "extra == 'all'" },
-    { name = "irene-voice-assistant", extras = ["web-api", "config-writing"], marker = "extra == 'api'" },
+    { name = "irene-voice-assistant", extras = ["config-writing", "web-api"], marker = "extra == 'api'" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "jsonschema", specifier = ">=4.25.0" },
     { name = "librosa", marker = "extra == 'wake-word-training'", specifier = ">=0.10.0" },

@@ -8,6 +8,7 @@ from WebSocket endpoints in Irene components.
 import json
 import logging
 from typing import Dict, Any, Optional, Type, Union, get_type_hints, get_origin, get_args
+from ..__version__ import __version__
 from functools import wraps
 from dataclasses import dataclass
 from pydantic import BaseModel
@@ -241,7 +242,7 @@ def generate_base_asyncapi_spec() -> Dict[str, Any]:
         "asyncapi": "3.0.0",
         "info": {
             "title": "Irene Voice Assistant WebSocket API",
-            "version": "13.0.0",
+            "version": __version__,
             "description": "Real-time WebSocket endpoints for Irene Voice Assistant components",
             "contact": {
                 "name": "Irene Voice Assistant",

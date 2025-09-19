@@ -1,10 +1,11 @@
 """
-Irene Voice Assistant v13 - Modern Async Architecture
+Irene Voice Assistant v15 - Modern Async Architecture
 
 A modular, async-first voice assistant framework with optional audio components.
 """
 
-__version__ = "13.0.0-dev"
+from .__version__ import __version__, __version_info__, VERSION
+
 __author__ = "Irene Voice Assistant Project"
 
 # Core imports - always available

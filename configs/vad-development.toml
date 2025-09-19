@@ -5,7 +5,7 @@
 # with enhanced logging and debugging features
 
 name = "Irene"
-version = "14.0.0"
+version = "15.0.0"
 debug = true                  # Enable debug mode for development
 log_level = "DEBUG"           # Detailed logging for VAD development
 

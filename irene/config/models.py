@@ -18,6 +18,7 @@ import logging
 from typing import Optional, Any, Dict, List, Type, Union
 from pathlib import Path
 from enum import Enum
+from ..__version__ import __version__
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
@@ -1109,7 +1110,7 @@ class CoreConfig(BaseSettings):
     
     # Core settings
     name: str = Field(default="Irene", description="Assistant name")
-    version: str = Field(default="14.0.0", description="Version")
+    version: str = Field(default=__version__, description="Version")
     debug: bool = Field(default=False, description="Enable debug mode")
     log_level: LogLevel = Field(default=LogLevel.INFO, description="Logging level")
     

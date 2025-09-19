@@ -95,7 +95,7 @@ class V13ToV14Migrator:
         
         # Basic settings
         core_settings["name"] = v13_config.get("name", "Irene")
-        core_settings["version"] = "14.0.0"  # Upgrade to v14
+        core_settings["version"] = "15.0.0"  # Upgrade to v15
         core_settings["debug"] = v13_config.get("debug", False)
         core_settings["log_level"] = v13_config.get("log_level", "INFO")
         

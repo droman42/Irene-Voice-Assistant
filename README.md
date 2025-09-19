@@ -280,7 +280,7 @@ graph TB
 # ============================================================
 [core]
 name = "Irene"
-version = "14.0.0"
+version = "15.0.0"
 debug = false
 log_level = "INFO"
 language = "ru-RU"

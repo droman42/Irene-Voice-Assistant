@@ -17,7 +17,7 @@
 # CORE SETTINGS
 # ============================================================
 name = "Irene"                      # Assistant name
-version = "14.0.0"                  # Configuration version
+version = "15.0.0"                  # Configuration version
 debug = false                       # Enable debug mode for detailed logging
 log_level = "INFO"                  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
