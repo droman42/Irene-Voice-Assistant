@@ -27,7 +27,10 @@ from ..config.models import (
 from ..config.schemas import AudioDevicesResponse, AudioDeviceInfo
 from ..api.schemas import (
     BaseAPIResponse, ErrorResponse, ValidationError as APIValidationError,
-    ConfigUpdateResponse, ConfigValidationResponse, ConfigStatusResponse
+    ConfigUpdateResponse, ConfigValidationResponse, ConfigStatusResponse,
+    RawTomlRequest, RawTomlResponse, RawTomlSaveResponse,
+    RawTomlValidationRequest, RawTomlValidationResponse,
+    SectionToTomlRequest, SectionToTomlResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -72,7 +75,7 @@ class ConfigurationComponent(Component, WebAPIPlugin):
     
     def get_python_dependencies(self) -> list[str]:
         """Return list of required Python modules for ConfigurationComponent"""
-        return ["fastapi", "pydantic"]  # Required for WebAPI and configuration validation
+        return ["fastapi", "pydantic", "tomlkit"]  # Required for WebAPI, configuration validation, and comment preservation
     
     def get_service_dependencies(self) -> Dict[str, type]:
         """Get list of required service dependencies."""
@@ -404,6 +407,145 @@ class ConfigurationComponent(Component, WebAPIPlugin):
             except Exception as e:
                 logger.error(f"Failed to get configuration status: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+        
+        # ============================================================
+        # RAW TOML ENDPOINTS (Phase 4)
+        # ============================================================
+        
+        @router.get("/config/raw", response_model=RawTomlResponse)
+        async def get_raw_toml():
+            """
+            Get raw TOML configuration content with comments preserved
+            
+            Returns the original TOML file content exactly as stored on disk,
+            including all comments, formatting, and whitespace. This is used
+            for the TOML preview functionality in the frontend.
+            """
+            try:
+                # Load raw TOML with comments
+                doc = await self.config_manager.load_raw_toml(self.active_config_path)
+                
+                # Convert to string with formatting preserved
+                import tomlkit
+                toml_content = tomlkit.dumps(doc)
+                
+                # Get file metadata
+                config_exists = self.active_config_path and self.active_config_path.exists()
+                if not config_exists:
+                    raise HTTPException(status_code=404, detail="Configuration file not found")
+                    
+                stat = self.active_config_path.stat()
+                
+                return RawTomlResponse(
+                    success=True,
+                    toml_content=toml_content,
+                    config_path=str(self.active_config_path),
+                    file_size=stat.st_size,
+                    last_modified=stat.st_mtime
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to get raw TOML: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to get raw TOML: {str(e)}")
+        
+        @router.put("/config/raw", response_model=RawTomlSaveResponse)
+        async def save_raw_toml(request: RawTomlRequest):
+            """
+            Save raw TOML content with comment preservation
+            
+            Saves the provided TOML content directly to the configuration file,
+            preserving all comments and formatting. Optionally validates the
+            content before saving and creates automatic backups.
+            """
+            try:
+                # Optionally validate before saving
+                if request.validate_before_save:
+                    validation_result = await self.config_manager.validate_raw_toml(request.toml_content)
+                    if not validation_result["valid"]:
+                        raise HTTPException(
+                            status_code=400, 
+                            detail=f"TOML validation failed: {validation_result.get('errors', [])}"
+                        )
+                
+                # Save raw TOML with backup
+                success = await self.config_manager.save_raw_toml(
+                    request.toml_content, 
+                    self.active_config_path
+                )
+                
+                if not success:
+                    raise HTTPException(status_code=500, detail="Failed to save TOML content")
+                
+                # Get backup path from logs or assume created
+                backup_path = f"{self.active_config_path.parent}/backups/{self.active_config_path.stem}_backup_*.toml"
+                
+                return RawTomlSaveResponse(
+                    success=True,
+                    message="Raw TOML configuration saved successfully",
+                    backup_created=backup_path,
+                    config_cached=True
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to save raw TOML: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to save raw TOML: {str(e)}")
+        
+        @router.post("/config/raw/validate", response_model=RawTomlValidationResponse)
+        async def validate_raw_toml(request: RawTomlValidationRequest):
+            """
+            Validate raw TOML content without saving
+            
+            Validates the provided TOML content for:
+            - TOML syntax correctness
+            - Pydantic model validation against CoreConfig
+            - Configuration completeness and consistency
+            """
+            try:
+                validation_result = await self.config_manager.validate_raw_toml(request.toml_content)
+                
+                return RawTomlValidationResponse(
+                    success=True,
+                    valid=validation_result["valid"],
+                    data=validation_result.get("data"),
+                    errors=validation_result.get("errors")
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to validate raw TOML: {e}")
+                return RawTomlValidationResponse(
+                    success=False,
+                    valid=False,
+                    data=None,
+                    errors=[{"msg": f"Validation error: {str(e)}", "type": "validation_error"}]
+                )
+        
+        @router.post("/config/sections/{section_name}/toml", response_model=SectionToTomlResponse)
+        async def apply_section_to_toml(section_name: str, request: SectionToTomlRequest):
+            """
+            Apply section changes to raw TOML while preserving comments
+            
+            Takes changes to a specific configuration section and applies them
+            to the current TOML file while preserving all comments and formatting.
+            Returns the updated TOML content without saving to disk.
+            """
+            try:
+                # Apply section to TOML with comments preserved
+                updated_toml = await self.config_manager.apply_section_to_raw_toml(
+                    section_name,
+                    request.section_data,
+                    self.active_config_path
+                )
+                
+                return SectionToTomlResponse(
+                    success=True,
+                    toml_content=updated_toml,
+                    section_name=section_name,
+                    comments_preserved=True
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to apply section {section_name} to TOML: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to apply section to TOML: {str(e)}")
         
         return router
     

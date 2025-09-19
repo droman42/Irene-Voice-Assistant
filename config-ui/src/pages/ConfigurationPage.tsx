@@ -171,7 +171,38 @@ const ConfigurationPage: React.FC = () => {
     if (!state.config) throw new Error('No configuration loaded');
     
     try {
-      const result = await apiClient.updateConfigSection(sectionName, (state.config as any)[sectionName]);
+      // Use comment-preserving TOML save method (Phase 5 enhancement)
+      const sectionData = (state.config as any)[sectionName];
+      const tomlResult = await apiClient.applySectionToToml(sectionName, sectionData);
+      
+      if (tomlResult.success && tomlResult.comments_preserved) {
+        // Save the updated TOML content with comments preserved
+        const saveResult = await apiClient.saveRawToml(tomlResult.toml_content, false); // Skip validation since it's already validated
+        
+        if (saveResult.success) {
+          // Update original config to reflect saved state
+          setState(prev => {
+            if (!prev.config || !prev.originalConfig) return prev;
+            return {
+              ...prev,
+              originalConfig: { ...prev.originalConfig, [sectionName]: (prev.config as any)[sectionName] },
+              sectionChanges: { ...prev.sectionChanges, [sectionName]: false }
+            };
+          });
+          
+          // Show success notification
+          console.log(`✅ Section '${sectionName}' saved with comments preserved`);
+          if (saveResult.backup_created) {
+            console.log(`📁 Backup created: ${saveResult.backup_created}`);
+          }
+          
+          return saveResult;
+        }
+      }
+      
+      // Fallback to traditional section update if TOML method fails
+      console.warn('TOML preservation failed, falling back to traditional section update');
+      const result = await apiClient.updateConfigSection(sectionName, sectionData);
       
       if (result.success) {
         // Update original config to reflect saved state
@@ -239,11 +270,12 @@ const ConfigurationPage: React.FC = () => {
         try {
           const result = await validateSection(sectionName);
           if (!result.valid && result.errors) {
-            allErrors.push(...result.errors.map(err => `${sectionName}: ${err}`));
+            allErrors.push(...result.errors.map(err => `${sectionName}: ${typeof err === 'string' ? err : (err as any).message || 'Validation error'}`));
           }
-          if (result.warnings) {
-            allWarnings.push(...result.warnings.map(warn => `${sectionName}: ${warn}`));
-          }
+          // Note: warnings not currently supported by validateSection
+          // if (result.warnings) {
+          //   allWarnings.push(...result.warnings.map(warn => `${sectionName}: ${warn}`));
+          // }
         } catch (error) {
           allErrors.push(`${sectionName}: Validation failed - ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -361,48 +393,55 @@ const ConfigurationPage: React.FC = () => {
             {renderConnectionStatus()}
             <button
               onClick={() => setShowPreview(!showPreview)}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+              className={`px-4 py-2 rounded-md flex items-center transition-colors ${
+                showPreview 
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-200' 
+                  : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+              }`}
             >
               <Settings className="h-4 w-4 mr-2" />
-              {showPreview ? 'Hide' : 'Show'} TOML Preview
+              {showPreview ? 'Show Config Editor' : 'Show TOML Preview'}
             </button>
           </div>
         </div>
 
       </div>
 
-      <div className="flex gap-8">
-        {/* Configuration Sections */}
-        <div className="flex-1 space-y-4">
-          {state.config && sectionOrder
-            .filter(sectionName => (state.config as any)?.[sectionName] !== undefined)
-            .map(sectionName => (
-              <ConfigSection
-                key={sectionName}
-                name={sectionName}
-                title={sectionTitles[sectionName]}
-                data={(state.config as any)[sectionName]}
-                schema={state.schema[sectionName]?.fields}
-                hasChanges={state.sectionChanges[sectionName]}
-                onChange={(data) => updateSection(sectionName, data)}
-                onValidate={() => validateSection(sectionName)}
-                onApply={() => applySection(sectionName)}
-                level={1}
-              />
-            ))}
-        </div>
-
-        {/* TOML Preview Sidebar */}
-        {showPreview && (
-          <div className="w-96">
-            <div className="sticky top-6">
-              <TomlPreview config={state.config} />
-            </div>
+      {/* Main content area with toggle between editor and preview */}
+      <div className="flex-1 min-h-0">
+        {showPreview ? (
+          /* TOML Preview Mode - Full width with consistent height */
+          <div className="space-y-4">
+            <TomlPreview 
+              config={state.config} 
+              key={lastSaved?.getTime() || 0} // Force refresh when config is saved
+              className="w-full"
+            />
+          </div>
+        ) : (
+          /* Configuration Editor Mode - Full width */
+          <div className="space-y-4">
+            {state.config && sectionOrder
+              .filter(sectionName => (state.config as any)?.[sectionName] !== undefined)
+              .map(sectionName => (
+                <ConfigSection
+                  key={sectionName}
+                  name={sectionName}
+                  title={sectionTitles[sectionName]}
+                  data={(state.config as any)[sectionName]}
+                  schema={state.schema[sectionName]?.fields}
+                  hasChanges={state.sectionChanges[sectionName]}
+                  onChange={(data) => updateSection(sectionName, data)}
+                  onValidate={() => validateSection(sectionName)}
+                  onApply={() => applySection(sectionName)}
+                  level={1}
+                />
+              ))}
           </div>
         )}
       </div>
 
-      {/* Apply Changes Bar */}
+      {/* Apply Changes Bar - Visible in both modes */}
       <ApplyChangesBar
         visible={hasAnyChanges}
         selectedHandler={getConfigFileName()}
@@ -411,7 +450,7 @@ const ConfigurationPage: React.FC = () => {
         onValidate={handleValidateAllChanges}
         onCancel={handleCancelChanges}
         loading={state.loading}
-        lastSaved={lastSaved}
+        lastSaved={lastSaved || undefined}
       />
     </div>
   );

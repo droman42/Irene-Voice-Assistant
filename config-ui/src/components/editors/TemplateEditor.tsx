@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Plus, FileText, Eye, EyeOff, Code, Layout } from 'lucide-react';
+import { Plus, FileText, Eye, Code, Layout } from 'lucide-react';
 import TemplateKeyEditor from './TemplateKeyEditor';
 import Section from '@/components/ui/Section';
 import TextArea from '@/components/ui/TextArea';
@@ -251,7 +251,7 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({
           <h4 className="text-sm font-medium text-gray-700 mb-2">Template Keys</h4>
           <div className="flex flex-wrap gap-1">
             {Object.keys(value).map(key => (
-              <Badge key={key} variant="secondary" className="text-xs">
+              <Badge key={key} variant="info" className="text-xs">
                 {key}
               </Badge>
             ))}

@@ -77,7 +77,7 @@ const Header = ({ connectionStatus: externalStatus, systemInfo: externalSystemIn
           setSystemInfo({
             handlersCount: status.handlers_count || 0,
             donationsCount: status.donations_count || 0,
-            status: status.status?.status || 'unknown'
+            status: status.status || 'unknown'
           });
         } catch (e) {
           console.warn('Failed to get system info:', e instanceof Error ? e.message : String(e));

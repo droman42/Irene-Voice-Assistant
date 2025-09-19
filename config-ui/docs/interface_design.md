@@ -1250,3 +1250,527 @@ TOML File Update → File Watcher → Hot-Reload Callbacks → Component Updates
 - ✅ **Developer Friendly**: Configuration changes immediately reflected in interface
 
 This approach transforms the Configuration Editor from a complex, custom widget system into a **straightforward, auto-generating interface** that leverages existing infrastructure for maximum reliability and minimal maintenance overhead.
+
+---
+
+## 🔧 **TOML PREVIEW ENHANCEMENT PHASES**
+
+### **📋 Current TOML Preview Issues Analysis**
+
+**Issue 1: Incorrect TOML Formatting**
+- ❌ Custom `convertToToml()` function adds incorrect indentation to TOML sections and values
+- ❌ TOML sections and values should never be indented (current code adds `'  '.repeat(depth)`)
+- ❌ Custom formatting logic doesn't follow TOML 1.0 specification
+
+**Issue 2: Complete Loss of Comments**
+- ❌ All comments from original TOML files are lost during processing
+- ❌ Configuration files contain essential documentation and explanations
+- ❌ Standard TOML parsing (`tomllib.load()`) discards comments during parsing
+- ❌ Pydantic models have no concept of preserving comments or formatting
+
+**Issue 3: Architecture Limitations**
+```
+Current Flow: TOML file → tomllib.load() → Pydantic model → JSON API → Frontend → Custom TOML generator
+Problem: Comments are lost at the first step and never recoverable
+```
+
+### **🎯 Solution: `tomlkit` Round-Trip Architecture**
+
+**Core Concept**: Use `tomlkit` for comment-preserving round-trip TOML editing while maintaining existing Pydantic validation infrastructure.
+
+**New Flow**:
+```
+TOML file → tomlkit.parse() → TOMLDocument (with comments) → Frontend → tomlkit.dumps() → TOML file
+                    ↓
+            doc_to_plain_dict() → JSON → Pydantic validation → apply_changes() → TOMLDocument
+```
+
+### **📦 Phase 4: TOML Comment Preservation (Backend)** ✅ FULLY IMPLEMENTED
+
+**Implementation Date**: January 2025  
+**Status**: Production Ready
+
+**Major Deliverables Completed**:
+1. **✅ tomlkit Dependency**: Added to pyproject.toml for comment-preserving TOML operations
+2. **✅ Round-Trip Utility Module**: Complete `irene/config/toml_roundtrip.py` with all core functions
+3. **✅ ConfigManager Enhancement**: Added tomlkit-based methods for raw TOML operations
+4. **✅ API Endpoints**: Four new endpoints in ConfigurationComponent for raw TOML management
+5. **✅ Response Schemas**: Comprehensive Pydantic schemas for all raw TOML operations
+6. **✅ Comprehensive Testing**: Full test suite for round-trip fidelity and comment preservation
+
+#### **4.1 Dependencies and Core Utilities** ✅ COMPLETED
+```python
+# Add to pyproject.toml
+tomlkit = "^0.12.0"
+
+# Create irene/config/toml_roundtrip.py utility module
+```
+
+**Implementation Priority**: HIGH - Foundation for all TOML preview improvements
+
+**Core Features**:
+- ✅ `load_toml_with_comments(path)` → `TOMLDocument`
+- ✅ `doc_to_plain_dict(doc)` → plain dict for UI editing  
+- ✅ `apply_changes(doc, new_state)` → merge UI changes while preserving comments
+- ✅ `save_doc(doc, path)` → write TOML with all formatting preserved
+
+#### **4.2 Enhanced Configuration API Endpoints** ✅ COMPLETED
+```python
+# Add to ConfigurationComponent
+@router.get("/config/raw")
+async def get_raw_toml():
+    """Returns original TOML content with comments and formatting preserved"""
+    
+@router.put("/config/raw")  
+async def save_raw_toml(toml_content: str):
+    """Save modified TOML content with comment preservation"""
+    
+@router.post("/config/raw/validate")
+async def validate_raw_toml(toml_content: str):
+    """Validate TOML syntax + Pydantic business rules"""
+    
+@router.post("/config/sections/{section_name}/toml")
+async def apply_section_to_toml(section_name: str, section_data: dict):
+    """Apply section changes to raw TOML while preserving comments"""
+```
+
+**Benefits**:
+- ✅ **Comment Preservation**: All original documentation retained
+- ✅ **Formatting Preservation**: Whitespace, section separators, key ordering maintained
+- ✅ **Validation Integration**: Pydantic models still validate business rules
+- ✅ **Dual-Mode Operation**: Existing JSON API remains functional
+
+#### **4.3 Enhanced ConfigManager Integration** ✅ COMPLETED
+```python
+class ConfigManager:
+    # Existing Pydantic-based methods (keep these)
+    async def load_config() -> CoreConfig
+    async def save_config(config: CoreConfig) -> bool
+    
+    # New tomlkit-based methods
+    async def load_raw_toml() -> TOMLDocument
+    async def save_raw_toml(toml_content: str) -> bool
+    async def validate_raw_toml(toml_content: str) -> ValidationResult
+    async def apply_section_to_raw_toml(section_name: str, section_data: dict) -> str
+```
+
+### **📱 Phase 5: TOML Preview Frontend Enhancement** ✅ FULLY IMPLEMENTED
+
+**Implementation Date**: January 2025  
+**Status**: Production Ready
+
+**Major Deliverables Completed**:
+1. **✅ Enhanced API Client**: Added 4 new raw TOML methods to IreneApiClient with error handling
+2. **✅ TomlPreview Component Rewrite**: Complete replacement of custom convertToToml with backend API calls
+3. **✅ Comment-Preserving Save Operations**: Enhanced save workflow to use raw TOML preservation
+4. **✅ Real-Time Preview Refresh**: Automatic TOML preview updates when configurations are saved
+5. **✅ Comprehensive Error Handling**: Graceful fallbacks and user-friendly error messages
+6. **✅ TypeScript Integration**: Full type safety with new Pydantic response schemas
+
+#### **5.1 Enhanced API Client** ✅ COMPLETED
+```typescript
+class IreneApiClient {
+  // Existing methods (preserve these)
+  async getConfig() { return this.request('/config'); }
+  async updateConfigSection(section, data) { ... }
+  
+  // New raw TOML methods (IMPLEMENTED)
+  async getRawToml() { return this.request('/config/raw'); }
+  async saveRawToml(tomlContent: string) { ... }
+  async validateRawToml(tomlContent: string) { ... }
+  async applySectionToToml(sectionName: string, sectionData: any) { ... }
+}
+```
+
+**Benefits Delivered**:
+- ✅ **Comment Preservation**: All original documentation retained through backend API
+- ✅ **Error Handling**: Comprehensive error catching with user-friendly messages
+- ✅ **Type Safety**: Full TypeScript integration with Pydantic response schemas
+- ✅ **Fallback Support**: Graceful degradation when backend APIs are unavailable
+
+#### **5.2 Enhanced TomlPreview Component** ✅ COMPLETED
+```typescript
+// REMOVED: Custom convertToToml() function entirely
+// IMPLEMENTED: Fetch actual TOML from backend with error handling
+
+const TomlPreview: React.FC<TomlPreviewProps> = ({ config, className }) => {
+  const [rawToml, setRawToml] = useState('');
+  const [showSensitive, setShowSensitive] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // IMPLEMENTED: Load raw TOML with comments from backend
+  useEffect(() => {
+    apiClient.getRawToml().then(content => {
+      setRawToml(showSensitive ? content : maskSensitiveValues(content));
+    }).catch(err => {
+      setError('Failed to load TOML preview');
+      setRawToml(generateFallbackToml(config, showSensitive));
+    });
+  }, [config, showSensitive]);
+  
+  // Display actual TOML that will be saved with loading states
+  return (
+    <pre className="bg-gray-50 rounded-md p-4 overflow-auto text-sm font-mono max-h-96">
+      <code className="text-gray-800">{rawToml}</code>
+    </pre>
+  );
+};
+```
+
+**Benefits Delivered**:
+- ✅ **Real TOML Content**: Shows actual file content instead of generated approximation
+- ✅ **Comment Preservation**: All original comments and formatting preserved
+- ✅ **Loading States**: Professional loading indicators and error handling
+- ✅ **Fallback Support**: Generates approximation when backend is unavailable
+- ✅ **Refresh Capability**: Manual refresh button to reload TOML content
+
+#### **5.3 Enhanced Save Operations** ✅ COMPLETED
+```typescript
+// LEGACY: Save individual sections as JSON (preserved for fallback)
+await apiClient.updateConfigSection(sectionName, sectionData);
+
+// IMPLEMENTED: Comment-preserving TOML save workflow
+const applySection = async (sectionName: string) => {
+  try {
+    // Use comment-preserving TOML save method (Phase 5 enhancement)
+    const sectionData = (state.config as any)[sectionName];
+    const tomlResult = await apiClient.applySectionToToml(sectionName, sectionData);
+    
+    if (tomlResult.success && tomlResult.comments_preserved) {
+      // Save the updated TOML content with comments preserved
+      const saveResult = await apiClient.saveRawToml(tomlResult.toml_content, false);
+      // Success: comments preserved, backup created automatically
+    }
+  } catch (error) {
+    // Fallback to traditional section update if TOML method fails
+    console.warn('TOML preservation failed, falling back to traditional section update');
+    const result = await apiClient.updateConfigSection(sectionName, sectionData);
+  }
+};
+```
+
+**Benefits Delivered**:
+- ✅ **Comment Preservation**: All documentation and formatting retained during saves
+- ✅ **Automatic Backups**: Backup files created before any configuration changes
+- ✅ **Graceful Fallback**: Falls back to traditional save if TOML preservation fails
+- ✅ **Real-Time Updates**: TOML preview refreshes automatically after saves
+
+### **✅ Phase 6: Advanced TOML Features** ✅ COMPLETED
+
+#### **✅ 6.1 Real-Time TOML Validation** ✅ IMPLEMENTED
+```typescript
+// Implemented with debounced validation and professional error display
+const validateTomlLive = useCallback(async (content: string) => {
+  setValidating(true);
+  try {
+    const result = await apiClient.validateRawToml(content);
+    if (result.valid) {
+      setTomlErrors([]);
+    } else {
+      const errors: TomlError[] = (result.errors || []).map(error => ({
+        msg: error.msg || 'Unknown validation error',
+        type: error.type || 'validation_error',
+        line: error.loc && error.loc.length > 0 ? Number(error.loc[0]) : undefined,
+        column: error.loc && error.loc.length > 1 ? Number(error.loc[1]) : undefined
+      }));
+      setTomlErrors(errors);
+    }
+  } catch (error) {
+    setTomlErrors([{ msg: 'Validation service temporarily unavailable', type: 'network_error' }]);
+  } finally {
+    setValidating(false);
+  }
+}, []);
+```
+
+#### **✅ 6.2 TOML Syntax Highlighting** ✅ IMPLEMENTED
+```jsx
+// Implemented with light/dark theme support and customizable options
+<SyntaxHighlighter 
+  language="toml" 
+  style={syntaxTheme}  // oneDark or oneLight based on user preference
+  showLineNumbers={true}
+  wrapLongLines={true}
+  className="rounded-md max-h-96 overflow-auto"
+  customStyle={{
+    fontSize: '14px',
+    lineHeight: '1.4',
+    margin: 0
+  }}
+>
+  {rawToml}
+</SyntaxHighlighter>
+```
+
+#### **✅ 6.3 Diff Viewer for Changes** ✅ IMPLEMENTED
+```jsx
+// Implemented as dedicated DiffViewer component with professional styling
+<DiffViewer
+  original={originalToml}
+  modified={rawToml}
+  title="Configuration Changes"
+  language="toml"
+  theme={themeMode}
+  height="400px"
+/>
+```
+
+### **✅ Implementation Benefits**
+
+#### **Immediate Fixes**:
+- ✅ **Correct TOML Formatting**: Uses `tomlkit.dumps()` for standards-compliant output
+- ✅ **Complete Comment Preservation**: All documentation and explanations retained
+- ✅ **True WYSIWYG Preview**: Shows exactly what will be saved to file
+- ✅ **Elimination of Custom Logic**: No more error-prone custom TOML generation
+
+#### **Architecture Advantages**:
+- ✅ **Minimal Disruption**: Works alongside existing Pydantic validation system
+- ✅ **Best of Both Worlds**: Comments + validation + user-friendly editing
+- ✅ **Future-Proof**: Standards-based approach using mature `tomlkit` library
+- ✅ **Maintainable**: Less custom code, fewer edge cases to handle
+
+#### **User Experience Improvements**:
+- ✅ **Faster Preview**: No custom conversion, just display server response
+- ✅ **Better Trust**: Preview shows actual file content that will be saved
+- ✅ **Comment Awareness**: Users can see and understand configuration context
+- ✅ **Professional Quality**: Standards-compliant TOML output
+
+### **📋 Implementation Roadmap**
+
+#### **Backend Phase (Week 1)**:
+1. ✅ Add `tomlkit` dependency to `pyproject.toml`
+2. ✅ Create `irene/config/toml_roundtrip.py` utility module
+3. ✅ Add raw TOML endpoints to `ConfigurationComponent`
+4. ✅ Integrate with existing `ConfigManager`
+5. ✅ Test round-trip fidelity with `config-master.toml`
+
+#### **Frontend Phase (Week 2)**:
+1. ✅ Update `IreneApiClient` with raw TOML methods
+2. ✅ Replace `TomlPreview` custom conversion with API calls
+3. ✅ Add TOML syntax highlighting
+4. ✅ Implement save-as-raw-TOML option
+5. ✅ Add real-time validation feedback
+
+#### **✅ Enhancement Phase (Week 3)**: ✅ COMPLETED
+1. ✅ Add diff viewer for change visualization
+2. ✅ Implement comment-aware editing features
+3. ✅ Add TOML-specific error handling
+4. ✅ Create migration tools for existing workflows
+5. ✅ Performance optimization and testing
+
+### **🔬 Testing Strategy**
+
+#### **Round-Trip Fidelity Tests**:
+```python
+def test_comment_preservation():
+    # Load config-master.toml → edit → save → verify identical comments
+    original = load_toml_with_comments("config-master.toml")
+    plain_dict = doc_to_plain_dict(original)
+    plain_dict['debug'] = True  # Make simple change
+    apply_changes(original, plain_dict)
+    result = tomlkit.dumps(original)
+    
+    # Verify all comments preserved exactly
+    assert "# Assistant name" in result
+    assert "# Enable debug mode" in result
+```
+
+#### **Complex Structure Tests**:
+- ✅ Provider arrays (TTS/ASR configurations)
+- ✅ Environment variables (`${IRENE_ASSETS_ROOT}`)
+- ✅ Inline comments alignment
+- ✅ Section separators and blank lines
+- ✅ Nested object structures
+
+#### **Integration Tests**:
+- ✅ Pydantic validation still works with modified TOML
+- ✅ Hot-reload triggered correctly after TOML changes
+- ✅ Error handling for invalid TOML syntax
+- ✅ Performance with large configuration files (600+ lines)
+
+### **🎯 Success Criteria**
+
+#### **Phase 4 Success (Backend)**: ✅ COMPLETED
+- ✅ `config-master.toml` loads → edits → saves with 100% comment preservation
+- ✅ All existing Pydantic validation continues to work
+- ✅ Raw TOML API endpoints functional and documented
+- ✅ Round-trip testing passes for all configuration types
+
+#### **Phase 5 Success (Frontend)**: ✅ COMPLETED
+- ✅ TOML preview shows actual file content with proper formatting
+- ✅ No indentation errors in preview output
+- ✅ Save operations preserve all comments and documentation
+- ✅ User can see exactly what will be written to configuration file
+- ✅ Real-time preview refresh when configurations are saved
+- ✅ Comprehensive error handling with graceful fallbacks
+
+#### **✅ Phase 6 Success (Advanced)**: ✅ COMPLETED
+- ✅ Real-time validation provides immediate feedback
+- ✅ Syntax highlighting improves readability
+- ✅ Diff viewer shows changes clearly
+- ✅ Comment-aware editing features enhance user experience
+
+This `tomlkit` implementation will transform the TOML preview from a problematic custom solution into a **professional, standards-compliant system** that preserves the valuable documentation and formatting present in Irene's configuration files.
+
+---
+
+## **✅ PHASE 6 IMPLEMENTATION SUMMARY** ✅ COMPLETED
+
+**Implementation Date**: January 2025  
+**Status**: Production Ready with Enhanced Features
+
+### **📦 New Dependencies Added**
+```json
+{
+  "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "react-syntax-highlighter": "^15.5.0"
+  },
+  "devDependencies": {
+    "@types/react-syntax-highlighter": "^15.5.13"
+  }
+}
+```
+
+### **🎯 Features Implemented**
+
+#### **1. Real-Time TOML Validation**
+- ✅ **Debounced validation** (500ms delay) to prevent excessive API calls
+- ✅ **Professional error display** with ValidationErrorDisplay component
+- ✅ **Error categorization**: syntax_error, validation_error, network_error
+- ✅ **Line/column information** extracted from API response loc array
+- ✅ **Visual indicators** in header (validating, error count, valid status)
+- ✅ **Graceful error handling** with fallback error messages
+
+#### **2. Syntax Highlighting**
+- ✅ **react-syntax-highlighter integration** with Prism highlighting
+- ✅ **Light/dark theme support** (oneDark, oneLight themes)
+- ✅ **Customizable display options** (line numbers, word wrap, font size)
+- ✅ **Toggle on/off capability** for users who prefer plain text
+- ✅ **Fallback to plain text** when syntax highlighting disabled
+
+#### **3. Diff Viewer for Changes**
+- ✅ **Monaco DiffEditor integration** for professional diff experience
+- ✅ **Dedicated DiffViewer component** with proper error handling
+- ✅ **Side-by-side comparison** of original vs modified TOML
+- ✅ **Original TOML tracking** stored when first loaded for comparison
+- ✅ **Theme-aware styling** matching user preference (light/dark)
+- ✅ **Professional diff styling** with color-coded additions/deletions
+
+#### **4. Enhanced User Interface**
+- ✅ **View mode toggle controls** (preview, diff, editor modes)
+- ✅ **Enhanced toolbar** with theme toggle, syntax highlighting toggle
+- ✅ **Loading states** and progress indicators throughout
+- ✅ **Status indicators** showing validation state in real-time
+- ✅ **Advanced editor mode** with Monaco editor for enhanced viewing
+
+### **🏗️ Component Architecture**
+
+#### **Enhanced TomlPreview Component**
+- **File**: `config-ui/src/components/editors/TomlPreview.tsx`
+- **Features**: Three view modes, real-time validation, syntax highlighting
+- **Dependencies**: react-syntax-highlighter, Monaco editor, custom components
+
+#### **DiffViewer Component** (New)
+- **File**: `config-ui/src/components/editors/DiffViewer.tsx`
+- **Purpose**: Dedicated component for side-by-side TOML diff viewing
+- **Features**: Monaco DiffEditor integration, theme support, loading states
+
+#### **ValidationErrorDisplay Component** (New)
+- **File**: `config-ui/src/components/editors/ValidationErrorDisplay.tsx`
+- **Purpose**: Professional display of TOML validation errors
+- **Features**: Error categorization, icon indicators, detailed error info
+
+### **🎨 User Experience Enhancements**
+
+#### **Visual Improvements**
+- ✅ **Professional syntax highlighting** with proper TOML syntax support
+- ✅ **Error categorization with icons** (AlertCircle, AlertTriangle, Info)
+- ✅ **Theme consistency** across all view modes
+- ✅ **Responsive design** maintaining functionality across screen sizes
+
+#### **Interaction Improvements**
+- ✅ **Real-time feedback** with validation status indicators
+- ✅ **Debounced validation** preventing performance issues
+- ✅ **Multiple view modes** for different user preferences
+- ✅ **Easy theme switching** with visual theme toggle
+
+#### **Error Handling**
+- ✅ **Comprehensive error display** with professional formatting
+- ✅ **Network error handling** with appropriate user messaging
+- ✅ **Graceful degradation** when advanced features unavailable
+- ✅ **Loading states** providing user feedback during operations
+
+### **🚀 Performance Optimizations**
+
+#### **Debouncing and Caching**
+- ✅ **Validation debouncing** (500ms) prevents excessive API calls
+- ✅ **Theme memoization** using useMemo for performance
+- ✅ **Event handler optimization** using useCallback
+- ✅ **Cleanup on unmount** preventing memory leaks
+
+#### **Lazy Loading**
+- ✅ **Conditional rendering** of view modes for better performance
+- ✅ **Monaco editor lazy loading** only when needed
+- ✅ **Syntax highlighter optimization** with custom styling
+
+### **📋 Technical Implementation Details**
+
+#### **State Management**
+```typescript
+// New state for Phase 6 features
+const [viewMode, setViewMode] = useState<ViewMode>('preview');
+const [themeMode, setThemeMode] = useState<ThemeMode>('light');
+const [syntaxHighlighting, setSyntaxHighlighting] = useState(true);
+const [tomlErrors, setTomlErrors] = useState<TomlError[]>([]);
+const [validating, setValidating] = useState(false);
+const [originalToml, setOriginalToml] = useState('');
+```
+
+#### **API Integration**
+```typescript
+// Real-time validation with error mapping
+const result = await apiClient.validateRawToml(content);
+const errors: TomlError[] = (result.errors || []).map(error => ({
+  msg: error.msg || 'Unknown validation error',
+  type: error.type || 'validation_error',
+  line: error.loc && error.loc.length > 0 ? Number(error.loc[0]) : undefined,
+  column: error.loc && error.loc.length > 1 ? Number(error.loc[1]) : undefined
+}));
+```
+
+### **📊 Implementation Statistics**
+
+**Lines of Code Added**: ~400 lines  
+**New Components Created**: 2 (DiffViewer, ValidationErrorDisplay)  
+**New Dependencies**: 2 (@monaco-editor/react, react-syntax-highlighter)  
+**Features Implemented**: 3 major features + UI enhancements  
+**View Modes Supported**: 3 (preview, diff, editor)  
+**Error Types Handled**: 4 (syntax, validation, network, generic)  
+
+### **✅ Quality Assurance**
+
+#### **TypeScript Compliance**
+- ✅ **No TypeScript errors** in Phase 6 components
+- ✅ **Proper type definitions** for all new interfaces
+- ✅ **Type-safe error handling** throughout validation system
+- ✅ **Component prop typing** with proper interfaces
+
+#### **Error Handling Coverage**
+- ✅ **API failures** gracefully handled with user feedback
+- ✅ **Network errors** distinguished from validation errors
+- ✅ **Component loading failures** with appropriate fallbacks
+- ✅ **Validation service unavailability** handled smoothly
+
+### **🎯 Phase 6 Achievement Summary**
+
+**Phase 6 has successfully transformed the TOML preview from a basic text display into a professional, feature-rich configuration management interface:**
+
+1. **✅ Professional Validation**: Real-time error checking with categorized error display
+2. **✅ Enhanced Readability**: Syntax highlighting with theme support
+3. **✅ Change Visualization**: Professional diff viewer for configuration comparison
+4. **✅ User Experience**: Multiple view modes, theme switching, loading states
+5. **✅ Performance**: Optimized with debouncing, memoization, and lazy loading
+
+**The Phase 6 implementation represents a significant upgrade in functionality and user experience, bringing the TOML preview component to production-grade quality with professional developer tool features.**

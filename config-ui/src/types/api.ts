@@ -891,3 +891,49 @@ export interface AudioDevicesResponse {
   total_count: number;
   message?: string;
 }
+
+// ============================================================
+// RAW TOML CONFIGURATION TYPES (Phase 5)
+// ============================================================
+
+export interface RawTomlRequest {
+  toml_content: string;
+  validate_before_save?: boolean;
+}
+
+export interface RawTomlResponse extends BaseApiResponse {
+  toml_content: string;
+  config_path: string;
+  file_size: number;
+  last_modified: number;
+}
+
+export interface RawTomlSaveResponse extends BaseApiResponse {
+  message: string;
+  backup_created?: string;
+  config_cached: boolean;
+}
+
+export interface RawTomlValidationRequest {
+  toml_content: string;
+}
+
+export interface RawTomlValidationResponse extends BaseApiResponse {
+  valid: boolean;
+  data?: any;
+  errors?: Array<{
+    msg: string;
+    type: string;
+    loc?: (string | number)[];
+  }>;
+}
+
+export interface SectionToTomlRequest {
+  section_data: Record<string, any>;
+}
+
+export interface SectionToTomlResponse extends BaseApiResponse {
+  toml_content: string;
+  section_name: string;
+  comments_preserved: boolean;
+}

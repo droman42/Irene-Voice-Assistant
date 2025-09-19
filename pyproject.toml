@@ -15,6 +15,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "tomli-w>=1.0.0", # For TOML writing support
+    "tomlkit>=0.12.0", # For comment-preserving TOML round-trip editing
     # Logging and utilities
     "termcolor>=1.1.0",
     # NLU fuzzy matching (JSON donation system requirement)

@@ -361,7 +361,7 @@ export const InputSelectWidget: React.FC<ConfigWidgetProps> = ({
 export const MicrophoneSelectWidget: React.FC<ConfigWidgetProps & { 
   onDeviceChange?: (deviceInfo: any) => void 
 }> = ({ 
-  name, value, schema, onChange, disabled, onDeviceChange, path 
+  name, value, schema, onChange, disabled, onDeviceChange 
 }) => {
   const [devices, setDevices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -515,7 +515,7 @@ export const RangeSliderWidget: React.FC<ConfigWidgetProps> = ({
 export const ConfigWidget: React.FC<ConfigWidgetProps & { 
   componentName?: string 
 }> = (props) => {
-  const { name, value, schema, componentName } = props;
+  const { name, value, schema, componentName, path } = props;
   
   // Detect specialized widget types
   if (typeof value === 'string' && (value.startsWith('${') || name.toLowerCase().includes('key') || name.toLowerCase().includes('token'))) {
@@ -533,12 +533,12 @@ export const ConfigWidget: React.FC<ConfigWidgetProps & {
   }
   
   // Microphone device field detection
-  if (name === 'device_id' && path && path.some(p => p.includes('microphone'))) {
+  if (name === 'device_id' && path && path.some((p: string) => p.includes('microphone'))) {
     return <MicrophoneSelectWidget {...props} />;
   }
   
   // Read-only fields for microphone configuration (auto-populated from device)
-  if ((name === 'sample_rate' || name === 'channels') && path && path.some(p => p.includes('microphone'))) {
+  if ((name === 'sample_rate' || name === 'channels') && path && path.some((p: string) => p.includes('microphone'))) {
     return <ReadOnlyWidget {...props} />;
   }
   

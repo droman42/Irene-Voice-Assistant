@@ -66,7 +66,15 @@ import type {
   ConfigValidationResponse,
   ConfigStatusResponse,
   ProvidersResponse,
-  AudioDevicesResponse
+  AudioDevicesResponse,
+  // Raw TOML types (Phase 5)
+  RawTomlRequest,
+  RawTomlResponse,
+  RawTomlSaveResponse,
+  RawTomlValidationRequest,
+  RawTomlValidationResponse,
+  SectionToTomlRequest,
+  SectionToTomlResponse
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -636,6 +644,84 @@ class IreneApiClient {
    */
   async getConfigStatus(): Promise<ConfigStatusResponse> {
     return this.get<ConfigStatusResponse>('/configuration/config/status');
+  }
+
+  // ============================================================
+  // RAW TOML CONFIGURATION METHODS (Phase 5)
+  // ============================================================
+
+  /**
+   * Get raw TOML configuration content with comments preserved
+   */
+  async getRawToml(): Promise<RawTomlResponse> {
+    try {
+      return await this.get<RawTomlResponse>('/configuration/config/raw');
+    } catch (error) {
+      console.error('Failed to fetch raw TOML content:', error);
+      throw new Error('Unable to load TOML configuration. Please check your connection and try again.');
+    }
+  }
+
+  /**
+   * Save raw TOML content with comment preservation
+   */
+  async saveRawToml(tomlContent: string, validateBeforeSave: boolean = true): Promise<RawTomlSaveResponse> {
+    try {
+      const requestData: RawTomlRequest = {
+        toml_content: tomlContent,
+        validate_before_save: validateBeforeSave
+      };
+      return await this.put<RawTomlSaveResponse>('/configuration/config/raw', requestData);
+    } catch (error) {
+      console.error('Failed to save TOML content:', error);
+      // Try to extract validation errors from response
+      if (error instanceof Error && error.message.includes('validation failed')) {
+        throw new Error('Configuration validation failed. Please check your settings and try again.');
+      }
+      throw new Error('Unable to save TOML configuration. Please check your settings and try again.');
+    }
+  }
+
+  /**
+   * Validate raw TOML content without saving
+   */
+  async validateRawToml(tomlContent: string): Promise<RawTomlValidationResponse> {
+    try {
+      const requestData: RawTomlValidationRequest = {
+        toml_content: tomlContent
+      };
+      return await this.post<RawTomlValidationResponse>('/configuration/config/raw/validate', requestData);
+    } catch (error) {
+      console.error('Failed to validate TOML content:', error);
+      // Return a failed validation response instead of throwing
+      return {
+        success: false,
+        timestamp: Date.now(),
+        valid: false,
+        errors: [{ 
+          msg: error instanceof Error ? error.message : 'Validation service unavailable', 
+          type: 'network_error' 
+        }]
+      };
+    }
+  }
+
+  /**
+   * Apply section changes to raw TOML while preserving comments
+   */
+  async applySectionToToml(sectionName: string, sectionData: any): Promise<SectionToTomlResponse> {
+    try {
+      const requestData: SectionToTomlRequest = {
+        section_data: sectionData
+      };
+      return await this.post<SectionToTomlResponse>(
+        `/configuration/config/sections/${encodeURIComponent(sectionName)}/toml`, 
+        requestData
+      );
+    } catch (error) {
+      console.error(`Failed to apply section '${sectionName}' to TOML:`, error);
+      throw new Error(`Unable to update section '${sectionName}' with comment preservation. Falling back to standard update.`);
+    }
   }
 
   // ========================================

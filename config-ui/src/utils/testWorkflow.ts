@@ -196,11 +196,13 @@ export function validateDonationFormat(data: any): { valid: boolean; errors: str
  */
 export function generateTestDonation(): DonationData {
   return {
+    handler_domain: "test",
     description: "Test donation for workflow validation",
-    domain: "test",
-    methods: [
+    method_donations: [
       {
-        name: "test_method",
+        method_name: "test_method",
+        intent_suffix: "test_method",
+        description: "Test method for validation workflow",
         global_params: ["param1", "param2"],
         token_patterns: [[{ "LOWER": "test" }, { "LOWER": "pattern" }]],
         slot_patterns: { "param1": [[{ "LOWER": "test" }]] },

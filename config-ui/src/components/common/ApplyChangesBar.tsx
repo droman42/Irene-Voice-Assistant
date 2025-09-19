@@ -110,8 +110,7 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
         {/* Right side - Actions */}
         <div className="flex items-center space-x-3">
           {/* Validation Button */}
-          {onValidate && (
-            <button
+          <button
               onClick={handleValidate}
               disabled={isValidating || loading}
               className="inline-flex items-center px-3 py-2 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -123,7 +122,6 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
               )}
               {isValidating ? 'Validating...' : 'Validate'}
             </button>
-          )}
 
           {/* Discard Button */}
           <button

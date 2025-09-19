@@ -13,7 +13,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Union, Any, Callable
+from typing import Optional, Union, Any, Callable, Dict
 
 import tomllib
 
@@ -27,6 +27,10 @@ from .models import (
     create_default_config, create_config_from_profile, EnvironmentVariableResolver
 )
 from .migration import migrate_config, ConfigurationCompatibilityChecker
+from .toml_roundtrip import (
+    load_toml_with_comments, doc_to_plain_dict, apply_changes, 
+    save_doc, validate_toml_with_pydantic, TomlRoundTripError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -561,4 +565,144 @@ stages = {str(tp_config.stages)}
         if model_dump:
             return model_dump()
         else:
-            raise RuntimeError("CoreConfig.model_dump not available") 
+            raise RuntimeError("CoreConfig.model_dump not available")
+    
+    # ============================================================
+    # TOMLKIT-BASED COMMENT PRESERVATION METHODS
+    # ============================================================
+    
+    async def load_raw_toml(self, config_path: Optional[Path] = None):
+        """
+        Load TOML file with comments and formatting preserved.
+        
+        Args:
+            config_path: Path to configuration file (auto-detect if None)
+            
+        Returns:
+            TOMLDocument with comments and formatting preserved
+            
+        Raises:
+            TomlRoundTripError: If file cannot be loaded
+        """
+        if config_path is None:
+            config_path = self._find_config_file()
+            
+        try:
+            return await load_toml_with_comments(config_path)
+        except TomlRoundTripError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to load raw TOML from {config_path}: {e}")
+            raise TomlRoundTripError(f"Failed to load raw TOML: {e}") from e
+    
+    async def save_raw_toml(self, toml_content: str, config_path: Optional[Path] = None) -> bool:
+        """
+        Save TOML content directly with comment preservation.
+        
+        Args:
+            toml_content: Raw TOML content string
+            config_path: Path where to save (auto-detect if None)
+            
+        Returns:
+            True if saved successfully
+            
+        Raises:
+            TomlRoundTripError: If content cannot be saved
+        """
+        if config_path is None:
+            config_path = self._find_config_file()
+            
+        try:
+            # Parse the content first to validate syntax
+            import tomlkit
+            doc = tomlkit.parse(toml_content)
+            
+            # Save with backup
+            backup_path = await save_doc(doc, config_path, create_backup=True)
+            
+            # Update cache if parsing to CoreConfig succeeds
+            try:
+                plain_dict = doc_to_plain_dict(doc)
+                config = await self._dict_to_config_validated(plain_dict)
+                self._config_cache[str(config_path)] = config
+            except Exception as e:
+                logger.warning(f"Raw TOML saved but cache update failed: {e}")
+            
+            if backup_path:
+                logger.info(f"Saved raw TOML with backup: {backup_path}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to save raw TOML to {config_path}: {e}")
+            raise TomlRoundTripError(f"Failed to save raw TOML: {e}") from e
+    
+    async def validate_raw_toml(self, toml_content: str) -> Dict[str, Any]:
+        """
+        Validate raw TOML content against Pydantic models.
+        
+        Args:
+            toml_content: Raw TOML content string
+            
+        Returns:
+            Validation result dictionary with success/errors
+        """
+        try:
+            # Parse TOML content
+            import tomlkit
+            doc = tomlkit.parse(toml_content)
+            
+            # Validate with Pydantic
+            return await validate_toml_with_pydantic(doc)
+            
+        except Exception as e:
+            logger.error(f"Failed to validate raw TOML: {e}")
+            return {
+                "valid": False,
+                "data": None,
+                "errors": [{"msg": f"TOML syntax error: {e}", "type": "toml_syntax_error"}]
+            }
+    
+    async def apply_section_to_raw_toml(
+        self, 
+        section_name: str, 
+        section_data: Dict[str, Any], 
+        config_path: Optional[Path] = None
+    ) -> str:
+        """
+        Apply section changes to raw TOML while preserving comments.
+        
+        Loads the current TOML file, applies changes to the specified section,
+        and returns the updated TOML content with comments preserved.
+        
+        Args:
+            section_name: Name of configuration section to update
+            section_data: New data for the section
+            config_path: Path to configuration file (auto-detect if None)
+            
+        Returns:
+            Updated TOML content as string
+            
+        Raises:
+            TomlRoundTripError: If section cannot be applied
+        """
+        try:
+            # Load current TOML with comments
+            doc = await self.load_raw_toml(config_path)
+            
+            # Convert to plain dict for easier manipulation
+            current_state = doc_to_plain_dict(doc)
+            
+            # Update the specific section
+            current_state[section_name] = section_data
+            
+            # Apply changes back to document with comments preserved
+            apply_changes(doc, current_state)
+            
+            # Return updated TOML content
+            import tomlkit
+            return tomlkit.dumps(doc)
+            
+        except Exception as e:
+            logger.error(f"Failed to apply section {section_name} to raw TOML: {e}")
+            raise TomlRoundTripError(f"Failed to apply section changes: {e}") from e 

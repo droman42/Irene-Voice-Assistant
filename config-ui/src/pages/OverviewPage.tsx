@@ -158,12 +158,12 @@ const OverviewPage: React.FC = () => {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              {getStatusIcon(systemStatus?.intent?.status?.status || 'unknown')}
+              {getStatusIcon(systemStatus?.intent?.status || 'unknown')}
             </div>
             <div className="ml-4">
               <h3 className="text-lg font-medium text-gray-900">Intent System</h3>
-              <p className={`text-sm font-medium ${getStatusColor(systemStatus?.intent?.status?.status || 'unknown')}`}>
-                {systemStatus?.intent?.status?.status || 'Unknown'}
+              <p className={`text-sm font-medium ${getStatusColor(systemStatus?.intent?.status || 'unknown')}`}>
+                {systemStatus?.intent?.status || 'Unknown'}
               </p>
             </div>
           </div>
@@ -211,17 +211,16 @@ const OverviewPage: React.FC = () => {
             <div className="ml-4">
               <h3 className="text-lg font-medium text-gray-900">System</h3>
               <p className="text-sm text-green-600 font-medium">
-                {systemStatus?.intent?.system_info?.version || 'Unknown Version'}
+                System Running
               </p>
             </div>
           </div>
           <div className="mt-4">
             <p className="text-sm text-gray-600">
-              Uptime: {systemStatus?.intent?.system_info?.uptime || 'Unknown'}
+              Status: {systemStatus?.intent?.status || 'Unknown'}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              Last reload: {systemStatus?.intent?.last_reload ? 
-                new Date(systemStatus.intent.last_reload).toLocaleString() : 'Never'}
+              {systemStatus?.intent?.donation_routing_enabled ? 'Routing enabled' : 'Routing disabled'}
             </p>
           </div>
         </div>

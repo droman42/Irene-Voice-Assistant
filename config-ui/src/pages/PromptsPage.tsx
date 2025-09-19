@@ -47,11 +47,11 @@ const PromptsPage: React.FC = () => {
   // UI state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [validating, setValidating] = useState(false);
+  const [, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Prompt management state
-  const [validationResult, setValidationResult] = useState<PromptValidationResult>({
+  const [, setValidationResult] = useState<PromptValidationResult>({
     isValid: true,
     errors: [],
     warnings: []
@@ -217,8 +217,7 @@ const PromptsPage: React.FC = () => {
     if (!selectedHandler || !selectedLanguage) {
       return {
         valid: false,
-        isValid: false,
-        errors: [{ type: 'error', message: 'No handler or language selected', path: '', line: 0 }],
+        errors: ['No handler or language selected'],
         warnings: []
       };
     }
@@ -235,24 +234,18 @@ const PromptsPage: React.FC = () => {
 
       const result = {
         valid: response.is_valid,
-        isValid: response.is_valid,
-        errors: response.errors.map(e => ({
-          type: 'error' as const,
-          message: typeof e === 'string' ? e : (e as any).message || 'Validation error',
-          path: '',
-          line: 0
-        })),
-        warnings: response.warnings.map(w => ({
-          type: 'warning' as const,
-          message: typeof w === 'string' ? w : w.message || 'Validation warning',
-          path: ''
-        }))
+        errors: response.errors.map(e => 
+          typeof e === 'string' ? e : (e as any).message || 'Validation error'
+        ),
+        warnings: response.warnings.map(w => 
+          typeof w === 'string' ? w : w.message || 'Validation warning'
+        )
       };
 
       setValidationResult({
-        isValid: result.isValid,
-        errors: result.errors.map(e => e.message),
-        warnings: result.warnings.map(w => w.message)
+        isValid: result.valid,
+        errors: result.errors,
+        warnings: result.warnings
       });
 
       return result;
@@ -261,8 +254,7 @@ const PromptsPage: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to validate prompt data');
       return {
         valid: false,
-        isValid: false,
-        errors: [{ type: 'error' as const, message: err instanceof Error ? err.message : 'Failed to validate', path: '', line: 0 }],
+        errors: [err instanceof Error ? err.message : 'Failed to validate'],
         warnings: []
       };
     } finally {
@@ -442,17 +434,13 @@ const PromptsPage: React.FC = () => {
                   {/* Apply Changes Bar */}
                   {hasChanges && (
                     <ApplyChangesBar
-                      hasChanges={hasChanges}
-                      saving={saving}
-                      validating={validating}
-                      validationResult={{
-                        isValid: validationResult.isValid,
-                        errors: validationResult.errors.map(e => ({ type: 'error', message: e, path: '', line: 0 })),
-                        warnings: validationResult.warnings.map(w => ({ type: 'warning', message: w, path: '' }))
-                      }}
+                      visible={hasChanges}
+                      selectedHandler={`${selectedHandler}/${selectedLanguage}`}
+                      hasUnsavedChanges={hasChanges}
                       onSave={handleSave}
                       onValidate={handleValidate}
-                      onRevert={handleRevert}
+                      onCancel={handleRevert}
+                      loading={saving}
                     />
                   )}
                 </>

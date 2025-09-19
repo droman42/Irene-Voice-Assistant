@@ -38,7 +38,7 @@ export interface CrossLanguageValidationProps {
 }
 
 const CrossLanguageValidation: React.FC<CrossLanguageValidationProps> = ({
-  handlerName,
+  // handlerName not used in component logic
   handlerInfo,
   activeLanguage,
   validationReport,

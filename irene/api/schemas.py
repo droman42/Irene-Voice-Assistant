@@ -1517,3 +1517,52 @@ class ConfigStatusResponse(BaseAPIResponse):
     component_initialized: bool = Field(description="Whether ConfigurationComponent is initialized")
     last_modified: Optional[float] = Field(default=None, description="Configuration file last modified timestamp")
     file_size: Optional[int] = Field(default=None, description="Configuration file size in bytes")
+
+
+# ============================================================
+# RAW TOML CONFIGURATION SCHEMAS (Phase 4)
+# ============================================================
+
+class RawTomlRequest(BaseAPIRequest):
+    """Request to save raw TOML content"""
+    toml_content: str = Field(description="Raw TOML content to save")
+    validate_before_save: bool = Field(default=True, description="Whether to validate before saving")
+
+
+class RawTomlResponse(BaseAPIResponse):
+    """Response containing raw TOML content"""
+    toml_content: str = Field(description="Raw TOML configuration content with comments preserved")
+    config_path: str = Field(description="Path to configuration file")
+    file_size: int = Field(description="File size in bytes")
+    last_modified: float = Field(description="File last modified timestamp")
+
+
+class RawTomlSaveResponse(BaseAPIResponse):
+    """Response for raw TOML save operation"""
+    message: str = Field(description="Save operation result message")
+    backup_created: Optional[str] = Field(default=None, description="Path to backup file if created")
+    config_cached: bool = Field(description="Whether configuration was successfully cached")
+
+
+class RawTomlValidationRequest(BaseAPIRequest):
+    """Request to validate raw TOML content"""
+    toml_content: str = Field(description="Raw TOML content to validate")
+
+
+class RawTomlValidationResponse(BaseAPIResponse):
+    """Response for raw TOML validation"""
+    valid: bool = Field(description="Whether TOML content is valid")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Parsed configuration data if valid")
+    errors: Optional[List[Dict[str, Any]]] = Field(default=None, description="Validation errors if invalid")
+
+
+class SectionToTomlRequest(BaseAPIRequest):
+    """Request to apply section changes to raw TOML"""
+    section_data: Dict[str, Any] = Field(description="Section configuration data")
+
+
+class SectionToTomlResponse(BaseAPIResponse):
+    """Response for section-to-TOML operation"""
+    toml_content: str = Field(description="Updated TOML content with section applied")
+    section_name: str = Field(description="Section that was updated")
+    comments_preserved: bool = Field(description="Whether comments were preserved")

@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, Mic, Info } from 'lucide-react';
 import apiClient from '@/utils/apiClient';
 import type { AudioDeviceInfo } from '@/types/api';
-import type { ConfigWidgetProps } from './ConfigWidgets';
+// ConfigWidgetProps import removed - not used in this component
 
 interface MicrophoneConfigSectionProps {
   data: any;
@@ -62,7 +62,7 @@ export const MicrophoneConfigSection: React.FC<MicrophoneConfigSectionProps> = (
     const numericId = deviceId === '' ? null : parseInt(deviceId, 10);
     const device = deviceId === '' ? null : devices.find(d => d.id === numericId);
     
-    setSelectedDevice(device);
+    setSelectedDevice(device || null);
     
     // Auto-populate device capabilities
     const newData = {
