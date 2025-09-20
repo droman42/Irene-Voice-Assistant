@@ -625,6 +625,34 @@ wheels = [
 ]
 
 [[package]]
+name = "en-core-web-md"
+version = "3.7.0"
+source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl" }
+dependencies = [
+    { name = "spacy" },
+]
+wheels = [
+    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl", hash = "sha256:d37c3d60738be409a04f83a51421075b94fc02efad99bb8e62ec9018b1f99cb0" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "spacy", specifier = ">=3.7.0,<3.8.0" }]
+
+[[package]]
+name = "en-core-web-sm"
+version = "3.7.0"
+source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl" }
+dependencies = [
+    { name = "spacy" },
+]
+wheels = [
+    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl", hash = "sha256:6215d71a3212690e9aec49408a27e3fe6ad7cd6c715476e93d70dc784041e93e" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "spacy", specifier = ">=3.7.0,<3.8.0" }]
+
+[[package]]
 name = "eng-to-ipa"
 version = "0.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1114,6 +1142,8 @@ all = [
     { name = "anthropic" },
     { name = "audioplayer" },
     { name = "elevenlabs" },
+    { name = "en-core-web-md" },
+    { name = "en-core-web-sm" },
     { name = "eng-to-ipa" },
     { name = "fastapi" },
     { name = "google-auth" },
@@ -1132,6 +1162,7 @@ all = [
     { name = "python-multipart" },
     { name = "pyttsx3" },
     { name = "pyyaml" },
+    { name = "ru-core-news-md" },
     { name = "ru-core-news-sm" },
     { name = "runorm" },
     { name = "scipy" },
@@ -1202,7 +1233,10 @@ llm = [
     { name = "openai" },
 ]
 nlu = [
+    { name = "en-core-web-md" },
+    { name = "en-core-web-sm" },
     { name = "numpy" },
+    { name = "ru-core-news-md" },
     { name = "ru-core-news-sm" },
     { name = "spacy" },
 ]
@@ -1221,6 +1255,8 @@ voice = [
     { name = "aiohttp" },
     { name = "audioplayer" },
     { name = "elevenlabs" },
+    { name = "en-core-web-md" },
+    { name = "en-core-web-sm" },
     { name = "eng-to-ipa" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1229,6 +1265,7 @@ voice = [
     { name = "openwakeword" },
     { name = "python-multipart" },
     { name = "pyttsx3" },
+    { name = "ru-core-news-md" },
     { name = "ru-core-news-sm" },
     { name = "runorm" },
     { name = "sounddevice" },
@@ -1289,6 +1326,8 @@ requires-dist = [
     { name = "audioplayer", marker = "extra == 'audio-output'", specifier = ">=0.6.0" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=22.0.0" },
     { name = "elevenlabs", marker = "extra == 'tts'", specifier = ">=1.0.3" },
+    { name = "en-core-web-md", marker = "extra == 'nlu'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl" },
+    { name = "en-core-web-sm", marker = "extra == 'nlu'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl" },
     { name = "eng-to-ipa", marker = "extra == 'text-multilingual'", specifier = ">=0.0.2" },
     { name = "fastapi", marker = "extra == 'web-api'", specifier = ">=0.100.0" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=4.0.0" },
@@ -1328,6 +1367,7 @@ requires-dist = [
     { name = "pyttsx3", marker = "extra == 'tts'", specifier = ">=2.90" },
     { name = "pyyaml", marker = "extra == 'wake-word-training'", specifier = ">=6.0" },
     { name = "rapidfuzz", specifier = ">=3.0.0" },
+    { name = "ru-core-news-md", marker = "extra == 'nlu'", url = "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl" },
     { name = "ru-core-news-sm", marker = "extra == 'nlu'", url = "https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl" },
     { name = "runorm", marker = "extra == 'text-multilingual'", specifier = ">=0.1.0" },
     { name = "scipy", marker = "extra == 'wake-word-training'", specifier = ">=1.9.0" },
@@ -6244,6 +6284,24 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/da/8a/22b7beea3ee0d44b1916c0c1cb0ee3af23b700b6da9f04991899d0c555d4/rsa-4.9.1.tar.gz", hash = "sha256:e7bdbfdb5497da4c07dfd35530e1a902659db6ff241e39d9953cad06ebd0ae75", size = 29034 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/64/8d/0133e4eb4beed9e425d9a98ed6e081a55d195481b7632472be1af08d2f6b/rsa-4.9.1-py3-none-any.whl", hash = "sha256:68635866661c6836b8d39430f97a996acbd61bfa49406748ea243539fe239762", size = 34696 },
+]
+
+[[package]]
+name = "ru-core-news-md"
+version = "3.7.0"
+source = { url = "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl" }
+dependencies = [
+    { name = "pymorphy3" },
+    { name = "spacy" },
+]
+wheels = [
+    { url = "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl", hash = "sha256:a94b21e001c4f2cbe2f1e702785943dba83f2883d5a0a1ceac5363a2413082f8" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pymorphy3", specifier = ">=1.0.0" },
+    { name = "spacy", specifier = ">=3.7.0,<3.8.0" },
 ]
 
 [[package]]

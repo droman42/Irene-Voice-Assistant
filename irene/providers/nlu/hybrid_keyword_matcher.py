@@ -11,6 +11,8 @@ High-performance NLU provider implementing keyword-first strategy with:
 import re
 import logging
 import time
+import math
+import unicodedata
 from typing import Dict, Any, List, Pattern, Optional, Tuple, Set
 from dataclasses import dataclass
 
@@ -59,7 +61,15 @@ class HybridKeywordMatcherProvider(NLUProvider):
         self.fuzzy_enabled = config.get('fuzzy_enabled', True)
         self.fuzzy_keywords: Dict[str, List[str]] = {}
         self.fuzzy_keywords_lc: Dict[str, List[str]] = {}  # Precomputed lowercase keywords
-        self.global_keyword_map: Dict[str, str] = {}  # keyword -> intent mapping for global shortlisting
+        
+        # Fix keyword collisions: keyword -> {intents} instead of keyword -> intent
+        self.global_keyword_map: Dict[str, Set[str]] = {}  # keyword -> {intents}
+        
+        # Language partitioning for independent processing
+        self.global_keyword_map_ru: Dict[str, Set[str]] = {}
+        self.global_keyword_map_en: Dict[str, Set[str]] = {}
+        self.fuzzy_keywords_ru: List[str] = []
+        self.fuzzy_keywords_en: List[str] = []
         self.fuzzy_threshold = config.get('fuzzy_threshold', 0.8)
         self.fuzzy_confidence_base = config.get('fuzzy_confidence_base', 0.7)
         self.max_fuzzy_keywords_per_intent = config.get('max_fuzzy_keywords_per_intent', 50)
@@ -72,8 +82,9 @@ class HybridKeywordMatcherProvider(NLUProvider):
         self.case_sensitive = config.get('case_sensitive', False)
         self.normalize_unicode = config.get('normalize_unicode', True)
         
-        # Recognition thresholds
-        self.confidence_threshold = config.get('confidence_threshold', 0.8)
+        # Recognition thresholds - normalize to 0-1 scale consistently 
+        # Use 0.7 as default to match SpaCy provider for consistency
+        self.confidence_threshold = config.get('confidence_threshold', 0.7)
         self.min_pattern_length = config.get('min_pattern_length', 2)
         self.max_pattern_combinations = config.get('max_pattern_combinations', 100)
         
@@ -173,7 +184,14 @@ class HybridKeywordMatcherProvider(NLUProvider):
             self.partial_patterns = {}
             self.fuzzy_keywords = {}
             self.fuzzy_keywords_lc = {}
+            
+            # Clear language-partitioned data structures
             self.global_keyword_map = {}
+            self.global_keyword_map_ru = {}
+            self.global_keyword_map_en = {}
+            self.fuzzy_keywords_ru = []
+            self.fuzzy_keywords_en = []
+            
             self.parameter_specs = {}  # Phase 3: Clear parameter specs
             
             # Collect telemetry data
@@ -226,9 +244,25 @@ class HybridKeywordMatcherProvider(NLUProvider):
                     keywords_lc = [k.lower() for k in keywords]
                     self.fuzzy_keywords_lc[intent_name] = keywords_lc
                     
-                    # Build global keyword mapping for shortlisting
+                    # Build global keyword mapping for shortlisting - fix collisions
                     for keyword in keywords_lc:
-                        self.global_keyword_map[keyword] = intent_name
+                        if keyword not in self.global_keyword_map:
+                            self.global_keyword_map[keyword] = set()
+                        self.global_keyword_map[keyword].add(intent_name)
+                        
+                        # Language partitioning based on script detection
+                        if self._detect_language(keyword) == 'ru':
+                            if keyword not in self.global_keyword_map_ru:
+                                self.global_keyword_map_ru[keyword] = set()
+                            self.global_keyword_map_ru[keyword].add(intent_name)
+                            if keyword not in self.fuzzy_keywords_ru:
+                                self.fuzzy_keywords_ru.append(keyword)
+                        else:
+                            if keyword not in self.global_keyword_map_en:
+                                self.global_keyword_map_en[keyword] = set()
+                            self.global_keyword_map_en[keyword].add(intent_name)
+                            if keyword not in self.fuzzy_keywords_en:
+                                self.fuzzy_keywords_en.append(keyword)
                     
                     total_keywords += len(keywords)
                 
@@ -239,6 +273,8 @@ class HybridKeywordMatcherProvider(NLUProvider):
             
             # Update global keyword stats
             self.stats['total_global_keywords'] = len(self.global_keyword_map)
+            self.stats['ru_keywords'] = len(self.global_keyword_map_ru)
+            self.stats['en_keywords'] = len(self.global_keyword_map_en)
             
             logger.info(f"HybridKeywordMatcher initialized: {total_patterns} patterns, "
                        f"{total_keywords} fuzzy keywords ({len(self.global_keyword_map)} global) for {len(self.exact_patterns)} intents")
@@ -294,6 +330,22 @@ class HybridKeywordMatcherProvider(NLUProvider):
             keywords = self._smart_prune_keywords(keywords)
         
         return keywords
+    
+    def _detect_language(self, text: str) -> str:
+        """Detect language based on Cyrillic script presence"""
+        # Cyrillic script detection for Russian
+        if any('\u0400' <= char <= '\u04FF' for char in text):
+            return 'ru'
+        return 'en'
+    
+    def _check_partial_match(self, input_tokens: List[str], phrase_tokens: List[str]) -> bool:
+        """Token-based partial matching (replace regex explosion)"""
+        if not phrase_tokens:
+            return False
+        
+        required_hits = math.ceil(0.7 * len(phrase_tokens))
+        hits = sum(1 for token in phrase_tokens if token in input_tokens)
+        return hits >= required_hits
     
     def _smart_prune_keywords(self, keywords: List[str]) -> List[str]:
         """Prune keywords using entropy and signal strength instead of just length"""
@@ -410,12 +462,25 @@ class HybridKeywordMatcherProvider(NLUProvider):
                     raw_score = self.pattern_confidence * self.flexible_match_boost
                     pattern_matches.append((intent_name, raw_score, "flexible_pattern", pattern.pattern))
         
-        # Try partial patterns
+        # Try partial patterns with token-based matching
+        input_tokens = set(normalized_text.split())
         for intent_name, patterns in self.partial_patterns.items():
-            for pattern in patterns:
-                if pattern.search(normalized_text):
-                    raw_score = self.pattern_confidence * self.partial_match_boost
-                    pattern_matches.append((intent_name, raw_score, "partial_pattern", pattern.pattern))
+            # Get original phrases for this intent to do token matching
+            if intent_name in self.fuzzy_keywords:
+                intent_phrases = self.fuzzy_keywords[intent_name]
+                for phrase in intent_phrases:
+                    phrase_tokens = phrase.lower().split()
+                    if self._check_partial_match(input_tokens, phrase_tokens):
+                        raw_score = self.pattern_confidence * self.partial_match_boost
+                        pattern_matches.append((intent_name, raw_score, "partial_pattern", phrase))
+                        break  # Only need one match per intent
+            
+            # Fallback to regex patterns if no fuzzy keywords available
+            if intent_name not in pattern_matches or not self.fuzzy_keywords.get(intent_name):
+                for pattern in patterns:
+                    if pattern.search(normalized_text):
+                        raw_score = self.pattern_confidence * self.partial_match_boost
+                        pattern_matches.append((intent_name, raw_score, "partial_pattern", pattern.pattern))
         
         if not pattern_matches:
             return None
@@ -508,27 +573,42 @@ class HybridKeywordMatcherProvider(NLUProvider):
         return None
     
     def _calculate_intent_scores_optimized(self, normalized_text: str) -> Dict[str, float]:
-        """Calculate intent scores using global shortlisting for optimal performance"""
+        """Calculate intent scores using language-aware global shortlisting for optimal performance"""
         if not self.global_keyword_map:
             return {}
         
-        # Step 1: Global shortlisting - get top candidates across ALL keywords
-        all_keywords = list(self.global_keyword_map.keys())
+        # Step 1: Language detection and selection of appropriate keyword pool
+        detected_lang = self._detect_language(normalized_text)
+        if detected_lang == 'ru' and self.global_keyword_map_ru:
+            keyword_map = self.global_keyword_map_ru
+            all_keywords = self.fuzzy_keywords_ru
+        elif detected_lang == 'en' and self.global_keyword_map_en:
+            keyword_map = self.global_keyword_map_en
+            all_keywords = self.fuzzy_keywords_en
+        else:
+            # Fallback to global map if language-specific map is empty
+            keyword_map = self.global_keyword_map
+            all_keywords = list(self.global_keyword_map.keys())
         
-        # Use batch extract for efficiency with score cutoff
+        if not all_keywords:
+            return {}
+        
+        # Step 2: Global shortlisting - get top candidates across selected keywords
+        
+        # Use batch extract for efficiency with score cutoff (0-1 scale)
         top_matches = self._process.extract(
             normalized_text,
             all_keywords,
             scorer=self._fuzz.WRatio,
             processor=None,  # Keywords already lowercase
-            score_cutoff=60,  # Early pruning
+            score_cutoff=60,  # Internal rapidfuzz uses 0-100, normalize later
             limit=30  # Limit global candidates
         )
         
         if top_matches:
             self.stats['global_shortlist_hits'] += 1
         
-        # Step 2: Aggregate scores by intent
+        # Step 3: Aggregate scores by intent (handle Set[str] from collision fix)
         intent_candidate_scores = {}
         for match_tuple in top_matches:
             # Handle both (keyword, score) and (keyword, score, index) formats
@@ -539,13 +619,20 @@ class HybridKeywordMatcherProvider(NLUProvider):
             else:
                 logger.warning(f"Unexpected match tuple format: {match_tuple}")
                 continue
+            
+            # Handle both Set[str] (new collision-free) and str (legacy) mappings
+            intent_names = keyword_map.get(keyword, set())
+            if isinstance(intent_names, str):
+                intent_names = {intent_names}
+            elif not intent_names:
+                continue
                 
-            intent_name = self.global_keyword_map[keyword]
-            if intent_name not in intent_candidate_scores:
-                intent_candidate_scores[intent_name] = []
-            intent_candidate_scores[intent_name].append((keyword, score / 100.0))
+            for intent_name in intent_names:
+                if intent_name not in intent_candidate_scores:
+                    intent_candidate_scores[intent_name] = []
+                intent_candidate_scores[intent_name].append((keyword, score / 100.0))
         
-        # Step 3: Calculate final intent scores using multiple strategies
+        # Step 4: Calculate final intent scores using multiple strategies
         final_intent_scores = {}
         for intent_name, candidates in intent_candidate_scores.items():
             if not candidates:
@@ -630,7 +717,7 @@ class HybridKeywordMatcherProvider(NLUProvider):
             keywords_lc,
             scorer=self._fuzz.WRatio,
             processor=None,
-            score_cutoff=70,
+            score_cutoff=70,  # Internal rapidfuzz uses 0-100, normalize later
             limit=3
         )
         
@@ -722,59 +809,30 @@ class HybridKeywordMatcherProvider(NLUProvider):
         return re.compile(pattern, flags)
     
     def _build_partial_pattern(self, phrase: str) -> Pattern:
-        """Build partial pattern matching subset of distinct words"""
+        """Build partial pattern with token-based matching to replace regex explosion"""
         words = phrase.split()
         if len(words) <= 2:
             return self._build_flexible_pattern(phrase)
         
-        # Require at least 70% of words to match, but ensure they are distinct
-        min_words = max(1, int(len(words) * 0.7))
+        # Use simple word boundary pattern - actual partial matching logic moved to _check_partial_match
         escaped_words = [re.escape(word) for word in words]
-        
-        # Create pattern with lookaheads to ensure distinct word matches
-        # This prevents repeated single words from satisfying the pattern
-        lookaheads = []
-        for word in escaped_words:
-            # Each lookahead ensures the word appears at least once
-            lookaheads.append(f"(?=.*\\b{word}\\b)")
-        
-        # Combine lookaheads to require at least min_words distinct matches
-        # Use a more sophisticated approach than simple alternation
-        if min_words == len(words):
-            # All words required - use flexible pattern approach
-            pattern = "^" + "".join(lookaheads) + ".*$"
-        else:
-            # Partial match - require at least min_words different words
-            # Create pattern that counts distinct word boundaries
-            word_patterns = [f"\\b{word}\\b" for word in escaped_words]
-            
-            # Use positive lookahead to ensure we have enough different words
-            distinct_count_patterns = []
-            from itertools import combinations
-            
-            # Generate combinations of min_words from the available words
-            for combo in combinations(escaped_words, min_words):
-                combo_lookaheads = [f"(?=.*\\b{word}\\b)" for word in combo]
-                distinct_count_patterns.append("^" + "".join(combo_lookaheads) + ".*$")
-            
-            # Match any of the valid combinations
-            pattern = f"(?:{'|'.join(distinct_count_patterns)})"
+        word_pattern = r'\b(?:' + '|'.join(escaped_words) + r')\b'
         
         flags = 0 if self.case_sensitive else re.IGNORECASE
-        return re.compile(pattern, flags)
+        return re.compile(word_pattern, flags)
     
     def _normalize_text(self, text: str) -> str:
-        """Normalize text for matching"""
-        if not self.case_sensitive:
+        """Improved text normalization for matching"""
+        # Unicode normalization first (before case folding)
+        if self.normalize_unicode:
+            text = unicodedata.normalize('NFKD', text.casefold())
+            # Remove combining characters
+            text = ''.join(ch for ch in text if not unicodedata.combining(ch))
+        elif not self.case_sensitive:
             text = text.lower()
         
         # Remove extra whitespace
         text = re.sub(r'\s+', ' ', text.strip())
-        
-        # Unicode normalization if enabled
-        if self.normalize_unicode:
-            import unicodedata
-            text = unicodedata.normalize('NFKD', text)
         
         return text
     
@@ -835,6 +893,66 @@ class HybridKeywordMatcherProvider(NLUProvider):
         
         return stats
     
+    def get_parameter_schema(self) -> Dict[str, Any]:
+        """Get parameter schema for hybrid keyword matcher (Phase 1: Added configuration validation)"""
+        return {
+            "confidence_threshold": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.7,
+                "description": "Minimum confidence for intent acceptance (normalized for Phase 1 consistency)"
+            },
+            "fuzzy_enabled": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable fuzzy matching capabilities"
+            },
+            "fuzzy_threshold": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.8,
+                "description": "Minimum fuzzy matching score threshold"
+            },
+            "pattern_confidence": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.9,
+                "description": "Base confidence for pattern matches"
+            },
+            "case_sensitive": {
+                "type": "boolean",
+                "default": False,
+                "description": "Enable case-sensitive pattern matching"
+            },
+            "normalize_unicode": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable improved Unicode normalization (Phase 1 enhancement)"
+            },
+            "cache_fuzzy_results": {
+                "type": "boolean",
+                "default": True,
+                "description": "Enable caching of fuzzy matching results"
+            },
+            "max_fuzzy_keywords_per_intent": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "default": 50,
+                "description": "Maximum fuzzy keywords per intent"
+            },
+            "min_pattern_length": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 2,
+                "description": "Minimum pattern length for processing"
+            }
+        }
+    
     def get_capabilities(self) -> Dict[str, Any]:
         """Get hybrid keyword matcher capabilities"""
         return {
@@ -850,7 +968,10 @@ class HybridKeywordMatcherProvider(NLUProvider):
                 "fast_processing": True,
                 "donation_driven": True,
                 "configurable_thresholds": True,
-                "performance_tracking": True
+                "performance_tracking": True,
+                "language_partitioning": True,  # Phase 1: New feature
+                "collision_free_keywords": True,  # Phase 1: New feature
+                "token_based_partial_matching": True  # Phase 1: New feature
             },
             "performance": self.get_performance_stats()
         }
@@ -1078,6 +1199,26 @@ class HybridKeywordMatcherProvider(NLUProvider):
                 raise ValueError(f"Value {value} not in allowed choices {param_spec.choices}")
         
         return value
+    
+    def validate_config(self) -> bool:
+        """Validate hybrid keyword matcher configuration"""
+        if not 0.0 <= self.confidence_threshold <= 1.0:
+            logger.error("confidence_threshold must be between 0.0 and 1.0")
+            return False
+        
+        if not 0.0 <= self.fuzzy_threshold <= 1.0:
+            logger.error("fuzzy_threshold must be between 0.0 and 1.0")
+            return False
+        
+        if not 0.0 <= self.pattern_confidence <= 1.0:
+            logger.error("pattern_confidence must be between 0.0 and 1.0")
+            return False
+        
+        if self.min_pattern_length < 1:
+            logger.error("min_pattern_length must be at least 1")
+            return False
+        
+        return True
     
     async def cleanup(self) -> None:
         """Clean up hybrid keyword matcher resources"""

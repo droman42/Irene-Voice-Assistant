@@ -33,8 +33,14 @@ class SpaCyNLUProvider(NLUProvider):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.nlp = None
-        self.model_name = config.get('model_name', 'ru_core_news_sm')
-        self.fallback_model = config.get('fallback_model', 'en_core_web_sm')
+        
+        # Multi-model management for language awareness
+        self.available_models: Dict[str, Any] = {}  # language -> spacy.Language object
+        self.language_preferences = {
+            'ru': ['ru_core_news_md', 'ru_core_news_sm'],
+            'en': ['en_core_web_md', 'en_core_web_sm']
+        }
+        
         self.confidence_threshold = config.get('confidence_threshold', 0.7)
         self.entity_types = config.get('entity_types', ['PERSON', 'ORG', 'GPE', 'DATE', 'TIME', 'MONEY', 'QUANTITY'])
         
@@ -63,6 +69,13 @@ class SpaCyNLUProvider(NLUProvider):
         
     def get_provider_name(self) -> str:
         return "spacy_nlu"
+    
+    def _detect_language(self, text: str) -> str:
+        """Language detection based on Cyrillic script presence"""
+        # Cyrillic script detection for Russian
+        if any('\u0400' <= char <= '\u04FF' for char in text):
+            return 'ru'
+        return 'en'
     
     async def is_available(self) -> bool:
         """Check if spaCy is available and models can be loaded (patterns loaded separately during donation phase)"""
@@ -95,53 +108,62 @@ class SpaCyNLUProvider(NLUProvider):
         await self._initialize_spacy_with_assets()
     
     async def _initialize_spacy(self):
-        """Initialize spaCy model and intent patterns"""
+        """Initialize spaCy models with multi-language support"""
         try:
             spacy = safe_import('spacy')
             if spacy is None:
                 raise ImportError("spaCy not available")
             
-            # Try to load the specified model
-            try:
-                self.nlp = spacy.load(self.model_name)
+            # Initialize available models for each language
+            for language, models in self.language_preferences.items():
+                for model_name in models:
+                    try:
+                        model = spacy.load(model_name)
+                        self.available_models[language] = model
+                        
+                        # Capture model version for cache validation
+                        if hasattr(model, 'meta') and 'version' in model.meta:
+                            version = model.meta['version']
+                        else:
+                            version = spacy.__version__
+                        
+                        logger.info(f"Loaded spaCy model for {language}: {model_name} (version: {version})")
+                        break  # Use the first available model for this language
+                    except OSError:
+                        logger.debug(f"Model {model_name} not available for {language}")
+                        continue
                 
-                # Capture model version for cache validation
-                if hasattr(self.nlp, 'meta') and 'version' in self.nlp.meta:
-                    self._spacy_model_version = self.nlp.meta['version']
-                else:
-                    # Fallback to spaCy library version
-                    self._spacy_model_version = spacy.__version__
-                
-                logger.info(f"Loaded spaCy model: {self.model_name} (version: {self._spacy_model_version})")
-            except OSError:
-                logger.warning(f"Model {self.model_name} not found, trying fallback {self.fallback_model}")
-                try:
-                    self.nlp = spacy.load(self.fallback_model)
-                    
-                    # Capture fallback model version
-                    if hasattr(self.nlp, 'meta') and 'version' in self.nlp.meta:
-                        self._spacy_model_version = self.nlp.meta['version']
-                    else:
-                        self._spacy_model_version = spacy.__version__
-                    
-                    logger.info(f"Loaded fallback spaCy model: {self.fallback_model} (version: {self._spacy_model_version})")
-                except OSError:
-                    logger.error("No spaCy models available")
-                    raise RuntimeError("No spaCy models found. Install with: python -m spacy download ru_core_news_sm")
+                if language not in self.available_models:
+                    logger.warning(f"No models available for language: {language}")
+            
+            # Set primary model (use Russian if available, else English)
+            if 'ru' in self.available_models:
+                self.nlp = self.available_models['ru']
+                self._spacy_model_version = getattr(self.nlp, 'meta', {}).get('version', spacy.__version__)
+                logger.info(f"Primary model set to Russian: {self.nlp.meta.get('name', 'unknown')}")
+            elif 'en' in self.available_models:
+                self.nlp = self.available_models['en']
+                self._spacy_model_version = getattr(self.nlp, 'meta', {}).get('version', spacy.__version__)
+                logger.info(f"Primary model set to English: {self.nlp.meta.get('name', 'unknown')}")
+            else:
+                # No models available - this is a configuration/installation issue
+                logger.error("No spaCy models available for any language")
+                raise RuntimeError("No spaCy models found. Install with: python -m spacy download ru_core_news_sm en_core_web_sm")
             
             # Initialize intent patterns if donations are available
             if len(self.intent_patterns) > 0:
                 await self._initialize_intent_patterns()
             
-            logger.info("spaCy NLU initialized successfully")
+            logger.info(f"spaCy NLU initialized successfully with {len(self.available_models)} language models")
             
         except Exception as e:
             logger.error(f"Failed to initialize spaCy NLU: {e}")
             self.nlp = None
+            self.available_models = {}
             raise
     
     async def _initialize_spacy_with_assets(self):
-        """Initialize spaCy model using asset management system"""
+        """Initialize spaCy models with multi-language support using asset management system"""
         try:
             spacy = safe_import('spacy')
             if spacy is None:
@@ -157,79 +179,70 @@ class SpaCyNLUProvider(NLUProvider):
                     logger.error(f"Failed to initialize asset manager: {e}")
                     self.asset_manager = None
             
-            # Try to ensure model is available through asset manager
-            if self.asset_manager:
-                try:
-                    model_path = await self.asset_manager.ensure_model_available(
-                        provider_name="spacy_nlu",
-                        model_name=self.model_name,
-                        asset_config=self.__class__.get_asset_config()
-                    )
-                    
-                    if model_path:
-                        logger.info(f"Asset manager verified spaCy model: {self.model_name} -> {model_path}")
-                        # For spaCy models, the asset manager only verifies installation
-                        # Models are pre-installed via pyproject.toml dependencies
-                    else:
-                        logger.warning(f"Asset manager could not ensure model: {self.model_name}")
+            # Initialize available models for each language with asset management
+            for language, models in self.language_preferences.items():
+                for model_name in models:
+                    try:
+                        # Try to ensure model is available through asset manager
+                        if self.asset_manager:
+                            try:
+                                model_path = await self.asset_manager.ensure_model_available(
+                                    provider_name="spacy_nlu",
+                                    model_name=model_name,
+                                    asset_config=self.__class__.get_asset_config()
+                                )
+                                
+                                if model_path:
+                                    logger.info(f"Asset manager verified spaCy model: {model_name} -> {model_path}")
+                                else:
+                                    logger.debug(f"Asset manager could not ensure model: {model_name}")
+                                    
+                            except Exception as e:
+                                logger.debug(f"Asset manager failed to provide model {model_name}: {e}")
                         
-                except Exception as e:
-                    logger.warning(f"Asset manager failed to provide model {self.model_name}: {e}")
-                    # Fall back to standard loading
+                        # Try to load the model
+                        model = spacy.load(model_name)
+                        self.available_models[language] = model
+                        
+                        # Capture model version for cache validation
+                        if hasattr(model, 'meta') and 'version' in model.meta:
+                            version = model.meta['version']
+                        else:
+                            version = spacy.__version__
+                        
+                        logger.info(f"Loaded spaCy model for {language}: {model_name} (version: {version})")
+                        break  # Use the first available model for this language
+                    except OSError:
+                        logger.debug(f"Model {model_name} not available for {language}")
+                        continue
+                
+                if language not in self.available_models:
+                    logger.warning(f"No models available for language: {language}")
             
-            # Try to load the specified model
-            try:
-                self.nlp = spacy.load(self.model_name)
-                
-                # Capture model version for cache validation
-                if hasattr(self.nlp, 'meta') and 'version' in self.nlp.meta:
-                    self._spacy_model_version = self.nlp.meta['version']
-                else:
-                    # Fallback to spaCy library version
-                    self._spacy_model_version = spacy.__version__
-                
-                logger.info(f"Loaded spaCy model: {self.model_name} (version: {self._spacy_model_version})")
-            except OSError:
-                logger.warning(f"Model {self.model_name} not found, trying fallback {self.fallback_model}")
-                try:
-                    # Try asset manager for fallback model
-                    if self.asset_manager:
-                        try:
-                            fallback_path = await self.asset_manager.ensure_model_available(
-                                provider_name="spacy_nlu",
-                                model_name=self.fallback_model,
-                                asset_config=self.__class__.get_asset_config()
-                            )
-                            
-                            if fallback_path:
-                                logger.info(f"Asset manager verified fallback spaCy model: {self.fallback_model} -> {fallback_path}")
-                            else:
-                                logger.warning(f"Asset manager could not verify fallback model: {self.fallback_model}")
-                        except Exception as e:
-                            logger.warning(f"Asset manager failed to provide fallback model {self.fallback_model}: {e}")
-                    
-                    self.nlp = spacy.load(self.fallback_model)
-                    
-                    # Capture fallback model version
-                    if hasattr(self.nlp, 'meta') and 'version' in self.nlp.meta:
-                        self._spacy_model_version = self.nlp.meta['version']
-                    else:
-                        self._spacy_model_version = spacy.__version__
-                    
-                    logger.info(f"Loaded fallback spaCy model: {self.fallback_model} (version: {self._spacy_model_version})")
-                except OSError:
-                    logger.error("No spaCy models available")
-                    raise RuntimeError("No spaCy models found. Install with: python -m spacy download ru_core_news_sm")
+            # Set primary model (use Russian if available, else English)
+            if 'ru' in self.available_models:
+                self.nlp = self.available_models['ru']
+                self._spacy_model_version = getattr(self.nlp, 'meta', {}).get('version', spacy.__version__)
+                logger.info(f"Primary model set to Russian: {self.nlp.meta.get('name', 'unknown')}")
+            elif 'en' in self.available_models:
+                self.nlp = self.available_models['en']
+                self._spacy_model_version = getattr(self.nlp, 'meta', {}).get('version', spacy.__version__)
+                logger.info(f"Primary model set to English: {self.nlp.meta.get('name', 'unknown')}")
+            else:
+                # No models available - this is a configuration/installation issue
+                logger.error("No spaCy models available for any language")
+                raise RuntimeError("No spaCy models found. Install with: python -m spacy download ru_core_news_sm en_core_web_sm")
             
             # Initialize intent patterns if donations are available
             if len(self.intent_patterns) > 0:
                 await self._initialize_intent_patterns()
             
-            logger.info("spaCy NLU initialized successfully with asset management")
+            logger.info(f"spaCy NLU initialized successfully with asset management ({len(self.available_models)} language models)")
             
         except Exception as e:
             logger.error(f"Failed to initialize spaCy NLU with assets: {e}")
             self.nlp = None
+            self.available_models = {}
             raise
     
     
@@ -448,9 +461,10 @@ class SpaCyNLUProvider(NLUProvider):
             return False
         
         try:
-            # Create cache key based on model, model version, and donations
+            # Create cache key based on primary model, model version, and donations
             model_version = self._spacy_model_version or "unknown"
-            cache_key = f"spacy_artifacts_{self.model_name}_{model_version}_{self._donations_hash}"
+            primary_model_name = getattr(self.nlp, 'meta', {}).get('name', 'unknown') if self.nlp else 'unknown'
+            cache_key = f"spacy_artifacts_{primary_model_name}_{model_version}_{self._donations_hash}"
             
             # Try to load cached artifacts from spaCy cache directory
             cached_data = await self.asset_manager.get_cached_data(cache_key, provider_name="spacy")
@@ -604,9 +618,10 @@ class SpaCyNLUProvider(NLUProvider):
             return
         
         try:
-            # Create cache key based on model, model version, and donations
+            # Create cache key based on primary model, model version, and donations
             model_version = self._spacy_model_version or "unknown"
-            cache_key = f"spacy_artifacts_{self.model_name}_{model_version}_{self._donations_hash}"
+            primary_model_name = getattr(self.nlp, 'meta', {}).get('name', 'unknown') if self.nlp else 'unknown'
+            cache_key = f"spacy_artifacts_{primary_model_name}_{model_version}_{self._donations_hash}"
             
             # Serialize pattern docs using DocBin for efficiency
             pattern_docs_docbin, intent_doc_counts = await self._serialize_pattern_docs()
@@ -637,7 +652,7 @@ class SpaCyNLUProvider(NLUProvider):
                 'parameter_specs': serialized_parameter_specs,  # ADD: Parameter specifications
                 'advanced_patterns': self.advanced_patterns,     # ADD: Validated spaCy patterns
                 'phrase_matcher_config': self.phrase_matcher_config,  # ADD: PhraseMatcher configuration
-                'model_name': self.model_name,
+                'model_name': primary_model_name,
                 'model_version': self._spacy_model_version,
                 'donations_hash': self._donations_hash,
                 'donation_versions': self._donation_versions,
@@ -650,7 +665,7 @@ class SpaCyNLUProvider(NLUProvider):
             logger.info(f"Cached spaCy artifacts with key: {cache_key}")
             
             # Telemetry logging
-            logger.info(f"spaCy asset cache telemetry - Model: {self.model_name} v{model_version}, "
+            logger.info(f"spaCy asset cache telemetry - Model: {primary_model_name} v{model_version}, "
                        f"Donations: {len(self._donation_versions)} versions from {len(self._handler_domains)} domains, "
                        f"Artifacts: {len(self.pattern_docs)} intents, {len(self.intent_centroids)} centroids, "
                        f"{len(self.parameter_specs)} parameter specs, {len(self.advanced_patterns)} advanced patterns")
@@ -687,8 +702,36 @@ class SpaCyNLUProvider(NLUProvider):
                 session_id=context.session_id
             )
         
-        # Process text with spaCy
-        doc = self.nlp(text)
+        # Runtime language detection and model selection
+        detected_lang = self._detect_language(text)
+        selected_model = None
+        
+        # Try to use language-specific model if available
+        if detected_lang in self.available_models:
+            selected_model = self.available_models[detected_lang]
+        else:
+            # Fallback to primary model
+            selected_model = self.nlp
+            
+            # Check if we have any models for the detected language
+            if detected_lang not in self.available_models and self.available_models:
+                logger.debug(f"No model available for detected language '{detected_lang}', using fallback model")
+        
+        # If no model available for detected language, return general intent
+        if not selected_model:
+            logger.info(f"No spaCy model available for language '{detected_lang}', returning general intent")
+            return Intent(
+                name="conversation.general",
+                entities={},
+                confidence=0.6,
+                raw_text=text,
+                domain="conversation",
+                action="general",
+                session_id=context.session_id
+            )
+        
+        # Process text with selected spaCy model
+        doc = selected_model(text)
         
         # Extract entities
         entities = self._extract_spacy_entities(doc)
@@ -1012,8 +1055,11 @@ class SpaCyNLUProvider(NLUProvider):
             return "general", intent_name
     
     def get_supported_languages(self) -> List[str]:
-        """Get supported languages based on loaded model"""
-        if self.nlp is not None:
+        """Get supported languages based on available models"""
+        if self.available_models:
+            # Return languages for which we have loaded models
+            return list(self.available_models.keys())
+        elif self.nlp is not None:
             # Use actual model language if available
             primary_lang = getattr(self.nlp, 'lang', 'en')
             if primary_lang == 'ru':
@@ -1023,13 +1069,8 @@ class SpaCyNLUProvider(NLUProvider):
             else:
                 return [primary_lang, 'en']
         else:
-            # Fallback to model name parsing
-            if self.model_name.startswith('ru_'):
-                return ['ru', 'en']
-            elif self.model_name.startswith('en_'):
-                return ['en', 'ru']
-            else:
-                return ['en']
+            # Default fallback
+            return ['ru', 'en']
     
     def get_supported_domains(self) -> List[str]:
         """Get supported intent domains"""
@@ -1040,19 +1081,8 @@ class SpaCyNLUProvider(NLUProvider):
         return list(domains)
     
     def get_parameter_schema(self) -> Dict[str, Any]:
-        """Get parameter schema for spaCy NLU"""
+        """Get parameter schema for spaCy NLU (Phase 1: Updated for multi-model support)"""
         return {
-            "model_name": {
-                "type": "string",
-                "default": "ru_core_news_sm",
-                "description": "Primary spaCy model to use",
-                "enum": ["ru_core_news_sm", "en_core_web_sm", "en_core_web_md", "en_core_web_lg"]
-            },
-            "fallback_model": {
-                "type": "string", 
-                "default": "en_core_web_sm",
-                "description": "Fallback model if primary is unavailable"
-            },
             "confidence_threshold": {
                 "type": "number",
                 "minimum": 0.0,
@@ -1065,6 +1095,28 @@ class SpaCyNLUProvider(NLUProvider):
                 "items": {"type": "string"},
                 "default": ["PERSON", "ORG", "GPE", "DATE", "TIME", "MONEY", "QUANTITY"],
                 "description": "spaCy entity types to extract"
+            },
+            "language_preferences": {
+                "type": "object",
+                "description": "Language-specific model preferences (Phase 1: Multi-model support)",
+                "properties": {
+                    "ru": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": ["ru_core_news_md", "ru_core_news_sm"],
+                        "description": "Russian model preferences in order"
+                    },
+                    "en": {
+                        "type": "array", 
+                        "items": {"type": "string"},
+                        "default": ["en_core_web_md", "en_core_web_sm"],
+                        "description": "English model preferences in order"
+                    }
+                },
+                "default": {
+                    "ru": ["ru_core_news_md", "ru_core_news_sm"],
+                    "en": ["en_core_web_md", "en_core_web_sm"]
+                }
             }
         }
     
@@ -1073,7 +1125,8 @@ class SpaCyNLUProvider(NLUProvider):
         return {
             "supported_languages": self.get_supported_languages(),
             "supported_domains": self.get_supported_domains(),
-            "model_name": self.model_name,
+            "primary_model": getattr(self.nlp, 'meta', {}).get('name', 'unknown') if self.nlp else 'unknown',
+            "available_models": list(self.available_models.keys()) if self.available_models else [],
             "features": {
                 "semantic_similarity": True,
                 "named_entity_recognition": True,
@@ -1192,6 +1245,7 @@ class SpaCyNLUProvider(NLUProvider):
         
         spaCy models are installed as Python packages via pyproject.toml dependencies.
         The asset manager only verifies package availability, does not download models.
+        Updated for Phase 1: Multi-model support with language preferences.
         """
         return {
             "uses_python_packages": True,  # Key flag: models are Python packages, not files
@@ -1199,18 +1253,32 @@ class SpaCyNLUProvider(NLUProvider):
             "cache_types": ["runtime"],  # Only runtime cache, no model downloads
             "credential_patterns": [],  # No API credentials needed for spaCy models
             "package_dependencies": [
-                "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl"
-            ]  # Reference for documentation only - actual installation via pyproject.toml
+                # Russian models (in preference order)
+                "ru_core_news_md @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl",
+                "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl",
+                # English models (in preference order)
+                "en_core_web_md @ https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl",
+                "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl"
+            ],  # Reference for documentation only - actual installation via pyproject.toml
+            "language_support": {
+                "ru": ["ru_core_news_md", "ru_core_news_sm"],
+                "en": ["en_core_web_md", "en_core_web_sm"]
+            }
         }
     
-    # Build dependency methods (TODO #5 Phase 1)
+    # Build dependency methods (Phase 1: Updated for multi-model support)
     @classmethod
     def get_python_dependencies(cls) -> List[str]:
-        """spaCy NLU requires spacy library and specific model"""
+        """spaCy NLU requires spacy library and multiple language models"""
         return [
             "spacy>=3.7.0",
             "numpy>=1.20.0",  # For centroids and vector operations
-            "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl"
+            # Russian models (in preference order - system will use first available)
+            "ru_core_news_md @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl",
+            "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl",
+            # English models (in preference order - system will use first available)
+            "en_core_web_md @ https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl",
+            "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl"
         ]
         
     @classmethod

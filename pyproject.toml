@@ -96,11 +96,16 @@ llm = [
     "anthropic>=0.25.0",
 ]
 
-# NLU (Natural Language Understanding) components
+# NLU (Natural Language Understanding) components - Phase 1: Multi-model support
 nlu = [
     "spacy>=3.7.0",
     "numpy>=1.21.0",  # Required for intent centroids and vector operations
-    "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl"
+    # Phase 1: Multi-language model support - Russian models (in preference order)
+    "ru_core_news_md @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.7.0/ru_core_news_md-3.7.0-py3-none-any.whl",
+    "ru_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_sm-3.7.0/ru_core_news_sm-3.7.0-py3-none-any.whl",
+    # Phase 1: Multi-language model support - English models (in preference order)
+    "en_core_web_md @ https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.7.0/en_core_web_md-3.7.0-py3-none-any.whl",
+    "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0-py3-none-any.whl"
 ]
 
 # Configuration management

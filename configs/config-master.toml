@@ -330,22 +330,29 @@ persist_language_preference = true  # Persist language preference across convers
 supported_languages = ["ru", "en"] # Supported languages
 default_language = "ru"            # Default language when detection fails
 
-# Hybrid Keyword Matcher Provider (fast, pattern-based)
+# Hybrid Keyword Matcher Provider (fast, pattern-based) - Phase 1 Enhanced
 [nlu.providers.hybrid_keyword_matcher]
 enabled = true                      # Enable keyword matcher
-confidence_boost = 0.1             # Confidence boost for exact matches
-case_sensitive = false             # Case-sensitive matching
-word_boundaries = true             # Require word boundaries
+confidence_threshold = 0.7         # Provider confidence threshold (Phase 1: normalized to 0.7 for consistency)
+fuzzy_enabled = true               # Enable fuzzy matching capabilities
+fuzzy_threshold = 0.8              # Fuzzy matching threshold (0.0-1.0)
+pattern_confidence = 0.9           # Base confidence for pattern matches
+case_sensitive = false             # Case-sensitive pattern matching
+normalize_unicode = true           # Enable improved Unicode normalization (Phase 1 enhancement)
+cache_fuzzy_results = true         # Enable caching of fuzzy matching results
+max_fuzzy_keywords_per_intent = 50 # Maximum fuzzy keywords per intent
+min_pattern_length = 2             # Minimum pattern length for processing
 
-# SpaCy NLU Provider (advanced linguistic analysis)
+# SpaCy NLU Provider (advanced linguistic analysis) - Phase 1 Multi-Model Support
 [nlu.providers.spacy_nlu]
 enabled = true                     # Enable spaCy provider
-model_name = "ru_core_news_sm"      # SpaCy model: "en_core_web_sm", "ru_core_news_sm"
-fallback_model = "en_core_web_sm"   # Fallback model if primary fails
-confidence_threshold = 0.6         # Provider-specific confidence threshold
-enable_ner = true                  # Enable named entity recognition
-enable_pos_tagging = true          # Enable part-of-speech tagging
-auto_download = true               # Auto-download model if missing via spacy CLI
+confidence_threshold = 0.7         # Provider-specific confidence threshold (Phase 1: normalized consistency)
+entity_types = ["PERSON", "ORG", "GPE", "DATE", "TIME", "MONEY", "QUANTITY"]  # Entity types to extract
+
+# Phase 1: Multi-model language preferences (replaces legacy model_name/fallback_model)
+[nlu.providers.spacy_nlu.language_preferences]
+ru = ["ru_core_news_md", "ru_core_news_sm"]  # Russian models in preference order
+en = ["en_core_web_md", "en_core_web_sm"]    # English models in preference order
 
 # ============================================================
 # TEXT PROCESSOR COMPONENT CONFIGURATION
