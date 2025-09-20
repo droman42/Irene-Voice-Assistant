@@ -14,6 +14,16 @@ import LanguageTabs, { LanguageInfo } from '@/components/donations/LanguageTabs'
 import CrossLanguageValidation from '@/components/donations/CrossLanguageValidation';
 import ApplyChangesBar from '@/components/common/ApplyChangesBar';
 
+// Import analysis components
+import { 
+  ConflictStatusBar, 
+  ConflictBadge, 
+  SuggestionPanel 
+} from '@/components/analysis';
+
+// Import analysis hooks
+import { useRealtimeAnalysis } from '@/hooks';
+
 // Import existing form components
 import Section from '@/components/ui/Section';
 import Input from '@/components/ui/Input';
@@ -71,6 +81,17 @@ function MethodDonationEditor({
   extractLemmasFromTokenPatterns
 }: MethodDonationEditorProps & { currentLanguage?: string }) {
   
+  // Real-time analysis for conflict detection
+  const { 
+    conflicts, 
+    analysisStatus, 
+    analyzeNow 
+  } = useRealtimeAnalysis(selectedHandler, currentLanguage, value, {
+    debounceMs: 800, // Slightly longer debounce for editing
+    autoAnalyze: true,
+    enableCaching: true
+  });
+  
   const v = value ?? { description: '', handler_domain: '', method_donations: [] };
   const set = (k: keyof DonationData, val: any): void => {
     onChange({ ...(value ?? {}), [k]: val });
@@ -97,6 +118,13 @@ function MethodDonationEditor({
 
   return (
     <div className="space-y-6">
+      {/* Real-time Analysis Status */}
+      <ConflictStatusBar 
+        conflicts={conflicts} 
+        status={analysisStatus}
+        className="mb-4"
+      />
+      
       <Section title="Basic Information" defaultCollapsed={false}>
         <div className="space-y-4">
           {/* Structural/Metadata fields - Read only */}
@@ -295,6 +323,7 @@ function MethodDonationEditor({
                           set('method_donations', newMethods);
                         }}
                         showSyncWarning={hasLemmaSyncIssues(method)}
+                        conflicts={conflicts}
                       />
 
                       <TokenPatternsEditor
@@ -358,6 +387,21 @@ function MethodDonationEditor({
           </button>
         </div>
       </Section>
+
+      {/* Smart Suggestions Panel */}
+      {conflicts.length > 0 && (
+        <SuggestionPanel 
+          conflicts={conflicts}
+          onApplySuggestion={(conflictId, suggestion) => {
+            console.log('Apply suggestion:', conflictId, suggestion);
+            // TODO: Implement suggestion application logic
+          }}
+          onDismissConflict={(conflictId) => {
+            console.log('Dismiss conflict:', conflictId);
+            // TODO: Implement conflict dismissal logic
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1012,6 +1056,11 @@ const DonationsPage: React.FC = () => {
         onCancel={handleCancel}
         loading={saveStatus === 'saving'}
         lastSaved={saveStatus === 'saved' ? new Date() : undefined}
+        nluContext={{
+          language: selectedLanguage || undefined,
+          donationData: selectedHandler && selectedLanguage ? donations[`${selectedHandler}:${selectedLanguage}`] : undefined,
+          enableEnhancedValidation: true
+        }}
       />
     </div>
   );

@@ -1,5 +1,7 @@
 import { Plus, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { ConflictBadge } from '@/components/analysis';
+import type { ConflictReport } from '@/types';
 
 interface LemmasEditorProps {
   value: string[];
@@ -8,6 +10,7 @@ interface LemmasEditorProps {
   tokenPatterns?: Array<Array<Record<string, any>>>;
   onAutoSync?: () => void;
   showSyncWarning?: boolean;
+  conflicts?: ConflictReport[];
 }
 
 export default function LemmasEditor({
@@ -16,7 +19,8 @@ export default function LemmasEditor({
   disabled = false,
   tokenPatterns = [],
   onAutoSync,
-  showSyncWarning = false
+  showSyncWarning = false,
+  conflicts = []
 }: LemmasEditorProps) {
   const [newLemma, setNewLemma] = useState('');
   
@@ -66,6 +70,23 @@ export default function LemmasEditor({
 
   const suggestedLemmas = getSuggestedLemmas();
 
+  // Get conflicts that involve a specific lemma
+  const getLemmaConflicts = (lemma: string): ConflictReport[] => {
+    return conflicts.filter(conflict => {
+      // Check if this lemma appears in the conflict signals
+      const signals = conflict.signals;
+      if (signals.shared_lemmas && Array.isArray(signals.shared_lemmas)) {
+        return signals.shared_lemmas.includes(lemma);
+      }
+      if (signals.shared_phrases && Array.isArray(signals.shared_phrases)) {
+        return signals.shared_phrases.some((phrase: string) => 
+          phrase.toLowerCase().includes(lemma.toLowerCase())
+        );
+      }
+      return false;
+    });
+  };
+
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-2">
@@ -100,27 +121,52 @@ export default function LemmasEditor({
 
       {/* Current lemmas */}
       <div className="space-y-2 mb-3">
-        {value.map((lemma, index) => (
-          <div key={index} className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={lemma}
-              onChange={(e) => updateLemma(index, e.target.value)}
-              disabled={disabled}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50"
-              placeholder="Enter lemma..."
-            />
-            <button
-              type="button"
-              onClick={() => removeLemma(index)}
-              disabled={disabled}
-              className="p-2 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50"
-              title="Remove lemma"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
+        {value.map((lemma, index) => {
+          const lemmaConflicts = getLemmaConflicts(lemma);
+          const hasConflicts = lemmaConflicts.length > 0;
+          
+          return (
+            <div key={index} className="flex items-center space-x-2">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={lemma}
+                  onChange={(e) => updateLemma(index, e.target.value)}
+                  disabled={disabled}
+                  className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 ${
+                    hasConflicts ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter lemma..."
+                />
+                {hasConflicts && (
+                  <div className="absolute right-2 top-2 flex space-x-1">
+                    {lemmaConflicts.slice(0, 2).map((conflict, conflictIndex) => (
+                      <ConflictBadge 
+                        key={conflictIndex} 
+                        conflict={conflict} 
+                        className="scale-75"
+                      />
+                    ))}
+                    {lemmaConflicts.length > 2 && (
+                      <span className="text-xs text-red-600 bg-red-100 px-1 rounded">
+                        +{lemmaConflicts.length - 2}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => removeLemma(index)}
+                disabled={disabled}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50"
+                title="Remove lemma"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Add new lemma */}

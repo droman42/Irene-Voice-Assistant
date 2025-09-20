@@ -6,6 +6,7 @@
  */
 
 import type {
+  BaseApiResponse,
   ApiError,
   SchemaResponse,
   IntentStatusResponse,
@@ -75,11 +76,15 @@ import type {
   RawTomlValidationResponse,
   SectionToTomlRequest,
   SectionToTomlResponse,
-  // NLU Analysis types (Phase 2 - minimal for testing)
+  // NLU Analysis types (Phase 3 - comprehensive implementation)
   AnalyzeDonationRequest,
+  AnalyzeChangesRequest,
   NLUValidationResult,
+  NLUAnalysisResult,
+  ChangeImpactAnalysisResponse,
+  BatchAnalysisResponse,
   SystemHealthResponse,
-  BasicNLUAnalysisResult
+  ConflictReport
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -830,29 +835,29 @@ class IreneApiClient {
   }
 
   // ============================================================
-  // NLU ANALYSIS API METHODS (Phase 2 - Minimal for Testing)
+  // NLU ANALYSIS API METHODS (Phase 3 - Comprehensive Implementation)
   // ============================================================
 
   /**
-   * Analyze donation for conflicts and issues (Phase 2 testing)
+   * Real-time analysis of donation for conflicts and issues
    */
   async analyzeDonation(
     handlerName: string, 
     language: string, 
     donationData: Record<string, any>
-  ): Promise<BasicNLUAnalysisResult> {
+  ): Promise<NLUAnalysisResult> {
     const requestData: AnalyzeDonationRequest = {
       handler_name: handlerName,
       language: language,
       donation_data: donationData
     };
-    return this.post<BasicNLUAnalysisResult>('/nlu_analysis/analyze', requestData);
+    return this.post<NLUAnalysisResult>('/nlu_analysis/analyze/donation', requestData);
   }
 
   /**
-   * Validate donation before saving (Phase 2 testing)
+   * Pre-save validation with blocking/warning classification
    */
-  async validateDonationForSaving(
+  async validateDonation(
     handlerName: string, 
     language: string, 
     donationData: Record<string, any>
@@ -862,18 +867,86 @@ class IreneApiClient {
       language: language,
       donation_data: donationData
     };
-    return this.post<NLUValidationResult>('/nlu_analysis/validate', requestData);
+    return this.post<NLUValidationResult>('/nlu_analysis/validate/save', requestData);
   }
 
   /**
-   * Get NLU system health status (Phase 2 testing)
+   * Analyze impact of proposed changes
    */
-  async getNLUSystemHealth(): Promise<SystemHealthResponse> {
-    return this.get<SystemHealthResponse>('/nlu_analysis/system/health');
+  async analyzeChanges(
+    changes: Record<string, Record<string, any>>,
+    language?: string
+  ): Promise<ChangeImpactAnalysisResponse> {
+    const requestData: AnalyzeChangesRequest = {
+      changes: changes,
+      language: language
+    };
+    return this.post<ChangeImpactAnalysisResponse>('/nlu_analysis/analyze/changes', requestData);
   }
 
-  // Note: Comprehensive NLU Analysis API methods are planned for Phase 3+ 
-  // See config-ui/docs/nlu_improvements.md for full API specification
+  /**
+   * Get conflicts for specific handler with optional language filtering
+   */
+  async getHandlerConflicts(
+    handlerName: string, 
+    language?: string
+  ): Promise<ConflictReport[]> {
+    const params = language ? `?language=${language}` : '';
+    const response = await this.get<BatchAnalysisResponse>(`/nlu_analysis/conflicts/${encodeURIComponent(handlerName)}${params}`);
+    return response.conflicts || [];
+  }
+
+  /**
+   * Full system analysis for dashboard/CI integration
+   */
+  async getSystemAnalysis(language?: string): Promise<BatchAnalysisResponse> {
+    const params = language ? `?language=${language}` : '';
+    return this.get<BatchAnalysisResponse>(`/nlu_analysis/analysis/batch${params}`);
+  }
+
+  /**
+   * Get NLU system health status
+   */
+  async getSystemHealth(): Promise<SystemHealthResponse> {
+    return this.get<SystemHealthResponse>('/nlu_analysis/health');
+  }
+
+  /**
+   * Get conflicts by severity level with optional language filtering
+   * Note: This endpoint is not implemented in the backend yet
+   */
+  async getConflictsBySeverity(
+    severity: 'blocker' | 'warning' | 'info', 
+    language?: string
+  ): Promise<BatchAnalysisResponse> {
+    // TODO: Implement severity-based filtering in backend
+    console.warn('getConflictsBySeverity not implemented in backend - using full batch analysis');
+    return this.getSystemAnalysis(language);
+  }
+
+  /**
+   * Clear analysis cache
+   * Note: This endpoint is not implemented in the backend yet
+   */
+  async clearAnalysisCache(): Promise<BaseApiResponse> {
+    // TODO: Implement cache clearing in backend
+    console.warn('clearAnalysisCache not implemented in backend');
+    return Promise.resolve({ success: true, timestamp: Date.now() });
+  }
+
+  // Legacy method for backward compatibility during transition
+  async validateDonationForSaving(
+    handlerName: string, 
+    language: string, 
+    donationData: Record<string, any>
+  ): Promise<NLUValidationResult> {
+    return this.validateDonation(handlerName, language, donationData);
+  }
+
+  // Legacy method for backward compatibility during transition  
+  async getNLUSystemHealth(): Promise<SystemHealthResponse> {
+    return this.getSystemHealth();
+  }
 }
 
 // Create and export a default instance

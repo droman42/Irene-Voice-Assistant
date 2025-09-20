@@ -980,25 +980,85 @@ export interface SectionToTomlResponse extends BaseApiResponse {
 }
 
 // ============================================================
-// NLU ANALYSIS TYPES (Phase 2 - Minimal for Backend Testing)
+// NLU ANALYSIS TYPES (Phase 3 - Comprehensive Implementation)
 // ============================================================
 
-// Phase 2: Core types for backend API testing
+// Core analysis request types
 export interface AnalyzeDonationRequest {
   handler_name: string;
   language: string;
   donation_data: Record<string, any>;
 }
 
+export interface AnalyzeChangesRequest {
+  changes: Record<string, Record<string, any>>;
+  language?: string;
+}
+
+// Conflict and issue reporting types
+export interface ConflictReport {
+  intent_a: string;
+  intent_b: string;
+  language: string;
+  severity: 'blocker' | 'warning' | 'info';
+  score: number;
+  conflict_type: string;
+  signals: Record<string, any>;
+  suggestions: string[];
+}
+
+export interface ScopeIssue {
+  intent_name: string;
+  language: string;
+  issue_type: string;
+  severity: 'blocker' | 'warning' | 'info';
+  score: number;
+  evidence: Record<string, any>;
+  suggestions: string[];
+}
+
+// Validation results
 export interface NLUValidationResult extends BaseApiResponse {
   is_valid: boolean;
   has_blocking_conflicts: boolean;
   has_warnings: boolean;
-  conflicts: Array<Record<string, any>>;
+  conflicts: ConflictReport[];
   suggestions: string[];
   validation_time_ms: number;
 }
 
+// Analysis results
+export interface NLUAnalysisResult extends BaseApiResponse {
+  conflicts: ConflictReport[];
+  scope_issues: ScopeIssue[];
+  performance_metrics: Record<string, any>;
+  language_coverage: Record<string, number>;
+  analysis_time_ms: number;
+}
+
+export interface ChangeImpactAnalysisResponse extends BaseApiResponse {
+  changes: Record<string, any>;
+  affected_intents: string[];
+  new_conflicts: ConflictReport[];
+  resolved_conflicts: ConflictReport[];
+  impact_score: number;
+  recommendations: string[];
+  analysis_time_ms: number;
+}
+
+export interface BatchAnalysisResponse extends BaseApiResponse {
+  summary: Record<string, number>;
+  conflicts: ConflictReport[];
+  scope_issues: ScopeIssue[];
+  system_health: Record<string, number>;
+  language_breakdown: Record<string, Record<string, number>>;
+  performance_metrics: Record<string, any>;
+  recommendations: string[];
+  analysis_time_ms: number;
+  timestamp: number;
+}
+
+// System health reporting
 export interface SystemHealthResponse extends BaseApiResponse {
   status: 'healthy' | 'degraded' | 'critical';
   health_score: number;
@@ -1009,7 +1069,7 @@ export interface SystemHealthResponse extends BaseApiResponse {
   last_analysis: number;
 }
 
-// Basic analysis result for Phase 2 testing
+// Legacy compatibility - kept for backward compatibility during transition
 export interface BasicNLUAnalysisResult extends BaseApiResponse {
   conflicts: Array<Record<string, any>>;
   scope_issues: Array<Record<string, any>>;
@@ -1017,6 +1077,3 @@ export interface BasicNLUAnalysisResult extends BaseApiResponse {
   language_coverage: Record<string, number>;
   analysis_time_ms: number;
 }
-
-// Note: Comprehensive types for Phase 3+ frontend integration are documented 
-// in config-ui/docs/nlu_improvements.md - see Phase 3 and Phase 4 sections

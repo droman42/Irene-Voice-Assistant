@@ -157,6 +157,13 @@ export interface ApplyChangesBarProps {
   onCancel: () => void;
   loading?: boolean;
   lastSaved?: Date;
+  
+  // Optional NLU enhancement context
+  nluContext?: {
+    language?: string;
+    donationData?: any;
+    enableEnhancedValidation?: boolean;
+  };
 }
 
 export interface MethodDonationEditorProps {
