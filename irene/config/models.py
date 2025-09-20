@@ -163,6 +163,7 @@ class ComponentConfig(BaseModel):
     intent_system: bool = Field(default=True, description="Enable intent handling component (essential)")
     monitoring: bool = Field(default=True, description="Enable monitoring and metrics component (Phase 3 infrastructure)")
     configuration: bool = Field(default=False, description="Enable configuration management component (Web API)")
+    nlu_analysis: bool = Field(default=True, description="Enable NLU analysis and conflict detection component (Phase 2)")
 
 
 # ============================================================
@@ -445,6 +446,77 @@ class MonitoringConfig(BaseModel):
     
     # NOTE: Monitoring endpoints are accessible via unified web API at system.web_port
     # All functionality available through /monitoring/* endpoints (WebAPIPlugin integration)
+
+
+# ============================================================
+# NLU ANALYSIS COMPONENT CONFIGURATION
+# ============================================================
+
+class NLUAnalysisConflictDetectorConfig(BaseModel):
+    """Configuration for NLU analysis conflict detector"""
+    blocker_threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Threshold for blocking conflicts")
+    warning_threshold: float = Field(default=0.6, ge=0.0, le=1.0, description="Threshold for warning conflicts")
+    info_threshold: float = Field(default=0.4, ge=0.0, le=1.0, description="Threshold for info-level conflicts")
+
+
+class NLUAnalysisScopeAnalyzerConfig(BaseModel):
+    """Configuration for NLU analysis scope analyzer"""
+    cross_domain_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Threshold for cross-domain attraction detection")
+    breadth_threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Threshold for overly broad patterns")
+
+
+class NLUAnalysisReportGeneratorConfig(BaseModel):
+    """Configuration for NLU analysis report generator"""
+    max_suggestions_per_conflict: int = Field(default=5, ge=1, le=20, description="Maximum suggestions per conflict report")
+    include_technical_details: bool = Field(default=True, description="Include technical analysis details in reports")
+
+
+class NLUAnalysisHybridAnalyzerConfig(BaseModel):
+    """Configuration for NLU analysis hybrid analyzer"""
+    fuzzy_threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Fuzzy matching threshold")
+    pattern_confidence: float = Field(default=0.9, ge=0.0, le=1.0, description="Pattern matching confidence")
+    detect_keyword_collisions: bool = Field(default=True, description="Enable keyword collision detection")
+    detect_pattern_explosion: bool = Field(default=True, description="Enable pattern explosion detection")
+    detect_performance_issues: bool = Field(default=True, description="Enable performance impact analysis")
+
+
+class NLUAnalysisSpacyAnalyzerConfig(BaseModel):
+    """Configuration for NLU analysis SpaCy analyzer"""
+    similarity_threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Semantic similarity threshold")
+    semantic_analysis_enabled: bool = Field(default=True, description="Enable semantic similarity analysis")
+    entity_analysis_enabled: bool = Field(default=True, description="Enable entity extraction validation")
+    pattern_validation_enabled: bool = Field(default=True, description="Enable SpaCy pattern validation")
+
+
+class NLUAnalysisPerformanceConfig(BaseModel):
+    """Configuration for NLU analysis performance settings"""
+    max_analysis_time_ms: float = Field(default=5000.0, gt=0, description="Maximum analysis time per request (milliseconds)")
+    max_concurrent_analyses: int = Field(default=3, ge=1, le=10, description="Maximum concurrent analyses")
+    enable_caching: bool = Field(default=True, description="Enable analysis result caching")
+    cache_ttl_seconds: int = Field(default=300, ge=60, description="Cache time-to-live (seconds)")
+
+
+class NLUAnalysisLanguagesConfig(BaseModel):
+    """Configuration for NLU analysis language settings"""
+    supported_languages: List[str] = Field(default=["ru", "en"], description="Supported languages for analysis")
+    language_detection_threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Language detection confidence threshold")
+
+
+class NLUAnalysisConfig(BaseModel):
+    """NLU Analysis component configuration (Phase 2)"""
+    enabled: bool = Field(default=True, description="Enable NLU analysis component")
+    
+    # Analysis component configurations
+    conflict_detector: NLUAnalysisConflictDetectorConfig = Field(default_factory=NLUAnalysisConflictDetectorConfig, description="Conflict detector configuration")
+    scope_analyzer: NLUAnalysisScopeAnalyzerConfig = Field(default_factory=NLUAnalysisScopeAnalyzerConfig, description="Scope analyzer configuration")
+    report_generator: NLUAnalysisReportGeneratorConfig = Field(default_factory=NLUAnalysisReportGeneratorConfig, description="Report generator configuration")
+    hybrid_analyzer: NLUAnalysisHybridAnalyzerConfig = Field(default_factory=NLUAnalysisHybridAnalyzerConfig, description="Hybrid analyzer configuration")
+    spacy_analyzer: NLUAnalysisSpacyAnalyzerConfig = Field(default_factory=NLUAnalysisSpacyAnalyzerConfig, description="SpaCy analyzer configuration")
+    performance: NLUAnalysisPerformanceConfig = Field(default_factory=NLUAnalysisPerformanceConfig, description="Performance settings")
+    languages: NLUAnalysisLanguagesConfig = Field(default_factory=NLUAnalysisLanguagesConfig, description="Language settings")
+    
+    # NOTE: NLU Analysis endpoints are accessible via unified web API at system.web_port
+    # All functionality available through /nlu_analysis/* endpoints (WebAPIPlugin integration)
 
 
 class ConversationHandlerConfig(BaseModel):
@@ -1132,6 +1204,7 @@ class CoreConfig(BaseSettings):
     intent_system: IntentSystemConfig = Field(default_factory=IntentSystemConfig, description="Intent system component configuration")
     vad: VADConfig = Field(default_factory=VADConfig, description="Voice Activity Detection component configuration")
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig, description="Monitoring component configuration (Phase 5 unified metrics system)")
+    nlu_analysis: NLUAnalysisConfig = Field(default_factory=NLUAnalysisConfig, description="NLU Analysis component configuration (Phase 2)")
     
     # Language and locale
     language: str = Field(default="en-US", description="Primary language")

@@ -590,6 +590,7 @@ export interface CoreConfig {
   llm: LLMConfig;
   voice_trigger: VoiceTriggerConfig;
   nlu: NLUConfig;
+  nlu_analysis: NLUAnalysisConfig;
   text_processor: TextProcessorConfig;
   intent_system: IntentSystemConfig;
   vad: VADConfig;
@@ -789,6 +790,46 @@ export interface MonitoringConfig {
   analytics_refresh_interval: number;
 }
 
+export interface NLUAnalysisConfig {
+  enabled: boolean;
+  conflict_detector: {
+    blocker_threshold: number;
+    warning_threshold: number;
+    info_threshold: number;
+  };
+  scope_analyzer: {
+    cross_domain_threshold: number;
+    breadth_threshold: number;
+  };
+  report_generator: {
+    max_suggestions_per_conflict: number;
+    include_technical_details: boolean;
+  };
+  hybrid_analyzer: {
+    fuzzy_threshold: number;
+    pattern_confidence: number;
+    detect_keyword_collisions: boolean;
+    detect_pattern_explosion: boolean;
+    detect_performance_issues: boolean;
+  };
+  spacy_analyzer: {
+    similarity_threshold: number;
+    semantic_analysis_enabled: boolean;
+    entity_analysis_enabled: boolean;
+    pattern_validation_enabled: boolean;
+  };
+  performance: {
+    max_analysis_time_ms: number;
+    max_concurrent_analyses: number;
+    enable_caching: boolean;
+    cache_ttl_seconds: number;
+  };
+  languages: {
+    supported_languages: string[];
+    language_detection_threshold: number;
+  };
+}
+
 export interface AssetConfig {
   assets_root: string;
   auto_create_dirs: boolean;
@@ -937,3 +978,45 @@ export interface SectionToTomlResponse extends BaseApiResponse {
   section_name: string;
   comments_preserved: boolean;
 }
+
+// ============================================================
+// NLU ANALYSIS TYPES (Phase 2 - Minimal for Backend Testing)
+// ============================================================
+
+// Phase 2: Core types for backend API testing
+export interface AnalyzeDonationRequest {
+  handler_name: string;
+  language: string;
+  donation_data: Record<string, any>;
+}
+
+export interface NLUValidationResult extends BaseApiResponse {
+  is_valid: boolean;
+  has_blocking_conflicts: boolean;
+  has_warnings: boolean;
+  conflicts: Array<Record<string, any>>;
+  suggestions: string[];
+  validation_time_ms: number;
+}
+
+export interface SystemHealthResponse extends BaseApiResponse {
+  status: 'healthy' | 'degraded' | 'critical';
+  health_score: number;
+  component_status: Record<string, string>;
+  conflict_summary: Record<string, number>;
+  performance_summary: Record<string, number>;
+  recommendations: string[];
+  last_analysis: number;
+}
+
+// Basic analysis result for Phase 2 testing
+export interface BasicNLUAnalysisResult extends BaseApiResponse {
+  conflicts: Array<Record<string, any>>;
+  scope_issues: Array<Record<string, any>>;
+  performance_metrics: Record<string, number>;
+  language_coverage: Record<string, number>;
+  analysis_time_ms: number;
+}
+
+// Note: Comprehensive types for Phase 3+ frontend integration are documented 
+// in config-ui/docs/nlu_improvements.md - see Phase 3 and Phase 4 sections

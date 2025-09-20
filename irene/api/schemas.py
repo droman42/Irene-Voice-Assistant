@@ -1566,3 +1566,238 @@ class SectionToTomlResponse(BaseAPIResponse):
     toml_content: str = Field(description="Updated TOML content with section applied")
     section_name: str = Field(description="Section that was updated")
     comments_preserved: bool = Field(description="Whether comments were preserved")
+
+
+# ============================================================
+# NLU ANALYSIS SCHEMAS (Phase 2)
+# ============================================================
+
+class AnalyzeDonationRequest(BaseAPIRequest):
+    """Request for real-time donation analysis"""
+    handler_name: str = Field(description="Handler name to analyze")
+    language: str = Field(description="Language of the donation", example="en")
+    donation_data: Dict[str, Any] = Field(description="Complete donation data to analyze")
+
+
+class NLUAnalysisResult(BaseAPIResponse):
+    """Response for NLU analysis operations"""
+    conflicts: List[Dict[str, Any]] = Field(description="Detected conflicts")
+    scope_issues: List[Dict[str, Any]] = Field(description="Scope creep issues")
+    performance_metrics: Dict[str, Any] = Field(description="Detailed analysis performance metrics from analyzers")
+    language_coverage: Dict[str, float] = Field(description="Language coverage analysis")
+    analysis_time_ms: float = Field(description="Time taken for analysis")
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "success": True,
+                    "timestamp": 1704067200.123,
+                    "conflicts": [
+                        {
+                            "intent_a": "timer.set",
+                            "intent_b": "datetime.current_time",
+                            "language": "en",
+                            "severity": "warning",
+                            "score": 0.75,
+                            "conflict_type": "phrase_overlap",
+                            "signals": {
+                                "shared_phrases": ["set time", "time setting"],
+                                "overlap_percentage": 0.4
+                            },
+                            "suggestions": [
+                                "Make 'timer.set' phrases more specific: 'set timer for X'",
+                                "Consider removing generic 'set time' from timer domain"
+                            ]
+                        }
+                    ],
+                    "scope_issues": [],
+                    "performance_metrics": {
+                        "hybrid": {
+                            "keyword_analysis": {
+                                "collision_count": 2,
+                                "efficiency_score": 0.95
+                            },
+                            "pattern_analysis": {
+                                "complexity_score": 0.8,
+                                "optimization_suggestions": []
+                            }
+                        },
+                        "spacy": {
+                            "similarity_analysis": {
+                                "semantic_conflicts": [],
+                                "confidence_scores": [0.92, 0.87]
+                            },
+                            "entity_analysis": {
+                                "entity_coverage": 0.85
+                            }
+                        }
+                    },
+                    "language_coverage": {
+                        "en": 0.85
+                    },
+                    "analysis_time_ms": 8.5
+                }
+            ]
+        }
+
+
+class AnalyzeChangesRequest(BaseAPIRequest):
+    """Request for analyzing impact of multiple changes"""
+    changes: Dict[str, Dict[str, Any]] = Field(description="Dictionary of changes to analyze")
+    language: Optional[str] = Field(default=None, description="Optional language filter")
+
+
+class ChangeImpactAnalysisResponse(BaseAPIResponse):
+    """Response for change impact analysis"""
+    changes: Dict[str, Any] = Field(description="Summary of proposed changes")
+    affected_intents: List[str] = Field(description="Intents affected by changes")
+    new_conflicts: List[Dict[str, Any]] = Field(description="New conflicts introduced")
+    resolved_conflicts: List[Dict[str, Any]] = Field(description="Conflicts resolved by changes")
+    impact_score: float = Field(description="Overall impact score (0.0-1.0)", ge=0.0, le=1.0)
+    recommendations: List[str] = Field(description="Recommendations based on impact")
+    analysis_time_ms: float = Field(description="Time taken for impact analysis")
+
+
+class ValidateRequest(BaseAPIRequest):
+    """Request for pre-save validation"""
+    handler_name: str = Field(description="Handler name to validate")
+    language: str = Field(description="Language of the donation", example="en")
+    donation_data: Dict[str, Any] = Field(description="Complete donation data to validate")
+
+
+class NLUValidationResult(BaseAPIResponse):
+    """Response for pre-save validation"""
+    is_valid: bool = Field(description="Whether donation is valid for saving")
+    has_blocking_conflicts: bool = Field(description="Whether there are blocking conflicts")
+    has_warnings: bool = Field(description="Whether there are warning-level issues")
+    conflicts: List[Dict[str, Any]] = Field(description="All detected conflicts")
+    suggestions: List[str] = Field(description="General improvement suggestions")
+    validation_time_ms: float = Field(description="Time taken for validation")
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "success": True,
+                    "timestamp": 1704067200.123,
+                    "is_valid": False,
+                    "has_blocking_conflicts": True,
+                    "has_warnings": False,
+                    "conflicts": [
+                        {
+                            "intent_a": "timer.set",
+                            "intent_b": "timer.cancel",
+                            "severity": "blocker",
+                            "conflict_type": "keyword_collision"
+                        }
+                    ],
+                    "suggestions": ["Resolve keyword collisions before saving"],
+                    "validation_time_ms": 15.2
+                }
+            ]
+        }
+
+
+class ConflictReport(BaseModel):
+    """Individual conflict report"""
+    intent_a: str = Field(description="First intent in conflict")
+    intent_b: str = Field(description="Second intent in conflict")
+    language: str = Field(description="Language where conflict occurs")
+    severity: Literal['blocker', 'warning', 'info'] = Field(description="Conflict severity")
+    score: float = Field(description="Conflict strength score (0.0-1.0)", ge=0.0, le=1.0)
+    conflict_type: str = Field(description="Type of conflict detected")
+    signals: Dict[str, Any] = Field(description="Evidence and analysis details")
+    suggestions: List[str] = Field(description="Suggested resolutions")
+
+
+class BatchAnalysisResponse(BaseAPIResponse):
+    """Response for full system batch analysis"""
+    summary: Dict[str, int] = Field(description="Summary statistics")
+    conflicts: List[ConflictReport] = Field(description="All detected conflicts")
+    scope_issues: List[Dict[str, Any]] = Field(description="All scope issues")
+    system_health: Dict[str, float] = Field(description="System health metrics")
+    language_breakdown: Dict[str, Dict[str, int]] = Field(description="Per-language statistics")
+    performance_metrics: Dict[str, float] = Field(description="System performance metrics")
+    recommendations: List[str] = Field(description="System-wide recommendations")
+    analysis_time_ms: float = Field(description="Total analysis time")
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "success": True,
+                    "timestamp": 1704067200.123,
+                    "summary": {
+                        "total_intents": 45,
+                        "total_conflicts": 3,
+                        "blockers": 1,
+                        "warnings": 2,
+                        "scope_issues": 1
+                    },
+                    "conflicts": [],
+                    "scope_issues": [],
+                    "system_health": {
+                        "overall_score": 0.87,
+                        "conflict_ratio": 0.067,
+                        "coverage_ratio": 0.92
+                    },
+                    "language_breakdown": {
+                        "ru": {"intents": 22, "conflicts": 2},
+                        "en": {"intents": 23, "conflicts": 1}
+                    },
+                    "performance_metrics": {
+                        "avg_analysis_time": 12.5,
+                        "memory_usage_mb": 28.4
+                    },
+                    "recommendations": [
+                        "Resolve blocking conflict in timer domain",
+                        "Consider splitting broad patterns in conversation handler"
+                    ],
+                    "analysis_time_ms": 156.7
+                }
+            ]
+        }
+
+
+class SystemHealthResponse(BaseAPIResponse):
+    """Response for NLU system health check"""
+    status: Literal['healthy', 'degraded', 'critical'] = Field(description="Overall system status")
+    health_score: float = Field(description="Overall health score (0.0-1.0)", ge=0.0, le=1.0)
+    component_status: Dict[str, str] = Field(description="Status of individual components")
+    conflict_summary: Dict[str, int] = Field(description="Conflict summary by severity")
+    performance_summary: Dict[str, float] = Field(description="Performance metrics summary")
+    recommendations: List[str] = Field(description="Health improvement recommendations")
+    last_analysis: float = Field(description="Timestamp of last analysis")
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "success": True,
+                    "timestamp": 1704067200.123,
+                    "status": "healthy",
+                    "health_score": 0.87,
+                    "component_status": {
+                        "hybrid_analyzer": "operational",
+                        "spacy_analyzer": "operational",
+                        "conflict_detector": "operational"
+                    },
+                    "conflict_summary": {
+                        "blockers": 0,
+                        "warnings": 2,
+                        "info": 5
+                    },
+                    "performance_summary": {
+                        "avg_analysis_time": 12.5,
+                        "memory_usage_mb": 28.4,
+                        "success_rate": 0.98
+                    },
+                    "recommendations": [
+                        "Monitor warning-level conflicts",
+                        "Consider optimization for large datasets"
+                    ],
+                    "last_analysis": 1704067200.123
+                }
+            ]
+        }

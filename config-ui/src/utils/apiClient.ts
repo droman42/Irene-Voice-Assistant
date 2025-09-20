@@ -74,7 +74,12 @@ import type {
   RawTomlValidationRequest,
   RawTomlValidationResponse,
   SectionToTomlRequest,
-  SectionToTomlResponse
+  SectionToTomlResponse,
+  // NLU Analysis types (Phase 2 - minimal for testing)
+  AnalyzeDonationRequest,
+  NLUValidationResult,
+  SystemHealthResponse,
+  BasicNLUAnalysisResult
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -823,6 +828,52 @@ class IreneApiClient {
       requestData
     );
   }
+
+  // ============================================================
+  // NLU ANALYSIS API METHODS (Phase 2 - Minimal for Testing)
+  // ============================================================
+
+  /**
+   * Analyze donation for conflicts and issues (Phase 2 testing)
+   */
+  async analyzeDonation(
+    handlerName: string, 
+    language: string, 
+    donationData: Record<string, any>
+  ): Promise<BasicNLUAnalysisResult> {
+    const requestData: AnalyzeDonationRequest = {
+      handler_name: handlerName,
+      language: language,
+      donation_data: donationData
+    };
+    return this.post<BasicNLUAnalysisResult>('/nlu_analysis/analyze', requestData);
+  }
+
+  /**
+   * Validate donation before saving (Phase 2 testing)
+   */
+  async validateDonationForSaving(
+    handlerName: string, 
+    language: string, 
+    donationData: Record<string, any>
+  ): Promise<NLUValidationResult> {
+    const requestData: AnalyzeDonationRequest = {
+      handler_name: handlerName,
+      language: language,
+      donation_data: donationData
+    };
+    return this.post<NLUValidationResult>('/nlu_analysis/validate', requestData);
+  }
+
+  /**
+   * Get NLU system health status (Phase 2 testing)
+   */
+  async getNLUSystemHealth(): Promise<SystemHealthResponse> {
+    return this.get<SystemHealthResponse>('/nlu_analysis/system/health');
+  }
+
+  // Note: Comprehensive NLU Analysis API methods are planned for Phase 3+ 
+  // See config-ui/docs/nlu_improvements.md for full API specification
 }
 
 // Create and export a default instance

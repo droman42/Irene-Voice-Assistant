@@ -22,7 +22,8 @@ from ..config.models import (
     CoreConfig, TTSConfig, AudioConfig, ASRConfig, LLMConfig, 
     VoiceTriggerConfig, NLUConfig, TextProcessorConfig, IntentSystemConfig,
     SystemConfig, InputConfig, ComponentConfig, AssetConfig, WorkflowConfig,
-    VADConfig, MicrophoneInputConfig, WebInputConfig, CLIInputConfig
+    VADConfig, MicrophoneInputConfig, WebInputConfig, CLIInputConfig,
+    MonitoringConfig, NLUAnalysisConfig
 )
 from ..config.schemas import AudioDevicesResponse, AudioDeviceInfo
 from ..api.schemas import (
@@ -575,7 +576,9 @@ class ConfigurationComponent(Component, WebAPIPlugin):
             "voice_trigger": VoiceTriggerConfig,
             "nlu": NLUConfig,
             "text_processor": TextProcessorConfig,
-            "intent_system": IntentSystemConfig
+            "intent_system": IntentSystemConfig,
+            "monitoring": MonitoringConfig,
+            "nlu_analysis": NLUAnalysisConfig
         }
         return section_models.get(section_name)
     
@@ -598,7 +601,9 @@ class ConfigurationComponent(Component, WebAPIPlugin):
             "nlu": NLUConfig,
             "text_processor": TextProcessorConfig,
             "intent_system": IntentSystemConfig,
-            "vad": VADConfig
+            "vad": VADConfig,
+            "monitoring": MonitoringConfig,
+            "nlu_analysis": NLUAnalysisConfig
         }
         
         for section_name, model_class in section_models.items():

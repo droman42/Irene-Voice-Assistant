@@ -91,6 +91,7 @@ text_processor = true              # Text processing pipeline component
 intent_system = true               # Intent handling component (essential)
 monitoring = true                  # Monitoring and metrics component (Phase 3 infrastructure)
 configuration = true               # Configuration management component (Web API)
+nlu_analysis = true                # NLU analysis and conflict detection component (Phase 2)
 
 # ============================================================
 # TTS (TEXT-TO-SPEECH) COMPONENT CONFIGURATION
@@ -514,6 +515,57 @@ analytics_refresh_interval = 30       # Dashboard refresh interval in seconds
 
 # NOTE: Monitoring endpoints are available through the unified web API at system.web_port
 # All monitoring functionality accessible via /monitoring/* endpoints (no separate ports needed)
+
+# ============================================================
+# NLU ANALYSIS - Real-time Conflict Detection (Phase 2)
+# ============================================================
+[nlu_analysis]
+enabled = true                       # Enable NLU analysis component
+
+# Analysis component configurations
+[nlu_analysis.conflict_detector]
+blocker_threshold = 0.8              # Threshold for blocking conflicts (0.0-1.0)
+warning_threshold = 0.6              # Threshold for warning conflicts (0.0-1.0)
+info_threshold = 0.4                 # Threshold for info-level conflicts (0.0-1.0)
+
+[nlu_analysis.scope_analyzer]
+cross_domain_threshold = 0.7         # Threshold for cross-domain attraction detection (0.0-1.0)
+breadth_threshold = 0.8              # Threshold for overly broad patterns (0.0-1.0)
+
+[nlu_analysis.report_generator]
+max_suggestions_per_conflict = 5     # Maximum suggestions per conflict report
+include_technical_details = true     # Include technical analysis details in reports
+
+[nlu_analysis.hybrid_analyzer]
+# Mirror HybridKeywordMatcher configuration for analysis accuracy
+fuzzy_threshold = 0.8                # Fuzzy matching threshold (0.0-1.0)
+pattern_confidence = 0.9             # Pattern matching confidence (0.0-1.0)
+detect_keyword_collisions = true     # Enable keyword collision detection
+detect_pattern_explosion = true      # Enable pattern explosion detection
+detect_performance_issues = true     # Enable performance impact analysis
+
+[nlu_analysis.spacy_analyzer]
+# SpaCy-based semantic analysis configuration
+similarity_threshold = 0.8           # Semantic similarity threshold (0.0-1.0)
+semantic_analysis_enabled = true     # Enable semantic similarity analysis
+entity_analysis_enabled = true       # Enable entity extraction validation
+pattern_validation_enabled = true    # Enable SpaCy pattern validation
+# Language models will be detected automatically from available SpaCy installations
+
+# Performance settings
+[nlu_analysis.performance]
+max_analysis_time_ms = 5000.0        # Maximum analysis time per request (milliseconds)
+max_concurrent_analyses = 3          # Maximum concurrent analyses
+enable_caching = true                # Enable analysis result caching
+cache_ttl_seconds = 300              # Cache time-to-live (5 minutes)
+
+# Language settings
+[nlu_analysis.languages]
+supported_languages = ["ru", "en"]   # Supported languages for analysis
+language_detection_threshold = 0.8   # Language detection confidence threshold
+
+# NOTE: NLU Analysis endpoints are available through the unified web API at system.web_port
+# All analysis functionality accessible via /nlu_analysis/* endpoints
 
 # ============================================================
 # WORKFLOWS - Processing Pipelines (Two-Level Configuration)
