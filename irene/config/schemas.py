@@ -194,19 +194,34 @@ class PorcupineProviderSchema(VoiceTriggerProviderSchema):
 # ============================================================
 
 class HybridKeywordMatcherProviderSchema(NLUProviderSchema):
-    """Hybrid Keyword Matcher provider configuration schema"""
+    """Hybrid Keyword Matcher provider configuration schema (Phase 1: Updated for complete feature set)"""
     provider_class: str = Field(default="HybridKeywordMatcherProvider", description="Provider class name")
-    confidence_threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Confidence threshold")
-    exact_match_bonus: float = Field(default=0.2, ge=0.0, le=1.0, description="Exact match bonus")
-    fuzzy_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Fuzzy match threshold")
+    confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Minimum confidence for intent acceptance (normalized for Phase 1 consistency)")
+    fuzzy_enabled: bool = Field(default=True, description="Enable fuzzy matching capabilities")
+    fuzzy_threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Minimum fuzzy matching score threshold")
+    pattern_confidence: float = Field(default=0.9, ge=0.0, le=1.0, description="Base confidence for pattern matches")
+    case_sensitive: bool = Field(default=False, description="Enable case-sensitive pattern matching")
+    normalize_unicode: bool = Field(default=True, description="Enable improved Unicode normalization (Phase 1 enhancement)")
+    cache_fuzzy_results: bool = Field(default=True, description="Enable caching of fuzzy matching results")
+    max_fuzzy_keywords_per_intent: int = Field(default=50, ge=1, le=1000, description="Maximum fuzzy keywords per intent")
+    min_pattern_length: int = Field(default=2, ge=1, le=100, description="Minimum pattern length for processing")
 
 
 class SpaCyNLUProviderSchema(NLUProviderSchema):
-    """SpaCy NLU provider configuration schema"""
+    """SpaCy NLU provider configuration schema (Phase 1: Updated for multi-model support)"""
     provider_class: str = Field(default="SpaCyNLUProvider", description="Provider class name")
-    model_name: str = Field(default="ru_core_news_sm", description="SpaCy model name")
-    confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold")
-    auto_download: bool = Field(default=True, description="Auto-download model if missing via spacy CLI")
+    confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Minimum confidence for intent acceptance")
+    entity_types: List[str] = Field(
+        default=["PERSON", "ORG", "GPE", "DATE", "TIME", "MONEY", "QUANTITY"],
+        description="spaCy entity types to extract"
+    )
+    language_preferences: Dict[str, List[str]] = Field(
+        default={
+            "ru": ["ru_core_news_md", "ru_core_news_sm"],
+            "en": ["en_core_web_md", "en_core_web_sm"]
+        },
+        description="Language-specific model preferences (Phase 1: Multi-model support)"
+    )
 
 
 # ============================================================

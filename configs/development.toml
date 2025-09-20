@@ -95,6 +95,37 @@ cascade_timeout_ms = 200
 cache_recognition_results = false
 cache_ttl_seconds = 300
 
+# Language Detection Configuration
+auto_detect_language = true
+language_detection_confidence_threshold = 0.8
+persist_language_preference = true
+supported_languages = ["ru", "en"]
+default_language = "ru"
+
+# Hybrid Keyword Matcher Provider (fast, pattern-based) - Phase 1 Enhanced
+[nlu.providers.hybrid_keyword_matcher]
+enabled = true
+confidence_threshold = 0.7
+fuzzy_enabled = true
+fuzzy_threshold = 0.8
+pattern_confidence = 0.9
+case_sensitive = false
+normalize_unicode = true
+cache_fuzzy_results = true
+max_fuzzy_keywords_per_intent = 50
+min_pattern_length = 2
+
+# SpaCy NLU Provider (advanced linguistic analysis) - Phase 1 Multi-Model Support
+[nlu.providers.spacy_nlu]
+enabled = true
+confidence_threshold = 0.7
+entity_types = ["PERSON", "ORG", "GPE", "DATE", "TIME", "MONEY", "QUANTITY"]
+
+# Phase 1: Multi-model language preferences
+[nlu.providers.spacy_nlu.language_preferences]
+ru = ["ru_core_news_md", "ru_core_news_sm"]
+en = ["en_core_web_md", "en_core_web_sm"]
+
 
 [text_processor]
 enabled = true
