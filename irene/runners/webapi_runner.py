@@ -886,6 +886,22 @@ monitoring = true
                         text-decoration: none;
                         margin-right: 10px;
                       }
+                      .expand-icon {
+                        cursor: pointer;
+                        display: inline-block;
+                        width: 20px;
+                        color: #007bff;
+                        font-weight: bold;
+                        user-select: none;
+                      }
+                      .expand-icon:hover {
+                        color: #0056b3;
+                      }
+                      .expandable-content {
+                        margin-top: 10px;
+                        border-left: 2px solid #dee2e6;
+                        padding-left: 10px;
+                      }
                     </style>
                   </head>
                   <body>
@@ -1038,26 +1054,108 @@ monitoring = true
                         container.innerHTML = html || '<p>No operations found.</p>';
                       }
                       
+                      function resolveRef(ref) {
+                        // Resolve $ref like "#/$defs/BinaryAudioSessionMessage"
+                        if (!ref.startsWith('#/')) return null;
+                        const path = ref.substring(2).split('/');
+                        let current = asyncApiSpec;
+                        for (const segment of path) {
+                          current = current?.[segment];
+                          if (!current) return null;
+                        }
+                        return current;
+                      }
+                      
+                      function renderProperty(propName, prop, depth = 0) {
+                        const indent = '  '.repeat(depth);
+                        let typeInfo = prop.type || 'unknown';
+                        let expandable = false;
+                        let expandedContent = '';
+                        
+                        if (prop.$ref) {
+                          const resolved = resolveRef(prop.$ref);
+                          if (resolved) {
+                            typeInfo = `$ref → ${prop.$ref.split('/').pop()}`;
+                            expandable = true;
+                            expandedContent = renderSchemaProperties(resolved, depth + 1);
+                          } else {
+                            typeInfo = `$ref → ${prop.$ref}`;
+                          }
+                        } else if (prop.type === 'array' && prop.items?.$ref) {
+                          const resolved = resolveRef(prop.items.$ref);
+                          if (resolved) {
+                            typeInfo = `array of ${prop.items.$ref.split('/').pop()}`;
+                            expandable = true;
+                            expandedContent = renderSchemaProperties(resolved, depth + 1);
+                          }
+                        } else if (prop.type === 'object' && prop.properties) {
+                          expandable = true;
+                          expandedContent = renderSchemaProperties(prop, depth + 1);
+                        }
+                        
+                        const expandIcon = expandable ? '<span class="expand-icon" onclick="toggleExpand(this)">▶</span>' : '';
+                        
+                        return `
+                          <div class="schema-prop" style="margin-left: ${depth * 20}px;">
+                            ${expandIcon}
+                            <span class="prop-name">${propName}</span>
+                            <span class="prop-type">(${typeInfo})</span>
+                            ${prop.description ? `<br><small>${prop.description}</small>` : ''}
+                            ${prop.example !== undefined ? `<br><code>Example: ${JSON.stringify(prop.example)}</code>` : ''}
+                            ${expandable ? `<div class="expandable-content" style="display: none;">${expandedContent}</div>` : ''}
+                          </div>
+                        `;
+                      }
+                      
+                      function renderSchemaProperties(schema, depth = 0) {
+                        const properties = schema.properties || {};
+                        return Object.entries(properties).map(([name, prop]) => 
+                          renderProperty(name, prop, depth)
+                        ).join('');
+                      }
+                      
+                      function toggleExpand(element) {
+                        const content = element.parentElement.querySelector('.expandable-content');
+                        if (content.style.display === 'none') {
+                          content.style.display = 'block';
+                          element.textContent = '▼';
+                        } else {
+                          content.style.display = 'none';
+                          element.textContent = '▶';
+                        }
+                      }
+                      
                       function renderSchemas() {
                         const container = document.getElementById('schemas-content');
                         const messages = asyncApiSpec.components?.messages || {};
                         
                         let html = '';
                         for (const [name, message] of Object.entries(messages)) {
+                          const payload = message.payload || {};
+                          const properties = payload.properties || {};
+                          const defs = payload.$defs || {};
+                          
                           html += `
                             <div class="operation">
                               <div class="operation-header">📋 ${name}</div>
                               <p><strong>Title:</strong> ${message.title || name}</p>
                               ${message.description ? `<p><strong>Description:</strong> ${message.description}</p>` : ''}
                               
-                              ${message.properties ? `
+                              ${Object.keys(properties).length > 0 ? `
                                 <div style="margin-top: 15px;">
                                   <strong>Properties:</strong>
-                                  ${Object.entries(message.properties).map(([propName, prop]) => `
-                                    <div class="schema-prop">
-                                      <span class="prop-name">${propName}</span>
-                                      <span class="prop-type">(${prop.type || 'unknown'})</span>
-                                      ${prop.description ? `<br><small>${prop.description}</small>` : ''}
+                                  ${renderSchemaProperties(payload)}
+                                </div>
+                              ` : ''}
+                              
+                              ${Object.keys(defs).length > 0 ? `
+                                <div style="margin-top: 15px;">
+                                  <strong>Referenced Schemas:</strong>
+                                  ${Object.entries(defs).map(([defName, defSchema]) => `
+                                    <div style="margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+                                      <strong>${defName}:</strong>
+                                      ${defSchema.description ? `<br><small>${defSchema.description}</small><br>` : ''}
+                                      ${renderSchemaProperties(defSchema)}
                                     </div>
                                   `).join('')}
                                 </div>

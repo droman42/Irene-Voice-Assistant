@@ -146,6 +146,10 @@ def _clean_property_for_asyncapi(prop_def: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(prop_def, dict):
         return prop_def
     
+    # Handle $ref properties (schema references) - preserve them as-is
+    if "$ref" in prop_def:
+        return prop_def
+    
     # Handle anyOf patterns (common for nullable fields in Pydantic)
     if "anyOf" in prop_def:
         any_of = prop_def["anyOf"]
