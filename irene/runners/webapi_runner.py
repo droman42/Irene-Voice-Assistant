@@ -68,6 +68,7 @@ class WebAPIRunner(BaseRunner):
         self.app = None
         self.web_input = None
         self._start_time = time.time()  # Track start time for uptime calculation
+        self._asset_loader = None  # NEW: Asset loader for web templates
     
     def _add_runner_arguments(self, parser: argparse.ArgumentParser) -> None:
         """Add WebAPI-specific command line arguments"""
@@ -240,6 +241,9 @@ monitoring = true
     
     async def _post_core_setup(self, args: argparse.Namespace) -> None:
         """WebAPI-specific setup after core is started"""
+        # Initialize web asset loader
+        await self._setup_web_asset_loader()
+        
         # Initialize web components
         await self._setup_web_components(args)
         
@@ -250,6 +254,32 @@ monitoring = true
         """Execute WebAPI runner logic"""
         # Start server
         return await self._start_server(args)
+    
+    async def _setup_web_asset_loader(self) -> None:
+        """Setup web asset loader for HTML templates"""
+        try:
+            from ..core.intent_asset_loader import IntentAssetLoader, AssetLoaderConfig
+            from pathlib import Path
+            
+            # Use current working directory assets folder or fallback
+            assets_root = Path("assets")
+            if not assets_root.exists():
+                # Try relative to script location
+                assets_root = Path(__file__).parent.parent.parent / "assets"
+            
+            # Create asset loader for web templates only
+            asset_config = AssetLoaderConfig()
+            self._asset_loader = IntentAssetLoader(assets_root, asset_config)
+            
+            # Load only web templates (no handler names needed)
+            await self._asset_loader._load_web_templates()
+            
+            logger.info(f"✅ Web asset loader initialized with {len(self._asset_loader.web_templates)} templates")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize web asset loader: {e}")
+            logger.warning("Web templates will fallback to inline HTML")
+            self._asset_loader = None
     
     async def _setup_web_components(self, args) -> None:
         """Setup WebInput component (output handled via unified workflow)"""
@@ -302,6 +332,9 @@ monitoring = true
             allow_headers=["*"],
         )
         
+        # Mount static files for CSS/JS assets
+        await self._mount_static_files(app)
+        
         # Import centralized API schemas
         from ..api.schemas import CommandRequest, CommandResponse
         
@@ -318,82 +351,19 @@ monitoring = true
         @app.get("/", response_class=HTMLResponse, tags=["General"])
         async def root():
             """Serve a simple web interface"""
-            html_content = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Irene Voice Assistant API</title>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 40px; }
-                    .container { max-width: 800px; }
-                    .command-form { margin: 20px 0; }
-                    .command-input { width: 60%; padding: 10px; }
-                    .send-btn { padding: 10px 20px; background: #007cba; color: white; border: none; cursor: pointer; }
-                    .messages { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; margin: 20px 0; }
-                    .message { margin: 5px 0; padding: 5px; border-left: 3px solid #007cba; }
-                    .error { border-left-color: #dc3545; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>🤖 Irene Voice Assistant</h1>
-                    <p>Modern async voice assistant API - v""" + __version__ + """</p>
-                    
-                    <div class="command-form">
-                        <input type="text" id="commandInput" class="command-input" placeholder="Enter command..." />
-                        <button onclick="sendCommand()" class="send-btn">Send Command</button>
-                    </div>
-                    
-                    <div id="messages" class="messages">
-                        <div class="message">Connected to Irene API. Type a command above!</div>
-                    </div>
-                    
-                    <p><strong>REST API Documentation:</strong> <a href="/docs">/docs</a></p>
-                    <p><strong>WebSocket API Documentation:</strong> <a href="/asyncapi">/asyncapi</a></p>
-                    <p><strong>Component WebSockets:</strong> /asr/stream (speech recognition), /asr/binary (optimized for ESP32)</p>
-                    <p><strong>REST API:</strong> POST /command</p>
-                </div>
-                
-                <script>
-                    const messages = document.getElementById('messages');
-                    
-                    function addMessage(text, type) {
-                        const div = document.createElement('div');
-                        div.className = 'message' + (type === 'error' ? ' error' : '');
-                        div.textContent = new Date().toLocaleTimeString() + ': ' + text;
-                        messages.appendChild(div);
-                        messages.scrollTop = messages.scrollHeight;
-                    }
-                    
-                    async function sendCommand() {
-                        const input = document.getElementById('commandInput');
-                        const command = input.value.trim();
-                        if (command) {
-                            try {
-                                const response = await fetch('/command', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                    },
-                                    body: JSON.stringify({command: command})
-                                });
-                                const result = await response.json();
-                                addMessage(result.response || result.error || 'Command processed', result.success ? 'info' : 'error');
-                            } catch (error) {
-                                addMessage('Error sending command: ' + error.message, 'error');
-                            }
-                            input.value = '';
-                        }
-                    }
-                    
-                    document.getElementById('commandInput').addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter') sendCommand();
-                    });
-                </script>
-            </body>
-            </html>
-            """
-            return HTMLResponse(content=html_content)
+            if self._asset_loader:
+                html_content = self._asset_loader.get_web_template_with_variables(
+                    "index",
+                    version=__version__
+                )
+                if html_content:
+                    return HTMLResponse(content=html_content)
+                else:
+                    logger.error("Web template 'index' not found")
+                    raise HTTPException(status_code=500, detail="Web interface template not available")
+            else:
+                logger.error("Web asset loader not initialized")
+                raise HTTPException(status_code=500, detail="Web asset system not available")
         
         # Status endpoint
         @app.get("/status", response_model=StatusResponse, tags=["General"])
@@ -478,6 +448,29 @@ monitoring = true
             return info
         
         return app
+    
+    async def _mount_static_files(self, app) -> None:
+        """Mount static files for CSS/JS assets"""
+        try:
+            from fastapi.staticfiles import StaticFiles  # type: ignore
+            from pathlib import Path
+            
+            # Determine static files path
+            static_path = Path("assets/web/static")
+            if not static_path.exists():
+                # Try relative to script location
+                static_path = Path(__file__).parent.parent.parent / "assets" / "web" / "static"
+            
+            if static_path.exists():
+                app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+                logger.info(f"✅ Static files mounted from {static_path}")
+            else:
+                logger.warning(f"⚠️ Static files directory not found: {static_path}")
+                
+        except ImportError:
+            logger.warning("FastAPI StaticFiles not available, skipping static file mounting")
+        except Exception as e:
+            logger.error(f"❌ Failed to mount static files: {e}")
     
     async def _mount_component_routers(self, app):
         """Mount component routers following the universal plugin pattern"""
@@ -736,548 +729,16 @@ monitoring = true
             @app.get("/asyncapi", response_class=HTMLResponse, include_in_schema=False)
             async def asyncapi_docs():
                 """Serve AsyncAPI documentation page"""
-                return HTMLResponse("""
-                <!doctype html>
-                <html>
-                  <head>
-                    <meta charset="utf-8" />
-                    <title>Irene WebSocket API Documentation</title>
-                    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"?>
-                    <style>
-                      html, body { 
-                        height: 100%; 
-                        margin: 0; 
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                        background-color: #f8f9fa;
-                      }
-                      .header {
-                        background: #007bff;
-                        color: white;
-                        padding: 15px 20px;
-                        text-align: center;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                      }
-                      .header h1 {
-                        margin: 0;
-                        font-size: 1.8rem;
-                        font-weight: 600;
-                      }
-                      .header p {
-                        margin: 5px 0 0 0;
-                        opacity: 0.9;
-                        font-size: 0.95rem;
-                      }
-                      .container {
-                        display: flex;
-                        height: calc(100vh - 80px);
-                      }
-                      .sidebar {
-                        width: 300px;
-                        background: #ffffff;
-                        border-right: 1px solid #e0e0e0;
-                        padding: 20px;
-                        overflow-y: auto;
-                      }
-                      .content {
-                        flex: 1;
-                        padding: 20px;
-                        overflow-y: auto;
-                        background: white;
-                      }
-                      .nav-section {
-                        margin-bottom: 25px;
-                      }
-                      .nav-title {
-                        font-weight: 600;
-                        color: #333;
-                        margin-bottom: 10px;
-                        padding-bottom: 5px;
-                        border-bottom: 2px solid #007bff;
-                      }
-                      .nav-item {
-                        padding: 8px 12px;
-                        margin: 5px 0;
-                        background: #f8f9fa;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        transition: all 0.2s;
-                      }
-                      .nav-item:hover {
-                        background: #e9ecef;
-                        transform: translateX(5px);
-                      }
-                      .nav-item.active {
-                        background: #007bff;
-                        color: white;
-                      }
-                      .section {
-                        margin-bottom: 30px;
-                        display: none;
-                      }
-                      .section.active {
-                        display: block;
-                      }
-                      .section h2 {
-                        color: #007bff;
-                        border-bottom: 2px solid #007bff;
-                        padding-bottom: 10px;
-                      }
-                      .operation {
-                        background: #f8f9fa;
-                        border-left: 4px solid #007bff;
-                        padding: 15px;
-                        margin: 15px 0;
-                        border-radius: 0 4px 4px 0;
-                      }
-                      .operation-header {
-                        font-weight: 600;
-                        color: #333;
-                        margin-bottom: 5px;
-                      }
-                      .operation-method {
-                        display: inline-block;
-                        padding: 3px 8px;
-                        border-radius: 3px;
-                        font-size: 0.8rem;
-                        font-weight: 600;
-                        margin-right: 10px;
-                      }
-                      .method-publish {
-                        background: #28a745;
-                        color: white;
-                      }
-                      .method-subscribe {
-                        background: #17a2b8;
-                        color: white;
-                      }
-                      .schema-prop {
-                        background: white;
-                        border: 1px solid #e0e0e0;
-                        border-radius: 4px;
-                        padding: 12px;
-                        margin: 8px 0;
-                      }
-                      .prop-name {
-                        font-weight: 600;
-                        color: #007bff;
-                      }
-                      .prop-type {
-                        color: #666;
-                        font-family: monospace;
-                        font-size: 0.9rem;
-                      }
-                      .loading {
-                        text-align: center;
-                        color: #666;
-                        margin: 20px 0;
-                      }
-                      .footer-links {
-                        position: fixed;
-                        bottom: 10px;
-                        right: 10px;
-                        background: rgba(255,255,255,0.95);
-                        padding: 12px;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-                        font-size: 0.85rem;
-                        display: flex;
-                        gap: 8px;
-                        backdrop-filter: blur(8px);
-                      }
-                      .footer-links a {
-                        color: #007bff;
-                        text-decoration: none;
-                        padding: 6px 12px;
-                        border-radius: 4px;
-                        transition: all 0.2s;
-                        background: rgba(0, 123, 255, 0.1);
-                        border: 1px solid rgba(0, 123, 255, 0.2);
-                      }
-                      .footer-links a:hover {
-                        background: #007bff;
-                        color: white;
-                        transform: translateY(-2px);
-                        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
-                      }
-                      .expand-icon {
-                        cursor: pointer;
-                        display: inline-block;
-                        width: 20px;
-                        color: #007bff;
-                        font-weight: bold;
-                        user-select: none;
-                      }
-                      .expand-icon:hover {
-                        color: #0056b3;
-                      }
-                      .expandable-content {
-                        margin-top: 10px;
-                        border-left: 2px solid #dee2e6;
-                        padding-left: 10px;
-                      }
-                      .download-link {
-                        background: linear-gradient(45deg, #28a745, #20c997) !important;
-                        color: white !important;
-                        font-weight: 600;
-                        position: relative;
-                        overflow: hidden;
-                      }
-                      .download-link:hover {
-                        background: linear-gradient(45deg, #218838, #1ea871) !important;
-                        transform: translateX(8px) scale(1.02);
-                        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-                      }
-                      .download-link::after {
-                        content: '⬇️';
-                        position: absolute;
-                        right: 8px;
-                        top: 50%;
-                        transform: translateY(-50%);
-                        font-size: 0.8em;
-                      }
-                    </style>
-                  </head>
-                  <body>
-                    <div class="header">
-                      <h1>🚀 Irene WebSocket API Documentation</h1>
-                      <p>Real-time communication endpoints for Irene Voice Assistant</p>
-                    </div>
-                    <div class="container">
-                      <div class="sidebar">
-                        <div class="nav-section">
-                          <div class="nav-title">🔌 Channels</div>
-                          <div class="nav-item" onclick="showSection('channels', this)">WebSocket Channels</div>
-                        </div>
-                        <div class="nav-section">
-                          <div class="nav-title">📨 Operations</div>
-                          <div class="nav-item" onclick="showSection('operations', this)">Publish/Subscribe</div>
-                        </div>
-                        <div class="nav-section">
-                          <div class="nav-title">📋 Schemas</div>
-                          <div class="nav-item" onclick="showSection('schemas', this)">Message Schemas</div>
-                        </div>
-                        <div class="nav-section">
-                          <div class="nav-title">🖥️ Servers</div>
-                          <div class="nav-item" onclick="showSection('servers', this)">Server Information</div>
-                        </div>
-                        <div class="nav-section">
-                          <div class="nav-title">⬇️ Downloads</div>
-                          <div class="nav-item download-link" onclick="downloadFile('/asyncapi.json', 'asyncapi.json')">
-                            📄 JSON Specification
-                          </div>
-                          <div class="nav-item download-link" onclick="downloadFile('/asyncapi.yaml', 'asyncapi.yaml')">
-                            📝 YAML Specification
-                          </div>
-                        </div>
-                      </div>
-                      <div class="content">
-                        <div class="loading">Loading AsyncAPI documentation...</div>
-                        
-                        <div id="channels" class="section">
-                          <h2>🔌 WebSocket Channels</h2>
-                          <div id="channels-content"></div>
-                        </div>
-                        
-                        <div id="operations" class="section">
-                          <h2>📨 Operations</h2>
-                          <div id="operations-content"></div>
-                        </div>
-                        
-                        <div id="schemas" class="section">
-                          <h2>📋 Message Schemas</h2>
-                          <div id="schemas-content"></div>
-                        </div>
-                        
-                        <div id="servers" class="section">
-                          <h2>🖥️ Server Information</h2>
-                          <div id="servers-content"></div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div class="footer-links">
-                      <a href="/asyncapi.json" download="asyncapi.json" title="Download AsyncAPI JSON specification">
-                        📄 Download JSON
-                      </a>
-                      <a href="/asyncapi.yaml" download="asyncapi.yaml" title="Download AsyncAPI YAML specification">
-                        📝 Download YAML
-                      </a>
-                      <a href="/docs" target="_blank" title="Open REST API documentation">
-                        🌐 REST API
-                      </a>
-                    </div>
-
-                    <script>
-                      let asyncApiSpec = null;
-                      
-                      function downloadFile(url, filename) {
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = filename;
-                        a.style.display = 'none';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                      }
-                      
-                      function showSection(sectionId, clickedElement) {
-                        // Hide all sections
-                        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-                        document.querySelectorAll('.nav-item').forEach(s => s.classList.remove('active'));
-                        const loadingElement = document.querySelector('.loading');
-                        if (loadingElement) loadingElement.style.display = 'none';
-                        
-                        // Show selected section
-                        document.getElementById(sectionId).classList.add('active');
-                        
-                        // If called from click event, highlight the clicked nav item
-                        if (clickedElement) {
-                          clickedElement.classList.add('active');
-                        } else {
-                          // If called programmatically, find and highlight the matching nav item
-                          const navItems = document.querySelectorAll('.nav-item');
-                          navItems.forEach(item => {
-                            if (item.onclick && item.onclick.toString().includes(sectionId)) {
-                              item.classList.add('active');
-                            }
-                          });
-                        }
-                      }
-                      
-                      function renderChannels() {
-                        const container = document.getElementById('channels-content');
-                        const channels = asyncApiSpec.channels || {};
-                        
-                        let html = '';
-                        for (const [path, channel] of Object.entries(channels)) {
-                          html += `
-                            <div class="operation">
-                              <div class="operation-header">📡 ${path}</div>
-                              <p><strong>Description:</strong> ${channel.description || 'WebSocket channel'}</p>
-                              ${channel.publish ? `
-                                <div style="margin: 10px 0;">
-                                  <span class="operation-method method-publish">PUBLISH</span>
-                                  <strong>${channel.publish.summary}</strong><br>
-                                  <small>${channel.publish.description}</small>
-                                </div>
-                              ` : ''}
-                              ${channel.subscribe ? `
-                                <div style="margin: 10px 0;">
-                                  <span class="operation-method method-subscribe">SUBSCRIBE</span>
-                                  <strong>${channel.subscribe.summary}</strong><br>
-                                  <small>${channel.subscribe.description}</small>
-                                </div>
-                              ` : ''}
-                            </div>
-                          `;
-                        }
-                        container.innerHTML = html || '<p>No channels found.</p>';
-                      }
-                      
-                      function renderOperations() {
-                        const container = document.getElementById('operations-content');
-                        const channels = asyncApiSpec.channels || {};
-                        
-                        let html = '';
-                        for (const [path, channel] of Object.entries(channels)) {
-                          if (channel.publish) {
-                            html += `
-                              <div class="operation">
-                                <div class="operation-header">
-                                  <span class="operation-method method-publish">PUBLISH</span>
-                                  ${channel.publish.operationId || 'PublishOperation'}
-                                </div>
-                                <p><strong>Channel:</strong> ${path}</p>
-                                <p><strong>Summary:</strong> ${channel.publish.summary}</p>
-                                <p><strong>Description:</strong> ${channel.publish.description}</p>
-                                ${channel.publish.tags ? `<p><strong>Tags:</strong> ${channel.publish.tags.map(t => t.name).join(', ')}</p>` : ''}
-                              </div>
-                            `;
-                          }
-                          if (channel.subscribe) {
-                            html += `
-                              <div class="operation">
-                                <div class="operation-header">
-                                  <span class="operation-method method-subscribe">SUBSCRIBE</span>
-                                  ${channel.subscribe.operationId || 'SubscribeOperation'}
-                                </div>
-                                <p><strong>Channel:</strong> ${path}</p>
-                                <p><strong>Summary:</strong> ${channel.subscribe.summary}</p>
-                                <p><strong>Description:</strong> ${channel.subscribe.description}</p>
-                                ${channel.subscribe.tags ? `<p><strong>Tags:</strong> ${channel.subscribe.tags.map(t => t.name).join(', ')}</p>` : ''}
-                              </div>
-                            `;
-                          }
-                        }
-                        container.innerHTML = html || '<p>No operations found.</p>';
-                      }
-                      
-                      function resolveRef(ref) {
-                        // Resolve $ref like "#/$defs/BinaryAudioSessionMessage"
-                        if (!ref.startsWith('#/')) return null;
-                        const path = ref.substring(2).split('/');
-                        let current = asyncApiSpec;
-                        for (const segment of path) {
-                          current = current?.[segment];
-                          if (!current) return null;
-                        }
-                        return current;
-                      }
-                      
-                      function renderProperty(propName, prop, depth = 0) {
-                        const indent = '  '.repeat(depth);
-                        let typeInfo = prop.type || 'unknown';
-                        let expandable = false;
-                        let expandedContent = '';
-                        
-                        if (prop.$ref) {
-                          const resolved = resolveRef(prop.$ref);
-                          if (resolved) {
-                            typeInfo = `$ref → ${prop.$ref.split('/').pop()}`;
-                            expandable = true;
-                            expandedContent = renderSchemaProperties(resolved, depth + 1);
-                          } else {
-                            typeInfo = `$ref → ${prop.$ref}`;
-                          }
-                        } else if (prop.type === 'array' && prop.items?.$ref) {
-                          const resolved = resolveRef(prop.items.$ref);
-                          if (resolved) {
-                            typeInfo = `array of ${prop.items.$ref.split('/').pop()}`;
-                            expandable = true;
-                            expandedContent = renderSchemaProperties(resolved, depth + 1);
-                          }
-                        } else if (prop.type === 'object' && prop.properties) {
-                          expandable = true;
-                          expandedContent = renderSchemaProperties(prop, depth + 1);
-                        }
-                        
-                        const expandIcon = expandable ? '<span class="expand-icon" onclick="toggleExpand(this)">▶</span>' : '';
-                        
-                        return `
-                          <div class="schema-prop" style="margin-left: ${depth * 20}px;">
-                            ${expandIcon}
-                            <span class="prop-name">${propName}</span>
-                            <span class="prop-type">(${typeInfo})</span>
-                            ${prop.description ? `<br><small>${prop.description}</small>` : ''}
-                            ${prop.example !== undefined ? `<br><code>Example: ${JSON.stringify(prop.example)}</code>` : ''}
-                            ${expandable ? `<div class="expandable-content" style="display: none;">${expandedContent}</div>` : ''}
-                          </div>
-                        `;
-                      }
-                      
-                      function renderSchemaProperties(schema, depth = 0) {
-                        const properties = schema.properties || {};
-                        return Object.entries(properties).map(([name, prop]) => 
-                          renderProperty(name, prop, depth)
-                        ).join('');
-                      }
-                      
-                      function toggleExpand(element) {
-                        const content = element.parentElement.querySelector('.expandable-content');
-                        if (content.style.display === 'none') {
-                          content.style.display = 'block';
-                          element.textContent = '▼';
-                        } else {
-                          content.style.display = 'none';
-                          element.textContent = '▶';
-                        }
-                      }
-                      
-                      function renderSchemas() {
-                        const container = document.getElementById('schemas-content');
-                        const messages = asyncApiSpec.components?.messages || {};
-                        
-                        let html = '';
-                        for (const [name, message] of Object.entries(messages)) {
-                          const payload = message.payload || {};
-                          const properties = payload.properties || {};
-                          const defs = payload.$defs || {};
-                          
-                          html += `
-                            <div class="operation">
-                              <div class="operation-header">📋 ${name}</div>
-                              <p><strong>Title:</strong> ${message.title || name}</p>
-                              ${message.description ? `<p><strong>Description:</strong> ${message.description}</p>` : ''}
-                              
-                              ${Object.keys(properties).length > 0 ? `
-                                <div style="margin-top: 15px;">
-                                  <strong>Properties:</strong>
-                                  ${renderSchemaProperties(payload)}
-                                </div>
-                              ` : ''}
-                              
-                              ${Object.keys(defs).length > 0 ? `
-                                <div style="margin-top: 15px;">
-                                  <strong>Referenced Schemas:</strong>
-                                  ${Object.entries(defs).map(([defName, defSchema]) => `
-                                    <div style="margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 4px;">
-                                      <strong>${defName}:</strong>
-                                      ${defSchema.description ? `<br><small>${defSchema.description}</small><br>` : ''}
-                                      ${renderSchemaProperties(defSchema)}
-                                    </div>
-                                  `).join('')}
-                                </div>
-                              ` : ''}
-                            </div>
-                          `;
-                        }
-                        container.innerHTML = html || '<p>No message schemas found.</p>';
-                      }
-                      
-                      function renderServers() {
-                        const container = document.getElementById('servers-content');
-                        const servers = asyncApiSpec.servers || {};
-                        
-                        let html = '';
-                        for (const [name, server] of Object.entries(servers)) {
-                          html += `
-                            <div class="operation">
-                              <div class="operation-header">🖥️ ${name}</div>
-                              <p><strong>URL:</strong> <code>${server.url}</code></p>
-                              <p><strong>Protocol:</strong> ${server.protocol}</p>
-                              ${server.description ? `<p><strong>Description:</strong> ${server.description}</p>` : ''}
-                              ${server.variables ? `
-                                <div style="margin-top: 10px;">
-                                  <strong>Variables:</strong>
-                                  ${Object.entries(server.variables).map(([varName, varData]) => `
-                                    <div class="schema-prop">
-                                      <span class="prop-name">${varName}</span>: 
-                                      <span class="prop-type">${varData.default}</span>
-                                      ${varData.description ? `<br><small>${varData.description}</small>` : ''}
-                                    </div>
-                                  `).join('')}
-                                </div>
-                              ` : ''}
-                            </div>
-                          `;
-                        }
-                        container.innerHTML = html || '<p>No server information found.</p>';
-                      }
-                      
-                      // Load AsyncAPI spec and render
-                      fetch('/asyncapi.json')
-                        .then(response => response.json())
-                        .then(spec => {
-                          asyncApiSpec = spec;
-                          console.log('AsyncAPI version:', spec.asyncapi);
-                          
-                          // Render all sections
-                          renderChannels();
-                          renderOperations();
-                          renderSchemas();
-                          renderServers();
-                          
-                          // Show first section by default
-                          showSection('channels');
-                        })
-                        .catch(error => {
-                          console.error('Failed to load AsyncAPI spec:', error);
-                          document.querySelector('.loading').textContent = 'Failed to load AsyncAPI documentation.';
-                        });
-                    </script>
-                  </body>
-                </html>
-                """)
+                if self._asset_loader:
+                    html_content = self._asset_loader.get_web_template("asyncapi")
+                    if html_content:
+                        return HTMLResponse(content=html_content)
+                    else:
+                        logger.error("Web template 'asyncapi' not found")
+                        raise HTTPException(status_code=500, detail="AsyncAPI documentation template not available")
+                else:
+                    logger.error("Web asset loader not initialized")
+                    raise HTTPException(status_code=500, detail="Web asset system not available")
             
             @app.get("/asyncapi.yaml", include_in_schema=False)
             async def asyncapi_spec():

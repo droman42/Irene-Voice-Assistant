@@ -85,6 +85,7 @@ class IntentAssetLoader:
         self.templates: Dict[str, Dict[str, Any]] = {}
         self.prompts: Dict[str, Dict[str, str]] = {}
         self.localizations: Dict[str, Dict[str, Any]] = {}
+        self.web_templates: Dict[str, str] = {}  # NEW: Web template cache
         
         # Error tracking (reuse donation loader pattern)
         self.validation_errors: List[str] = []
@@ -100,6 +101,7 @@ class IntentAssetLoader:
             self._load_templates(handler_names),
             self._load_prompts(handler_names),
             self._load_localizations(handler_names),
+            self._load_web_templates(),  # NEW: Load web templates
             return_exceptions=True
         )
         
@@ -113,7 +115,8 @@ class IntentAssetLoader:
         
         logger.info(f"Asset loading completed: {len(self.donations)} donations, "
                    f"{len(self.templates)} template sets, {len(self.prompts)} prompt sets, "
-                   f"{len(self.localizations)} localization sets")
+                   f"{len(self.localizations)} localization sets, "
+                   f"{len(self.web_templates)} web templates")
     
     # ============================================================
     # PUBLIC API (extends existing donation loader interface)
@@ -478,6 +481,41 @@ class IntentAssetLoader:
                 keyword_donations.append(keyword_donation)
         
         return keyword_donations
+    
+    # ============================================================
+    # WEB TEMPLATE API (NEW - extends asset loader for web content)
+    # ============================================================
+    
+    def get_web_template(self, template_name: str) -> Optional[str]:
+        """Get web template content by name"""
+        return self.web_templates.get(template_name)
+    
+    def get_web_template_with_variables(self, template_name: str, **variables) -> Optional[str]:
+        """Get web template content with variable substitution"""
+        template_content = self.web_templates.get(template_name)
+        if template_content is None:
+            return None
+        
+        # Use safe variable substitution that doesn't interfere with CSS
+        try:
+            # Use string.Template for safer substitution or manual replacement
+            import re
+            
+            # Replace only specific variables we know about
+            result = template_content
+            for var_name, var_value in variables.items():
+                # Replace {var_name} with var_value, but be careful not to replace CSS
+                pattern = r'\{' + re.escape(var_name) + r'\}'
+                result = re.sub(pattern, str(var_value), result)
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error substituting variables in web template '{template_name}': {e}")
+            return template_content
+    
+    def list_web_templates(self) -> List[str]:
+        """Get list of available web template names"""
+        return list(self.web_templates.keys())
     
     # ============================================================
     # ASSET LOADING IMPLEMENTATION
@@ -1371,6 +1409,37 @@ class IntentAssetLoader:
                 
                 except Exception as e:
                     self._add_warning(f"Failed to load localization for domain '{domain_name}': {e}")
+    
+    async def _load_web_templates(self) -> None:
+        """Load web templates from assets/web/templates directory (NEW)"""
+        web_templates_dir = self.assets_root / "web" / "templates"
+        
+        if not web_templates_dir.exists():
+            logger.debug("Web templates directory does not exist, skipping web template loading")
+            return
+        
+        try:
+            # Load all HTML template files
+            for template_file in web_templates_dir.glob("*.html"):
+                template_name = template_file.stem
+                
+                try:
+                    with open(template_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Store template content as-is - no preprocessing needed
+                    # Templates should use Python format string syntax directly: {variable}
+                    self.web_templates[template_name] = content
+                    logger.debug(f"Loaded web template '{template_name}' from {template_file}")
+                
+                except Exception as e:
+                    self._add_warning(f"Failed to load web template '{template_name}': {e}")
+            
+            if self.web_templates:
+                logger.info(f"Loaded {len(self.web_templates)} web templates: {list(self.web_templates.keys())}")
+        
+        except Exception as e:
+            self._add_warning(f"Failed to load web templates: {e}")
     
     # ============================================================
     # HELPER METHODS

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Irene Voice Assistant API</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Irene Voice Assistant</h1>
+        <p>Modern async voice assistant API - v{version}</p>
+        
+        <div class="command-form">
+            <input type="text" id="commandInput" class="command-input" placeholder="Enter command..." />
+            <button onclick="sendCommand()" class="send-btn">Send Command</button>
+        </div>
+        
+        <div id="messages" class="messages">
+            <div class="message">Connected to Irene API. Type a command above!</div>
+        </div>
+        
+        <p><strong>REST API Documentation:</strong> <a href="/docs">/docs</a></p>
+        <p><strong>WebSocket API Documentation:</strong> <a href="/asyncapi">/asyncapi</a></p>
+        <p><strong>Component WebSockets:</strong> /asr/stream (speech recognition), /asr/binary (optimized for ESP32)</p>
+        <p><strong>REST API:</strong> POST /command</p>
+    </div>
+    
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

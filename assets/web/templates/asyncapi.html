@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Irene WebSocket API Documentation</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"?>
+    <link rel="stylesheet" href="/static/css/asyncapi.css">
+  </head>
+  <body>
+    <div class="header">
+      <h1>🚀 Irene WebSocket API Documentation</h1>
+      <p>Real-time communication endpoints for Irene Voice Assistant</p>
+    </div>
+    <div class="container">
+      <div class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">🔌 Channels</div>
+          <div class="nav-item" onclick="showSection('channels', this)">WebSocket Channels</div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">📨 Operations</div>
+          <div class="nav-item" onclick="showSection('operations', this)">Publish/Subscribe</div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">📋 Schemas</div>
+          <div class="nav-item" onclick="showSection('schemas', this)">Message Schemas</div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">🖥️ Servers</div>
+          <div class="nav-item" onclick="showSection('servers', this)">Server Information</div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">⬇️ Downloads</div>
+          <div class="nav-item download-link" onclick="downloadFile('/asyncapi.json', 'asyncapi.json')">
+            📄 JSON Specification
+          </div>
+          <div class="nav-item download-link" onclick="downloadFile('/asyncapi.yaml', 'asyncapi.yaml')">
+            📝 YAML Specification
+          </div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="loading">Loading AsyncAPI documentation...</div>
+        
+        <div id="channels" class="section">
+          <h2>🔌 WebSocket Channels</h2>
+          <div id="channels-content"></div>
+        </div>
+        
+        <div id="operations" class="section">
+          <h2>📨 Operations</h2>
+          <div id="operations-content"></div>
+        </div>
+        
+        <div id="schemas" class="section">
+          <h2>📋 Message Schemas</h2>
+          <div id="schemas-content"></div>
+        </div>
+        
+        <div id="servers" class="section">
+          <h2>🖥️ Server Information</h2>
+          <div id="servers-content"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer-links">
+      <a href="/asyncapi.json" download="asyncapi.json" title="Download AsyncAPI JSON specification">
+        📄 Download JSON
+      </a>
+      <a href="/asyncapi.yaml" download="asyncapi.yaml" title="Download AsyncAPI YAML specification">
+        📝 Download YAML
+      </a>
+      <a href="/docs" target="_blank" title="Open REST API documentation">
+        🌐 REST API
+      </a>
+    </div>
+
+    <script src="/static/js/asyncapi.js"></script>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+/* Main styles for Irene Voice Assistant Web Interface */
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 40px;
+}
+
+.container {
+    max-width: 800px;
+}
+
+.command-form {
+    margin: 20px 0;
+}
+
+.command-input {
+    width: 60%;
+    padding: 10px;
+}
+
+.send-btn {
+    padding: 10px 20px;
+    background: #007cba;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.messages {
+    border: 1px solid #ccc;
+    height: 300px;
+    overflow-y: scroll;
+    padding: 10px;
+    margin: 20px 0;
+}
+
+.message {
+    margin: 5px 0;
+    padding: 5px;
+    border-left: 3px solid #007cba;
+}
+
+.error {
+    border-left-color: #dc3545;
+}
