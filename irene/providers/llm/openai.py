@@ -7,6 +7,7 @@ Supports text enhancement, chat completion, and various language tasks.
 
 import os
 import asyncio
+import time
 from typing import Dict, Any, List
 import logging
 
@@ -50,6 +51,11 @@ class OpenAILLMProvider(LLMProvider):
         self.default_model = config.get("default_model", "gpt-4o-mini")
         self.max_tokens = config.get("max_tokens", 150)
         self.temperature = config.get("temperature", 0.3)
+        
+        # Cache for availability checks to prevent excessive API calls
+        self._availability_cache = None
+        self._availability_cache_time = 0
+        self._availability_cache_duration = 300  # 5 minutes
     
     @classmethod
     def _get_default_extension(cls) -> str:
@@ -77,17 +83,27 @@ class OpenAILLMProvider(LLMProvider):
         return {}
     
     async def is_available(self) -> bool:
-        """Check if OpenAI API is available and validate configured model"""
+        """Check if OpenAI API is available and validate configured model (with caching)"""
+        # Check cache first
+        current_time = time.time()
+        if (self._availability_cache is not None and 
+            current_time - self._availability_cache_time < self._availability_cache_duration):
+            logger.debug("OpenAI provider availability cached: %s", self._availability_cache)
+            return self._availability_cache
+        
         try:
             from openai import AsyncOpenAI
             if not self.api_key:
                 logger.error("OpenAI API key not configured")
+                self._availability_cache = False
+                self._availability_cache_time = current_time
                 return False
                 
             client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
             
             # Get available models for this API key
             try:
+                logger.debug("OpenAI provider: Checking model availability (cache miss)")
                 models_response = await client.models.list()
                 available_models = {model.id for model in models_response.data}
                 
@@ -98,27 +114,43 @@ class OpenAILLMProvider(LLMProvider):
                         self.default_model, 
                         sorted(list(available_models))[:10]
                     )
-                    return False
-                    
-                logger.info(
-                    "OpenAI provider validated: model '%s' available", 
-                    self.default_model
-                )
-                return True
+                    result = False
+                else:
+                    logger.info(
+                        "OpenAI provider validated: model '%s' available", 
+                        self.default_model
+                    )
+                    result = True
+                
+                # Cache the result
+                self._availability_cache = result
+                self._availability_cache_time = current_time
+                return result
                 
             except Exception as e:
                 logger.warning(
                     "Could not validate OpenAI model availability: %s. "
                     "Proceeding with basic API key check.", e
                 )
+                # Cache the fallback result
+                self._availability_cache = True
+                self._availability_cache_time = current_time
                 return True  # Fallback to basic availability
                 
         except ImportError:
             logger.error("OpenAI library not available. Install with: pip install openai>=1.0.0")
+            self._availability_cache = False
+            self._availability_cache_time = current_time
             return False
         except Exception as e:
             logger.error("OpenAI availability check failed: %s", e)
             return False
+    
+    def invalidate_availability_cache(self):
+        """Invalidate the availability cache to force a fresh check"""
+        self._availability_cache = None
+        self._availability_cache_time = 0
+        logger.debug("OpenAI provider availability cache invalidated")
     
     async def enhance_text(self, text: str, task: str = "improve", **kwargs) -> str:
         """Enhance text using OpenAI GPT models with smart API routing"""

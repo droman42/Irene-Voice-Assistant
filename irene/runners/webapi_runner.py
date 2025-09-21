@@ -540,6 +540,7 @@ monitoring = true
                         prefix = component.get_api_prefix()
                         tags = component.get_api_tags()
                         
+                        
                         app.include_router(
                             router,
                             prefix=prefix,
@@ -736,52 +737,390 @@ monitoring = true
             async def asyncapi_docs():
                 """Serve AsyncAPI documentation page"""
                 return HTMLResponse("""
-                <!doctype html><meta charset="utf-8">
-                <title>Irene WebSocket API Documentation</title>
+                <!doctype html>
+                <html>
+                  <head>
+                    <meta charset="utf-8" />
+                    <title>Irene WebSocket API Documentation</title>
+                    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"?>
+                    <style>
+                      html, body { 
+                        height: 100%; 
+                        margin: 0; 
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                        background-color: #f8f9fa;
+                      }
+                      .header {
+                        background: #007bff;
+                        color: white;
+                        padding: 15px 20px;
+                        text-align: center;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                      }
+                      .header h1 {
+                        margin: 0;
+                        font-size: 1.8rem;
+                        font-weight: 600;
+                      }
+                      .header p {
+                        margin: 5px 0 0 0;
+                        opacity: 0.9;
+                        font-size: 0.95rem;
+                      }
+                      .container {
+                        display: flex;
+                        height: calc(100vh - 80px);
+                      }
+                      .sidebar {
+                        width: 300px;
+                        background: #ffffff;
+                        border-right: 1px solid #e0e0e0;
+                        padding: 20px;
+                        overflow-y: auto;
+                      }
+                      .content {
+                        flex: 1;
+                        padding: 20px;
+                        overflow-y: auto;
+                        background: white;
+                      }
+                      .nav-section {
+                        margin-bottom: 25px;
+                      }
+                      .nav-title {
+                        font-weight: 600;
+                        color: #333;
+                        margin-bottom: 10px;
+                        padding-bottom: 5px;
+                        border-bottom: 2px solid #007bff;
+                      }
+                      .nav-item {
+                        padding: 8px 12px;
+                        margin: 5px 0;
+                        background: #f8f9fa;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                      }
+                      .nav-item:hover {
+                        background: #e9ecef;
+                        transform: translateX(5px);
+                      }
+                      .nav-item.active {
+                        background: #007bff;
+                        color: white;
+                      }
+                      .section {
+                        margin-bottom: 30px;
+                        display: none;
+                      }
+                      .section.active {
+                        display: block;
+                      }
+                      .section h2 {
+                        color: #007bff;
+                        border-bottom: 2px solid #007bff;
+                        padding-bottom: 10px;
+                      }
+                      .operation {
+                        background: #f8f9fa;
+                        border-left: 4px solid #007bff;
+                        padding: 15px;
+                        margin: 15px 0;
+                        border-radius: 0 4px 4px 0;
+                      }
+                      .operation-header {
+                        font-weight: 600;
+                        color: #333;
+                        margin-bottom: 5px;
+                      }
+                      .operation-method {
+                        display: inline-block;
+                        padding: 3px 8px;
+                        border-radius: 3px;
+                        font-size: 0.8rem;
+                        font-weight: 600;
+                        margin-right: 10px;
+                      }
+                      .method-publish {
+                        background: #28a745;
+                        color: white;
+                      }
+                      .method-subscribe {
+                        background: #17a2b8;
+                        color: white;
+                      }
+                      .schema-prop {
+                        background: white;
+                        border: 1px solid #e0e0e0;
+                        border-radius: 4px;
+                        padding: 12px;
+                        margin: 8px 0;
+                      }
+                      .prop-name {
+                        font-weight: 600;
+                        color: #007bff;
+                      }
+                      .prop-type {
+                        color: #666;
+                        font-family: monospace;
+                        font-size: 0.9rem;
+                      }
+                      .loading {
+                        text-align: center;
+                        color: #666;
+                        margin: 20px 0;
+                      }
+                      .footer-links {
+                        position: fixed;
+                        bottom: 10px;
+                        right: 10px;
+                        background: rgba(255,255,255,0.9);
+                        padding: 8px;
+                        border-radius: 4px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        font-size: 0.85rem;
+                      }
+                      .footer-links a {
+                        color: #007bff;
+                        text-decoration: none;
+                        margin-right: 10px;
+                      }
+                    </style>
+                  </head>
+                  <body>
+                    <div class="header">
+                      <h1>🚀 Irene WebSocket API Documentation</h1>
+                      <p>Real-time communication endpoints for Irene Voice Assistant</p>
+                    </div>
+                    <div class="container">
+                      <div class="sidebar">
+                        <div class="nav-section">
+                          <div class="nav-title">🔌 Channels</div>
+                          <div class="nav-item" onclick="showSection('channels', this)">WebSocket Channels</div>
+                        </div>
+                        <div class="nav-section">
+                          <div class="nav-title">📨 Operations</div>
+                          <div class="nav-item" onclick="showSection('operations', this)">Publish/Subscribe</div>
+                        </div>
+                        <div class="nav-section">
+                          <div class="nav-title">📋 Schemas</div>
+                          <div class="nav-item" onclick="showSection('schemas', this)">Message Schemas</div>
+                        </div>
+                        <div class="nav-section">
+                          <div class="nav-title">🖥️ Servers</div>
+                          <div class="nav-item" onclick="showSection('servers', this)">Server Information</div>
+                        </div>
+                      </div>
+                      <div class="content">
+                        <div class="loading">Loading AsyncAPI documentation...</div>
+                        
+                        <div id="channels" class="section">
+                          <h2>🔌 WebSocket Channels</h2>
+                          <div id="channels-content"></div>
+                        </div>
+                        
+                        <div id="operations" class="section">
+                          <h2>📨 Operations</h2>
+                          <div id="operations-content"></div>
+                        </div>
+                        
+                        <div id="schemas" class="section">
+                          <h2>📋 Message Schemas</h2>
+                          <div id="schemas-content"></div>
+                        </div>
+                        
+                        <div id="servers" class="section">
+                          <h2>🖥️ Server Information</h2>
+                          <div id="servers-content"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="footer-links">
+                      <a href="/asyncapi.json" target="_blank">JSON Spec</a>
+                      <a href="/asyncapi.yaml" target="_blank">YAML Spec</a>
+                      <a href="/docs" target="_blank">REST API</a>
+                    </div>
 
-                <link rel="stylesheet"
-                  href="https://unpkg.com/@asyncapi/react-component@2.6.4/styles/default.min.css">
-
-                <div class="header" style="background:#007cba;color:#fff;padding:20px;text-align:center">
-                  <h1>🚀 Irene WebSocket API Documentation</h1>
-                  <p>Real-time communication endpoints for Irene Voice Assistant</p>
-                </div>
-
-                <div class="container" style="max-width:1200px;margin:0 auto;padding:20px">
-                  <div id="loading" style="text-align:center;color:#666;margin:20px 0">
-                    Loading AsyncAPI documentation…
-                  </div>
-
-                  <asyncapi-component id="ac"></asyncapi-component>
-
-                  <div class="links" style="text-align:center;margin:20px 0">
-                    <a href="/asyncapi.json" target="_blank">View JSON Spec</a> ·
-                    <a href="/asyncapi.yaml" target="_blank">View YAML Spec</a> ·
-                    <a href="/docs" target="_blank">REST API Docs</a>
-                  </div>
-                </div>
-
-                <script src="https://unpkg.com/@asyncapi/web-component@2.6.4/lib/asyncapi-web-component.js" defer></script>
-                <script>
-                  // Set properties after the custom element upgrades (avoids attribute name pitfalls)
-                  window.addEventListener('DOMContentLoaded', () => {
-                    const el = document.getElementById('ac');
-                    el.schemaUrl = '/asyncapi.json';                  // ✅ correct prop
-                    el.config = { show: { sidebar: true } };
-
-                    // simple "loaded" detector
-                    const loading = document.getElementById('loading');
-                    const stop = () => loading && (loading.style.display = 'none');
-                    // hide spinner once something renders
-                    const obs = new MutationObserver(() => { stop(); obs.disconnect(); });
-                    obs.observe(el, { childList: true, subtree: true });
-
-                    // also fetch the spec to surface version mismatches in console
-                    fetch('/asyncapi.json').then(r => r.json()).then(d => {
-                      console.log('AsyncAPI version:', d.asyncapi);
-                    });
-                  });
-                </script>
+                    <script>
+                      let asyncApiSpec = null;
+                      
+                      function showSection(sectionId, clickedElement) {
+                        // Hide all sections
+                        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                        document.querySelectorAll('.nav-item').forEach(s => s.classList.remove('active'));
+                        const loadingElement = document.querySelector('.loading');
+                        if (loadingElement) loadingElement.style.display = 'none';
+                        
+                        // Show selected section
+                        document.getElementById(sectionId).classList.add('active');
+                        
+                        // If called from click event, highlight the clicked nav item
+                        if (clickedElement) {
+                          clickedElement.classList.add('active');
+                        } else {
+                          // If called programmatically, find and highlight the matching nav item
+                          const navItems = document.querySelectorAll('.nav-item');
+                          navItems.forEach(item => {
+                            if (item.onclick && item.onclick.toString().includes(sectionId)) {
+                              item.classList.add('active');
+                            }
+                          });
+                        }
+                      }
+                      
+                      function renderChannels() {
+                        const container = document.getElementById('channels-content');
+                        const channels = asyncApiSpec.channels || {};
+                        
+                        let html = '';
+                        for (const [path, channel] of Object.entries(channels)) {
+                          html += `
+                            <div class="operation">
+                              <div class="operation-header">📡 ${path}</div>
+                              <p><strong>Description:</strong> ${channel.description || 'WebSocket channel'}</p>
+                              ${channel.publish ? `
+                                <div style="margin: 10px 0;">
+                                  <span class="operation-method method-publish">PUBLISH</span>
+                                  <strong>${channel.publish.summary}</strong><br>
+                                  <small>${channel.publish.description}</small>
+                                </div>
+                              ` : ''}
+                              ${channel.subscribe ? `
+                                <div style="margin: 10px 0;">
+                                  <span class="operation-method method-subscribe">SUBSCRIBE</span>
+                                  <strong>${channel.subscribe.summary}</strong><br>
+                                  <small>${channel.subscribe.description}</small>
+                                </div>
+                              ` : ''}
+                            </div>
+                          `;
+                        }
+                        container.innerHTML = html || '<p>No channels found.</p>';
+                      }
+                      
+                      function renderOperations() {
+                        const container = document.getElementById('operations-content');
+                        const channels = asyncApiSpec.channels || {};
+                        
+                        let html = '';
+                        for (const [path, channel] of Object.entries(channels)) {
+                          if (channel.publish) {
+                            html += `
+                              <div class="operation">
+                                <div class="operation-header">
+                                  <span class="operation-method method-publish">PUBLISH</span>
+                                  ${channel.publish.operationId || 'PublishOperation'}
+                                </div>
+                                <p><strong>Channel:</strong> ${path}</p>
+                                <p><strong>Summary:</strong> ${channel.publish.summary}</p>
+                                <p><strong>Description:</strong> ${channel.publish.description}</p>
+                                ${channel.publish.tags ? `<p><strong>Tags:</strong> ${channel.publish.tags.map(t => t.name).join(', ')}</p>` : ''}
+                              </div>
+                            `;
+                          }
+                          if (channel.subscribe) {
+                            html += `
+                              <div class="operation">
+                                <div class="operation-header">
+                                  <span class="operation-method method-subscribe">SUBSCRIBE</span>
+                                  ${channel.subscribe.operationId || 'SubscribeOperation'}
+                                </div>
+                                <p><strong>Channel:</strong> ${path}</p>
+                                <p><strong>Summary:</strong> ${channel.subscribe.summary}</p>
+                                <p><strong>Description:</strong> ${channel.subscribe.description}</p>
+                                ${channel.subscribe.tags ? `<p><strong>Tags:</strong> ${channel.subscribe.tags.map(t => t.name).join(', ')}</p>` : ''}
+                              </div>
+                            `;
+                          }
+                        }
+                        container.innerHTML = html || '<p>No operations found.</p>';
+                      }
+                      
+                      function renderSchemas() {
+                        const container = document.getElementById('schemas-content');
+                        const messages = asyncApiSpec.components?.messages || {};
+                        
+                        let html = '';
+                        for (const [name, message] of Object.entries(messages)) {
+                          html += `
+                            <div class="operation">
+                              <div class="operation-header">📋 ${name}</div>
+                              <p><strong>Title:</strong> ${message.title || name}</p>
+                              ${message.description ? `<p><strong>Description:</strong> ${message.description}</p>` : ''}
+                              
+                              ${message.properties ? `
+                                <div style="margin-top: 15px;">
+                                  <strong>Properties:</strong>
+                                  ${Object.entries(message.properties).map(([propName, prop]) => `
+                                    <div class="schema-prop">
+                                      <span class="prop-name">${propName}</span>
+                                      <span class="prop-type">(${prop.type || 'unknown'})</span>
+                                      ${prop.description ? `<br><small>${prop.description}</small>` : ''}
+                                    </div>
+                                  `).join('')}
+                                </div>
+                              ` : ''}
+                            </div>
+                          `;
+                        }
+                        container.innerHTML = html || '<p>No message schemas found.</p>';
+                      }
+                      
+                      function renderServers() {
+                        const container = document.getElementById('servers-content');
+                        const servers = asyncApiSpec.servers || {};
+                        
+                        let html = '';
+                        for (const [name, server] of Object.entries(servers)) {
+                          html += `
+                            <div class="operation">
+                              <div class="operation-header">🖥️ ${name}</div>
+                              <p><strong>URL:</strong> <code>${server.url}</code></p>
+                              <p><strong>Protocol:</strong> ${server.protocol}</p>
+                              ${server.description ? `<p><strong>Description:</strong> ${server.description}</p>` : ''}
+                              ${server.variables ? `
+                                <div style="margin-top: 10px;">
+                                  <strong>Variables:</strong>
+                                  ${Object.entries(server.variables).map(([varName, varData]) => `
+                                    <div class="schema-prop">
+                                      <span class="prop-name">${varName}</span>: 
+                                      <span class="prop-type">${varData.default}</span>
+                                      ${varData.description ? `<br><small>${varData.description}</small>` : ''}
+                                    </div>
+                                  `).join('')}
+                                </div>
+                              ` : ''}
+                            </div>
+                          `;
+                        }
+                        container.innerHTML = html || '<p>No server information found.</p>';
+                      }
+                      
+                      // Load AsyncAPI spec and render
+                      fetch('/asyncapi.json')
+                        .then(response => response.json())
+                        .then(spec => {
+                          asyncApiSpec = spec;
+                          console.log('AsyncAPI version:', spec.asyncapi);
+                          
+                          // Render all sections
+                          renderChannels();
+                          renderOperations();
+                          renderSchemas();
+                          renderServers();
+                          
+                          // Show first section by default
+                          showSection('channels');
+                        })
+                        .catch(error => {
+                          console.error('Failed to load AsyncAPI spec:', error);
+                          document.querySelector('.loading').textContent = 'Failed to load AsyncAPI documentation.';
+                        });
+                    </script>
+                  </body>
+                </html>
                 """)
             
             @app.get("/asyncapi.yaml", include_in_schema=False)

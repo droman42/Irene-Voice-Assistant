@@ -26,6 +26,11 @@ class IntentOrchestrator:
         self.error_handlers: Dict[str, callable] = {}
         self._use_donation_routing = True  # Phase 6: Enable donation-driven routing
         self.metrics_collector = get_metrics_collector()  # Phase 2: Intent analytics integration
+        
+        # Cache for capabilities to prevent excessive provider availability checks
+        self._capabilities_cache = None
+        self._capabilities_cache_time = 0
+        self._capabilities_cache_duration = 30  # 30 seconds cache for capabilities
     
     def add_middleware(self, middleware_func: callable):
         """Add middleware function to process intents before execution."""
@@ -203,7 +208,15 @@ class IntentOrchestrator:
         )
     
     async def get_capabilities(self) -> Dict[str, Any]:
-        """Get orchestrator capabilities and handler information."""
+        """Get orchestrator capabilities and handler information (with caching)."""
+        # Check cache first
+        current_time = time.time()
+        if (self._capabilities_cache is not None and 
+            current_time - self._capabilities_cache_time < self._capabilities_cache_duration):
+            logger.debug("Intent orchestrator capabilities cached")
+            return self._capabilities_cache
+        
+        logger.debug("Intent orchestrator: Building capabilities (cache miss)")
         handlers = await self.registry.get_all_handlers()
         
         capabilities = {
@@ -242,7 +255,17 @@ class IntentOrchestrator:
         capabilities["supported_domains"] = list(capabilities["supported_domains"])
         capabilities["supported_actions"] = list(capabilities["supported_actions"])
         
+        # Cache the result
+        self._capabilities_cache = capabilities
+        self._capabilities_cache_time = current_time
+        
         return capabilities
+    
+    def invalidate_capabilities_cache(self):
+        """Invalidate the capabilities cache to force a fresh check"""
+        self._capabilities_cache = None
+        self._capabilities_cache_time = 0
+        logger.debug("Intent orchestrator capabilities cache invalidated")
     
     async def validate_intent(self, intent: Intent) -> bool:
         """Validate if an intent can be executed."""
