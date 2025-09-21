@@ -875,16 +875,29 @@ monitoring = true
                         position: fixed;
                         bottom: 10px;
                         right: 10px;
-                        background: rgba(255,255,255,0.9);
-                        padding: 8px;
-                        border-radius: 4px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        background: rgba(255,255,255,0.95);
+                        padding: 12px;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
                         font-size: 0.85rem;
+                        display: flex;
+                        gap: 8px;
+                        backdrop-filter: blur(8px);
                       }
                       .footer-links a {
                         color: #007bff;
                         text-decoration: none;
-                        margin-right: 10px;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        transition: all 0.2s;
+                        background: rgba(0, 123, 255, 0.1);
+                        border: 1px solid rgba(0, 123, 255, 0.2);
+                      }
+                      .footer-links a:hover {
+                        background: #007bff;
+                        color: white;
+                        transform: translateY(-2px);
+                        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
                       }
                       .expand-icon {
                         cursor: pointer;
@@ -901,6 +914,26 @@ monitoring = true
                         margin-top: 10px;
                         border-left: 2px solid #dee2e6;
                         padding-left: 10px;
+                      }
+                      .download-link {
+                        background: linear-gradient(45deg, #28a745, #20c997) !important;
+                        color: white !important;
+                        font-weight: 600;
+                        position: relative;
+                        overflow: hidden;
+                      }
+                      .download-link:hover {
+                        background: linear-gradient(45deg, #218838, #1ea871) !important;
+                        transform: translateX(8px) scale(1.02);
+                        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+                      }
+                      .download-link::after {
+                        content: '⬇️';
+                        position: absolute;
+                        right: 8px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        font-size: 0.8em;
                       }
                     </style>
                   </head>
@@ -926,6 +959,15 @@ monitoring = true
                         <div class="nav-section">
                           <div class="nav-title">🖥️ Servers</div>
                           <div class="nav-item" onclick="showSection('servers', this)">Server Information</div>
+                        </div>
+                        <div class="nav-section">
+                          <div class="nav-title">⬇️ Downloads</div>
+                          <div class="nav-item download-link" onclick="downloadFile('/asyncapi.json', 'asyncapi.json')">
+                            📄 JSON Specification
+                          </div>
+                          <div class="nav-item download-link" onclick="downloadFile('/asyncapi.yaml', 'asyncapi.yaml')">
+                            📝 YAML Specification
+                          </div>
                         </div>
                       </div>
                       <div class="content">
@@ -954,13 +996,29 @@ monitoring = true
                     </div>
                     
                     <div class="footer-links">
-                      <a href="/asyncapi.json" target="_blank">JSON Spec</a>
-                      <a href="/asyncapi.yaml" target="_blank">YAML Spec</a>
-                      <a href="/docs" target="_blank">REST API</a>
+                      <a href="/asyncapi.json" download="asyncapi.json" title="Download AsyncAPI JSON specification">
+                        📄 Download JSON
+                      </a>
+                      <a href="/asyncapi.yaml" download="asyncapi.yaml" title="Download AsyncAPI YAML specification">
+                        📝 Download YAML
+                      </a>
+                      <a href="/docs" target="_blank" title="Open REST API documentation">
+                        🌐 REST API
+                      </a>
                     </div>
 
                     <script>
                       let asyncApiSpec = null;
+                      
+                      function downloadFile(url, filename) {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      }
                       
                       function showSection(sectionId, clickedElement) {
                         // Hide all sections
