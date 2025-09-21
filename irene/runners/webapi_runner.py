@@ -350,7 +350,7 @@ monitoring = true
                     
                     <p><strong>REST API Documentation:</strong> <a href="/docs">/docs</a></p>
                     <p><strong>WebSocket API Documentation:</strong> <a href="/asyncapi">/asyncapi</a></p>
-                    <p><strong>Component WebSockets:</strong> /asr/stream (speech recognition)</p>
+                    <p><strong>Component WebSockets:</strong> /asr/stream (speech recognition), /asr/binary (optimized for ESP32)</p>
                     <p><strong>REST API:</strong> POST /command</p>
                 </div>
                 
@@ -1284,7 +1284,7 @@ monitoring = true
             print(f"📚 REST API docs available at {protocol}://{args.host}:{args.port}/docs")
             print(f"🚀 WebSocket API docs available at {protocol}://{args.host}:{args.port}/asyncapi")
             print(f"🌍 Web interface at {protocol}://{args.host}:{args.port}")
-            print(f"🔌 Component WebSockets: /asr/stream (speech recognition)")
+            print(f"🔌 Component WebSockets: /asr/stream (speech recognition), /asr/binary (ESP32-optimized)")
             print("💻 Input mode: Web only (other inputs disabled)")
             print("Press Ctrl+C to stop")
         

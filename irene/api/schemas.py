@@ -227,6 +227,185 @@ class TranscriptionErrorMessage(BaseAPIMessage):
         }
 
 
+class BinaryAudioSessionMessage(BaseAPIMessage):
+    """
+    WebSocket session configuration for binary audio streaming
+    
+    Initial JSON message sent to configure binary audio streaming session.
+    After this message, all subsequent frames are raw binary PCM audio data.
+    """
+    type: Literal["session_config"] = Field(
+        default="session_config",
+        description="Message type identifier"
+    )
+    sample_rate: int = Field(
+        default=16000,
+        description="Audio sample rate in Hz (16000 recommended for ASR)",
+        example=16000,
+        ge=8000,
+        le=48000
+    )
+    channels: int = Field(
+        default=1,
+        description="Number of audio channels (1=mono, 2=stereo)",
+        example=1,
+        ge=1,
+        le=2
+    )
+    format: str = Field(
+        default="pcm_s16le",
+        description="Audio format specification (pcm_s16le = 16-bit signed little-endian PCM)",
+        example="pcm_s16le"
+    )
+    language: Optional[str] = Field(
+        default="ru",
+        description="Language code for transcription (ISO 639-1 format)",
+        example="ru"
+    )
+    provider: Optional[str] = Field(
+        default=None,
+        description="Specific ASR provider to use (optional, uses default if not specified)",
+        example="whisper"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "session_config",
+                    "sample_rate": 16000,
+                    "channels": 1,
+                    "format": "pcm_s16le",
+                    "language": "ru",
+                    "provider": "whisper",
+                    "timestamp": 1704067200.123
+                },
+                {
+                    "type": "session_config",
+                    "sample_rate": 16000,
+                    "channels": 1,
+                    "format": "pcm_s16le",
+                    "language": "en",
+                    "timestamp": 1704067200.456
+                }
+            ]
+        }
+
+
+class BinaryAudioStreamMessage(BaseAPIMessage):
+    """
+    Documentation schema for binary audio data frames
+    
+    Note: This schema is for AsyncAPI documentation only. In actual implementation,
+    audio data is sent as raw binary WebSocket frames (not JSON) after the initial
+    session configuration message.
+    
+    Binary Format Specification:
+    - Raw PCM audio data as configured in session_config
+    - Default: 16-bit signed little-endian, mono, 16kHz
+    - Frame size: Variable (typically 160-1600 samples = 10-100ms audio)
+    - No headers or metadata - pure audio samples
+    """
+    type: Literal["binary_audio"] = Field(
+        default="binary_audio",
+        description="Message type identifier (documentation only)"
+    )
+    description: str = Field(
+        default="Raw PCM audio data as binary WebSocket frame",
+        description="Binary audio data stream (not JSON - sent as WebSocket binary frames)"
+    )
+    format_specification: str = Field(
+        default="16-bit signed little-endian PCM samples, no headers",
+        description="Technical format of the binary data"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "description": "This schema documents binary audio frames. Actual data is sent as WebSocket binary frames.",
+            "x-binary-format": {
+                "type": "binary",
+                "format": "pcm_s16le",
+                "sample_rate": 16000,
+                "channels": 1,
+                "frame_size": "variable",
+                "notes": "Raw audio samples without headers or metadata"
+            },
+            "examples": [
+                {
+                    "type": "binary_audio", 
+                    "description": "Raw PCM audio data as binary WebSocket frame",
+                    "format_specification": "16-bit signed little-endian PCM samples, no headers",
+                    "timestamp": 1704067200.123
+                }
+            ]
+        }
+
+
+class BinaryWebSocketProtocol(BaseAPIMessage):
+    """
+    Complete protocol documentation for binary WebSocket streaming
+    
+    This schema documents the full protocol flow for binary audio streaming:
+    1. Client sends BinaryAudioSessionMessage (JSON) for configuration
+    2. Server responds with session_ready confirmation (JSON)
+    3. Client streams BinaryAudioStreamMessage frames (raw binary)
+    4. Server responds with TranscriptionResultMessage (JSON)
+    
+    This wrapper schema allows AsyncAPI to properly document the mixed
+    JSON/binary protocol while maintaining tool compatibility.
+    """
+    type: Literal["binary_websocket_protocol"] = Field(
+        default="binary_websocket_protocol",
+        description="Protocol documentation identifier"
+    )
+    session_config: BinaryAudioSessionMessage = Field(
+        description="Initial session configuration sent as JSON message"
+    )
+    audio_streams: List[BinaryAudioStreamMessage] = Field(
+        description="Subsequent binary audio frames (sent as WebSocket binary frames, not JSON)",
+        default_factory=list
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "description": "Complete binary WebSocket streaming protocol documentation",
+            "protocol_flow": [
+                "1. Client → Server: BinaryAudioSessionMessage (JSON)",
+                "2. Server → Client: session_ready confirmation (JSON)", 
+                "3. Client → Server: Raw PCM binary frames (BinaryAudioStreamMessage format)",
+                "4. Server → Client: TranscriptionResultMessage (JSON) or error (JSON)"
+            ],
+            "notes": [
+                "Only the session_config is sent as JSON",
+                "All audio_streams are sent as WebSocket binary frames",
+                "This schema is for documentation - actual implementation uses mixed message types"
+            ],
+            "examples": [
+                {
+                    "type": "binary_websocket_protocol",
+                    "session_config": {
+                        "type": "session_config",
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "format": "pcm_s16le",
+                        "language": "en",
+                        "provider": "whisper",
+                        "timestamp": 1704067200.123
+                    },
+                    "audio_streams": [
+                        {
+                            "type": "binary_audio",
+                            "description": "Raw PCM audio data as binary WebSocket frame",
+                            "format_specification": "16-bit signed little-endian PCM samples, no headers",
+                            "timestamp": 1704067200.200
+                        }
+                    ],
+                    "timestamp": 1704067200.123
+                }
+            ]
+        }
+
+
 # ASR HTTP API Schemas
 class ASRTranscribeRequest(BaseAPIRequest):
     """HTTP request for file-based transcription"""

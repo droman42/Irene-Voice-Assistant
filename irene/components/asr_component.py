@@ -21,7 +21,7 @@ from ..core.interfaces.webapi import WebAPIPlugin
 from ..intents.models import AudioData
 from ..core.metrics import get_metrics_collector
 from ..web_api.asyncapi import websocket_api, extract_websocket_specs_from_router
-from ..api.schemas import AudioChunkMessage, TranscriptionResultMessage, TranscriptionErrorMessage
+from ..api.schemas import AudioChunkMessage, TranscriptionResultMessage, TranscriptionErrorMessage, BinaryAudioSessionMessage, BinaryAudioStreamMessage, BinaryWebSocketProtocol
 
 
 # Import ASR provider base class and dynamic loader
@@ -736,6 +736,182 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                 # Reset provider states after WebSocket error
                 self.reset_provider_state()
                 logger.debug("Reset ASR provider states after WebSocket error")
+        
+        @websocket_api(
+            description="Binary WebSocket streaming for external devices (ESP32-optimized)",
+            receives=BinaryWebSocketProtocol,
+            sends=TranscriptionResultMessage,
+            tags=["Speech Recognition", "Binary Streaming", "ESP32"]
+        )
+        @router.websocket("/binary")
+        async def binary_audio_stream(websocket: WebSocket):
+            """
+            Optimized binary audio streaming for ESP32/external devices
+            
+            This endpoint eliminates base64 encoding overhead by accepting raw PCM audio
+            data as binary WebSocket frames. Protocol supports two formats:
+            
+            Format 1 (Full Protocol Wrapper):
+            1. Client sends BinaryWebSocketProtocol (includes session_config)
+            2. Server responds with confirmation or error
+            3. Client streams raw PCM binary frames
+            4. Server responds with transcription results as JSON
+            
+            Format 2 (Direct Session Config - Backward Compatible):
+            1. Client sends BinaryAudioSessionMessage directly
+            2. Server responds with confirmation or error
+            3. Client streams raw PCM binary frames
+            4. Server responds with transcription results as JSON
+            
+            Benefits:
+            - No base64 encoding/decoding overhead (~33% size reduction)
+            - Lower CPU usage on both client and server
+            - Optimized for continuous audio streaming
+            - Better performance for ESP32 and embedded devices
+            - Full AsyncAPI documentation through protocol wrapper
+            """
+            await websocket.accept()
+            
+            # Reset all ASR provider states for clean session start
+            self.reset_provider_state()
+            logger.debug("Reset ASR provider states for new binary WebSocket session")
+            
+            # Session configuration variables
+            session_config = None
+            language = self.default_language
+            provider_name = self.default_provider
+            
+            try:
+                # Step 1: Receive protocol configuration (JSON)
+                config_data = await websocket.receive_text()
+                config_message = json.loads(config_data)
+                
+                # Handle both old direct session_config and new wrapper protocol
+                if config_message.get("type") == "session_config":
+                    # Direct session config (backward compatibility)
+                    session_config = BinaryAudioSessionMessage(**config_message)
+                elif config_message.get("type") == "binary_websocket_protocol":
+                    # New wrapper protocol
+                    protocol_wrapper = BinaryWebSocketProtocol(**config_message)
+                    session_config = protocol_wrapper.session_config
+                else:
+                    raise ValueError("First message must be 'session_config' or 'binary_websocket_protocol'")
+                
+                # Extract session parameters
+                language = session_config.language or self.default_language
+                provider_name = session_config.provider or self.default_provider
+                
+                # Validate provider availability
+                if provider_name not in self.providers:
+                    error_response = {
+                        "type": "error",
+                        "error": f"ASR provider '{provider_name}' not available",
+                        "available_providers": list(self.providers.keys()),
+                        "recoverable": True,
+                        "timestamp": time.time()
+                    }
+                    await websocket.send_text(json.dumps(error_response))
+                    return
+                
+                # Send session confirmation
+                protocol_format = "wrapper" if config_message.get("type") == "binary_websocket_protocol" else "direct"
+                session_response = {
+                    "type": "session_ready",
+                    "message": "Binary audio streaming session initialized",
+                    "protocol_format": protocol_format,
+                    "config": {
+                        "sample_rate": session_config.sample_rate,
+                        "channels": session_config.channels,
+                        "format": session_config.format,
+                        "language": language,
+                        "provider": provider_name
+                    },
+                    "timestamp": time.time()
+                }
+                await websocket.send_text(json.dumps(session_response))
+                
+                logger.info(f"Binary WebSocket session initialized ({protocol_format} protocol): "
+                           f"{session_config.sample_rate}Hz, {session_config.channels}ch, {session_config.format}, "
+                           f"provider={provider_name}, language={language}")
+                
+                # Step 2: Stream binary audio data
+                while True:
+                    # Receive raw PCM binary data
+                    audio_data = await websocket.receive_bytes()
+                    
+                    if not audio_data:
+                        continue
+                    
+                    logger.debug(f"Received binary audio chunk: {len(audio_data)} bytes")
+                    
+                    # Create AudioData object for processing
+                    from ..intents.models import AudioData
+                    audio_obj = AudioData(
+                        data=audio_data,
+                        sample_rate=session_config.sample_rate,
+                        channels=session_config.channels,
+                        format=session_config.format
+                    )
+                    
+                    # Transcribe using the optimized process_audio method
+                    try:
+                        text = await self.process_audio(
+                            audio_obj,
+                            provider=provider_name,
+                            language=language
+                        )
+                        
+                        if text.strip():
+                            # Send transcription result
+                            response = {
+                                "type": "transcription_result",
+                                "text": text,
+                                "provider": provider_name,
+                                "language": language,
+                                "timestamp": time.time()
+                            }
+                            await websocket.send_text(json.dumps(response))
+                            
+                            logger.debug(f"Binary WebSocket transcription: '{text}' "
+                                        f"(provider: {provider_name}, {len(audio_data)} bytes)")
+                        
+                    except Exception as transcription_error:
+                        # Reset provider state after transcription error
+                        self.reset_provider_state(provider_name)
+                        logger.debug(f"Reset ASR provider {provider_name} after binary WebSocket transcription error")
+                        
+                        error_response = {
+                            "type": "error",
+                            "error": f"Transcription failed: {str(transcription_error)}",
+                            "provider": provider_name,
+                            "recoverable": True,
+                            "timestamp": time.time()
+                        }
+                        await websocket.send_text(json.dumps(error_response))
+                        
+            except WebSocketDisconnect:
+                logger.info("Binary ASR WebSocket client disconnected")
+                # Reset provider states on disconnect for clean state
+                self.reset_provider_state()
+                logger.debug("Reset ASR provider states after binary WebSocket disconnect")
+            except Exception as e:
+                logger.error(f"Binary ASR WebSocket error: {e}")
+                
+                # Try to send error message if connection is still open
+                try:
+                    error_response = {
+                        "type": "error",
+                        "error": f"Session error: {str(e)}",
+                        "recoverable": False,
+                        "timestamp": time.time()
+                    }
+                    await websocket.send_text(json.dumps(error_response))
+                except:
+                    pass  # Connection might be closed
+                
+                # Reset provider states after WebSocket error
+                self.reset_provider_state()
+                logger.debug("Reset ASR provider states after binary WebSocket error")
         
         @router.get("/providers")
         async def list_asr_providers():
