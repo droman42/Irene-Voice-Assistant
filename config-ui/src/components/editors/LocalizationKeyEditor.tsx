@@ -10,6 +10,7 @@ import { Trash2, Plus, Type, List, Hash, ChevronDown, ChevronRight } from 'lucid
 import Input from '@/components/ui/Input';
 import TextArea from '@/components/ui/TextArea';
 import Badge from '@/components/ui/Badge';
+import { safeDisplayValue, safeArrayItemStringify } from '@/utils/safeStringify';
 
 interface LocalizationKeyEditorProps {
   keyName: string;
@@ -56,17 +57,17 @@ const LocalizationKeyEditor: React.FC<LocalizationKeyEditorProps> = ({
       case 'string':
         newValue = Array.isArray(value) ? value.join(', ') : 
                    typeof value === 'object' ? JSON.stringify(value) : 
-                   String(value);
+                   safeDisplayValue(value);
         break;
       case 'array':
         newValue = Array.isArray(value) ? value : 
                    typeof value === 'string' ? value.split(',').map(s => s.trim()) :
-                   [String(value)];
+                   [safeDisplayValue(value)];
         break;
       case 'object':
         newValue = typeof value === 'object' && !Array.isArray(value) ? value :
                    Array.isArray(value) ? value.reduce((obj, item, index) => ({ ...obj, [`item_${index}`]: item }), {}) :
-                   { value: String(value) };
+                   { value: safeDisplayValue(value) };
         break;
     }
     
@@ -74,7 +75,7 @@ const LocalizationKeyEditor: React.FC<LocalizationKeyEditorProps> = ({
   };
 
   const renderStringEditor = () => {
-    const stringValue = String(value);
+    const stringValue = safeDisplayValue(value);
     
     if (stringValue.length > 100 || stringValue.includes('\n')) {
       return (
@@ -99,7 +100,7 @@ const LocalizationKeyEditor: React.FC<LocalizationKeyEditorProps> = ({
   };
 
   const renderArrayEditor = () => {
-    const arrayValue = Array.isArray(value) ? value : [String(value)];
+    const arrayValue = Array.isArray(value) ? value : [safeDisplayValue(value)];
     
     const handleArrayChange = (newArray: string[]) => {
       handleValueChange(newArray);
@@ -138,7 +139,7 @@ const LocalizationKeyEditor: React.FC<LocalizationKeyEditorProps> = ({
             <div key={index} className="flex items-center gap-2">
               <span className="text-xs text-gray-400 w-6">{index}</span>
               <Input
-                value={String(item)}
+                value={safeArrayItemStringify(item)}
                 onChange={(newValue) => updateArrayItem(index, newValue)}
                 placeholder={`Item ${index + 1}`}
                 className="text-sm flex-1"
@@ -165,7 +166,7 @@ const LocalizationKeyEditor: React.FC<LocalizationKeyEditorProps> = ({
   const renderObjectEditor = () => {
     const objectValue = typeof value === 'object' && !Array.isArray(value) && value !== null ? 
                        value : 
-                       { value: String(value) };
+                       { value: safeDisplayValue(value) };
     
     const handleObjectChange = (newObject: Record<string, any>) => {
       handleValueChange(newObject);
@@ -210,13 +211,13 @@ const LocalizationKeyEditor: React.FC<LocalizationKeyEditorProps> = ({
             <div key={key} className="grid grid-cols-2 gap-2">
               <Input
                 value={key}
-                onChange={(newKey) => updateObjectEntry(key, newKey, String(val))}
+                onChange={(newKey) => updateObjectEntry(key, newKey, safeDisplayValue(val))}
                 placeholder="Property name"
                 className="text-sm"
               />
               <div className="flex items-center gap-2">
                 <Input
-                  value={String(val)}
+                  value={safeDisplayValue(val)}
                   onChange={(newValue) => updateObjectEntry(key, key, newValue)}
                   placeholder="Property value"
                   className="text-sm flex-1"

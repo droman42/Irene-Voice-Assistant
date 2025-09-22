@@ -2,21 +2,21 @@
  * SpacyAttributeEditor - Enhanced editor for spaCy token attributes
  * 
  * Provides structured editing for spaCy token patterns with:
- * - Categorized attribute selection
- * - Type-aware value editors
- * - Support for complex patterns (IN, regex, etc.)
- * - Helpful tooltips and examples
+ * - Intelligent parsing of SpaCy attribute structures  
+ * - Type-aware value editors that preserve attribute semantics
+ * - Support for complex patterns (REGEX, IN, NOT_IN, etc.)
+ * - User-friendly display of attribute names and types
  */
 
 import { useState } from 'react';
-import { Plus, Trash2, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { 
-  SPACY_ATTRIBUTES, 
-  ATTRIBUTE_CATEGORIES, 
-  getAttributeByKey,
-  getCategoryColor,
-  type SpacyAttribute 
-} from '@/utils/spacyAttributes';
+  parseSpacyAttribute, 
+  reconstructSpacyAttribute, 
+  getSpacyAttributeSuggestions,
+  type SpacyAttributeStructure 
+} from '@/utils/spacyAttributeHelpers';
+import SpacyValueEditor from './SpacyValueEditor';
 
 interface SpacyAttributeEditorProps {
   value: Record<string, any>;
@@ -24,478 +24,237 @@ interface SpacyAttributeEditorProps {
   disabled?: boolean;
 }
 
-interface AttributeValueEditorProps {
-  attribute: SpacyAttribute;
-  value: any;
-  onChange: (value: any) => void;
+interface StructuredAttributeEditorProps {
+  attributeName: string;
+  structure: SpacyAttributeStructure;
+  onChange: (newValue: any) => void;
+  onRemove: () => void;
   disabled?: boolean;
 }
 
-// Individual value editor based on attribute type
-function AttributeValueEditor({ attribute, value, onChange, disabled }: AttributeValueEditorProps) {
-  const [useINSyntax, setUseINSyntax] = useState(
-    value && typeof value === 'object' && 'IN' in value
-  );
-
-  if (useINSyntax && attribute.supportsIN) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Match any of:</label>
-          <button
-            onClick={() => {
-              setUseINSyntax(false);
-              onChange(attribute.valueType === 'boolean' ? true : '');
-            }}
-            className="text-xs text-blue-600 hover:text-blue-800"
-            disabled={disabled}
-          >
-            Switch to single value
-          </button>
-        </div>
-        <ArrayValueEditor
-          items={value?.IN || []}
-          onChange={(items) => onChange({ IN: items })}
-          disabled={disabled}
-          attribute={attribute}
-        />
-      </div>
-    );
-  }
-
-  switch (attribute.valueType) {
-    case 'boolean':
-      return (
-        <div className="flex items-center gap-2">
-          <select
-            value={String(value)}
-            onChange={(e) => onChange(e.target.value === 'true')}
-            className="border rounded-lg px-2 py-1 text-sm"
-            disabled={disabled}
-          >
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
-          {attribute.supportsIN && (
-            <button
-              onClick={() => {
-                setUseINSyntax(true);
-                onChange({ IN: [true, false] });
-              }}
-              className="text-xs text-blue-600 hover:text-blue-800"
-              disabled={disabled}
-            >
-              Use list
-            </button>
-          )}
-        </div>
-      );
-
-    case 'enum':
-      return (
-        <div className="space-y-2">
-          <select
-            value={String(value || '')}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full border rounded-lg px-2 py-1 text-sm"
-            disabled={disabled}
-          >
-            <option value="">Select {attribute.label}</option>
-            {attribute.enumValues?.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          {attribute.supportsIN && (
-            <button
-              onClick={() => {
-                setUseINSyntax(true);
-                onChange({ IN: [] });
-              }}
-              className="text-xs text-blue-600 hover:text-blue-800"
-              disabled={disabled}
-            >
-              Select multiple
-            </button>
-          )}
-        </div>
-      );
-
-    case 'number':
-      return (
-        <input
-          type="number"
-          value={value || ''}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full border rounded-lg px-2 py-1 text-sm"
-          placeholder={`Enter ${attribute.label.toLowerCase()}`}
-          disabled={disabled}
-        />
-      );
-
-    case 'text':
-    default:
-      return (
-        <div className="space-y-2">
-          <input
-            type="text"
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full border rounded-lg px-2 py-1 text-sm"
-            placeholder={`Enter ${attribute.label.toLowerCase()}`}
-            disabled={disabled}
-          />
-          {attribute.supportsIN && (
-            <button
-              onClick={() => {
-                setUseINSyntax(true);
-                onChange({ IN: [] });
-              }}
-              className="text-xs text-blue-600 hover:text-blue-800"
-              disabled={disabled}
-            >
-              Use list
-            </button>
-          )}
-          {attribute.examples && (
-            <div className="text-xs text-gray-500">
-              Examples: {attribute.examples.join(', ')}
-            </div>
-          )}
-        </div>
-      );
-  }
-}
-
-// Array editor for IN syntax
-function ArrayValueEditor({ 
-  items, 
+// Structured attribute editor that handles complex SpaCy patterns
+function StructuredAttributeEditor({ 
+  attributeName, 
+  structure, 
   onChange, 
-  disabled, 
-  attribute 
-}: { 
-  items: any[]; 
-  onChange: (items: any[]) => void; 
-  disabled?: boolean;
-  attribute: SpacyAttribute;
-}) {
-  const addItem = () => {
-    const defaultValue = attribute.valueType === 'boolean' ? true : '';
-    onChange([...items, defaultValue]);
-  };
-
-  const removeItem = (index: number) => {
-    onChange(items.filter((_, i) => i !== index));
-  };
-
-  const updateItem = (index: number, value: any) => {
-    const newItems = [...items];
-    newItems[index] = value;
-    onChange(newItems);
-  };
-
-  return (
-    <div className="space-y-2">
-      {items.map((item, index) => (
-        <div key={index} className="flex items-center gap-2">
-          <div className="flex-1">
-            {attribute.valueType === 'enum' ? (
-              <select
-                value={String(item || '')}
-                onChange={(e) => updateItem(index, e.target.value)}
-                className="w-full border rounded-lg px-2 py-1 text-sm"
-                disabled={disabled}
-              >
-                <option value="">Select...</option>
-                {attribute.enumValues?.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            ) : attribute.valueType === 'boolean' ? (
-              <select
-                value={String(item)}
-                onChange={(e) => updateItem(index, e.target.value === 'true')}
-                className="w-full border rounded-lg px-2 py-1 text-sm"
-                disabled={disabled}
-              >
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={item || ''}
-                onChange={(e) => updateItem(index, e.target.value)}
-                className="w-full border rounded-lg px-2 py-1 text-sm"
-                disabled={disabled}
-              />
-            )}
-          </div>
-          <button
-            onClick={() => removeItem(index)}
-            className="p-1 text-red-600 hover:bg-red-50 rounded"
-            disabled={disabled}
-            title="Remove item"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-      ))}
-      <button
-        onClick={addItem}
-        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
-        disabled={disabled}
-      >
-        <Plus className="w-3 h-3" />
-        Add value
-      </button>
-    </div>
-  );
-}
-
-// Category section with collapsible attributes
-function CategorySection({ 
-  category, 
-  attributes, 
-  selectedAttributes, 
-  onAddAttribute, 
+  onRemove, 
   disabled 
-}: {
-  category: string;
-  attributes: SpacyAttribute[];
-  selectedAttributes: Set<string>;
-  onAddAttribute: (key: string) => void;
-  disabled?: boolean;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const categoryInfo = ATTRIBUTE_CATEGORIES[category];
-  
-  const availableAttributes = attributes.filter(attr => !selectedAttributes.has(attr.key));
-  
-  if (availableAttributes.length === 0) {
-    return null;
-  }
+}: StructuredAttributeEditorProps) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  const handleValueChange = (newValue: any) => {
+    const reconstructedValue = reconstructSpacyAttribute(structure, newValue);
+    onChange(reconstructedValue);
+  };
+
+  const getTypeIndicator = () => {
+    const typeColors: Record<string, string> = {
+      'string': 'bg-blue-100 text-blue-800',
+      'regex': 'bg-purple-100 text-purple-800',
+      'list': 'bg-green-100 text-green-800',
+      'boolean': 'bg-yellow-100 text-yellow-800',
+      'number': 'bg-orange-100 text-orange-800',
+      'operator': 'bg-red-100 text-red-800',
+      'unknown': 'bg-gray-100 text-gray-800'
+    };
+
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${typeColors[structure.valueType] || typeColors.unknown}`}>
+        {structure.valueType}
+      </span>
+    );
+  };
 
   return (
-    <div className="border rounded-lg">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50"
-        disabled={disabled}
-      >
-        <div className="flex items-center gap-2">
+    <div className="border border-gray-200 rounded-lg bg-white">
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 border-b border-gray-100">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-2 text-left flex-1 hover:bg-gray-50 -m-1 p-1 rounded"
+          disabled={disabled}
+        >
           {isExpanded ? (
             <ChevronDown className="w-4 h-4 text-gray-500" />
           ) : (
             <ChevronRight className="w-4 h-4 text-gray-500" />
           )}
-          <span className={`w-3 h-3 rounded-full bg-${categoryInfo.color}-200`}></span>
-          <span className="font-medium">{categoryInfo.label}</span>
-          <span className="text-sm text-gray-500">({availableAttributes.length})</span>
-        </div>
-      </button>
-      
+          <span className="font-medium text-gray-900">{structure.displayLabel}</span>
+          {getTypeIndicator()}
+        </button>
+        
+        <button
+          onClick={onRemove}
+          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+          disabled={disabled}
+          title="Remove attribute"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Expandable Content */}
       {isExpanded && (
-        <div className="border-t p-3 space-y-2">
-          <p className="text-sm text-gray-600 mb-3">{categoryInfo.description}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {availableAttributes.map((attr) => (
-              <button
-                key={attr.key}
-                onClick={() => onAddAttribute(attr.key)}
-                className="flex items-center gap-2 p-2 text-left border rounded-lg hover:bg-gray-50 text-sm"
-                disabled={disabled}
-                title={attr.description}
-              >
-                <Plus className="w-3 h-3 text-gray-400" />
-                <span className="font-mono text-xs">{attr.key}</span>
-              </button>
-            ))}
-          </div>
+        <div className="p-3 space-y-3">
+          {/* Description/Help */}
+          {structure.isComplex && (
+            <div className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded p-2">
+              <strong>{structure.attributeName}</strong> with <strong>{structure.valueType}</strong> matching
+            </div>
+          )}
+          
+          {/* Value Editor */}
+          <SpacyValueEditor
+            structure={structure}
+            onChange={handleValueChange}
+            disabled={disabled}
+          />
         </div>
       )}
     </div>
   );
 }
 
+// Main SpaCy Attribute Editor component
 export default function SpacyAttributeEditor({ 
   value, 
   onChange, 
   disabled = false 
 }: SpacyAttributeEditorProps) {
-  const [showAttributeSelector, setShowAttributeSelector] = useState(false);
-  
-  const currentAttributes = Object.keys(value || {});
-  const selectedAttributeSet = new Set(currentAttributes);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newAttributeName, setNewAttributeName] = useState('');
 
-  const addAttribute = (key: string) => {
-    const attribute = getAttributeByKey(key);
-    if (!attribute) return;
+  // Parse all current attributes into structured format
+  const structuredAttributes = Object.entries(value || {}).map(([key, val]) => ({
+    key,
+    structure: parseSpacyAttribute(key, val)
+  }));
 
-    let defaultValue: any;
-    switch (attribute.valueType) {
-      case 'boolean':
-        defaultValue = true;
-        break;
-      case 'number':
-        defaultValue = 0;
-        break;
-      default:
-        defaultValue = '';
+  const handleAttributeChange = (attributeKey: string, newValue: any) => {
+    const newAttributes = { ...value };
+    newAttributes[attributeKey] = newValue;
+    onChange(newAttributes);
+  };
+
+  const handleAttributeRemove = (attributeKey: string) => {
+    const newAttributes = { ...value };
+    delete newAttributes[attributeKey];
+    onChange(newAttributes);
+  };
+
+  const handleAddAttribute = () => {
+    if (!newAttributeName.trim()) return;
+    
+    const attributeName = newAttributeName.trim();
+    const newAttributes = { ...value };
+    
+    // Set default value based on common attribute patterns
+    if (attributeName === 'OP') {
+      newAttributes[attributeName] = '?';
+    } else if (attributeName.includes('IS_') || attributeName.includes('LIKE_')) {
+      newAttributes[attributeName] = true;
+    } else {
+      newAttributes[attributeName] = '';
     }
-
-    onChange({
-      ...value,
-      [key]: defaultValue
-    });
-    setShowAttributeSelector(false);
+    
+    onChange(newAttributes);
+    setNewAttributeName('');
+    setShowAddForm(false);
   };
 
-  const removeAttribute = (key: string) => {
-    const newValue = { ...value };
-    delete newValue[key];
-    onChange(newValue);
+  const getAttributeSuggestions = () => {
+    const suggestions = getSpacyAttributeSuggestions();
+    const currentKeys = Object.keys(value || {});
+    return Object.keys(suggestions).filter(key => !currentKeys.includes(key));
   };
-
-  const updateAttributeValue = (key: string, newValue: any) => {
-    onChange({
-      ...value,
-      [key]: newValue
-    });
-  };
-
-  // Group attributes by category
-  const groupedAttributes = SPACY_ATTRIBUTES.reduce((groups: Record<string, SpacyAttribute[]>, attr) => {
-    if (!groups[attr.category]) {
-      groups[attr.category] = [];
-    }
-    groups[attr.category].push(attr);
-    return groups;
-  }, {});
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Current Attributes */}
-      {currentAttributes.length > 0 && (
-        <div className="space-y-3">
-          {currentAttributes.map((key) => {
-            const attribute = getAttributeByKey(key);
-            if (!attribute) {
-              // Fallback for unknown attributes
-              return (
-                <div key={key} className="flex items-center gap-3 p-3 border rounded-lg bg-yellow-50">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {key} (Custom)
-                    </label>
-                    <input
-                      type="text"
-                      value={JSON.stringify(value[key])}
-                      onChange={(e) => {
-                        try {
-                          const parsed = JSON.parse(e.target.value);
-                          updateAttributeValue(key, parsed);
-                        } catch {
-                          updateAttributeValue(key, e.target.value);
-                        }
-                      }}
-                      className="w-full border rounded-lg px-2 py-1 text-sm"
-                      disabled={disabled}
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeAttribute(key)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                    disabled={disabled}
-                    title="Remove attribute"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              );
-            }
-
-            const categoryColor = getCategoryColor(attribute.category);
-            
-            return (
-              <div key={key} className="flex items-start gap-3 p-3 border rounded-lg">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`w-2 h-2 rounded-full bg-${categoryColor}-400`}></span>
-                    <label className="text-sm font-medium text-gray-700">
-                      {attribute.label}
-                    </label>
-                    <span className="text-xs font-mono text-gray-500 bg-gray-100 px-1 rounded">
-                      {attribute.key}
-                    </span>
-                    <button
-                      className="p-1 text-gray-400 hover:text-gray-600"
-                      title={attribute.description}
-                    >
-                      <HelpCircle className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <AttributeValueEditor
-                    attribute={attribute}
-                    value={value[key]}
-                    onChange={(newValue) => updateAttributeValue(key, newValue)}
-                    disabled={disabled}
-                  />
-                </div>
-                <button
-                  onClick={() => removeAttribute(key)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                  disabled={disabled}
-                  title="Remove attribute"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            );
-          })}
+      {structuredAttributes.length > 0 ? (
+        <div className="space-y-2">
+          {structuredAttributes.map(({ key, structure }) => (
+            <StructuredAttributeEditor
+              key={key}
+              attributeName={key}
+              structure={structure}
+              onChange={(newValue) => handleAttributeChange(key, newValue)}
+              onRemove={() => handleAttributeRemove(key)}
+              disabled={disabled}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="text-sm font-medium mb-1">No attributes defined</div>
+          <div className="text-xs">Add SpaCy attributes to define token matching patterns</div>
         </div>
       )}
 
-      {/* Add Attribute Button */}
-      {!showAttributeSelector && (
+      {/* Add New Attribute */}
+      {!showAddForm ? (
         <button
-          onClick={() => setShowAttributeSelector(true)}
-          className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-colors w-full"
+          onClick={() => setShowAddForm(true)}
+          className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-colors"
           disabled={disabled}
         >
           <Plus className="w-4 h-4" />
           Add attribute
         </button>
-      )}
-
-      {/* Attribute Selector */}
-      {showAttributeSelector && (
-        <div className="border rounded-lg p-4 bg-gray-50">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-medium">Add spaCy Attribute</h4>
-            <button
-              onClick={() => setShowAttributeSelector(false)}
-              className="text-gray-500 hover:text-gray-700"
-              disabled={disabled}
-            >
-              Cancel
-            </button>
-          </div>
-          
+      ) : (
+        <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
           <div className="space-y-3">
-            {Object.entries(groupedAttributes).map(([category, attributes]) => (
-              <CategorySection
-                key={category}
-                category={category}
-                attributes={attributes}
-                selectedAttributes={selectedAttributeSet}
-                onAddAttribute={addAttribute}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Attribute Name
+              </label>
+              <select
+                value={newAttributeName}
+                onChange={(e) => setNewAttributeName(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select attribute...</option>
+                {getAttributeSuggestions().map(attr => (
+                  <option key={attr} value={attr}>{attr}</option>
+                ))}
+                <option value="custom">Custom attribute...</option>
+              </select>
+            </div>
+            
+            {newAttributeName === 'custom' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Custom Attribute Name
+                </label>
+                <input
+                  type="text"
+                  value=""
+                  onChange={(e) => setNewAttributeName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter custom attribute name..."
+                />
+              </div>
+            )}
+            
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddAttribute}
+                disabled={!newAttributeName || disabled}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddForm(false);
+                  setNewAttributeName('');
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors text-sm"
                 disabled={disabled}
-              />
-            ))}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

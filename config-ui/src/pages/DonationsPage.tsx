@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { AlertCircle, Trash2, FileText, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { AlertCircle, Trash2, FileText, ChevronDown, ChevronRight, AlertTriangle, RefreshCw } from 'lucide-react';
 
 // Import components
 import HandlerList from '@/components/donations/HandlerList';
@@ -100,7 +100,7 @@ function MethodDonationEditor({
   // Helper function for checking sync issues
   const hasLemmaSyncIssues = (method: any): boolean => {
     if (!extractLemmasFromTokenPatterns) return false;
-    const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || []);
+    const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || [], method.slot_patterns);
     const currentLemmas = method.lemmas || [];
     return extractedLemmas.some(lemma => !currentLemmas.includes(lemma));
   };
@@ -190,15 +190,50 @@ function MethodDonationEditor({
         {(() => {
           const methodsWithSyncIssues = (v.method_donations || []).filter(hasLemmaSyncIssues);
           if (methodsWithSyncIssues.length > 0) {
+            const handleSyncAll = () => {
+              const newMethods = [...(v.method_donations || [])];
+              let hasChanges = false;
+              
+              methodsWithSyncIssues.forEach((method, originalIndex) => {
+                const methodIndex = newMethods.findIndex(m => m === method);
+                if (methodIndex !== -1 && extractLemmasFromTokenPatterns) {
+                  const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || [], method.slot_patterns);
+                  const currentLemmas = method.lemmas || [];
+                  const mergedLemmas = [...new Set([...currentLemmas, ...extractedLemmas])];
+                  
+                  // Only update if there are actually new lemmas to add
+                  if (mergedLemmas.length > currentLemmas.length) {
+                    newMethods[methodIndex] = { ...method, lemmas: mergedLemmas };
+                    hasChanges = true;
+                  }
+                }
+              });
+              
+              if (hasChanges) {
+                set('method_donations', newMethods);
+              }
+            };
+            
             return (
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <div className="flex items-center text-amber-800 text-sm font-medium mb-1">
-                  <AlertTriangle className="w-4 h-4 mr-2" />
-                  Sync Issues Detected
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center text-amber-800 text-sm font-medium">
+                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    Sync Issues Detected
+                  </div>
+                  <button
+                    onClick={handleSyncAll}
+                    disabled={disabled}
+                    className="flex items-center text-xs px-3 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                    title="Automatically sync lemmas for all methods with issues"
+                  >
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    Sync All ({methodsWithSyncIssues.length})
+                  </button>
                 </div>
                 <div className="text-amber-700 text-xs">
                   {methodsWithSyncIssues.length} method{methodsWithSyncIssues.length !== 1 ? 's' : ''} ha{methodsWithSyncIssues.length === 1 ? 's' : 've'} lemmas that need to be synced with token patterns. 
-                  Use the sync buttons to automatically add missing lemmas.
+                  Use the sync buttons or click "Sync All" to automatically add missing lemmas.
                 </div>
               </div>
             );
@@ -312,9 +347,10 @@ function MethodDonationEditor({
                         }}
                         disabled={disabled}
                         tokenPatterns={method.token_patterns || []}
+                        slotPatterns={method.slot_patterns || {}}
                         onAutoSync={() => {
                           if (!extractLemmasFromTokenPatterns) return;
-                          const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || []);
+                          const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || [], method.slot_patterns);
                           const currentLemmas = method.lemmas || [];
                           const mergedLemmas = [...new Set([...currentLemmas, ...extractedLemmas])];
                           
@@ -338,7 +374,8 @@ function MethodDonationEditor({
                         currentLemmas={method.lemmas || []}
                         onLemmasSync={(extractedLemmas) => {
                           const currentLemmas = method.lemmas || [];
-                          const mergedLemmas = [...new Set([...currentLemmas, ...extractedLemmas])];
+                          const allExtractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || [], method.slot_patterns);
+                          const mergedLemmas = [...new Set([...currentLemmas, ...allExtractedLemmas, ...extractedLemmas])];
                           
                           const newMethods = [...(v.method_donations || [])];
                           newMethods[idx] = { ...method, lemmas: mergedLemmas };
@@ -407,10 +444,11 @@ function MethodDonationEditor({
 }
 
 const DonationsPage: React.FC = () => {
-  // Helper function to extract lemmas from token patterns
-  const extractLemmasFromTokenPatterns = (tokenPatterns: Array<Array<Record<string, any>>>): string[] => {
+  // Helper function to extract lemmas from token patterns and slot patterns
+  const extractLemmasFromTokenPatterns = (tokenPatterns: Array<Array<Record<string, any>>>, slotPatterns?: Record<string, Array<Array<Record<string, any>>>>): string[] => {
     const extractedLemmas: Set<string> = new Set();
     
+    // Extract from token patterns
     tokenPatterns.forEach(pattern => {
       pattern.forEach(token => {
         if (token.LEMMA) {
@@ -422,6 +460,23 @@ const DonationsPage: React.FC = () => {
         }
       });
     });
+    
+    // Extract from slot patterns
+    if (slotPatterns) {
+      Object.values(slotPatterns).forEach(slotPatternArray => {
+        slotPatternArray.forEach(pattern => {
+          pattern.forEach(token => {
+            if (token.LEMMA) {
+              if (typeof token.LEMMA === 'string') {
+                extractedLemmas.add(token.LEMMA);
+              } else if (token.LEMMA.IN && Array.isArray(token.LEMMA.IN)) {
+                token.LEMMA.IN.forEach((lemma: string) => extractedLemmas.add(lemma));
+              }
+            }
+          });
+        });
+      });
+    }
     
     return Array.from(extractedLemmas);
   };

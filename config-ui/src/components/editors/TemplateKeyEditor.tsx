@@ -10,6 +10,7 @@ import { Trash2, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import TextArea from '@/components/ui/TextArea';
 import ArrayOfStringsEditor from './ArrayOfStringsEditor';
+import { safeDisplayValue } from '@/utils/safeStringify';
 
 interface TemplateKeyEditorProps {
   templateKey: string;
@@ -146,7 +147,7 @@ const TemplateKeyEditor: React.FC<TemplateKeyEditorProps> = ({
                       className="w-1/3"
                     />
                     <Input
-                      value={String(objValue)}
+                      value={safeDisplayValue(objValue)}
                       onChange={(newValue) => handleObjectValueChange(objKey, newValue)}
                       placeholder="Value..."
                       className="flex-1"

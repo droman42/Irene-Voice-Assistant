@@ -8,6 +8,7 @@ interface LemmasEditorProps {
   onChange: (lemmas: string[]) => void;
   disabled?: boolean;
   tokenPatterns?: Array<Array<Record<string, any>>>;
+  slotPatterns?: Record<string, Array<Array<Record<string, any>>>>;
   onAutoSync?: () => void;
   showSyncWarning?: boolean;
   conflicts?: ConflictReport[];
@@ -18,6 +19,7 @@ export default function LemmasEditor({
   onChange,
   disabled = false,
   tokenPatterns = [],
+  slotPatterns = {},
   onAutoSync,
   showSyncWarning = false,
   conflicts = []
@@ -48,10 +50,11 @@ export default function LemmasEditor({
     }
   };
 
-  // Extract suggested lemmas from token patterns
+  // Extract suggested lemmas from token patterns and slot patterns
   const getSuggestedLemmas = (): string[] => {
     const suggested: Set<string> = new Set();
     
+    // Extract from token patterns
     tokenPatterns.forEach(pattern => {
       pattern.forEach(token => {
         if (token.LEMMA) {
@@ -61,6 +64,21 @@ export default function LemmasEditor({
             token.LEMMA.IN.forEach((lemma: string) => suggested.add(lemma));
           }
         }
+      });
+    });
+    
+    // Extract from slot patterns
+    Object.values(slotPatterns).forEach(slotPatternArray => {
+      slotPatternArray.forEach(pattern => {
+        pattern.forEach(token => {
+          if (token.LEMMA) {
+            if (typeof token.LEMMA === 'string') {
+              suggested.add(token.LEMMA);
+            } else if (token.LEMMA.IN && Array.isArray(token.LEMMA.IN)) {
+              token.LEMMA.IN.forEach((lemma: string) => suggested.add(lemma));
+            }
+          }
+        });
       });
     });
 
