@@ -120,8 +120,9 @@ class PyttSXProviderSchema(TTSProviderSchema):
 
 class SoundDeviceProviderSchema(AudioProviderSchema):
     """SoundDevice provider configuration schema"""
-    device_id: int = Field(default=-1, description="Device ID (-1 for default)")
-    sample_rate: int = Field(default=44100, description="Sample rate")
+    device_id: int = Field(default=-1, description="Audio output device ID for playback")
+    sample_rate: int = Field(default=44100, description="Audio sample rate")
+    volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Playback volume")
 
 
 class AudioPlayerProviderSchema(AudioProviderSchema):
@@ -129,16 +130,26 @@ class AudioPlayerProviderSchema(AudioProviderSchema):
     volume: float = Field(default=0.8, ge=0.0, le=1.0, description="Volume level")
     fade_in: bool = Field(default=False, description="Enable fade-in")
     fade_out: bool = Field(default=True, description="Enable fade-out")
+    device_id: Optional[int] = Field(default=None, description="Audio output device (not supported - uses system default)")
 
 
 class SimpleAudioProviderSchema(AudioProviderSchema):
     """SimpleAudio provider configuration schema"""
-    playback_device: Optional[int] = Field(default=None, description="Playback device ID")
+    volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Playback volume")
+    device_id: Optional[int] = Field(default=None, description="Audio output device (not supported - uses system default)")
 
 
 class APlayProviderSchema(AudioProviderSchema):
     """APlay provider configuration schema"""  
-    device: str = Field(default="default", description="ALSA device name")
+    device_id: str = Field(default="default", description="ALSA device name for audio output")
+    volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Playback volume")
+
+
+class ConsoleAudioProviderSchema(AudioProviderSchema):
+    """Console Audio provider configuration schema"""
+    device_id: str = Field(default="console", description="Console output device mode")
+    volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Playback volume") 
+    simulate_timing: bool = Field(default=True, description="Simulate playback timing")
 
 
 # ============================================================

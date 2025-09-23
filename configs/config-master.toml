@@ -163,15 +163,16 @@ concurrent_playback = false         # Allow multiple audio streams simultaneousl
 # Console Audio Provider (for testing/development)
 [audio.providers.console]
 enabled = true                      # Enable console audio simulation
-color_output = true                # Use colored console output
-timing_simulation = false          # Simulate audio playback timing
+device_id = "console"              # Console output device mode
+volume = 1.0                       # Playback volume (0.0-1.0)
+simulate_timing = false            # Simulate audio playback timing
 
 # SoundDevice Audio Provider (cross-platform, recommended)
 [audio.providers.sounddevice]
 enabled = false                     # Enable sounddevice provider
-device_id = -1                     # Audio device ID (-1 = default device)
+device_id = -1                     # Audio output device ID for playback
 sample_rate = 44100                # Audio sample rate
-channels = 2                       # Number of audio channels
+volume = 1.0                       # Playback volume (0.0-1.0)
 
 # AudioPlayer Provider (Python audioplayer library)
 [audio.providers.audioplayer]
@@ -179,16 +180,19 @@ enabled = false                     # Enable audioplayer provider
 volume = 0.8                       # Volume level (0.0-1.0)
 fade_in = false                    # Enable fade-in effect
 fade_out = true                    # Enable fade-out effect
+# device_id = ""                   # Audio output device (not supported - uses system default)
 
 # SimpleAudio Provider (Python simpleaudio library)
 [audio.providers.simpleaudio]
 enabled = false                     # Enable simpleaudio provider
-playback_device = -1               # Playback device ID (-1 = default device)
+volume = 1.0                       # Playback volume (0.0-1.0)
+# device_id = ""                   # Audio output device (not supported - uses system default)
 
 # Aplay Provider (Linux ALSA)
 [audio.providers.aplay]
 enabled = false                     # Enable aplay provider (Linux only)
-device = "default"                 # ALSA device name
+device_id = "default"              # ALSA device name for audio output
+volume = 1.0                       # Playback volume (0.0-1.0)
 
 # ============================================================
 # ASR (AUTOMATIC SPEECH RECOGNITION) COMPONENT CONFIGURATION

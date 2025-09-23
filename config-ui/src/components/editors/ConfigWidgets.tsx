@@ -440,6 +440,88 @@ export const MicrophoneSelectWidget: React.FC<ConfigWidgetProps & {
   );
 };
 
+export const AudioOutputSelectWidget: React.FC<ConfigWidgetProps & { 
+  onDeviceChange?: (deviceInfo: any) => void 
+}> = ({ 
+  name, value, schema, onChange, disabled, onDeviceChange 
+}) => {
+  const [devices, setDevices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    loadAudioOutputDevices();
+  }, []);
+  
+  const loadAudioOutputDevices = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.getAvailableAudioOutputDevices();
+      if (response.success) {
+        setDevices(response.devices);
+      } else {
+        console.warn('Failed to load audio output devices:', response.message);
+        setDevices([]);
+      }
+    } catch (error) {
+      console.warn('Failed to load audio output devices:', error);
+      setDevices([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDeviceChange = (deviceId: string) => {
+    const numericId = deviceId === '' ? null : parseInt(deviceId, 10);
+    onChange(numericId);
+    
+    // Notify parent about device info for auto-populating other fields
+    if (onDeviceChange && deviceId !== '') {
+      const selectedDevice = devices.find(d => d.id === numericId);
+      if (selectedDevice) {
+        onDeviceChange(selectedDevice);
+      }
+    }
+  };
+  
+  return (
+    <div className="space-y-1">
+      <label htmlFor={name} className="block text-sm font-medium text-gray-700">
+        {name}
+        {schema.required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      <div className="relative">
+        <select
+          id={name}
+          value={value === null ? '' : value?.toString() || ''}
+          onChange={(e) => handleDeviceChange(e.target.value)}
+          disabled={disabled || loading}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:opacity-50 text-sm appearance-none"
+        >
+          <option value="">Default audio output device</option>
+          {devices.map((device) => (
+            <option key={device.id} value={device.id}>
+              {device.name} {device.is_default ? '(system default)' : ''} - {device.channels}ch, {device.sample_rate}Hz
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+      </div>
+      {loading && (
+        <div className="text-xs text-gray-500">Loading audio output devices...</div>
+      )}
+      {!loading && devices.length === 0 && (
+        <div className="text-xs text-red-500">No audio output devices found. Check audio dependencies.</div>
+      )}
+      {schema.description && (
+        <div className="flex items-center">
+          <Info className="h-3 w-3 text-gray-400 mr-1" />
+          <span className="text-xs text-gray-500">{schema.description}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const ReadOnlyWidget: React.FC<ConfigWidgetProps> = ({ 
   name, value, schema 
 }) => {
@@ -537,8 +619,29 @@ export const ConfigWidget: React.FC<ConfigWidgetProps & {
     return <MicrophoneSelectWidget {...props} />;
   }
   
+  // Audio output device field detection
+  if (name === 'device_id' && path && path.some((p: string) => 
+    p.includes('audio') || p.includes('tts') || p.includes('sounddevice') || 
+    p.includes('aplay') || p.includes('console') || p.includes('audioplayer') || 
+    p.includes('simpleaudio')
+  )) {
+    return <AudioOutputSelectWidget {...props} />;
+  }
+  
+  // Legacy device field detection for backward compatibility
+  if (name === 'device' && path && path.some((p: string) => 
+    p.includes('audio') || p.includes('aplay') || p.includes('console')
+  )) {
+    return <AudioOutputSelectWidget {...props} />;
+  }
+  
   // Read-only fields for microphone configuration (auto-populated from device)
   if ((name === 'sample_rate' || name === 'channels') && path && path.some((p: string) => p.includes('microphone'))) {
+    return <ReadOnlyWidget {...props} />;
+  }
+  
+  // Read-only fields marked in schema
+  if (schema.readonly === true) {
     return <ReadOnlyWidget {...props} />;
   }
   

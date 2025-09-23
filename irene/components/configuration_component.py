@@ -388,6 +388,46 @@ class ConfigurationComponent(Component, WebAPIPlugin):
                     message=f"Failed to get audio devices: {str(e)}"
                 )
 
+        @router.get("/config/audio/output-devices", response_model=AudioDevicesResponse)
+        async def get_available_audio_output_devices():
+            """
+            Get available audio output devices for audio provider configuration
+            
+            Returns comprehensive device information including capabilities,
+            formatted according to the AudioDevicesResponse schema.
+            """
+            try:
+                from ..utils.audio_devices import list_audio_output_devices, is_audio_available
+                
+                if not is_audio_available():
+                    return AudioDevicesResponse(
+                        success=False,
+                        devices=[],
+                        total_count=0,
+                        message="Audio device detection not available. Install audio dependencies with: uv add irene-voice-assistant[audio-input]"
+                    )
+                
+                device_data = list_audio_output_devices()
+                
+                # Convert to Pydantic models
+                devices = [AudioDeviceInfo(**device) for device in device_data]
+                
+                return AudioDevicesResponse(
+                    success=True,
+                    devices=devices,
+                    total_count=len(devices),
+                    message=f"Found {len(devices)} audio output device(s)" if devices else "No audio output devices found"
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to get audio output devices: {e}")
+                return AudioDevicesResponse(
+                    success=False,
+                    devices=[],
+                    total_count=0,
+                    message=f"Failed to get audio output devices: {str(e)}"
+                )
+
         @router.get("/config/status", response_model=ConfigStatusResponse)
         async def get_configuration_status():
             """

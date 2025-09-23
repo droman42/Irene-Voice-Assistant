@@ -66,6 +66,51 @@ def list_audio_input_devices() -> List[Dict[str, Any]]:
         return []
 
 
+def list_audio_output_devices() -> List[Dict[str, Any]]:
+    """
+    List available audio output devices with their capabilities
+    
+    Returns:
+        List of dictionaries containing device information:
+        - id: Device ID for selection
+        - name: Human-readable device name
+        - channels: Maximum output channels
+        - sample_rate: Default sample rate
+        - is_default: Whether this is the system default device
+    """
+    if not is_audio_available():
+        logger.warning("Audio device detection not available - sounddevice package missing")
+        return []
+        
+    try:
+        import sounddevice as sd  # type: ignore
+        devices = sd.query_devices()
+        output_devices = []
+        
+        # Get default output device
+        try:
+            default_device_id = sd.default.device[1]  # Output is index 1
+        except Exception:
+            default_device_id = None
+        
+        for i, device in enumerate(devices):
+            if device['max_output_channels'] > 0:
+                output_devices.append({
+                    'id': i,
+                    'name': device['name'],
+                    'channels': int(device['max_output_channels']),
+                    'sample_rate': int(device['default_samplerate']),
+                    'is_default': i == default_device_id
+                })
+        
+        logger.debug(f"Found {len(output_devices)} audio output devices")
+        return output_devices
+        
+    except Exception as e:
+        logger.error(f"Error listing audio output devices: {e}")
+        return []
+
+
 def get_device_info(device_id: Optional[int]) -> Optional[Dict[str, Any]]:
     """
     Get detailed information about a specific audio device

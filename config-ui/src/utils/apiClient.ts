@@ -651,6 +651,13 @@ class IreneApiClient {
   }
 
   /**
+   * Get available audio output devices for audio provider configuration
+   */
+  async getAvailableAudioOutputDevices(): Promise<AudioDevicesResponse> {
+    return this.get<AudioDevicesResponse>('/configuration/config/audio/output-devices');
+  }
+
+  /**
    * Get configuration system status
    */
   async getConfigStatus(): Promise<ConfigStatusResponse> {
