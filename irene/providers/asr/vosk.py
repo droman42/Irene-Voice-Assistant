@@ -371,29 +371,6 @@ class VoskASRProvider(ASRProvider):
             logger.error(f"Failed to warm up VOSK ASR model: {e}")
             # Don't raise - let the provider work with lazy loading
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for VOSK-specific parameters"""
-        return {
-            "language": {
-                "type": "string",
-                "options": list(self.model_paths.keys()),
-                "default": self.default_language,
-                "description": "Language code for recognition"
-            },
-            "confidence_threshold": {
-                "type": "float",
-                "min": 0.0,
-                "max": 1.0,
-                "default": self.confidence_threshold,
-                "description": "Minimum confidence threshold for results"
-            },
-            "sample_rate": {
-                "type": "integer",
-                "options": [8000, 16000, 22050, 44100, 48000],
-                "default": self.sample_rate,
-                "description": "Audio sample rate in Hz"
-            }
-        }
     
     def get_provider_name(self) -> str:
         """Return provider identifier"""

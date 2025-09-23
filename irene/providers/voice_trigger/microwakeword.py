@@ -352,53 +352,6 @@ class MicroWakeWordProvider(VoiceTriggerProvider):
         """Get list of wake words supported by available models."""
         return list(self.available_models.keys())
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Get parameter schema for microWakeWord provider."""
-        return {
-            "wake_words": {
-                "type": "array",
-                "items": {"type": "string"},
-                "default": ["irene"],
-                "description": "List of wake words to detect (must have corresponding models)"
-            },
-            "threshold": {
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 0.8,
-                "description": "Detection threshold (0.0 - 1.0)"
-            },
-            "model_path": {
-                "type": "string",
-                "description": "Legacy: Path to TensorFlow Lite model file (.tflite). Use asset management instead."
-            },
-            "available_models": {
-                "type": "object",
-                "description": "Mapping of wake words to model IDs (for asset management) or file paths",
-                "additionalProperties": {"type": "string"}
-            },
-            "feature_buffer_size": {
-                "type": "integer",
-                "minimum": 10,
-                "maximum": 100,
-                "default": 49,
-                "description": "Size of feature buffer (number of 10ms windows)"
-            },
-            "detection_window_size": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 3,
-                "description": "Number of consecutive detections required"
-            },
-            "num_mfcc_features": {
-                "type": "integer",
-                "minimum": 10,
-                "maximum": 80,
-                "default": 40,
-                "description": "Number of MFCC features"
-            }
-        }
     
     def get_supported_sample_rates(self) -> List[int]:
         """Get list of supported sample rates for microWakeWord (Phase 3)."""

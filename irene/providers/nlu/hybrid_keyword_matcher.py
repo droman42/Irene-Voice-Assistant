@@ -893,65 +893,6 @@ class HybridKeywordMatcherProvider(NLUProvider):
         
         return stats
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Get parameter schema for hybrid keyword matcher (Phase 1: Added configuration validation)"""
-        return {
-            "confidence_threshold": {
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 0.7,
-                "description": "Minimum confidence for intent acceptance (normalized for Phase 1 consistency)"
-            },
-            "fuzzy_enabled": {
-                "type": "boolean",
-                "default": True,
-                "description": "Enable fuzzy matching capabilities"
-            },
-            "fuzzy_threshold": {
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 0.8,
-                "description": "Minimum fuzzy matching score threshold"
-            },
-            "pattern_confidence": {
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 0.9,
-                "description": "Base confidence for pattern matches"
-            },
-            "case_sensitive": {
-                "type": "boolean",
-                "default": False,
-                "description": "Enable case-sensitive pattern matching"
-            },
-            "normalize_unicode": {
-                "type": "boolean",
-                "default": True,
-                "description": "Enable improved Unicode normalization (Phase 1 enhancement)"
-            },
-            "cache_fuzzy_results": {
-                "type": "boolean",
-                "default": True,
-                "description": "Enable caching of fuzzy matching results"
-            },
-            "max_fuzzy_keywords_per_intent": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 1000,
-                "default": 50,
-                "description": "Maximum fuzzy keywords per intent"
-            },
-            "min_pattern_length": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 100,
-                "default": 2,
-                "description": "Minimum pattern length for processing"
-            }
-        }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Get hybrid keyword matcher capabilities"""

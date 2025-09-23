@@ -205,33 +205,6 @@ class GoogleCloudASRProvider(ASRProvider):
             logger.error(f"Failed to initialize Google Cloud Speech client: {e}")
             raise
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for Google Cloud-specific parameters"""
-        return {
-            "language": {
-                "type": "string",
-                "options": self.get_supported_languages(),
-                "default": self.default_language,
-                "description": "Language code for recognition (e.g., 'ru-RU', 'en-US')"
-            },
-            "encoding": {
-                "type": "string",
-                "options": ["LINEAR16", "FLAC", "MULAW", "AMR", "AMR_WB", "OGG_OPUS"],
-                "default": self.encoding,
-                "description": "Audio encoding format"
-            },
-            "sample_rate_hertz": {
-                "type": "integer",
-                "options": [8000, 16000, 22050, 44100, 48000],
-                "default": self.sample_rate_hertz,
-                "description": "Audio sample rate in Hz"
-            },
-            "use_enhanced": {
-                "type": "boolean",
-                "default": True,
-                "description": "Use enhanced recognition model"
-            }
-        }
     
     def get_provider_name(self) -> str:
         """Return provider identifier"""

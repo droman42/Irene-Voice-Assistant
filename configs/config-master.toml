@@ -56,7 +56,7 @@ default_input = "microphone"       # Default input: "microphone", "web", "cli"
 # Microphone Input Configuration
 [inputs.microphone_config]
 enabled = true                      # Enable microphone input processing
-device_id = 7                       # Audio device ID (ThinkPad USB-C Dock Audio: 44100 Hz, 1 channel)
+device = 7                          # Audio device ID (ThinkPad USB-C Dock Audio: 44100 Hz, 1 channel)
 sample_rate = 44100                # Audio sample rate: matches device 7 native rate
 channels = 1                       # Audio channels: 1 (mono) - matches device 7
 chunk_size = 4096                  # Audio buffer chunk size for stable processing
@@ -104,9 +104,9 @@ fallback_providers = ["console"]    # Fallback providers in order
 # Console TTS Provider (for testing/development)
 [tts.providers.console]
 enabled = true                      # Enable console text output
-color_output = true                # Use colored console output
-timing_simulation = true           # Simulate TTS timing delays
-prefix = "TTS: "                   # Prefix for console output
+color = "blue"                     # Text color for console output
+style = "console"                  # Output style
+format = "txt"                     # File output format
 
 # ElevenLabs TTS Provider (high-quality neural TTS)
 [tts.providers.elevenlabs]
@@ -163,14 +163,14 @@ concurrent_playback = false         # Allow multiple audio streams simultaneousl
 # Console Audio Provider (for testing/development)
 [audio.providers.console]
 enabled = true                      # Enable console audio simulation
-device_id = "console"              # Console output device mode
+device = "console"                 # Console output device mode
 volume = 1.0                       # Playback volume (0.0-1.0)
 simulate_timing = false            # Simulate audio playback timing
 
 # SoundDevice Audio Provider (cross-platform, recommended)
 [audio.providers.sounddevice]
 enabled = false                     # Enable sounddevice provider
-device_id = -1                     # Audio output device ID for playback
+device = -1                        # Audio output device ID for playback
 sample_rate = 44100                # Audio sample rate
 volume = 1.0                       # Playback volume (0.0-1.0)
 
@@ -180,18 +180,18 @@ enabled = false                     # Enable audioplayer provider
 volume = 0.8                       # Volume level (0.0-1.0)
 fade_in = false                    # Enable fade-in effect
 fade_out = true                    # Enable fade-out effect
-# device_id = ""                   # Audio output device (not supported - uses system default)
+# device = ""                      # Audio output device (not supported - uses system default)
 
 # SimpleAudio Provider (Python simpleaudio library)
 [audio.providers.simpleaudio]
 enabled = false                     # Enable simpleaudio provider
 volume = 1.0                       # Playback volume (0.0-1.0)
-# device_id = ""                   # Audio output device (not supported - uses system default)
+# device = ""                      # Audio output device (not supported - uses system default)
 
 # Aplay Provider (Linux ALSA)
 [audio.providers.aplay]
 enabled = false                     # Enable aplay provider (Linux only)
-device_id = "default"              # ALSA device name for audio output
+device = "default"                 # ALSA device name for audio output
 volume = 1.0                       # Playback volume (0.0-1.0)
 
 # ============================================================
@@ -247,9 +247,10 @@ fallback_providers = ["console"]    # Fallback providers in order
 enabled = true                      # Enable OpenAI provider
 api_key = "${OPENAI_API_KEY}"      # API key from environment variable
 base_url = "https://api.openai.com/v1"  # API base URL
-default_model = "gpt-4o"            # Model: "gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"
+model = "gpt-4o"                   # Model: "gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"
 max_tokens = 150                   # Maximum response tokens
 temperature = 0.3                  # Creativity level (0.0-2.0)
+target_language = "English"       # Target language for translation
 top_p = 1.0                       # Nucleus sampling parameter
 frequency_penalty = 0.0            # Frequency penalty (-2.0-2.0)
 presence_penalty = 0.0             # Presence penalty (-2.0-2.0)
@@ -259,7 +260,7 @@ presence_penalty = 0.0             # Presence penalty (-2.0-2.0)
 enabled = false                     # Enable Anthropic provider
 api_key = "${ANTHROPIC_API_KEY}"   # API key from environment variable
 base_url = "https://api.anthropic.com"  # API base URL
-default_model = "claude-3-haiku-20240307"  # Model variant
+model = "claude-3-haiku-20240307"  # Model variant
 max_tokens = 150                   # Maximum response tokens
 temperature = 0.3                  # Creativity level (0.0-1.0)
 
@@ -268,7 +269,7 @@ temperature = 0.3                  # Creativity level (0.0-1.0)
 enabled = false                     # Enable VSE GPT provider
 api_key = "${VSEGPT_API_KEY}"      # API key from environment variable
 base_url = "https://api.vsegpt.ru/v1"  # Custom API base URL
-default_model = "gpt-3.5-turbo"    # Model to use
+model = "gpt-3.5-turbo"            # Model to use
 max_tokens = 150                   # Maximum response tokens
 temperature = 0.3                  # Creativity level
 
@@ -296,9 +297,9 @@ strict_validation = true           # Fatal error on provider requirement conflic
 # OpenWakeWord Provider (recommended, open source)
 [voice_trigger.providers.openwakeword]
 enabled = false                      # Enable OpenWakeWord provider
+wake_words = ["alexa", "jarvis"]   # List of wake words to detect
+threshold = 0.8                    # Detection threshold (0.0 - 1.0)
 inference_framework = "tflite"     # Framework: "onnx", "tflite" - using tflite to match downloaded models
-vad_threshold = 0.5                # Voice activity detection threshold
-chunk_size = 1280                  # Audio chunk size (80ms at 16kHz)
 preload_models = false             # Preload AI models during provider initialization for faster startup
 
 # Porcupine Provider (Picovoice, commercial)
@@ -310,6 +311,9 @@ keywords = ["jarvis"]              # Built-in keywords to use
 # MicroWakeWord Provider (ESP32/embedded)
 [voice_trigger.providers.microwakeword]
 enabled = false                     # Enable MicroWakeWord provider
+wake_words = ["irene"]             # List of wake words to detect (must have corresponding models)
+threshold = 0.8                    # Detection threshold (0.0 - 1.0)
+model_path = ""                    # Legacy: Path to TensorFlow Lite model file (.tflite). Use asset management instead.
 feature_buffer_size = 49           # Feature buffer size (49 * 10ms = 490ms)
 detection_window_size = 3          # Detection window size (consecutive detections needed)
 stride_duration_ms = 10            # Audio processing stride in milliseconds  

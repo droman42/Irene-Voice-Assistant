@@ -147,30 +147,6 @@ class ConsoleTTSProvider(TTSProvider):
             logger.error(f"Error saving console TTS text to file: {e}")
             raise RuntimeError(f"Failed to save TTS text: {e}")
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters"""
-        color_options = ["red", "green", "blue", "yellow", "magenta", "cyan", "white"] if self._termcolor_available else []
-        
-        return {
-            "color": {
-                "type": "string",
-                "description": "Text color for console output",
-                "options": color_options,
-                "default": "blue"
-            },
-            "style": {
-                "type": "string", 
-                "description": "Output style",
-                "options": ["console", "colored", "plain"],
-                "default": "console"
-            },
-            "format": {
-                "type": "string",
-                "description": "File output format",
-                "options": ["txt", "json"],
-                "default": "txt"
-            }
-        }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Return provider capabilities information"""

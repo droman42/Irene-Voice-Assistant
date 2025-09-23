@@ -156,37 +156,6 @@ class PyttsTTSProvider(TTSProvider):
             self._engine.save_to_file(str(text), file_path)
             self._engine.runAndWait()
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters"""
-        voice_options = []
-        for i, voice in enumerate(self._voices):
-            voice_name = getattr(voice, 'name', f"Voice {i}")
-            voice_options.append({"id": i, "name": voice_name})
-            
-        return {
-            "voice_id": {
-                "type": "integer",
-                "description": "Voice ID to use",
-                "options": voice_options,
-                "default": self.voice_id,
-                "min": 0,
-                "max": len(self._voices) - 1 if self._voices else 0
-            },
-            "rate": {
-                "type": "integer",
-                "description": "Speech rate in words per minute",
-                "default": self.voice_rate,
-                "min": 50,
-                "max": 400
-            },
-            "volume": {
-                "type": "number",
-                "description": "Speech volume (0.0 to 1.0)",
-                "default": self.voice_volume,
-                "min": 0.0,
-                "max": 1.0
-            }
-        }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Return provider capabilities information"""

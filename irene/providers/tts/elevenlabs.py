@@ -152,35 +152,6 @@ class ElevenLabsTTSProvider(TTSProvider):
             logger.error(f"ElevenLabs API call failed: {e}")
             raise
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for ElevenLabs-specific parameters"""
-        return {
-            "voice_id": {
-                "type": "string",
-                "description": "ElevenLabs voice ID",
-                "default": self.voice_id
-            },
-            "stability": {
-                "type": "float",
-                "min": 0.0,
-                "max": 1.0,
-                "description": "Voice stability (0-1)",
-                "default": self.stability
-            },
-            "similarity_boost": {
-                "type": "float", 
-                "min": 0.0,
-                "max": 1.0,
-                "description": "Voice similarity boost (0-1)",
-                "default": self.similarity_boost
-            },
-            "model": {
-                "type": "string",
-                "options": ["eleven_monolingual_v1", "eleven_multilingual_v1", "eleven_multilingual_v2"],
-                "default": self.model,
-                "description": "ElevenLabs model to use"
-            }
-        }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Return provider capabilities"""

@@ -112,7 +112,7 @@ class AutoSchemaRegistry:
                 ConsoleProviderSchema, ElevenLabsProviderSchema, SileroV3ProviderSchema, 
                 SileroV4ProviderSchema, VoskTTSProviderSchema, PyttSXProviderSchema,
                 # Audio providers  
-                SoundDeviceProviderSchema, AudioPlayerProviderSchema, SimpleAudioProviderSchema, APlayProviderSchema,
+                SoundDeviceProviderSchema, AudioPlayerProviderSchema, SimpleAudioProviderSchema, APlayProviderSchema, ConsoleAudioProviderSchema,
                 # ASR providers
                 WhisperProviderSchema, VoskASRProviderSchema, GoogleCloudProviderSchema,
                 # LLM providers
@@ -137,7 +137,7 @@ class AutoSchemaRegistry:
                     "pyttsx": PyttSXProviderSchema,
                 },
                 "audio": {
-                    "console": ConsoleProviderSchema,
+                    "console": ConsoleAudioProviderSchema,
                     "sounddevice": SoundDeviceProviderSchema,
                     "audioplayer": AudioPlayerProviderSchema,
                     "simpleaudio": SimpleAudioProviderSchema,
@@ -417,6 +417,69 @@ class AutoSchemaRegistry:
             "total_sections": len(section_order)
         }
     
+    @classmethod
+    def get_provider_parameter_schema(cls, component_type: str, provider_name: str) -> Dict[str, Any]:
+        """
+        Auto-generate runtime parameter schema from Pydantic model.
+        Eliminates need for manual get_parameter_schema() implementations.
+        """
+        provider_schemas = cls.get_provider_schemas()
+        
+        if component_type not in provider_schemas:
+            logger.warning(f"Component type not found: {component_type}")
+            return {}
+        
+        if provider_name not in provider_schemas[component_type]:
+            logger.warning(f"Provider not found: {component_type}.{provider_name}")
+            return {}
+        
+        schema_class = provider_schemas[component_type][provider_name]
+        
+        try:
+            # Generate JSON Schema from Pydantic model
+            json_schema = schema_class.model_json_schema()
+            
+            # Convert to runtime parameter format expected by Web API
+            parameter_schema = cls._convert_json_schema_to_parameter_format(json_schema)
+            
+            logger.debug(f"Auto-generated parameter schema for {component_type}.{provider_name}")
+            return parameter_schema
+            
+        except Exception as e:
+            logger.error(f"Failed to generate parameter schema for {component_type}.{provider_name}: {e}")
+            return {}
+
+    @classmethod
+    def _convert_json_schema_to_parameter_format(cls, json_schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert Pydantic JSON Schema to parameter schema format"""
+        parameters = {}
+        
+        properties = json_schema.get("properties", {})
+        for field_name, field_schema in properties.items():
+            # Skip non-runtime fields
+            if field_name in ["enabled"]:  # Configuration-only fields
+                continue
+                
+            # Convert Pydantic field schema to parameter format
+            param_schema = {
+                "type": field_schema.get("type", "string"),
+                "description": field_schema.get("description", ""),
+            }
+            
+            # Add constraints
+            if "minimum" in field_schema:
+                param_schema["minimum"] = field_schema["minimum"]
+            if "maximum" in field_schema:
+                param_schema["maximum"] = field_schema["maximum"]
+            if "enum" in field_schema:
+                param_schema["options"] = field_schema["enum"]
+            if "default" in field_schema:
+                param_schema["default"] = field_schema["default"]
+                
+            parameters[field_name] = param_schema
+        
+        return parameters
+
     @classmethod
     def clear_cache(cls) -> None:
         """Clear all cached registries (for testing/development)"""

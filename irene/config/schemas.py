@@ -70,9 +70,9 @@ class TextProcessorProviderSchema(BaseProviderSchema):
 
 class ConsoleProviderSchema(TTSProviderSchema):
     """Console provider configuration schema (used across multiple components)"""
-    color_output: bool = Field(default=True, description="Enable colored output")
-    timing_simulation: bool = Field(default=False, description="Simulate timing delays")
-    prefix: str = Field(default="", description="Output prefix")
+    color: str = Field(default="blue", description="Text color for console output")
+    style: str = Field(default="console", description="Output style")
+    format: str = Field(default="txt", description="File output format")
 
 
 class ElevenLabsProviderSchema(TTSProviderSchema):
@@ -120,7 +120,7 @@ class PyttSXProviderSchema(TTSProviderSchema):
 
 class SoundDeviceProviderSchema(AudioProviderSchema):
     """SoundDevice provider configuration schema"""
-    device_id: int = Field(default=-1, description="Audio output device ID for playback")
+    device: int = Field(default=-1, description="Audio output device ID for playback")
     sample_rate: int = Field(default=44100, description="Audio sample rate")
     volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Playback volume")
 
@@ -130,24 +130,24 @@ class AudioPlayerProviderSchema(AudioProviderSchema):
     volume: float = Field(default=0.8, ge=0.0, le=1.0, description="Volume level")
     fade_in: bool = Field(default=False, description="Enable fade-in")
     fade_out: bool = Field(default=True, description="Enable fade-out")
-    device_id: Optional[int] = Field(default=None, description="Audio output device (not supported - uses system default)")
+    device: Optional[int] = Field(default=None, description="Audio output device (not supported - uses system default)")
 
 
 class SimpleAudioProviderSchema(AudioProviderSchema):
     """SimpleAudio provider configuration schema"""
     volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Playback volume")
-    device_id: Optional[int] = Field(default=None, description="Audio output device (not supported - uses system default)")
+    device: Optional[int] = Field(default=None, description="Audio output device (not supported - uses system default)")
 
 
 class APlayProviderSchema(AudioProviderSchema):
     """APlay provider configuration schema"""  
-    device_id: str = Field(default="default", description="ALSA device name for audio output")
+    device: str = Field(default="default", description="ALSA device name for audio output")
     volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Playback volume")
 
 
 class ConsoleAudioProviderSchema(AudioProviderSchema):
     """Console Audio provider configuration schema"""
-    device_id: str = Field(default="console", description="Console output device mode")
+    device: str = Field(default="console", description="Console output device mode")
     volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Playback volume") 
     simulate_timing: bool = Field(default=True, description="Simulate playback timing")
 
@@ -196,15 +196,16 @@ class GoogleCloudProviderSchema(ASRProviderSchema):
 class OpenAIProviderSchema(LLMProviderSchema):
     """OpenAI provider configuration schema"""
     api_key: str = Field(description="OpenAI API key (use ${OPENAI_API_KEY})")
-    default_model: str = Field(default="gpt-4", description="Default model name")
+    model: str = Field(default="gpt-4", description="Model to use")
     max_tokens: int = Field(default=150, ge=1, description="Maximum tokens")
     temperature: float = Field(default=0.3, ge=0.0, le=2.0, description="Temperature")
+    target_language: str = Field(default="English", description="Target language for translation")
 
 
 class AnthropicProviderSchema(LLMProviderSchema):
     """Anthropic provider configuration schema"""
     api_key: str = Field(description="Anthropic API key (use ${ANTHROPIC_API_KEY})")
-    default_model: str = Field(default="claude-3-haiku-20240307", description="Default model name")
+    model: str = Field(default="claude-3-haiku-20240307", description="Model to use")
     max_tokens: int = Field(default=150, ge=1, description="Maximum tokens")
     temperature: float = Field(default=0.3, ge=0.0, le=1.0, description="Temperature")
 
@@ -213,7 +214,7 @@ class VSEGPTProviderSchema(LLMProviderSchema):
     """VSEGPT provider configuration schema"""
     api_key: str = Field(description="VSE GPT API key")
     base_url: str = Field(default="https://api.vsegpt.ru/v1", description="Custom API base URL")
-    default_model: str = Field(default="gpt-3.5-turbo", description="Model to use")
+    model: str = Field(default="gpt-3.5-turbo", description="Model to use")
     max_tokens: int = Field(default=150, description="Maximum response tokens")
     temperature: float = Field(default=0.3, description="Creativity level")
 
@@ -224,8 +225,9 @@ class VSEGPTProviderSchema(LLMProviderSchema):
 
 class OpenWakeWordProviderSchema(VoiceTriggerProviderSchema):
     """OpenWakeWord provider configuration schema"""
-    inference_framework: str = Field(default="onnx", description="Inference framework")
-    vad_threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="Voice activity detection threshold")
+    wake_words: List[str] = Field(default_factory=lambda: ["alexa", "jarvis"], description="List of wake words to detect")
+    threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Detection threshold (0.0 - 1.0)")
+    inference_framework: str = Field(default="tflite", description="Inference framework")
     preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
 
 
@@ -237,6 +239,9 @@ class PorcupineProviderSchema(VoiceTriggerProviderSchema):
 
 class MicroWakeWordProviderSchema(VoiceTriggerProviderSchema):
     """MicroWakeWord provider configuration schema"""
+    wake_words: List[str] = Field(default_factory=lambda: ["irene"], description="List of wake words to detect (must have corresponding models)")
+    threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Detection threshold (0.0 - 1.0)")
+    model_path: Optional[str] = Field(default=None, description="Legacy: Path to TensorFlow Lite model file (.tflite). Use asset management instead.")
     feature_buffer_size: int = Field(default=49, description="Feature buffer size")
     detection_window_size: int = Field(default=3, description="Detection window size")
     stride_duration_ms: int = Field(default=10, description="Audio processing stride")

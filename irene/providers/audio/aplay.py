@@ -171,22 +171,6 @@ class AplayAudioProvider(AudioProvider):
             logger.error(f"Failed to play audio stream: {e}")
             raise RuntimeError(f"Audio stream playback failed: {e}")
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters"""
-        return {
-            "device": {
-                "type": "string",
-                "description": "ALSA device name",
-                "default": "default"
-            },
-            "volume": {
-                "type": "number",
-                "description": "Playback volume",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 1.0
-            }
-        }
     
     def get_supported_formats(self) -> List[str]:
         """Get list of supported audio formats"""

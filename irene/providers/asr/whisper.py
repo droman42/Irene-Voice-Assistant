@@ -208,28 +208,6 @@ class WhisperASRProvider(ASRProvider):
             logger.error(f"Failed to warm up Whisper model: {e}")
             # Don't raise - let the provider work with lazy loading
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for Whisper-specific parameters"""
-        return {
-            "language": {
-                "type": "string",
-                "options": self.get_supported_languages(),
-                "default": self.default_language,
-                "description": "Language code for recognition (None for auto-detect)"
-            },
-            "model_size": {
-                "type": "string",
-                "options": ["tiny", "base", "small", "medium", "large"],
-                "default": self.model_size,
-                "description": "Whisper model size"
-            },
-            "device": {
-                "type": "string",
-                "options": ["cpu", "cuda"],
-                "default": self.device,
-                "description": "Device to run model on"
-            }
-        }
     
     def get_provider_name(self) -> str:
         """Return provider identifier"""

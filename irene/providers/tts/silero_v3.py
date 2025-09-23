@@ -192,38 +192,6 @@ class SileroV3TTSProvider(TTSProvider):
             logger.error(f"Failed to generate speech file with Silero v3: {e}")
             raise RuntimeError(f"TTS file generation failed: {e}")
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters"""
-        return {
-            "speaker": {
-                "type": "string",
-                "description": "Voice speaker to use",
-                "options": self._speakers,
-                "default": self.default_speaker
-            },
-            "sample_rate": {
-                "type": "integer",
-                "description": "Audio sample rate in Hz",
-                "options": [8000, 24000, 48000],
-                "default": self.sample_rate
-            },
-            "put_accent": {
-                "type": "boolean",
-                "description": "Apply automatic stress marks",
-                "default": self.put_accent
-            },
-            "put_yo": {
-                "type": "boolean", 
-                "description": "Convert 'е' to 'ё' where appropriate",
-                "default": self.put_yo
-            },
-            "torch_device": {
-                "type": "string",
-                "description": "PyTorch device for inference",
-                "options": ["cpu", "cuda"],
-                "default": self.torch_device
-            }
-        }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Return provider capabilities information"""

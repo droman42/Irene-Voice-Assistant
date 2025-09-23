@@ -322,41 +322,6 @@ class OpenWakeWordProvider(VoiceTriggerProvider):
         """Get list of wake words supported by OpenWakeWord."""
         return list(self.available_models.keys())
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Get parameter schema for OpenWakeWord provider."""
-        return {
-            "wake_words": {
-                "type": "array",
-                "items": {"type": "string", "enum": self.get_supported_wake_words()},
-                "default": ["alexa", "jarvis"],
-                "description": "List of wake words to detect"
-            },
-            "threshold": {
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 0.8,
-                "description": "Detection threshold (0.0 - 1.0)"
-            },
-            "inference_framework": {
-                "type": "string",
-                "enum": ["tflite", "onnx"],
-                "default": "tflite",
-                "description": "Inference framework to use"
-            },
-            "model_paths": {
-                "type": "object",
-                "description": "Custom model paths for wake words",
-                "additionalProperties": {"type": "string"}
-            },
-            "chunk_size": {
-                "type": "integer",
-                "minimum": 160,
-                "maximum": 3200,
-                "default": 1280,
-                "description": "Audio chunk size for processing (samples)"
-            }
-        }
     
     def get_supported_sample_rates(self) -> List[int]:
         """Get list of supported sample rates for OpenWakeWord (Phase 3)."""

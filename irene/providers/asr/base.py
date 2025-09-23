@@ -53,14 +53,19 @@ class ASRProvider(ProviderBase):
         """
         pass
     
-    @abstractmethod
     def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters
+        """Auto-generate parameter schema from Pydantic model
         
         Returns:
             Dictionary describing available parameters, types, and defaults
         """
-        pass
+        from irene.config.auto_registry import AutoSchemaRegistry
+        
+        # Extract component type from module path
+        component_type = self.__class__.__module__.split('.')[-2]  # e.g., 'tts', 'audio'
+        provider_name = self.get_provider_name()
+        
+        return AutoSchemaRegistry.get_provider_parameter_schema(component_type, provider_name)
     
     @abstractmethod
     def get_supported_languages(self) -> List[str]:

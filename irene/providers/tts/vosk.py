@@ -265,29 +265,6 @@ class VoskTTSProvider(TTSProvider):
             logger.error(f"Failed to warm up VOSK TTS model: {e}")
             # Don't raise - let the provider work with lazy loading
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters"""
-        return {
-            "language": {
-                "type": "string",
-                "description": "Language for speech synthesis",
-                "options": self._languages,
-                "default": self.default_language
-            },
-            "speaker_id": {
-                "type": "integer",
-                "description": "Speaker voice ID",
-                "options": list(self._speakers.keys()),
-                "default": self.default_speaker_id
-            },
-            "speed": {
-                "type": "number",
-                "description": "Speech speed multiplier (limited VOSK TTS support)",
-                "default": self.voice_speed,
-                "min": 0.8,
-                "max": 1.2
-            }
-        }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Return provider capabilities information"""

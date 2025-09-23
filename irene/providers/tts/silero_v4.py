@@ -156,28 +156,6 @@ class SileroV4TTSProvider(TTSProvider):
             logger.error(f"Failed to warm up Silero v4 model: {e}")
             # Don't raise - let the provider work with lazy loading
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters"""
-        return {
-            "speaker": {
-                "type": "string",
-                "description": "Voice speaker to use",
-                "options": self._speakers,
-                "default": self.default_speaker
-            },
-            "sample_rate": {
-                "type": "integer",
-                "description": "Audio sample rate in Hz",
-                "options": [24000, 48000, 96000],
-                "default": self.sample_rate
-            },
-            "torch_device": {
-                "type": "string",
-                "description": "PyTorch device for inference",
-                "options": ["cpu", "cuda"],
-                "default": self.torch_device
-            }
-        }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Return provider capabilities information"""

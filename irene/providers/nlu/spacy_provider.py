@@ -1080,45 +1080,6 @@ class SpaCyNLUProvider(NLUProvider):
             domains.add(domain)
         return list(domains)
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Get parameter schema for spaCy NLU (Phase 1: Updated for multi-model support)"""
-        return {
-            "confidence_threshold": {
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 0.7,
-                "description": "Minimum confidence for intent acceptance"
-            },
-            "entity_types": {
-                "type": "array",
-                "items": {"type": "string"},
-                "default": ["PERSON", "ORG", "GPE", "DATE", "TIME", "MONEY", "QUANTITY"],
-                "description": "spaCy entity types to extract"
-            },
-            "language_preferences": {
-                "type": "object",
-                "description": "Language-specific model preferences (Phase 1: Multi-model support)",
-                "properties": {
-                    "ru": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "default": ["ru_core_news_md", "ru_core_news_sm"],
-                        "description": "Russian model preferences in order"
-                    },
-                    "en": {
-                        "type": "array", 
-                        "items": {"type": "string"},
-                        "default": ["en_core_web_md", "en_core_web_sm"],
-                        "description": "English model preferences in order"
-                    }
-                },
-                "default": {
-                    "ru": ["ru_core_news_md", "ru_core_news_sm"],
-                    "en": ["en_core_web_md", "en_core_web_sm"]
-                }
-            }
-        }
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Get spaCy NLU capabilities"""

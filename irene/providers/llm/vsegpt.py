@@ -166,35 +166,6 @@ class VseGPTLLMProvider(LLMProvider):
             "improve", "summarize", "expand"
         ]
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for VseGPT-specific parameters"""
-        return {
-            "model": {
-                "type": "string",
-                "options": self.get_available_models(),
-                "default": self.default_model,
-                "description": "VseGPT model to use"
-            },
-            "max_tokens": {
-                "type": "integer",
-                "min": 1,
-                "max": 4096,
-                "default": self.max_tokens,
-                "description": "Maximum tokens in response"
-            },
-            "temperature": {
-                "type": "float",
-                "min": 0.0,
-                "max": 2.0,
-                "default": self.temperature,
-                "description": "Temperature for text generation"
-            },
-            "target_language": {
-                "type": "string",
-                "default": "русский",
-                "description": "Target language for translation task"
-            }
-        }
     
     def get_provider_name(self) -> str:
         """Return provider identifier"""

@@ -190,28 +190,6 @@ class ConsoleAudioProvider(AudioProvider):
             logger.error(f"Failed to process audio stream: {e}")
             raise RuntimeError(f"Console audio stream processing failed: {e}")
     
-    def get_parameter_schema(self) -> Dict[str, Any]:
-        """Return schema for provider-specific parameters"""
-        return {
-            "volume": {
-                "type": "number",
-                "description": "Playback volume",
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 1.0
-            },
-            "device": {
-                "type": "string",
-                "description": "Console output mode",
-                "options": ["console", "console_color", "console_silent"],
-                "default": "console"
-            },
-            "simulate_timing": {
-                "type": "boolean",
-                "description": "Simulate playback timing",
-                "default": True
-            }
-        }
     
     def get_supported_formats(self) -> List[str]:
         """Get list of supported audio formats (all formats for console)"""
