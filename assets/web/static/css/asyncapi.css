@@ -223,3 +223,170 @@ html, body {
     transform: translateY(-50%);
     font-size: 0.8em;
 }
+
+/* Enhanced Documentation Styles */
+.documentation-section {
+    margin: 20px 0;
+    padding: 15px;
+    background: #ffffff;
+    border-radius: 8px;
+    border-left: 3px solid #28a745;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.documentation-section h4 {
+    color: #28a745;
+    margin: 0 0 10px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.documentation-content {
+    color: #333;
+    line-height: 1.6;
+    margin: 10px 0;
+}
+
+.documentation-content p {
+    margin: 8px 0;
+}
+
+.protocol-flow {
+    padding-left: 20px;
+    margin: 10px 0;
+}
+
+.protocol-flow li {
+    margin: 8px 0;
+    line-height: 1.5;
+    color: #333;
+}
+
+.message-formats {
+    margin: 10px 0;
+}
+
+.message-formats pre {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 10px 0;
+    overflow-x: auto;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.message-formats code {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    color: #333;
+}
+
+.feature-list, .benefits-list, .use-cases-list {
+    padding-left: 20px;
+    margin: 10px 0;
+}
+
+.feature-list li, .benefits-list li, .use-cases-list li {
+    margin: 8px 0;
+    line-height: 1.5;
+    color: #333;
+}
+
+.feature-list li::marker {
+    color: #28a745;
+}
+
+.benefits-list li::marker {
+    color: #fd7e14;
+}
+
+.use-cases-list li::marker {
+    color: #6f42c1;
+}
+
+.channel-summary {
+    margin: 15px 0;
+    padding: 10px;
+    background: #e7f3ff;
+    border-radius: 6px;
+    border-left: 3px solid #007bff;
+}
+
+.operations-section {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+.operations-section h4 {
+    color: #007bff;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+/* Collapsible Section Styles */
+.collapsible-header {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    transition: all 0.3s ease;
+    border-bottom: 2px solid #007bff;
+}
+
+.collapsible-header .operation-method {
+    margin-right: 10px;
+}
+
+.collapsible-header .operation-content {
+    flex: 1;
+    text-align: left;
+}
+
+.collapsible-header:hover {
+    color: #0056b3;
+    transform: translateX(5px);
+}
+
+.collapse-icon {
+    font-size: 0.8em;
+    transition: transform 0.3s ease;
+    color: #007bff;
+    font-weight: bold;
+}
+
+.collapsible-header.collapsed .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease;
+    max-height: 2000px;
+    opacity: 1;
+}
+
+.collapsible-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.collapsible-content.expanding {
+    animation: expandContent 0.4s ease-out;
+}
+
+@keyframes expandContent {
+    from {
+        max-height: 0;
+        opacity: 0;
+    }
+    to {
+        max-height: 2000px;
+        opacity: 1;
+    }
+}

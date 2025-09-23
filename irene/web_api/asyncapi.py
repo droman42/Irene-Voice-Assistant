@@ -9,6 +9,7 @@ Uses AsyncAPI 2.6.0 for compatibility with @asyncapi/web-component@2.6.4 rendere
 
 import json
 import logging
+import re
 from typing import Dict, Any, Optional, Type, Union, get_type_hints, get_origin, get_args
 from ..__version__ import __version__
 from functools import wraps
@@ -17,6 +18,125 @@ from pydantic import BaseModel
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
+
+
+def parse_endpoint_docstring(docstring: str) -> Dict[str, Any]:
+    """
+    Parse WebSocket endpoint docstring to extract structured documentation
+    
+    Args:
+        docstring: Raw docstring from the endpoint function
+        
+    Returns:
+        Dictionary with parsed sections for AsyncAPI documentation
+    """
+    if not docstring or not docstring.strip():
+        return {}
+    
+    # Clean and normalize the docstring
+    lines = [line.strip() for line in docstring.strip().split('\n')]
+    
+    # Initialize result structure
+    result = {
+        "summary": "",
+        "description": "",
+        "protocol_flow": [],
+        "message_formats": {},
+        "features": [],
+        "benefits": [],
+        "use_cases": [],
+        "examples": {}
+    }
+    
+    current_section = "description"
+    current_content = []
+    
+    # Parse line by line
+    for line in lines:
+        if not line:
+            if current_content:
+                current_content.append("")
+            continue
+            
+        # Detect section headers
+        line_lower = line.lower()
+        if any(header in line_lower for header in ["protocol flow:", "protocol formats:"]):
+            _save_current_section(result, current_section, current_content)
+            current_section = "protocol_flow"
+            current_content = []
+        elif any(header in line_lower for header in ["message format", "session configuration", "response format"]):
+            _save_current_section(result, current_section, current_content)
+            current_section = "message_formats"
+            current_content = [line]
+        elif any(header in line_lower for header in ["features:", "capabilities:"]):
+            _save_current_section(result, current_section, current_content)
+            current_section = "features"
+            current_content = []
+        elif any(header in line_lower for header in ["benefits:", "performance benefits:"]):
+            _save_current_section(result, current_section, current_content)
+            current_section = "benefits"
+            current_content = []
+        elif any(header in line_lower for header in ["best for:", "use cases:", "ideal for:"]):
+            _save_current_section(result, current_section, current_content)
+            current_section = "use_cases"
+            current_content = []
+        else:
+            current_content.append(line)
+    
+    # Save the last section
+    _save_current_section(result, current_section, current_content)
+    
+    # Extract summary from the first line if not already set
+    if not result["summary"] and result["description"]:
+        first_line = result["description"].split('\n')[0].strip()
+        if first_line:
+            result["summary"] = first_line
+    
+    return result
+
+
+def _save_current_section(result: Dict[str, Any], section: str, content: list):
+    """Helper function to save parsed content to the appropriate section"""
+    if not content:
+        return
+        
+    content_text = '\n'.join(content).strip()
+    if not content_text:
+        return
+    
+    if section == "description":
+        result["description"] = content_text
+    elif section == "protocol_flow":
+        # Parse numbered steps and bullet points
+        steps = []
+        for line in content:
+            if re.match(r'^\d+\.', line.strip()):
+                steps.append(line.strip())
+        result["protocol_flow"] = steps
+    elif section == "message_formats":
+        # Store raw message format content for display
+        result["message_formats"]["raw"] = content_text
+    elif section == "features":
+        # Parse bullet points
+        features = []
+        for line in content:
+            if line.strip().startswith('-'):
+                features.append(line.strip()[1:].strip())
+        result["features"] = features
+    elif section == "benefits":
+        # Parse bullet points
+        benefits = []
+        for line in content:
+            if line.strip().startswith('-'):
+                benefits.append(line.strip()[1:].strip())
+        result["benefits"] = benefits
+    elif section == "use_cases":
+        # Parse bullet points
+        use_cases = []
+        for line in content:
+            if line.strip().startswith('-'):
+                use_cases.append(line.strip()[1:].strip())
+        result["use_cases"] = use_cases
 
 
 @dataclass
@@ -219,10 +339,30 @@ def extract_websocket_specs_from_router(router, component_name: str, api_prefix:
             # Register in global registry
             _websocket_registry.register_endpoint(meta)
             
+            # Extract and parse endpoint docstring for enhanced documentation
+            parsed_docstring = {}
+            if hasattr(route.endpoint, '__doc__') and route.endpoint.__doc__:
+                parsed_docstring = parse_endpoint_docstring(route.endpoint.__doc__)
+            
             # Build channel specification for AsyncAPI v2.6.0
             channel_spec = {
                 "description": meta.description
             }
+            
+            # Add enhanced documentation using AsyncAPI extensions
+            if parsed_docstring:
+                # Use x- extensions for rich content (AsyncAPI 2.6.0 compatible)
+                channel_spec["x-detailed-description"] = parsed_docstring.get("description", "")
+                if parsed_docstring.get("protocol_flow"):
+                    channel_spec["x-protocol-flow"] = parsed_docstring["protocol_flow"]
+                if parsed_docstring.get("message_formats", {}).get("raw"):
+                    channel_spec["x-message-formats"] = parsed_docstring["message_formats"]["raw"]
+                if parsed_docstring.get("features"):
+                    channel_spec["x-features"] = parsed_docstring["features"]
+                if parsed_docstring.get("benefits"):
+                    channel_spec["x-benefits"] = parsed_docstring["benefits"]
+                if parsed_docstring.get("use_cases"):
+                    channel_spec["x-use-cases"] = parsed_docstring["use_cases"]
             
             # Convert tags to AsyncAPI 2.6.0 format (array of Tag Objects)
             tag_objs = [{"name": t} for t in (meta.tags or [])]

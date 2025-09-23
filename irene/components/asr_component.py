@@ -676,7 +676,53 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         )
         @router.websocket("/stream")
         async def stream_transcription(websocket: WebSocket):
-            """WebSocket endpoint for real-time ASR with automatic AsyncAPI documentation"""
+            """
+            Real-time speech recognition streaming with base64-encoded audio chunks
+            
+            This endpoint provides continuous speech recognition for web applications
+            and clients that need to send audio data as base64-encoded JSON messages.
+            
+            Protocol Flow:
+            1. Client connects to WebSocket endpoint
+            2. Client sends JSON messages with base64-encoded audio chunks
+            3. Server processes audio through configured ASR provider
+            4. Server responds with transcription results as JSON
+            
+            Message Format (Client → Server):
+            {
+                "type": "audio_chunk",
+                "data": "<base64-encoded-audio>",
+                "language": "ru|en",  # optional, defaults to component default
+                "provider": "vosk|whisper|google"  # optional, defaults to component default
+            }
+            
+            Response Format (Server → Client):
+            Success: {
+                "type": "transcription_result",
+                "text": "recognized speech text",
+                "provider": "vosk",
+                "language": "ru",
+                "timestamp": 1234567890.123
+            }
+            Error: {
+                "type": "error", 
+                "error": "error description",
+                "timestamp": 1234567890.123
+            }
+            
+            Features:
+            - Automatic provider state reset on session start/end for clean transcription
+            - Configurable ASR provider per request
+            - Multi-language support
+            - Graceful error handling with provider state recovery
+            - Real-time processing with immediate response
+            
+            Best For:
+            - Web applications with JavaScript clients
+            - Scenarios where base64 encoding is acceptable
+            - Simple integration without binary data handling
+            - Development and testing environments
+            """
             await websocket.accept()
             
             # Reset all ASR provider states for clean session start
@@ -749,26 +795,70 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
             Optimized binary audio streaming for ESP32/external devices
             
             This endpoint eliminates base64 encoding overhead by accepting raw PCM audio
-            data as binary WebSocket frames. Protocol supports two formats:
+            data as binary WebSocket frames. Designed for high-performance applications
+            and embedded devices where bandwidth and CPU efficiency are critical.
             
-            Format 1 (Full Protocol Wrapper):
-            1. Client sends BinaryWebSocketProtocol (includes session_config)
-            2. Server responds with confirmation or error
-            3. Client streams raw PCM binary frames
+            Protocol Formats:
+            
+            Format 1 (Full Protocol Wrapper - Recommended):
+            1. Client sends BinaryWebSocketProtocol JSON (includes session_config)
+            2. Server responds with session_ready confirmation or error
+            3. Client streams raw PCM binary frames continuously
             4. Server responds with transcription results as JSON
             
             Format 2 (Direct Session Config - Backward Compatible):
-            1. Client sends BinaryAudioSessionMessage directly
-            2. Server responds with confirmation or error
-            3. Client streams raw PCM binary frames
+            1. Client sends BinaryAudioSessionMessage JSON directly
+            2. Server responds with session_ready confirmation or error  
+            3. Client streams raw PCM binary frames continuously
             4. Server responds with transcription results as JSON
             
-            Benefits:
-            - No base64 encoding/decoding overhead (~33% size reduction)
-            - Lower CPU usage on both client and server
-            - Optimized for continuous audio streaming
-            - Better performance for ESP32 and embedded devices
-            - Full AsyncAPI documentation through protocol wrapper
+            Session Configuration:
+            {
+                "type": "binary_websocket_protocol",  # or "session_config" for direct mode
+                "session_config": {
+                    "sample_rate": 16000,     # Hz, typically 16000 for speech
+                    "channels": 1,            # Mono audio recommended
+                    "format": "pcm_s16le",    # PCM signed 16-bit little-endian
+                    "language": "ru",         # optional, defaults to component default  
+                    "provider": "vosk"        # optional, defaults to component default
+                }
+            }
+            
+            Response Format (Server → Client):
+            Session Ready: {
+                "type": "session_ready",
+                "message": "Binary audio streaming session initialized",
+                "protocol_format": "wrapper|direct",
+                "config": { ... },        # Echo of final configuration
+                "timestamp": 1234567890.123
+            }
+            Transcription: {
+                "type": "transcription_result", 
+                "text": "recognized speech",
+                "provider": "vosk",
+                "language": "ru",
+                "timestamp": 1234567890.123
+            }
+            Error: {
+                "type": "error",
+                "error": "error description", 
+                "recoverable": true,      # Whether client can retry
+                "timestamp": 1234567890.123
+            }
+            
+            Performance Benefits:
+            - ~33% bandwidth reduction (no base64 encoding overhead)
+            - Significantly lower CPU usage on both client and server
+            - Optimized for continuous audio streaming scenarios
+            - Better real-time performance for ESP32 and embedded devices
+            - Reduced memory allocation and garbage collection pressure
+            
+            Best For:
+            - ESP32 and embedded device integration
+            - High-throughput audio streaming applications
+            - Real-time systems with strict latency requirements
+            - Production deployments with bandwidth constraints
+            - IoT devices with limited computational resources
             """
             await websocket.accept()
             

@@ -13,7 +13,8 @@ from .asyncapi import (
     extract_websocket_specs_from_router,
     generate_base_asyncapi_spec,
     merge_asyncapi_specs,
-    pydantic_to_asyncapi_schema
+    pydantic_to_asyncapi_schema,
+    parse_endpoint_docstring
 )
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     "extract_websocket_specs_from_router",
     "generate_base_asyncapi_spec",
     "merge_asyncapi_specs",
-    "pydantic_to_asyncapi_schema"
+    "pydantic_to_asyncapi_schema",
+    "parse_endpoint_docstring"
 ]
