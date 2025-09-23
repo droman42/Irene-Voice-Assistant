@@ -885,6 +885,13 @@ export interface ConfigSchemaResponse {
   [sectionName: string]: ConfigSectionSchema;
 }
 
+// Section order and titles response for frontend auto-generation
+export interface ConfigSectionOrderResponse extends BaseApiResponse {
+  section_order: string[];
+  section_titles: Record<string, string>;
+  total_sections: number;
+}
+
 // Configuration API responses (matching backend schemas)
 export interface ConfigUpdateResponse extends BaseApiResponse {
   message: string;

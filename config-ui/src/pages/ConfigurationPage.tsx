@@ -50,48 +50,44 @@ const ConfigurationPage: React.FC = () => {
     return path.split(/[/\\]/).pop() || 'config.toml';
   };
 
-  // Define section order and grouping
-  const sectionOrder = [
-    'system',
-    'inputs', 
-    'components',
-    'tts',
-    'audio',
-    'asr',
-    'llm',
-    'voice_trigger',
-    'nlu',
-    'nlu_analysis',
-    'text_processor',
-    'intent_system',
-    'vad',
-    'monitoring',
-    'assets',
-    'workflows'
-  ];
-
-  const sectionTitles: Record<string, string> = {
-    system: '🔧 Core Settings',
-    inputs: '📝 Input Sources',
-    components: '🔌 Components',
-    tts: '🗣️ Text-to-Speech',
-    audio: '🔊 Audio Playback',
-    asr: '🎤 Speech Recognition',
-    llm: '🤖 Language Models',
-    voice_trigger: '👂 Voice Trigger',
-    nlu: '🧠 Natural Language Understanding',
-    nlu_analysis: '🔍 NLU Analysis',
-    text_processor: '📝 Text Processing',
-    intent_system: '🎯 Intent System',
-    vad: '🔊 Voice Activity Detection',
-    monitoring: '📊 Monitoring',
-    assets: '📁 Asset Management',
-    workflows: '⚡ Workflows'
-  };
+  // Auto-generated section order and titles from backend
+  const [sectionOrder, setSectionOrder] = useState<string[]>([]);
+  const [sectionTitles, setSectionTitles] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadConfiguration();
+    loadSectionOrderAndTitles();
   }, []);
+
+  const loadSectionOrderAndTitles = async () => {
+    try {
+      // Use proper API client method with TypeScript types
+      const response = await apiClient.getConfigSectionOrder();
+      setSectionOrder(response.section_order || []);
+      setSectionTitles(response.section_titles || {});
+    } catch (error) {
+      console.error('Failed to load section order and titles:', error);
+      // Fallback to basic section discovery if API fails
+      if (state.config) {
+        const availableSections = Object.keys(state.config);
+        setSectionOrder(availableSections.sort());
+        
+        // Generate basic titles for fallback
+        const fallbackTitles: Record<string, string> = {};
+        availableSections.forEach(section => {
+          fallbackTitles[section] = section.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        });
+        setSectionTitles(fallbackTitles);
+      }
+    }
+  };
+
+  // Update section order and titles when config changes
+  useEffect(() => {
+    if (state.config && sectionOrder.length === 0) {
+      loadSectionOrderAndTitles();
+    }
+  }, [state.config, sectionOrder.length]);
 
   const loadConfiguration = async () => {
     setState(prev => ({ ...prev, loading: true, error: null, connectionStatus: 'checking' }));

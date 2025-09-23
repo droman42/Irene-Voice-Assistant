@@ -63,6 +63,7 @@ import type {
   // Configuration management types
   CoreConfig,
   ConfigSchemaResponse,
+  ConfigSectionOrderResponse,
   ConfigUpdateResponse,
   ConfigValidationResponse,
   ConfigStatusResponse,
@@ -654,6 +655,13 @@ class IreneApiClient {
    */
   async getConfigStatus(): Promise<ConfigStatusResponse> {
     return this.get<ConfigStatusResponse>('/configuration/config/status');
+  }
+
+  /**
+   * Get section order and titles for frontend auto-generation
+   */
+  async getConfigSectionOrder(): Promise<ConfigSectionOrderResponse> {
+    return this.get<ConfigSectionOrderResponse>('/configuration/config/schema/sections');
   }
 
   // ============================================================

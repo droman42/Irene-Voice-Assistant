@@ -5,14 +5,18 @@ Phase 1 Implementation: Centralized schemas for component configurations
 that can be imported and used throughout the system for validation and
 type hints.
 
+Phase 2 Implementation: Integration with AutoSchemaRegistry for auto-generated
+component schema management.
+
 This module provides:
 - Component configuration schemas
 - Provider configuration schemas  
 - Validation utilities
 - Schema versioning support
+- Auto-registry integration
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Type
 from pydantic import BaseModel, Field
 
 
@@ -52,6 +56,11 @@ class VoiceTriggerProviderSchema(BaseProviderSchema):
 
 class NLUProviderSchema(BaseProviderSchema):
     """Base schema for NLU providers"""
+    pass
+
+
+class TextProcessorProviderSchema(BaseProviderSchema):
+    """Base schema for Text Processor providers"""
     pass
 
 
@@ -98,6 +107,13 @@ class SileroV4ProviderSchema(TTSProviderSchema):
     preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
 
 
+class PyttSXProviderSchema(TTSProviderSchema):
+    """PyTTSX provider configuration schema"""
+    voice_id: int = Field(default=0, description="Voice ID (system-dependent)")
+    voice_rate: int = Field(default=200, ge=50, le=500, description="Speech rate (words per minute)")
+    voice_volume: float = Field(default=1.0, ge=0.0, le=1.0, description="Volume level")
+
+
 # ============================================================
 # AUDIO PROVIDER SCHEMAS
 # ============================================================
@@ -113,6 +129,16 @@ class AudioPlayerProviderSchema(AudioProviderSchema):
     volume: float = Field(default=0.8, ge=0.0, le=1.0, description="Volume level")
     fade_in: bool = Field(default=False, description="Enable fade-in")
     fade_out: bool = Field(default=True, description="Enable fade-out")
+
+
+class SimpleAudioProviderSchema(AudioProviderSchema):
+    """SimpleAudio provider configuration schema"""
+    playback_device: Optional[int] = Field(default=None, description="Playback device ID")
+
+
+class APlayProviderSchema(AudioProviderSchema):
+    """APlay provider configuration schema"""  
+    device: str = Field(default="default", description="ALSA device name")
 
 
 # ============================================================
@@ -172,6 +198,15 @@ class AnthropicProviderSchema(LLMProviderSchema):
     temperature: float = Field(default=0.3, ge=0.0, le=1.0, description="Temperature")
 
 
+class VSEGPTProviderSchema(LLMProviderSchema):
+    """VSEGPT provider configuration schema"""
+    api_key: str = Field(description="VSE GPT API key")
+    base_url: str = Field(default="https://api.vsegpt.ru/v1", description="Custom API base URL")
+    default_model: str = Field(default="gpt-3.5-turbo", description="Model to use")
+    max_tokens: int = Field(default=150, description="Maximum response tokens")
+    temperature: float = Field(default=0.3, description="Creativity level")
+
+
 # ============================================================
 # VOICE TRIGGER PROVIDER SCHEMAS
 # ============================================================
@@ -187,6 +222,16 @@ class PorcupineProviderSchema(VoiceTriggerProviderSchema):
     """Porcupine provider configuration schema"""
     access_key: str = Field(description="Picovoice access key (use ${PICOVOICE_ACCESS_KEY})")
     keywords: List[str] = Field(default_factory=lambda: ["jarvis"], description="Keywords to detect")
+
+
+class MicroWakeWordProviderSchema(VoiceTriggerProviderSchema):
+    """MicroWakeWord provider configuration schema"""
+    feature_buffer_size: int = Field(default=49, description="Feature buffer size")
+    detection_window_size: int = Field(default=3, description="Detection window size")
+    stride_duration_ms: int = Field(default=10, description="Audio processing stride")
+    window_duration_ms: int = Field(default=30, description="Audio analysis window duration")
+    num_mfcc_features: int = Field(default=40, description="Number of MFCC features")
+    preload_models: bool = Field(default=False, description="Preload AI models")
 
 
 # ============================================================
@@ -221,6 +266,66 @@ class SpaCyNLUProviderSchema(NLUProviderSchema):
             "en": ["en_core_web_md", "en_core_web_sm"]
         },
         description="Language-specific model preferences (Phase 1: Multi-model support)"
+    )
+
+
+# ============================================================
+# TEXT PROCESSOR PROVIDER SCHEMAS
+# ============================================================
+
+class ASRTextProcessorProviderSchema(TextProcessorProviderSchema):
+    """ASR Text Processor provider configuration schema"""
+    language: str = Field(default="ru", description="Language for processing")
+
+
+class GeneralTextProcessorProviderSchema(TextProcessorProviderSchema):
+    """General Text Processor provider configuration schema"""
+    language: str = Field(default="ru", description="Language for processing")
+    prepare_options: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "changeNumbers": "process",
+            "changeLatin": "process",
+            "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
+            "keepSymbols": r",.?!;:() ",
+            "deleteUnknownSymbols": True,
+        },
+        description="PrepareNormalizer configuration options"
+    )
+
+
+class TTSTextProcessorProviderSchema(TextProcessorProviderSchema):
+    """TTS Text Processor provider configuration schema"""
+    language: str = Field(default="ru", description="Language for processing")
+    prepare_options: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "changeNumbers": "process",
+            "changeLatin": "process",
+            "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
+            "keepSymbols": r",.?!;:() ",
+            "deleteUnknownSymbols": True,
+        },
+        description="PrepareNormalizer configuration options"
+    )
+    runorm_options: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "modelSize": "small",
+            "device": "cpu"
+        },
+        description="RunormNormalizer configuration options"
+    )
+
+
+class NumberTextProcessorProviderSchema(TextProcessorProviderSchema):
+    """Number Text Processor provider configuration schema"""
+    language: str = Field(default="ru", description="Language for processing")
+    number_options: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            'decimal_places': 2,
+            'handle_percentages': True,
+            'handle_ranges': True,
+            'handle_negatives': True
+        },
+        description="Number processing configuration options"
     )
 
 
@@ -317,6 +422,33 @@ class IntentSystemComponentSchema(BaseModel):
     )
 
 
+class MonitoringComponentSchema(ComponentProviderConfigSchema):
+    """Monitoring component configuration schema"""
+    enabled: bool = Field(default=True, description="Enable monitoring component")
+    default_provider: str = Field(default="console", description="Default monitoring provider")
+    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback monitoring providers")
+    metrics_enabled: bool = Field(default=True, description="Enable metrics collection")
+    dashboard_enabled: bool = Field(default=True, description="Enable dashboard")
+
+
+class NLUAnalysisComponentSchema(ComponentProviderConfigSchema):
+    """NLU Analysis component configuration schema"""
+    enabled: bool = Field(default=True, description="Enable NLU analysis component")
+    default_provider: str = Field(default="console", description="Default NLU analysis provider")
+    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback NLU analysis providers")
+    conflict_detection_enabled: bool = Field(default=True, description="Enable conflict detection")
+    performance_analysis_enabled: bool = Field(default=True, description="Enable performance analysis")
+
+
+class ConfigurationComponentSchema(ComponentProviderConfigSchema):
+    """Configuration component configuration schema"""
+    enabled: bool = Field(default=False, description="Enable configuration management component")
+    default_provider: str = Field(default="console", description="Default configuration provider")
+    fallback_providers: List[str] = Field(default_factory=lambda: ["console"], description="Fallback configuration providers")
+    web_api_enabled: bool = Field(default=True, description="Enable web API endpoints")
+    hot_reload_enabled: bool = Field(default=True, description="Enable hot configuration reload")
+
+
 # ============================================================
 # AUDIO DEVICE SCHEMAS
 # ============================================================
@@ -343,106 +475,62 @@ class AudioDevicesResponse(BaseModel):
 # ============================================================
 
 class SchemaValidator:
-    """Utility class for validating configurations against schemas"""
+    """Schema validation using auto-generated registries ONLY"""
     
-    # Provider schema registry
-    PROVIDER_SCHEMAS = {
-        "tts": {
-            "console": ConsoleProviderSchema,
-            "elevenlabs": ElevenLabsProviderSchema,
-            "silero_v3": SileroV3ProviderSchema,
-            "silero_v4": SileroV4ProviderSchema,
-            "vosk": VoskTTSProviderSchema,
-        },
-        "audio": {
-            "console": ConsoleProviderSchema,
-            "sounddevice": SoundDeviceProviderSchema,
-            "audioplayer": AudioPlayerProviderSchema,
-        },
-        "asr": {
-            "whisper": WhisperProviderSchema,
-            "vosk": VoskASRProviderSchema,
-            "google_cloud": GoogleCloudProviderSchema,
-        },
-        "llm": {
-            "openai": OpenAIProviderSchema,
-            "anthropic": AnthropicProviderSchema,
-            "console": ConsoleProviderSchema,
-        },
-        "voice_trigger": {
-            "openwakeword": OpenWakeWordProviderSchema,
-            "porcupine": PorcupineProviderSchema,
-        },
-        "nlu": {
-            "hybrid_keyword_matcher": HybridKeywordMatcherProviderSchema,
-            "spacy_nlu": SpaCyNLUProviderSchema,
-        }
-    }
-    
-    # Component schema registry
-    COMPONENT_SCHEMAS = {
-        "tts": TTSComponentSchema,
-        "audio": AudioComponentSchema,
-        "asr": ASRComponentSchema,
-        "llm": LLMComponentSchema,
-        "voice_trigger": VoiceTriggerComponentSchema,
-        "nlu": NLUComponentSchema,
-        "text_processor": TextProcessorComponentSchema,
-        "intent_system": IntentSystemComponentSchema,
-    }
+    # NOTE: Manual PROVIDER_SCHEMAS registry removed in Phase 4.4.7
+    # Provider discovery now happens ONLY through auto-registry and entry-points
     
     @classmethod
     def validate_provider_config(cls, component_type: str, provider_name: str, config: Dict[str, Any]) -> bool:
-        """Validate provider configuration against schema"""
-        if component_type not in cls.PROVIDER_SCHEMAS:
-            return False
-        
-        if provider_name not in cls.PROVIDER_SCHEMAS[component_type]:
-            return False
-        
-        schema_class = cls.PROVIDER_SCHEMAS[component_type][provider_name]
-        try:
-            schema_class.model_validate(config)
-            return True
-        except Exception:
-            return False
+        """Validate using auto-discovery ONLY"""
+        from .auto_registry import AutoSchemaRegistry
+        return AutoSchemaRegistry.validate_provider_config(component_type, provider_name, config)
     
     @classmethod
     def validate_component_config(cls, component_type: str, config: Dict[str, Any]) -> bool:
-        """Validate component configuration against schema"""
-        if component_type not in cls.COMPONENT_SCHEMAS:
-            return False
-        
-        schema_class = cls.COMPONENT_SCHEMAS[component_type]
-        try:
-            schema_class.model_validate(config)
-            return True
-        except Exception:
-            return False
+        """Validate using auto-discovery ONLY"""
+        from .auto_registry import AutoSchemaRegistry
+        return AutoSchemaRegistry.validate_component_config(component_type, config)
+    
+    @classmethod
+    def get_component_schemas(cls) -> Dict[str, Type[BaseModel]]:
+        """Get component schemas (auto-generated from registry)"""
+        from .auto_registry import AutoSchemaRegistry
+        return AutoSchemaRegistry.get_component_schemas()
+    
+    @classmethod
+    def get_provider_schemas(cls) -> Dict[str, Dict[str, Type[BaseModel]]]:
+        """Get provider schemas (auto-generated from registry)"""
+        from .auto_registry import AutoSchemaRegistry
+        return AutoSchemaRegistry.get_provider_schemas()
     
     @classmethod
     def get_provider_schema(cls, component_type: str, provider_name: str) -> Optional[type]:
-        """Get provider schema class"""
-        if component_type not in cls.PROVIDER_SCHEMAS:
+        """Get provider schema class (auto-generated)"""
+        provider_schemas = cls.get_provider_schemas()
+        if component_type not in provider_schemas:
             return None
-        return cls.PROVIDER_SCHEMAS[component_type].get(provider_name)
+        return provider_schemas[component_type].get(provider_name)
     
     @classmethod
     def get_component_schema(cls, component_type: str) -> Optional[type]:
-        """Get component schema class"""
-        return cls.COMPONENT_SCHEMAS.get(component_type)
+        """Get component schema class (auto-generated)"""
+        component_schemas = cls.get_component_schemas()
+        return component_schemas.get(component_type)
     
     @classmethod
     def list_supported_providers(cls, component_type: str) -> List[str]:
-        """List supported providers for a component type"""
-        if component_type not in cls.PROVIDER_SCHEMAS:
+        """List supported providers for a component type (auto-generated)"""
+        provider_schemas = cls.get_provider_schemas()
+        if component_type not in provider_schemas:
             return []
-        return list(cls.PROVIDER_SCHEMAS[component_type].keys())
+        return list(provider_schemas[component_type].keys())
     
     @classmethod
     def list_supported_components(cls) -> List[str]:
-        """List supported component types"""
-        return list(cls.COMPONENT_SCHEMAS.keys())
+        """List supported component types (auto-generated)"""
+        component_schemas = cls.get_component_schemas()
+        return list(component_schemas.keys())
 
 
 # ============================================================

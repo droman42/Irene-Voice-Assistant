@@ -180,6 +180,11 @@ volume = 0.8                       # Volume level (0.0-1.0)
 fade_in = false                    # Enable fade-in effect
 fade_out = true                    # Enable fade-out effect
 
+# SimpleAudio Provider (Python simpleaudio library)
+[audio.providers.simpleaudio]
+enabled = false                     # Enable simpleaudio provider
+playback_device = -1               # Playback device ID (-1 = default device)
+
 # Aplay Provider (Linux ALSA)
 [audio.providers.aplay]
 enabled = false                     # Enable aplay provider (Linux only)

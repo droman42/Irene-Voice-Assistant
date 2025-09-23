@@ -23,7 +23,7 @@ from pydantic import ValidationError  # type: ignore
 from .models import (
     CoreConfig, SystemConfig, InputConfig, ComponentConfig, AssetConfig, WorkflowConfig,
     TTSConfig, AudioConfig, ASRConfig, LLMConfig, VoiceTriggerConfig, NLUConfig, 
-    TextProcessorConfig, IntentSystemConfig,
+    TextProcessorConfig, IntentSystemConfig, VADConfig, MonitoringConfig, NLUAnalysisConfig,
     create_default_config, create_config_from_profile, EnvironmentVariableResolver
 )
 from .migration import migrate_config, ConfigurationCompatibilityChecker

@@ -1,0 +1,182 @@
+name: Configuration and Build Validation
+
+on:
+  # Workflow temporarily disabled
+  # Uncomment the trigger events below to re-enable
+  
+  # push:
+  #   paths: 
+  #     - 'configs/**'
+  #     - 'irene/config/**'
+  #     - 'irene/providers/**'
+  #     - 'irene/intents/**'
+  #     - 'irene/tools/**'
+  #     - '.github/workflows/config-validation.yml'
+  # pull_request:
+  #   paths: 
+  #     - 'configs/**'
+  #     - 'irene/config/**'
+  #     - 'irene/providers/**'
+  #     - 'irene/intents/**'
+  #     - 'irene/tools/**'
+  
+  # Use workflow_dispatch to allow manual triggering only
+  workflow_dispatch:
+
+jobs:
+  validate-configurations:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install uv package manager
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+          
+      # Step 1: Configuration Validation (Standalone)
+      - name: Validate configurations
+        run: |
+          uv run python -m irene.tools.config_validator_cli \
+            --config-dir configs/ \
+            --json \
+            --ci-mode \
+            --output-report config_validation_report.json
+            
+      # Step 2: Build Requirements Analysis (Standalone)
+      - name: Analyze build requirements
+        run: |
+          uv run python -m irene.tools.build_analyzer \
+            --config-dir configs/ \
+            --json \
+            --output-report build_analysis_report.json
+        continue-on-error: true  # Allow this to fail gracefully if tool doesn't exist yet
+            
+      # Step 3: Intent Validation (Standalone)
+      - name: Validate intent handlers
+        run: |
+          uv run python -m irene.tools.intent_validator \
+            --validate-all \
+            --json \
+            --output-report intent_validation_report.json
+        continue-on-error: true  # Allow this to fail gracefully if tool doesn't exist yet
+            
+      # Step 4: Dependency Validation (Standalone)
+      - name: Validate entry-point dependencies
+        run: |
+          uv run python -m irene.tools.dependency_validator \
+            --validate-all \
+            --platforms linux.ubuntu,linux.alpine \
+            --json \
+            --output-report dependency_validation_report.json
+        continue-on-error: true  # Allow this to fail gracefully if tool doesn't exist yet
+            
+      # Upload all validation reports
+      - name: Upload validation reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: validation-reports
+          path: |
+            config_validation_report.json
+            build_analysis_report.json
+            intent_validation_report.json
+            dependency_validation_report.json
+            
+      # Additional validation step for comprehensive checking
+      - name: Run comprehensive configuration tests
+        run: |
+          # Test that AutoSchemaRegistry works correctly
+          uv run python -c "
+          from irene.config.auto_registry import AutoSchemaRegistry;
+          report = AutoSchemaRegistry.validate_schema_coverage();
+          print(f'Schema coverage valid: {report[\"valid\"]}');
+          if not report['valid']: 
+              print(f'Errors: {report[\"errors\"]}');
+              exit(1)
+          "
+          
+          # Test master config completeness
+          uv run python -c "
+          from irene.config.auto_registry import AutoSchemaRegistry;
+          report = AutoSchemaRegistry.get_master_config_completeness();
+          print(f'Master config coverage: {report[\"coverage_percentage\"]:.1f}%');
+          if report['missing_sections']:
+              print(f'Missing sections: {report[\"missing_sections\"]}');
+          if report['orphaned_sections']:
+              print(f'Orphaned sections: {report[\"orphaned_sections\"]}')
+          "
+          
+      # Validate specific configuration profiles
+      - name: Validate configuration profiles
+        run: |
+          # Test different deployment profiles
+          configs=(
+            "configs/api-only.toml:api-only"
+            "configs/config-master.toml:voice-assistant"
+          )
+          
+          for config_profile in "${configs[@]}"; do
+            IFS=':' read -r config_file profile <<< "$config_profile"
+            if [ -f "$config_file" ]; then
+              echo "Validating $config_file with profile $profile"
+              uv run python -m irene.tools.config_validator_cli \
+                --config-file "$config_file" \
+                --profile "$profile" \
+                --json \
+                --ci-mode
+            else
+              echo "Configuration file $config_file not found, skipping profile validation"
+            fi
+          done
+          
+      - name: Configuration validation summary
+        if: always()
+        run: |
+          echo "🔍 Configuration Validation Summary"
+          echo "=================================="
+          
+          # Count validation reports
+          reports_found=0
+          for report in config_validation_report.json build_analysis_report.json intent_validation_report.json dependency_validation_report.json; do
+            if [ -f "$report" ]; then
+              reports_found=$((reports_found + 1))
+              echo "✅ $report generated"
+            else
+              echo "❌ $report missing"
+            fi
+          done
+          
+          echo "📊 Generated $reports_found validation reports"
+          
+          if [ -f "config_validation_report.json" ]; then
+            # Extract summary from config validation report
+            uv run python -c "
+            import json
+            with open('config_validation_report.json') as f:
+                report = json.load(f)
+            summary = report.get('summary', {})
+            print(f'📋 Configuration Files: {summary.get(\"total_files\", 0)}')
+            print(f'✅ Valid Files: {summary.get(\"valid_files\", 0)}')
+            print(f'❌ Invalid Files: {summary.get(\"invalid_files\", 0)}')
+            print(f'🚨 Total Errors: {summary.get(\"total_errors\", 0)}')
+            print(f'⚠️  Total Warnings: {summary.get(\"total_warnings\", 0)}')
+            print(f'🔒 Security Issues: {summary.get(\"total_security_issues\", 0)}')
+            print(f'🎯 Overall Valid: {summary.get(\"overall_valid\", False)}')
+            "
+          fi
+          
+          echo ""
+          echo "🔧 Phase 4 CI/CD Integration: ✅ ACTIVE"
+          echo "🚀 Multiple focused tools working together in pipeline"

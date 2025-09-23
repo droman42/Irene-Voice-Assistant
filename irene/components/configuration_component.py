@@ -18,13 +18,8 @@ from pydantic import BaseModel, ValidationError, Field
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..config.manager import ConfigManager
-from ..config.models import (
-    CoreConfig, TTSConfig, AudioConfig, ASRConfig, LLMConfig, 
-    VoiceTriggerConfig, NLUConfig, TextProcessorConfig, IntentSystemConfig,
-    SystemConfig, InputConfig, ComponentConfig, AssetConfig, WorkflowConfig,
-    VADConfig, MicrophoneInputConfig, WebInputConfig, CLIInputConfig,
-    MonitoringConfig, NLUAnalysisConfig
-)
+from ..config.models import CoreConfig
+from ..config.auto_registry import AutoSchemaRegistry
 from ..config.schemas import AudioDevicesResponse, AudioDeviceInfo
 from ..api.schemas import (
     BaseAPIResponse, ErrorResponse, ValidationError as APIValidationError,
@@ -159,6 +154,25 @@ class ConfigurationComponent(Component, WebAPIPlugin):
             except Exception as e:
                 logger.error(f"Failed to extract config schema: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to extract config schema: {str(e)}")
+        
+        @router.get("/config/schema/sections", response_model=Dict[str, Any])
+        async def get_section_order_and_titles():
+            """
+            Get section order and titles for frontend auto-generation
+            
+            Returns:
+            - section_order: Array of section names in logical display order
+            - section_titles: Mapping of section names to display titles with emojis
+            - total_sections: Total number of available sections
+            
+            This endpoint enables the frontend to auto-generate section lists
+            instead of using hardcoded arrays.
+            """
+            try:
+                return AutoSchemaRegistry.get_section_order_and_titles()
+            except Exception as e:
+                logger.error(f"Failed to get section order and titles: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to get section order and titles: {str(e)}")
         
         @router.get("/config/schema/{section_name}", response_model=Dict[str, Any])
         async def get_section_schema(section_name: str):
@@ -559,57 +573,12 @@ class ConfigurationComponent(Component, WebAPIPlugin):
         return ["Configuration Management"]
     
     def _get_section_model(self, section_name: str) -> Optional[Type[BaseModel]]:
-        """Get Pydantic model for configuration section"""
-        section_models = {
-            # Core sections
-            "system": SystemConfig,
-            "inputs": InputConfig,
-            "components": ComponentConfig,
-            "assets": AssetConfig,
-            "workflows": WorkflowConfig,
-            
-            # Component configurations
-            "tts": TTSConfig,
-            "audio": AudioConfig,
-            "asr": ASRConfig,
-            "llm": LLMConfig,
-            "voice_trigger": VoiceTriggerConfig,
-            "nlu": NLUConfig,
-            "text_processor": TextProcessorConfig,
-            "intent_system": IntentSystemConfig,
-            "monitoring": MonitoringConfig,
-            "nlu_analysis": NLUAnalysisConfig
-        }
-        return section_models.get(section_name)
+        """Get Pydantic model for configuration section (auto-generated)"""
+        return AutoSchemaRegistry.get_section_model(section_name)
     
     def _extract_config_schema(self) -> Dict[str, Any]:
-        """Extract complete configuration schema for frontend widget generation"""
-        schema = {}
-        
-        # Get all section models
-        section_models = {
-            "system": SystemConfig,
-            "inputs": InputConfig, 
-            "components": ComponentConfig,
-            "assets": AssetConfig,
-            "workflows": WorkflowConfig,
-            "tts": TTSConfig,
-            "audio": AudioConfig,
-            "asr": ASRConfig,
-            "llm": LLMConfig,
-            "voice_trigger": VoiceTriggerConfig,
-            "nlu": NLUConfig,
-            "text_processor": TextProcessorConfig,
-            "intent_system": IntentSystemConfig,
-            "vad": VADConfig,
-            "monitoring": MonitoringConfig,
-            "nlu_analysis": NLUAnalysisConfig
-        }
-        
-        for section_name, model_class in section_models.items():
-            schema[section_name] = self._extract_model_schema(model_class)
-        
-        return schema
+        """Extract complete configuration schema (auto-generated)"""
+        return AutoSchemaRegistry.extract_all_schemas()
     
     def _extract_model_schema(self, model_class: Type[BaseModel]) -> Dict[str, Any]:
         """Extract field metadata from Pydantic model for widget generation"""
