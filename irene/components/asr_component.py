@@ -628,9 +628,41 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
             temp_path.write_bytes(audio_data)
             
             try:
-                # Transcribe from file (some providers may prefer file input)
-                text = await self.transcribe_audio(
-                    audio_data, provider=provider_name, language=language
+                # Detect audio file metadata for proper AudioData creation
+                from ..utils.audio_helpers import get_audio_info
+                from ..intents.models import AudioData
+                import time
+                
+                # Get comprehensive audio file information
+                audio_info = get_audio_info(temp_path)
+                logger.debug(f"Detected audio file metadata: {audio_info}")
+                
+                # Use detected metadata or sensible defaults
+                detected_sample_rate = audio_info.get('sample_rate', 16000)
+                detected_channels = audio_info.get('channels', 1)
+                detected_format = audio_info.get('format', 'wav')
+                
+                # Create AudioData object with detected metadata
+                audio_data_obj = AudioData(
+                    data=audio_data,
+                    timestamp=time.time(),
+                    sample_rate=detected_sample_rate,
+                    channels=detected_channels,
+                    format=f"pcm16_{detected_format}",  # Standardize format naming
+                    metadata={
+                        'source': 'file_upload',
+                        'original_filename': filename,
+                        'file_size_bytes': len(audio_data),
+                        'detected_metadata': audio_info
+                    }
+                )
+                
+                logger.info(f"🎧 Processing uploaded audio file: {filename} "
+                           f"({detected_sample_rate}Hz, {detected_channels}ch, {len(audio_data)} bytes)")
+                
+                # Use process_audio for consistent resampling and configuration handling
+                text = await self.process_audio(
+                    audio_data_obj, provider=provider_name, language=language
                 )
                 
                 # Optional LLM enhancement
@@ -693,7 +725,10 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                 "type": "audio_chunk",
                 "data": "<base64-encoded-audio>",
                 "language": "ru|en",  # optional, defaults to component default
-                "provider": "vosk|whisper|google"  # optional, defaults to component default
+                "provider": "vosk|whisper|google",  # optional, defaults to component default
+                "sample_rate": 16000,  # optional, defaults to 16000Hz
+                "channels": 1,  # optional, defaults to 1 (mono)
+                "format": "pcm16"  # optional, defaults to pcm16
             }
             
             Response Format (Server → Client):
@@ -737,13 +772,35 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                     
                     if message["type"] == "audio_chunk":
                         # Decode and process audio
-                        audio_data = base64.b64decode(message["data"])
+                        audio_bytes = base64.b64decode(message["data"])
                         language = message.get("language", self.default_language)
                         provider_name = message.get("provider", self.default_provider)
                         
-                        # Transcribe chunk
+                        # Extract audio metadata with defaults
+                        sample_rate = message.get("sample_rate", 16000)
+                        channels = message.get("channels", 1)
+                        audio_format = message.get("format", "pcm16")
+                        
+                        # Create AudioData object for consistent processing
+                        from ..intents.models import AudioData
+                        audio_data = AudioData(
+                            data=audio_bytes,
+                            timestamp=time.time(),
+                            sample_rate=sample_rate,
+                            channels=channels,
+                            format=audio_format,
+                            metadata={
+                                'source': 'websocket_base64',
+                                'chunk_size_bytes': len(audio_bytes)
+                            }
+                        )
+                        
+                        logger.debug(f"WebSocket audio chunk: {len(audio_bytes)} bytes, "
+                                   f"{sample_rate}Hz, {channels}ch, {audio_format}")
+                        
+                        # Use process_audio for consistent resampling and configuration handling
                         try:
-                            text = await self.transcribe_audio(
+                            text = await self.process_audio(
                                 audio_data, 
                                 provider=provider_name,
                                 language=language
@@ -891,6 +948,27 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                 language = session_config.language or self.default_language
                 provider_name = session_config.provider or self.default_provider
                 
+                # Validate audio metadata for reasonable values
+                sample_rate = session_config.sample_rate
+                channels = session_config.channels
+                audio_format = session_config.format
+                
+                # Validate sample rate range
+                if not (8000 <= sample_rate <= 192000):
+                    logger.warning(f"Binary WebSocket: unusual sample rate {sample_rate}Hz, "
+                                 f"expected 8000-192000Hz range")
+                
+                # Validate channel count
+                if not (1 <= channels <= 8):
+                    logger.warning(f"Binary WebSocket: unusual channel count {channels}, "
+                                 f"expected 1-8 channels")
+                
+                # Validate audio format
+                supported_formats = ["pcm_s16le", "pcm16", "wav", "raw"]
+                if audio_format not in supported_formats:
+                    logger.warning(f"Binary WebSocket: unknown audio format '{audio_format}', "
+                                 f"supported: {supported_formats}")
+                
                 # Validate provider availability
                 if provider_name not in self.providers:
                     error_response = {
@@ -938,9 +1016,16 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                     from ..intents.models import AudioData
                     audio_obj = AudioData(
                         data=audio_data,
+                        timestamp=time.time(),
                         sample_rate=session_config.sample_rate,
                         channels=session_config.channels,
-                        format=session_config.format
+                        format=session_config.format,
+                        metadata={
+                            'source': 'websocket_binary',
+                            'protocol_format': protocol_format,
+                            'chunk_size_bytes': len(audio_data),
+                            'client_provided_metadata': True
+                        }
                     )
                     
                     # Transcribe using the optimized process_audio method

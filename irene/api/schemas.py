@@ -109,6 +109,25 @@ class AudioChunkMessage(BaseAPIMessage):
         description="Specific ASR provider to use (optional, uses default if not specified)",
         example="whisper"
     )
+    sample_rate: Optional[int] = Field(
+        default=16000,
+        description="Audio sample rate in Hz (optional, defaults to 16000Hz)",
+        example=16000,
+        ge=8000,
+        le=192000
+    )
+    channels: Optional[int] = Field(
+        default=1,
+        description="Number of audio channels (optional, defaults to 1=mono)",
+        example=1,
+        ge=1,
+        le=8
+    )
+    format: Optional[str] = Field(
+        default="pcm16",
+        description="Audio format specification (optional, defaults to pcm16)",
+        example="pcm16"
+    )
     
     class Config:
         json_schema_extra = {
@@ -118,12 +137,18 @@ class AudioChunkMessage(BaseAPIMessage):
                     "data": "UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqF...",
                     "language": "ru",
                     "provider": "whisper",
+                    "sample_rate": 16000,
+                    "channels": 1,
+                    "format": "pcm16",
                     "timestamp": 1704067200.123
                 },
                 {
                     "type": "audio_chunk",
                     "data": "UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqF...",
                     "language": "en",
+                    "sample_rate": 44100,
+                    "channels": 2,
+                    "format": "pcm16",
                     "timestamp": 1704067200.456
                 }
             ]
