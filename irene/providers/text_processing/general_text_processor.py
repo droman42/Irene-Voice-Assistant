@@ -38,14 +38,26 @@ class GeneralTextProcessor(TextProcessingProvider):
         self.language = config.get('language', 'ru')
         self.enabled = config.get('enabled', True)
         
-        # PrepareNormalizer options from config
-        self.prepare_options = config.get('prepare_options', {
-            "changeNumbers": "process",
-            "changeLatin": "process", 
-            "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
-            "keepSymbols": r",.?!;:() ",
-            "deleteUnknownSymbols": True,
-        })
+        # PrepareNormalizer options from config (handle both structured and legacy format)
+        prepare_options_raw = config.get('prepare_options', {})
+        if isinstance(prepare_options_raw, dict):
+            # Convert structured config format to legacy format expected by PrepareNormalizer
+            self.prepare_options = {
+                "changeNumbers": prepare_options_raw.get('change_numbers', 'process'),
+                "changeLatin": prepare_options_raw.get('change_latin', 'process'),
+                "changeSymbols": prepare_options_raw.get('change_symbols', r"#$%&*+-/<=>@~[\]_`{|}№"),
+                "keepSymbols": prepare_options_raw.get('keep_symbols', r",.?!;:() "),
+                "deleteUnknownSymbols": prepare_options_raw.get('delete_unknown_symbols', True),
+            }
+        else:
+            # Fallback to legacy format
+            self.prepare_options = {
+                "changeNumbers": "process",
+                "changeLatin": "process", 
+                "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
+                "keepSymbols": r",.?!;:() ",
+                "deleteUnknownSymbols": True,
+            }
         
     def get_provider_name(self) -> str:
         return "general_text_processor"

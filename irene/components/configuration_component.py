@@ -678,7 +678,8 @@ class ConfigurationComponent(Component, WebAPIPlugin):
                 
                 # For object types (nested models), extract nested schema
                 if field_type == "object" and hasattr(field_info, 'annotation'):
-                    nested_schema = self._extract_nested_object_schema(field_info.annotation)
+                    model_name = getattr(model_class, "__name__", "")
+                    nested_schema = self._extract_nested_object_schema(field_info.annotation, field_name, model_name)
                     if nested_schema:
                         field_schema["properties"] = nested_schema
                 
@@ -755,7 +756,7 @@ class ConfigurationComponent(Component, WebAPIPlugin):
             logger.warning(f"Failed to parse annotation {annotation}: {e}")
             return "string"
     
-    def _extract_nested_object_schema(self, annotation) -> Optional[Dict[str, Any]]:
+    def _extract_nested_object_schema(self, annotation, field_name: str = "", parent_model_name: str = "") -> Optional[Dict[str, Any]]:
         """Extract schema for nested Pydantic models"""
         try:
             # Handle Optional[Model] types
@@ -765,6 +766,10 @@ class ConfigurationComponent(Component, WebAPIPlugin):
                 if len(args) == 2 and type(None) in args:
                     # Optional type - get the non-None type
                     annotation = next(arg for arg in args if arg != type(None))
+            
+            # Special handling for provider fields using AutoSchemaRegistry
+            if field_name == "providers" and parent_model_name:
+                return self._extract_provider_schemas(parent_model_name)
             
             # Check if it's a Pydantic BaseModel
             if (hasattr(annotation, '__bases__') and 
@@ -778,6 +783,45 @@ class ConfigurationComponent(Component, WebAPIPlugin):
         except Exception as e:
             logger.warning(f"Failed to extract nested schema for {annotation}: {e}")
             return None
+    
+    def _extract_provider_schemas(self, component_type: str) -> Dict[str, Any]:
+        """Extract provider schemas for a specific component type using AutoSchemaRegistry"""
+        try:
+            # Map config model names to component types
+            component_type_mapping = {
+                "TTSConfig": "tts",
+                "AudioConfig": "audio", 
+                "ASRConfig": "asr",
+                "LLMConfig": "llm",
+                "VoiceTriggerConfig": "voice_trigger",
+                "NLUConfig": "nlu",
+                "TextProcessorConfig": "text_processor"
+            }
+            
+            component_name = component_type_mapping.get(component_type, component_type.lower().replace("config", ""))
+            
+            # Get provider schemas from AutoSchemaRegistry
+            provider_schemas = AutoSchemaRegistry.get_provider_schemas()
+            component_providers = provider_schemas.get(component_name, {})
+            
+            provider_properties = {}
+            for provider_name, schema_class in component_providers.items():
+                try:
+                    # Generate schema for this provider (no instantiation needed)
+                    provider_schema = self._extract_model_schema(schema_class)
+                    provider_properties[provider_name] = {
+                        "type": "object",
+                        "description": f"{provider_name} provider configuration",
+                        "properties": provider_schema.get("fields", {})
+                    }
+                except Exception as e:
+                    logger.warning(f"Failed to extract schema for provider {provider_name}: {e}")
+                    
+            return provider_properties
+            
+        except Exception as e:
+            logger.warning(f"Failed to extract provider schemas for {component_type}: {e}")
+            return {}
     
     async def _create_config_backup(self, config_path: Path) -> Optional[Path]:
         """Create timestamped backup of current configuration in backups subfolder"""

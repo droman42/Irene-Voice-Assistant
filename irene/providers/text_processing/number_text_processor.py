@@ -37,13 +37,30 @@ class NumberTextProcessor(TextProcessingProvider):
         self.language = config.get('language', 'ru')
         self.enabled = config.get('enabled', True)
         
-        # Number processing options
-        self.number_options = config.get('number_options', {
-            'decimal_places': 2,
-            'handle_percentages': True,
-            'handle_ranges': True,
-            'handle_negatives': True
-        })
+        # Number processing options (handle both structured and legacy format)
+        number_options_raw = config.get('number_options', {})
+        if isinstance(number_options_raw, dict) and any(key in number_options_raw for key in ['decimal_places', 'handle_percentages']):
+            # Use structured or legacy format directly
+            self.number_options = {
+                'decimal_places': number_options_raw.get('decimal_places', 2),
+                'handle_percentages': number_options_raw.get('handle_percentages', True),
+                'handle_ranges': number_options_raw.get('handle_ranges', True),
+                'handle_negatives': number_options_raw.get('handle_negatives', True),
+                'handle_fractions': number_options_raw.get('handle_fractions', True),
+                'handle_ordinals': number_options_raw.get('handle_ordinals', True),
+                'max_number_length': number_options_raw.get('max_number_length', 15),
+            }
+        else:
+            # Fallback to default values
+            self.number_options = {
+                'decimal_places': 2,
+                'handle_percentages': True,
+                'handle_ranges': True,
+                'handle_negatives': True,
+                'handle_fractions': True,
+                'handle_ordinals': True,
+                'max_number_length': 15,
+            }
         
     def get_provider_name(self) -> str:
         return "number_text_processor"
@@ -230,9 +247,35 @@ class NumberTextProcessor(TextProcessingProvider):
             return False
         
         # Validate number options
-        if 'decimal_places' in self.number_options:
-            if not isinstance(self.number_options['decimal_places'], int):
-                self.logger.error("decimal_places must be an integer")
+        required_options = ['decimal_places', 'handle_percentages', 'handle_ranges', 'handle_negatives']
+        for option in required_options:
+            if option not in self.number_options:
+                self.logger.error(f"Required number option '{option}' is missing")
+                return False
+        
+        # Validate specific option types
+        if not isinstance(self.number_options['decimal_places'], int):
+            self.logger.error("decimal_places must be an integer")
+            return False
+            
+        if self.number_options['decimal_places'] < 0 or self.number_options['decimal_places'] > 10:
+            self.logger.error("decimal_places must be between 0 and 10")
+            return False
+            
+        # Validate boolean options
+        bool_options = ['handle_percentages', 'handle_ranges', 'handle_negatives', 'handle_fractions', 'handle_ordinals']
+        for option in bool_options:
+            if option in self.number_options and not isinstance(self.number_options[option], bool):
+                self.logger.error(f"{option} must be a boolean")
+                return False
+        
+        # Validate max_number_length
+        if 'max_number_length' in self.number_options:
+            if not isinstance(self.number_options['max_number_length'], int):
+                self.logger.error("max_number_length must be an integer")
+                return False
+            if self.number_options['max_number_length'] < 1 or self.number_options['max_number_length'] > 50:
+                self.logger.error("max_number_length must be between 1 and 50")
                 return False
         
         return True

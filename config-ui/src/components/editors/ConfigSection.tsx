@@ -146,21 +146,27 @@ export const ConfigSection: React.FC<ConfigSectionProps> = ({
           )}
           
           {/* Provider subsections */}
-          {Object.entries(data.providers).map(([providerName, providerData]) => (
-            <ConfigSection
-              key={providerName}
-              name={`${name}_${providerName}`}
-              title={`${providerName.charAt(0).toUpperCase() + providerName.slice(1)} Provider`}
-              data={providerData}
-              onChange={(newProviderData) => {
-                const newProviders = { ...data.providers, [providerName]: newProviderData };
-                onChange({ ...data, providers: newProviders });
-              }}
-              level={2}
-              disabled={disabled}
-              componentName={componentName || name}
-            />
-          ))}
+          {Object.entries(data.providers).map(([providerName, providerData]) => {
+            // Get provider schema from the schema.providers.properties if available
+            const providerSchema = schema?.providers?.properties?.[providerName]?.properties;
+            
+            return (
+              <ConfigSection
+                key={providerName}
+                name={`${name}_${providerName}`}
+                title={`${providerName.charAt(0).toUpperCase() + providerName.slice(1)} Provider`}
+                data={providerData}
+                schema={providerSchema}
+                onChange={(newProviderData) => {
+                  const newProviders = { ...data.providers, [providerName]: newProviderData };
+                  onChange({ ...data, providers: newProviders });
+                }}
+                level={2}
+                disabled={disabled}
+                componentName={componentName || name}
+              />
+            );
+          })}
         </div>
       );
     }

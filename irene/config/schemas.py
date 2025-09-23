@@ -16,7 +16,7 @@ This module provides:
 - Auto-registry integration
 """
 
-from typing import Dict, Any, List, Optional, Type
+from typing import Dict, Any, List, Optional, Type, Literal
 from pydantic import BaseModel, Field
 
 
@@ -289,6 +289,45 @@ class SpaCyNLUProviderSchema(NLUProviderSchema):
 # TEXT PROCESSOR PROVIDER SCHEMAS
 # ============================================================
 
+class PrepareOptions(BaseModel):
+    """Structured configuration for PrepareNormalizer"""
+    change_numbers: Literal["process", "skip"] = Field(default="process", description="How to handle numbers in text")
+    change_latin: Literal["process", "skip"] = Field(default="process", description="How to handle Latin characters")
+    change_symbols: str = Field(default=r"#$%&*+-/<=>@~[\]_`{|}№", description="Symbols to replace with words")
+    keep_symbols: str = Field(default=r",.?!;:() ", description="Symbols to keep unchanged")
+    delete_unknown_symbols: bool = Field(default=True, description="Delete unrecognized symbols")
+
+
+class NumberOptions(BaseModel):
+    """Structured configuration for NumberNormalizer"""
+    decimal_places: int = Field(default=2, ge=0, le=10, description="Number of decimal places to preserve in conversion")
+    handle_percentages: bool = Field(default=True, description="Convert percentage numbers to text (e.g., '15%' → 'пятнадцать процентов')")
+    handle_ranges: bool = Field(default=True, description="Process number ranges (e.g., '5-10' → 'от пяти до десяти')")
+    handle_negatives: bool = Field(default=True, description="Convert negative numbers (e.g., '-5' → 'минус пять')")
+    handle_fractions: bool = Field(default=True, description="Process fractional numbers (e.g., '1/2' → 'одна вторая')")
+    handle_ordinals: bool = Field(default=True, description="Handle ordinal numbers (e.g., '1st' → 'первый')")
+    max_number_length: int = Field(default=15, ge=1, le=50, description="Maximum digits in a number to process (longer numbers remain as digits)")
+
+
+class RunormOptions(BaseModel):
+    """Structured configuration for RunormNormalizer (advanced Russian text normalization)"""
+    model_size: Literal["small", "medium", "large"] = Field(default="small", description="RUNorm model size (affects quality vs speed)")
+    device: Literal["cpu", "cuda"] = Field(default="cpu", description="Processing device for model inference")
+    batch_size: int = Field(default=1, ge=1, le=64, description="Batch size for processing (affects memory usage)")
+    model_cache: bool = Field(default=True, description="Cache loaded model in memory")
+    streaming_mode: bool = Field(default=False, description="Enable streaming processing for long texts")
+
+
+class TTSPerformanceOptions(BaseModel):
+    """Performance tuning options for TTS text processor"""
+    max_text_length: int = Field(default=1000, ge=1, le=10000, description="Maximum text length to process")
+    timeout_seconds: int = Field(default=30, ge=1, le=300, description="Processing timeout in seconds")
+    fallback_on_error: bool = Field(default=True, description="Fallback to simpler processing on errors")
+    skip_number_normalization: bool = Field(default=False, description="Skip number normalization step")
+    skip_prepare_normalization: bool = Field(default=False, description="Skip text preparation step")
+    skip_advanced_normalization: bool = Field(default=False, description="Skip RunormNormalizer step")
+
+
 class ASRTextProcessorProviderSchema(TextProcessorProviderSchema):
     """ASR Text Processor provider configuration schema"""
     language: str = Field(default="ru", description="Language for processing")
@@ -297,52 +336,21 @@ class ASRTextProcessorProviderSchema(TextProcessorProviderSchema):
 class GeneralTextProcessorProviderSchema(TextProcessorProviderSchema):
     """General Text Processor provider configuration schema"""
     language: str = Field(default="ru", description="Language for processing")
-    prepare_options: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "changeNumbers": "process",
-            "changeLatin": "process",
-            "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
-            "keepSymbols": r",.?!;:() ",
-            "deleteUnknownSymbols": True,
-        },
-        description="PrepareNormalizer configuration options"
-    )
+    prepare_options: PrepareOptions = Field(default_factory=PrepareOptions, description="Structured PrepareNormalizer configuration options")
 
 
 class TTSTextProcessorProviderSchema(TextProcessorProviderSchema):
     """TTS Text Processor provider configuration schema"""
     language: str = Field(default="ru", description="Language for processing")
-    prepare_options: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "changeNumbers": "process",
-            "changeLatin": "process",
-            "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
-            "keepSymbols": r",.?!;:() ",
-            "deleteUnknownSymbols": True,
-        },
-        description="PrepareNormalizer configuration options"
-    )
-    runorm_options: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "modelSize": "small",
-            "device": "cpu"
-        },
-        description="RunormNormalizer configuration options"
-    )
+    prepare_options: PrepareOptions = Field(default_factory=PrepareOptions, description="Structured PrepareNormalizer configuration options")
+    runorm_options: RunormOptions = Field(default_factory=RunormOptions, description="Structured RunormNormalizer configuration options")
+    performance: TTSPerformanceOptions = Field(default_factory=TTSPerformanceOptions, description="Performance tuning and pipeline control options")
 
 
 class NumberTextProcessorProviderSchema(TextProcessorProviderSchema):
     """Number Text Processor provider configuration schema"""
     language: str = Field(default="ru", description="Language for processing")
-    number_options: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            'decimal_places': 2,
-            'handle_percentages': True,
-            'handle_ranges': True,
-            'handle_negatives': True
-        },
-        description="Number processing configuration options"
-    )
+    number_options: NumberOptions = Field(default_factory=NumberOptions, description="Structured NumberNormalizer configuration options")
 
 
 # ============================================================

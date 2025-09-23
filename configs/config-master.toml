@@ -401,13 +401,56 @@ language = "ru"                    # Language for processing
 enabled = true                      # Enable general text processor
 language = "ru"                    # Language for processing
 
+# PrepareNormalizer configuration options
+[text_processor.providers.general_text_processor.prepare_options]
+change_numbers = "process"          # How to handle numbers: "process" or "skip"
+change_latin = "process"            # How to handle Latin characters: "process" or "skip"
+change_symbols = "#$%&*+-/<=>@~[\\]_`{|}№"  # Symbols to replace with words
+keep_symbols = ",.?!;:() "          # Symbols to keep unchanged
+delete_unknown_symbols = true      # Delete unrecognized symbols
+
 [text_processor.providers.number_text_processor]
 enabled = true                      # Enable number text processor
 language = "ru"                    # Language for processing
 
+# NumberNormalizer configuration options
+[text_processor.providers.number_text_processor.number_options]
+decimal_places = 2                  # Number of decimal places to preserve (0-10)
+handle_percentages = true           # Convert percentage numbers to text (e.g., '15%' → 'пятнадцать процентов')
+handle_ranges = true                # Process number ranges (e.g., '5-10' → 'от пяти до десяти')
+handle_negatives = true             # Convert negative numbers (e.g., '-5' → 'минус пять')
+handle_fractions = true             # Process fractional numbers (e.g., '1/2' → 'одна вторая')
+handle_ordinals = true              # Handle ordinal numbers (e.g., '1st' → 'первый')
+max_number_length = 15              # Maximum digits in a number to process (1-50, longer numbers remain as digits)
+
 [text_processor.providers.tts_text_processor]
 enabled = false                     # Enable TTS text processor (resource-intensive)
 language = "ru"                    # Language for processing
+
+# PrepareNormalizer configuration options  
+[text_processor.providers.tts_text_processor.prepare_options]
+change_numbers = "process"          # How to handle numbers: "process" or "skip"
+change_latin = "process"            # How to handle Latin characters: "process" or "skip"
+change_symbols = "#$%&*+-/<=>@~[\\]_`{|}№"  # Symbols to replace with words
+keep_symbols = ",.?!;:() "          # Symbols to keep unchanged
+delete_unknown_symbols = true      # Delete unrecognized symbols
+
+# RunormNormalizer configuration options (advanced Russian normalization)
+[text_processor.providers.tts_text_processor.runorm_options]
+model_size = "small"                # RUNorm model size: "small", "medium", "large" (affects quality vs speed)
+device = "cpu"                      # Processing device: "cpu" or "cuda"
+batch_size = 1                      # Batch size for processing (1-64, affects memory usage)
+model_cache = true                  # Cache loaded model in memory
+streaming_mode = false              # Enable streaming processing for long texts
+
+# Performance tuning and pipeline control options
+[text_processor.providers.tts_text_processor.performance]
+max_text_length = 1000              # Maximum text length to process (1-10000)
+timeout_seconds = 30                # Processing timeout in seconds (1-300)
+fallback_on_error = true            # Fallback to simpler processing on errors
+skip_number_normalization = false   # Skip number normalization step
+skip_prepare_normalization = false  # Skip text preparation step  
+skip_advanced_normalization = false # Skip RunormNormalizer step
 
 # ============================================================
 # INTENT SYSTEM COMPONENT CONFIGURATION

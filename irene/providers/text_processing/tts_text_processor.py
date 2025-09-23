@@ -39,20 +39,56 @@ class TTSTextProcessor(TextProcessingProvider):
         self.language = config.get('language', 'ru')
         self.enabled = config.get('enabled', True)
         
-        # PrepareNormalizer options from config
-        self.prepare_options = config.get('prepare_options', {
-            "changeNumbers": "process",
-            "changeLatin": "process", 
-            "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
-            "keepSymbols": r",.?!;:() ",
-            "deleteUnknownSymbols": True,
-        })
+        # PrepareNormalizer options from config (handle structured format)
+        prepare_options_raw = config.get('prepare_options', {})
+        if isinstance(prepare_options_raw, dict) and any(key in prepare_options_raw for key in ['change_numbers', 'change_latin']):
+            # Convert structured config format to legacy format expected by PrepareNormalizer
+            self.prepare_options = {
+                "changeNumbers": prepare_options_raw.get('change_numbers', 'process'),
+                "changeLatin": prepare_options_raw.get('change_latin', 'process'),
+                "changeSymbols": prepare_options_raw.get('change_symbols', r"#$%&*+-/<=>@~[\]_`{|}№"),
+                "keepSymbols": prepare_options_raw.get('keep_symbols', r",.?!;:() "),
+                "deleteUnknownSymbols": prepare_options_raw.get('delete_unknown_symbols', True),
+            }
+        else:
+            # Fallback to legacy format or default
+            self.prepare_options = prepare_options_raw if prepare_options_raw else {
+                "changeNumbers": "process",
+                "changeLatin": "process", 
+                "changeSymbols": r"#$%&*+-/<=>@~[\]_`{|}№",
+                "keepSymbols": r",.?!;:() ",
+                "deleteUnknownSymbols": True,
+            }
         
-        # RunormNormalizer options from config
-        self.runorm_options = config.get('runorm_options', {
-            "modelSize": "small",
-            "device": "cpu"
-        })
+        # RunormNormalizer options from config (handle structured format)
+        runorm_options_raw = config.get('runorm_options', {})
+        if isinstance(runorm_options_raw, dict) and any(key in runorm_options_raw for key in ['model_size', 'device']):
+            # Convert structured config format to legacy format expected by RunormNormalizer
+            self.runorm_options = {
+                "modelSize": runorm_options_raw.get('model_size', 'small'),
+                "device": runorm_options_raw.get('device', 'cpu'),
+                "batchSize": runorm_options_raw.get('batch_size', 1),
+                "modelCache": runorm_options_raw.get('model_cache', True),
+                "streamingMode": runorm_options_raw.get('streaming_mode', False),
+            }
+        else:
+            # Fallback to legacy format or default
+            self.runorm_options = runorm_options_raw if runorm_options_raw else {
+                "modelSize": "small",
+                "device": "cpu",
+                "batchSize": 1,
+                "modelCache": True,
+                "streamingMode": False,
+            }
+        
+        # Performance options from config (new structured configuration)
+        performance_options = config.get('performance', {})
+        self.max_text_length = performance_options.get('max_text_length', 1000)
+        self.timeout_seconds = performance_options.get('timeout_seconds', 30)
+        self.fallback_on_error = performance_options.get('fallback_on_error', True)
+        self.skip_number_normalization = performance_options.get('skip_number_normalization', False)
+        self.skip_prepare_normalization = performance_options.get('skip_prepare_normalization', False)
+        self.skip_advanced_normalization = performance_options.get('skip_advanced_normalization', False)
         
     def get_provider_name(self) -> str:
         return "tts_text_processor"
@@ -98,6 +134,7 @@ class TTSTextProcessor(TextProcessingProvider):
     async def process_tts_input(self, text: str) -> str:
         """
         Process text with complete TTS normalization pipeline.
+        Uses performance options and pipeline controls for optimized processing.
         
         Args:
             text: Text to process for TTS
@@ -105,6 +142,11 @@ class TTSTextProcessor(TextProcessingProvider):
         Returns:
             Text fully processed for optimal TTS speech synthesis
         """
+        # Check text length limit
+        if len(text) > self.max_text_length:
+            logger.warning(f"Text length ({len(text)}) exceeds limit ({self.max_text_length}), truncating")
+            text = text[:self.max_text_length]
+        
         if not self.number_normalizer or not self.prepare_normalizer or not self.runorm_normalizer:
             await self._initialize_normalizers()
         
@@ -113,22 +155,52 @@ class TTSTextProcessor(TextProcessingProvider):
             return await self._partial_processing(text)
         
         try:
-            # Apply complete normalization pipeline
-            # 1. Number normalization first
-            processed_text = await self.number_normalizer.normalize(text)
+            # Apply normalization pipeline with performance controls and timeout
+            import asyncio
             
-            # 2. Text preparation (symbols, Latin transcription)
-            processed_text = await self.prepare_normalizer.normalize(processed_text)
+            async def _process_with_steps():
+                processed_text = text
+                
+                # 1. Number normalization (if not skipped)
+                if not self.skip_number_normalization and self.number_normalizer:
+                    processed_text = await self.number_normalizer.normalize(processed_text)
+                
+                # 2. Text preparation (if not skipped)
+                if not self.skip_prepare_normalization and self.prepare_normalizer:
+                    processed_text = await self.prepare_normalizer.normalize(processed_text)
+                
+                # 3. Advanced Russian normalization (if not skipped)
+                if not self.skip_advanced_normalization and self.runorm_normalizer:
+                    processed_text = await self.runorm_normalizer.normalize(processed_text)
+                
+                return processed_text
             
-            # 3. Advanced Russian normalization (RunormNormalizer)
-            processed_text = await self.runorm_normalizer.normalize(processed_text)
+            # Apply timeout if configured
+            if self.timeout_seconds > 0:
+                processed_text = await asyncio.wait_for(_process_with_steps(), timeout=self.timeout_seconds)
+            else:
+                processed_text = await _process_with_steps()
             
             return processed_text
             
+        except asyncio.TimeoutError:
+            logger.warning(f"TTS text processing timed out after {self.timeout_seconds} seconds")
+            # Fallback handling based on performance options
+            if self.fallback_on_error:
+                return await self._partial_processing(text)
+            else:
+                # If fallback is disabled, return original text
+                logger.warning("Fallback disabled, returning original text")
+                return text
         except Exception as e:
             logger.error(f"TTS text processing failed: {e}")
-            # Fallback to partial processing
-            return await self._partial_processing(text)
+            # Fallback handling based on performance options
+            if self.fallback_on_error:
+                return await self._partial_processing(text)
+            else:
+                # If fallback is disabled, return original text
+                logger.warning("Fallback disabled, returning original text")
+                return text
     
     async def _partial_processing(self, text: str) -> str:
         """Fallback processing when some normalizers are unavailable"""
@@ -248,14 +320,33 @@ class TTSTextProcessor(TextProcessingProvider):
             "language": self.language,
             "prepare_options": self.prepare_options,
             "runorm_options": self.runorm_options,
+            "performance_options": {
+                "max_text_length": self.max_text_length,
+                "timeout_seconds": self.timeout_seconds,
+                "fallback_on_error": self.fallback_on_error,
+                "skip_number_normalization": self.skip_number_normalization,
+                "skip_prepare_normalization": self.skip_prepare_normalization,
+                "skip_advanced_normalization": self.skip_advanced_normalization,
+            },
             "features": {
-                "number_normalization": True,
-                "symbol_processing": True,
-                "latin_transcription": True,
-                "advanced_normalization": True,
-                "complete_processing": True,
+                "number_normalization": not self.skip_number_normalization,
+                "symbol_processing": not self.skip_prepare_normalization,
+                "latin_transcription": not self.skip_prepare_normalization,
+                "advanced_normalization": not self.skip_advanced_normalization,
+                "complete_processing": not any([
+                    self.skip_number_normalization, 
+                    self.skip_prepare_normalization, 
+                    self.skip_advanced_normalization
+                ]),
                 "tts_optimized": True,
-                "resource_intensive": True
+                "resource_intensive": not any([
+                    self.skip_number_normalization, 
+                    self.skip_prepare_normalization, 
+                    self.skip_advanced_normalization
+                ]),
+                "performance_tuning": True,
+                "timeout_control": True,
+                "pipeline_control": True
             }
         }
     

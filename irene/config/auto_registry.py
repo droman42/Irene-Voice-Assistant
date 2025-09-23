@@ -453,14 +453,28 @@ class AutoSchemaRegistry:
     def _convert_json_schema_to_parameter_format(cls, json_schema: Dict[str, Any]) -> Dict[str, Any]:
         """Convert Pydantic JSON Schema to parameter schema format"""
         parameters = {}
+        definitions = json_schema.get("$defs", {})
         
-        properties = json_schema.get("properties", {})
-        for field_name, field_schema in properties.items():
-            # Skip non-runtime fields
-            if field_name in ["enabled"]:  # Configuration-only fields
-                continue
-                
-            # Convert Pydantic field schema to parameter format
+        def resolve_ref(ref_path: str) -> Dict[str, Any]:
+            """Resolve $ref path to actual definition"""
+            if ref_path.startswith("#/$defs/"):
+                ref_name = ref_path.replace("#/$defs/", "")
+                return definitions.get(ref_name, {})
+            return {}
+        
+        def convert_field_schema(field_schema: Dict[str, Any]) -> Dict[str, Any]:
+            """Convert individual field schema, handling $ref references"""
+            # Handle $ref references
+            if "$ref" in field_schema:
+                resolved_schema = resolve_ref(field_schema["$ref"])
+                if resolved_schema:
+                    return convert_nested_object(resolved_schema, field_schema.get("description", ""))
+            
+            # Handle direct object types
+            if field_schema.get("type") == "object" and "properties" in field_schema:
+                return convert_nested_object(field_schema, field_schema.get("description", ""))
+            
+            # Handle simple types
             param_schema = {
                 "type": field_schema.get("type", "string"),
                 "description": field_schema.get("description", ""),
@@ -476,7 +490,28 @@ class AutoSchemaRegistry:
             if "default" in field_schema:
                 param_schema["default"] = field_schema["default"]
                 
-            parameters[field_name] = param_schema
+            return param_schema
+        
+        def convert_nested_object(obj_schema: Dict[str, Any], description: str = "") -> Dict[str, Any]:
+            """Convert nested object to parameter format with properties"""
+            nested_params = {}
+            
+            for prop_name, prop_schema in obj_schema.get("properties", {}).items():
+                nested_params[prop_name] = convert_field_schema(prop_schema)
+            
+            return {
+                "type": "object",
+                "description": description,
+                "properties": nested_params
+            }
+        
+        properties = json_schema.get("properties", {})
+        for field_name, field_schema in properties.items():
+            # Skip non-runtime fields
+            if field_name in ["enabled"]:  # Configuration-only fields
+                continue
+                
+            parameters[field_name] = convert_field_schema(field_schema)
         
         return parameters
 

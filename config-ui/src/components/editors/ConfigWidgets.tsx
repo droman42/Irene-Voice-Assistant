@@ -640,10 +640,7 @@ export const ConfigWidget: React.FC<ConfigWidgetProps & {
     return <ReadOnlyWidget {...props} />;
   }
   
-  // Read-only fields marked in schema
-  if (schema.readonly === true) {
-    return <ReadOnlyWidget {...props} />;
-  }
+  // Read-only fields marked in schema (removed as readonly property doesn't exist in ConfigFieldSchema)
   
   if (schema.constraints && (schema.constraints.ge !== undefined || schema.constraints.le !== undefined) && schema.type === 'number') {
     return <RangeSliderWidget {...props} />;
@@ -658,6 +655,25 @@ export const ConfigWidget: React.FC<ConfigWidgetProps & {
       return <NumberWidget {...props} />;
     case 'array':
       return <ArrayWidget {...props} />;
+    case 'object':
+      // Object fields should be handled by ConfigSection's nested object logic
+      // If we get here, render as a read-only display indicating this should be a collapsible section
+      return (
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">
+            {name}
+            {schema.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          <div className="px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+            ⚠️ Object field should be rendered as collapsible section (ConfigSection issue)
+          </div>
+          {schema.description && (
+            <div className="flex items-center">
+              <span className="text-xs text-gray-500">{schema.description}</span>
+            </div>
+          )}
+        </div>
+      );
     case 'string':
     default:
       return <StringWidget {...props} />;
