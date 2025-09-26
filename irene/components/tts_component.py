@@ -459,52 +459,162 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
             return None
             
         try:
-            from fastapi import APIRouter, HTTPException  # type: ignore
-            from ..api.schemas import TTSRequest, TTSResponse, TTSProvidersResponse
+            from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore
+            from ..api.schemas import (
+                TTSRequest, TTSResponse, TTSProvidersResponse,
+                TTSStreamRequest, TTSAudioChunk, TTSSynthesisComplete, TTSErrorMessage,
+                BinaryTTSSessionMessage, TTSTextRequest, TTSSynthesisStarted, 
+                TTSBinarySynthesisComplete, BinaryTTSProtocol,
+                ChunkMetadata, SynthesisMetadata, SynthesisStats
+            )
+            from ..web_api.asyncapi import websocket_api, extract_websocket_specs_from_router
+            import json
+            import time
+            import uuid
+            import tempfile
+            import asyncio
             
             router = APIRouter()
                 
             @router.post("/speak", response_model=TTSResponse)
             async def unified_speak(request: TTSRequest):
-                """Unified TTS endpoint for all providers"""
+                """
+                Enhanced TTS endpoint with audio format control
+                
+                Supports configurable audio output format including sample rate, 
+                channels, and format specification. Uses AudioData infrastructure
+                for high-quality resampling and format conversion.
+                """
                 try:
-                    provider = request.provider or self.default_provider
+                    provider_name = request.provider or self.default_provider
                     
-                    if provider not in self.providers:
-                        raise HTTPException(404, f"Provider '{provider}' not available")
+                    if provider_name not in self.providers:
+                        raise HTTPException(404, f"Provider '{provider_name}' not available")
+                    
+                    provider = self.providers[provider_name]
+                    if not await provider.is_available():
+                        raise HTTPException(503, f"Provider '{provider_name}' temporarily unavailable")
                     
                     # Extract provider-specific parameters
-                    kwargs = {}
+                    kwargs = {
+                        "language": request.language
+                    }
                     if request.speaker:
                         kwargs["speaker"] = request.speaker
-                    if request.language:
-                        kwargs["language"] = request.language
                     
-                    # Call speak method which returns filename
-                    filename = await self.speak(request.text, provider=provider, **kwargs)
+                    # Get audio configuration with defaults
+                    from ..api.schemas import AudioConfigRequest
+                    audio_config = request.audio_config or AudioConfigRequest()
                     
-                    # Read the generated file and encode as base64
-                    file_path = Path.cwd() / filename
+                    # Create temporary file for synthesis
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                        temp_path = Path(temp_file.name)
+                    
                     try:
-                        with open(file_path, 'rb') as audio_file:
-                            audio_data = audio_file.read()
-                            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+                        # Synthesize audio to file
+                        await provider.synthesize_to_file(
+                            request.text,
+                            temp_path,
+                            **kwargs
+                        )
                         
-                        # Delete the temporary file
-                        file_path.unlink()
+                        # Read and convert audio to requested format
+                        from ..intents.models import AudioData
+                        from ..utils.audio_helpers import AudioProcessor
+                        
+                        # Check if this is a text-only provider (like console)
+                        capabilities = provider.get_capabilities()
+                        provider_formats = capabilities.get("formats", ["wav"])
+                        
+                        if "wav" not in provider_formats and "audio" not in provider_formats:
+                            # Handle text-only providers (console, debug, etc.)
+                            logger.debug(f"Provider {provider_name} is text-only, reading as text")
+                            
+                            # Read as text and convert to fake audio data
+                            with open(temp_path, 'r', encoding='utf-8') as f:
+                                text_content = f.read()
+                            
+                            # Convert text to bytes (fake audio for consistency)
+                            text_bytes = text_content.encode('utf-8')
+                            audio_base64 = base64.b64encode(text_bytes).decode('utf-8')
+                            
+                            # Create metadata for text output
+                            audio_metadata = {
+                                "sample_rate": audio_config.sample_rate,
+                                "channels": audio_config.channels,
+                                "format": "text",  # Indicate this is text, not audio
+                                "duration_ms": len(text_content) * 10,  # Estimate 10ms per character
+                                "file_size": len(text_bytes),
+                                "content_type": "text"
+                            }
+                            
+                        else:
+                            # Handle actual audio providers
+                            logger.debug(f"Provider {provider_name} generates audio, processing with AudioData")
+                            
+                            # Read generated audio file
+                            with open(temp_path, 'rb') as f:
+                                audio_bytes = f.read()
+                            
+                            # Get provider capabilities to determine source format
+                            provider_sample_rate = capabilities.get("sample_rate", 22050)
+                            provider_channels = capabilities.get("channels", 1)
+                            
+                            # Create AudioData object
+                            audio_data = AudioData(
+                                data=audio_bytes,
+                                timestamp=time.time(),
+                                sample_rate=provider_sample_rate,
+                                channels=provider_channels,
+                                format="wav",
+                                metadata={
+                                    'source': 'tts_http_provider',
+                                    'provider': provider_name,
+                                    'text': request.text,
+                                    'language': request.language
+                                }
+                            )
+                            
+                            # Convert to requested format if needed
+                            target_rate = audio_config.sample_rate
+                            target_channels = audio_config.channels
+                            
+                            if (audio_data.sample_rate != target_rate or 
+                                audio_data.channels != target_channels):
+                                logger.debug(f"Converting audio from {audio_data.sample_rate}Hz/{audio_data.channels}ch to {target_rate}Hz/{target_channels}ch")
+                                audio_data = await AudioProcessor.resample_audio_data(
+                                    audio_data, target_rate
+                                )
+                            
+                            # Extract PCM data and encode as base64
+                            pcm_data = audio_data.data
+                            audio_base64 = base64.b64encode(pcm_data).decode('utf-8')
+                            
+                            # Calculate audio metadata
+                            bytes_per_ms = (target_rate * target_channels * 2) // 1000  # 16-bit PCM
+                            duration_ms = len(pcm_data) / bytes_per_ms
+                            
+                            audio_metadata = {
+                                "sample_rate": target_rate,
+                                "channels": target_channels,
+                                "format": audio_config.format,
+                                "duration_ms": duration_ms,
+                                "file_size": len(pcm_data),
+                                "content_type": "audio"
+                            }
                         
                         return TTSResponse(
                             success=True,
-                            provider=provider,
+                            provider=provider_name,
                             text=request.text,
-                            audio_content=audio_base64
+                            audio_content=audio_base64,
+                            audio_metadata=audio_metadata
                         )
-                    except Exception as file_error:
-                        logger.error(f"Failed to read/process audio file {filename}: {file_error}")
-                        # Try to clean up file if it exists
-                        if file_path.exists():
-                            file_path.unlink()
-                        raise HTTPException(500, f"Failed to process audio file: {file_error}")
+                        
+                    finally:
+                        # Clean up temporary file
+                        if temp_path.exists():
+                            temp_path.unlink()
                     
                 except Exception as e:
                     logger.error(f"TTS API error: {e}")
@@ -546,6 +656,558 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
                 else:
                     raise HTTPException(404, f"Provider '{provider}' not available")
             
+            # WebSocket endpoints for TTS streaming
+            
+            @websocket_api(
+                description="Real-time text-to-speech streaming with base64-encoded audio",
+                receives=TTSStreamRequest,
+                sends=TTSAudioChunk,
+                tags=["Text-to-Speech", "Real-time", "Base64"]
+            )
+            @router.websocket("/stream")
+            async def stream_synthesis(websocket: WebSocket):
+                """
+                Real-time text-to-speech streaming with base64-encoded audio chunks
+                
+                This endpoint provides streaming speech synthesis for web applications
+                and clients that need to receive audio data as base64-encoded JSON messages.
+                
+                Protocol Flow:
+                1. Client connects to WebSocket endpoint
+                2. Client sends TTSStreamRequest with text and configuration
+                3. Server processes text through configured TTS provider
+                4. Server responds with TTSAudioChunk messages containing base64 audio
+                5. Server sends TTSSynthesisComplete when synthesis is complete
+                
+                Message Format (Client → Server):
+                {
+                    "type": "tts_request",
+                    "text": "Hello, how are you doing today?",
+                    "language": "en",
+                    "provider": "silero_v4",
+                    "speaker": "natasha",
+                    "audio_config": {
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "format": "pcm16"
+                    }
+                }
+                
+                Response Format (Server → Client):
+                Audio Chunk: {
+                    "type": "audio_chunk",
+                    "data": "<base64-encoded-audio>",
+                    "sequence": 1,
+                    "chunk_info": {...},
+                    "synthesis_metadata": {...},
+                    "is_final_chunk": false
+                }
+                Complete: {
+                    "type": "synthesis_complete",
+                    "total_chunks": 12,
+                    "total_duration_ms": 1250.0,
+                    "synthesis_stats": {...}
+                }
+                Error: {
+                    "type": "error",
+                    "error": "error description",
+                    "error_code": "ERROR_CODE",
+                    "recoverable": true
+                }
+                
+                Features:
+                - Real-time speech synthesis streaming
+                - Configurable audio format per request
+                - Base64-encoded audio chunks for web compatibility
+                - Comprehensive error handling with recovery guidance
+                - Provider-specific voice and language selection
+                
+                Best For:
+                - Web applications with JavaScript clients
+                - Simple integration without binary data handling
+                - Development and testing environments
+                - Scenarios where base64 encoding overhead is acceptable
+                """
+                await websocket.accept()
+                logger.debug("TTS stream WebSocket client connected")
+                
+                try:
+                    while True:
+                        # Receive synthesis request
+                        data = await websocket.receive_text()
+                        message = json.loads(data)
+                        
+                        if message["type"] == "tts_request":
+                            try:
+                                # Parse and validate request
+                                request = TTSStreamRequest(**message)
+                                
+                                # Get provider and validate
+                                provider_name = request.provider or self.default_provider
+                                if provider_name not in self.providers:
+                                    error_response = TTSErrorMessage(
+                                        error=f"Provider '{provider_name}' not available",
+                                        error_code="PROVIDER_UNAVAILABLE",
+                                        provider=provider_name,
+                                        recoverable=True
+                                    ).dict()
+                                    await websocket.send_text(json.dumps(error_response))
+                                    continue
+                                
+                                provider = self.providers[provider_name]
+                                if not await provider.is_available():
+                                    error_response = TTSErrorMessage(
+                                        error=f"Provider '{provider_name}' temporarily unavailable",
+                                        error_code="PROVIDER_UNAVAILABLE",
+                                        provider=provider_name,
+                                        recoverable=True
+                                    ).dict()
+                                    await websocket.send_text(json.dumps(error_response))
+                                    continue
+                                
+                                # Start synthesis
+                                synthesis_start_time = time.time()
+                                
+                                # Generate audio
+                                kwargs = {}
+                                if request.speaker:
+                                    kwargs["speaker"] = request.speaker
+                                kwargs["language"] = request.language
+                                
+                                # Create temporary file for synthesis
+                                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                                    temp_path = Path(temp_file.name)
+                                
+                                try:
+                                    # Synthesize audio to file
+                                    await provider.synthesize_to_file(
+                                        request.text, 
+                                        temp_path, 
+                                        **kwargs
+                                    )
+                                    
+                                    # Read and convert audio to requested format
+                                    from ..intents.models import AudioData
+                                    from ..utils.audio_helpers import AudioProcessor
+                                    
+                                    # Read generated audio file
+                                    with open(temp_path, 'rb') as f:
+                                        audio_bytes = f.read()
+                                    
+                                    # Get provider capabilities to determine source format
+                                    capabilities = provider.get_capabilities()
+                                    provider_sample_rate = capabilities.get("sample_rate", 22050)
+                                    provider_channels = capabilities.get("channels", 1)
+                                    
+                                    # Create AudioData object
+                                    audio_data = AudioData(
+                                        data=audio_bytes,
+                                        timestamp=time.time(),
+                                        sample_rate=provider_sample_rate,
+                                        channels=provider_channels,
+                                        format="wav",
+                                        metadata={
+                                            'source': 'tts_provider',
+                                            'provider': provider_name,
+                                            'text': request.text,
+                                            'language': request.language
+                                        }
+                                    )
+                                    
+                                    # Convert to requested format if needed
+                                    target_rate = request.audio_config.sample_rate
+                                    target_channels = request.audio_config.channels
+                                    
+                                    if (audio_data.sample_rate != target_rate or 
+                                        audio_data.channels != target_channels):
+                                        logger.debug(f"Converting audio from {audio_data.sample_rate}Hz/{audio_data.channels}ch to {target_rate}Hz/{target_channels}ch")
+                                        audio_data = await AudioProcessor.resample_audio_data(
+                                            audio_data, target_rate
+                                        )
+                                    
+                                    # Split audio into chunks and stream
+                                    chunk_duration_ms = 100  # 100ms chunks
+                                    bytes_per_ms = (target_rate * target_channels * 2) // 1000  # 16-bit PCM
+                                    chunk_size_bytes = int(chunk_duration_ms * bytes_per_ms)
+                                    
+                                    total_chunks = 0
+                                    sequence = 1
+                                    
+                                    # Extract PCM data from AudioData
+                                    pcm_data = audio_data.data
+                                    
+                                    # Stream audio chunks
+                                    offset = 0
+                                    while offset < len(pcm_data):
+                                        chunk_data = pcm_data[offset:offset + chunk_size_bytes]
+                                        if not chunk_data:
+                                            break
+                                        
+                                        # Encode chunk as base64
+                                        chunk_base64 = base64.b64encode(chunk_data).decode('utf-8')
+                                        
+                                        # Calculate chunk duration
+                                        actual_chunk_duration = (len(chunk_data) / bytes_per_ms)
+                                        
+                                        # Create chunk metadata
+                                        chunk_info = ChunkMetadata(
+                                            sample_rate=target_rate,
+                                            channels=target_channels,
+                                            format=request.audio_config.format,
+                                            duration_ms=actual_chunk_duration,
+                                            chunk_size_bytes=len(chunk_data)
+                                        )
+                                        
+                                        synthesis_metadata = SynthesisMetadata(
+                                            provider=provider_name,
+                                            speaker=request.speaker,
+                                            language=request.language,
+                                            original_text=request.text
+                                        )
+                                        
+                                        is_final = (offset + chunk_size_bytes >= len(pcm_data))
+                                        
+                                        # Send audio chunk
+                                        chunk_message = TTSAudioChunk(
+                                            data=chunk_base64,
+                                            sequence=sequence,
+                                            chunk_info=chunk_info,
+                                            synthesis_metadata=synthesis_metadata,
+                                            is_final_chunk=is_final
+                                        )
+                                        
+                                        await websocket.send_text(json.dumps(chunk_message.dict()))
+                                        
+                                        offset += chunk_size_bytes
+                                        sequence += 1
+                                        total_chunks += 1
+                                    
+                                    # Send synthesis complete message
+                                    synthesis_end_time = time.time()
+                                    synthesis_stats = SynthesisStats(
+                                        generation_time_ms=(synthesis_end_time - synthesis_start_time) * 1000,
+                                        total_audio_bytes=len(pcm_data),
+                                        provider=provider_name
+                                    )
+                                    
+                                    # Calculate total duration
+                                    total_duration_ms = (len(pcm_data) / bytes_per_ms)
+                                    
+                                    complete_message = TTSSynthesisComplete(
+                                        total_chunks=total_chunks,
+                                        total_duration_ms=total_duration_ms,
+                                        synthesis_stats=synthesis_stats
+                                    )
+                                    
+                                    await websocket.send_text(json.dumps(complete_message.dict()))
+                                    logger.debug(f"TTS stream synthesis completed: {total_chunks} chunks, {total_duration_ms:.1f}ms")
+                                    
+                                finally:
+                                    # Clean up temporary file
+                                    if temp_path.exists():
+                                        temp_path.unlink()
+                                        
+                            except Exception as e:
+                                logger.error(f"TTS stream synthesis error: {e}")
+                                error_response = TTSErrorMessage(
+                                    error=str(e),
+                                    error_code="SYNTHESIS_ERROR",
+                                    provider=request.provider if 'request' in locals() else None,
+                                    recoverable=True
+                                ).dict()
+                                await websocket.send_text(json.dumps(error_response))
+                                
+                except WebSocketDisconnect:
+                    logger.info("TTS stream WebSocket client disconnected")
+                except Exception as e:
+                    logger.error(f"TTS stream WebSocket error: {e}")
+            
+            @websocket_api(
+                description="Binary TTS streaming for external devices (ESP32-optimized)",
+                receives=BinaryTTSProtocol,
+                sends=TTSAudioChunk,  # For JSON responses, binary frames documented separately
+                tags=["Text-to-Speech", "Binary Streaming", "ESP32"]
+            )
+            @router.websocket("/binary")
+            async def binary_synthesis(websocket: WebSocket):
+                """
+                Optimized binary TTS streaming for ESP32/external devices
+                
+                This endpoint eliminates base64 encoding overhead by sending raw PCM audio
+                data as binary WebSocket frames. Designed for high-performance applications
+                and embedded devices where bandwidth and CPU efficiency are critical.
+                
+                Protocol Flow:
+                1. Client sends BinaryTTSSessionMessage (JSON) for configuration
+                2. Server responds with session_ready confirmation (JSON)
+                3. Client sends TTSTextRequest (JSON) with text to synthesize
+                4. Server responds with synthesis_started (JSON)
+                5. Server streams raw PCM binary frames
+                6. Server sends synthesis_complete (JSON) when done
+                
+                Session Configuration:
+                {
+                    "type": "binary_tts_session",
+                    "session_config": {
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "format": "pcm_s16le",
+                        "language": "en",
+                        "provider": "silero_v4",
+                        "speaker": "natasha",
+                        "chunk_size_ms": 100
+                    }
+                }
+                
+                Text Request:
+                {
+                    "type": "text_request",
+                    "text": "Hello, how are you doing today?",
+                    "request_id": "req_001"
+                }
+                
+                Response Format (Server → Client):
+                Session Ready: {
+                    "type": "session_ready",
+                    "message": "Binary TTS session initialized",
+                    "config": {...},
+                    "session_id": "tts_session_abc123"
+                }
+                Synthesis Started: {
+                    "type": "synthesis_started",
+                    "request_id": "req_001",
+                    "estimated_chunks": 12,
+                    "estimated_duration_ms": 1250.0
+                }
+                Binary Audio: [Raw PCM binary frames]
+                Synthesis Complete: {
+                    "type": "synthesis_complete",
+                    "request_id": "req_001",
+                    "total_chunks": 12,
+                    "total_bytes": 38400,
+                    "synthesis_time_ms": 234.5
+                }
+                
+                Performance Benefits:
+                - ~33% bandwidth reduction (no base64 encoding overhead)
+                - Significantly lower CPU usage on both client and server
+                - Optimized for continuous synthesis scenarios
+                - Better real-time performance for ESP32 and embedded devices
+                - Session persistence for multiple text requests
+                
+                Best For:
+                - ESP32 and embedded device integration
+                - High-throughput audio streaming applications
+                - Real-time systems with strict latency requirements
+                - Production deployments with bandwidth constraints
+                - IoT devices with limited computational resources
+                """
+                await websocket.accept()
+                logger.debug("TTS binary WebSocket client connected")
+                
+                session_config = None
+                session_id = f"tts_session_{uuid.uuid4().hex[:8]}"
+                
+                try:
+                    # Session initialization
+                    config_data = await websocket.receive_text()
+                    config_message = json.loads(config_data)
+                    
+                    # Support both wrapper format and direct format for compatibility
+                    if config_message.get("type") == "binary_tts_protocol":
+                        session_msg = BinaryTTSSessionMessage(**config_message["session_config"])
+                    elif config_message.get("type") == "binary_tts_session":
+                        session_msg = BinaryTTSSessionMessage(**config_message)
+                    else:
+                        raise ValueError("Invalid session configuration message")
+                    
+                    session_config = session_msg.session_config
+                    
+                    # Validate provider
+                    provider_name = session_config.provider or self.default_provider
+                    if provider_name not in self.providers:
+                        error_response = {
+                            "type": "error",
+                            "error": f"Provider '{provider_name}' not available",
+                            "error_code": "PROVIDER_UNAVAILABLE",
+                            "recoverable": False,
+                            "timestamp": time.time()
+                        }
+                        await websocket.send_text(json.dumps(error_response))
+                        return
+                    
+                    provider = self.providers[provider_name]
+                    if not await provider.is_available():
+                        error_response = {
+                            "type": "error", 
+                            "error": f"Provider '{provider_name}' temporarily unavailable",
+                            "error_code": "PROVIDER_UNAVAILABLE",
+                            "recoverable": True,
+                            "timestamp": time.time()
+                        }
+                        await websocket.send_text(json.dumps(error_response))
+                        return
+                    
+                    # Send session ready confirmation
+                    session_ready = {
+                        "type": "session_ready",
+                        "message": "Binary TTS session initialized",
+                        "config": session_config.dict(),
+                        "session_id": session_id,
+                        "timestamp": time.time()
+                    }
+                    await websocket.send_text(json.dumps(session_ready))
+                    logger.debug(f"TTS binary session {session_id} initialized for provider {provider_name}")
+                    
+                    # Process text requests
+                    while True:
+                        # Receive text request
+                        request_data = await websocket.receive_text()
+                        request_message = json.loads(request_data)
+                        
+                        if request_message["type"] == "text_request":
+                            try:
+                                text_request = TTSTextRequest(**request_message)
+                                
+                                # Send synthesis started notification
+                                synthesis_start_time = time.time()
+                                
+                                # Estimate audio characteristics for progress feedback
+                                estimated_duration_ms = len(text_request.text) * 75  # ~75ms per character estimate
+                                chunk_duration_ms = session_config.chunk_size_ms
+                                estimated_chunks = max(1, int(estimated_duration_ms / chunk_duration_ms))
+                                
+                                synthesis_started = TTSSynthesisStarted(
+                                    request_id=text_request.request_id,
+                                    estimated_chunks=estimated_chunks,
+                                    estimated_duration_ms=estimated_duration_ms
+                                )
+                                await websocket.send_text(json.dumps(synthesis_started.dict()))
+                                
+                                # Generate audio
+                                kwargs = {
+                                    "language": session_config.language
+                                }
+                                if session_config.speaker:
+                                    kwargs["speaker"] = session_config.speaker
+                                
+                                # Create temporary file for synthesis
+                                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                                    temp_path = Path(temp_file.name)
+                                
+                                try:
+                                    # Synthesize audio to file
+                                    await provider.synthesize_to_file(
+                                        text_request.text,
+                                        temp_path,
+                                        **kwargs
+                                    )
+                                    
+                                    # Read and convert audio
+                                    from ..intents.models import AudioData
+                                    from ..utils.audio_helpers import AudioProcessor
+                                    
+                                    # Read generated audio file 
+                                    with open(temp_path, 'rb') as f:
+                                        audio_bytes = f.read()
+                                    
+                                    # Get provider capabilities
+                                    capabilities = provider.get_capabilities()
+                                    provider_sample_rate = capabilities.get("sample_rate", 22050)
+                                    provider_channels = capabilities.get("channels", 1)
+                                    
+                                    # Create AudioData object
+                                    audio_data = AudioData(
+                                        data=audio_bytes,
+                                        timestamp=time.time(),
+                                        sample_rate=provider_sample_rate,
+                                        channels=provider_channels,
+                                        format="wav",
+                                        metadata={
+                                            'source': 'tts_binary_provider',
+                                            'provider': provider_name,
+                                            'request_id': text_request.request_id
+                                        }
+                                    )
+                                    
+                                    # Convert to session format if needed
+                                    target_rate = session_config.sample_rate
+                                    target_channels = session_config.channels
+                                    
+                                    if (audio_data.sample_rate != target_rate or 
+                                        audio_data.channels != target_channels):
+                                        audio_data = await AudioProcessor.resample_audio_data(
+                                            audio_data, target_rate
+                                        )
+                                    
+                                    # Stream binary audio chunks
+                                    bytes_per_ms = (target_rate * target_channels * 2) // 1000  # 16-bit PCM
+                                    chunk_size_bytes = int(session_config.chunk_size_ms * bytes_per_ms)
+                                    
+                                    # Extract PCM data
+                                    pcm_data = audio_data.data
+                                    total_chunks = 0
+                                    total_bytes_sent = 0
+                                    
+                                    # Stream binary chunks
+                                    offset = 0
+                                    while offset < len(pcm_data):
+                                        chunk_data = pcm_data[offset:offset + chunk_size_bytes]
+                                        if not chunk_data:
+                                            break
+                                        
+                                        # Send raw binary PCM data
+                                        await websocket.send_bytes(chunk_data)
+                                        
+                                        offset += chunk_size_bytes
+                                        total_chunks += 1
+                                        total_bytes_sent += len(chunk_data)
+                                    
+                                    # Send synthesis complete notification
+                                    synthesis_end_time = time.time()
+                                    synthesis_time_ms = (synthesis_end_time - synthesis_start_time) * 1000
+                                    
+                                    complete_message = TTSBinarySynthesisComplete(
+                                        request_id=text_request.request_id,
+                                        total_chunks=total_chunks,
+                                        total_bytes=total_bytes_sent,
+                                        synthesis_time_ms=synthesis_time_ms
+                                    )
+                                    
+                                    await websocket.send_text(json.dumps(complete_message.dict()))
+                                    logger.debug(f"TTS binary synthesis completed: {total_chunks} chunks, {total_bytes_sent} bytes")
+                                    
+                                finally:
+                                    # Clean up temporary file
+                                    if temp_path.exists():
+                                        temp_path.unlink()
+                                        
+                            except Exception as e:
+                                logger.error(f"TTS binary synthesis error: {e}")
+                                error_response = {
+                                    "type": "error",
+                                    "error": str(e),
+                                    "error_code": "SYNTHESIS_ERROR",
+                                    "recoverable": True,
+                                    "timestamp": time.time()
+                                }
+                                await websocket.send_text(json.dumps(error_response))
+                        else:
+                            # Unknown message type
+                            error_response = {
+                                "type": "error",
+                                "error": f"Unknown message type: {request_message.get('type')}",
+                                "error_code": "INVALID_MESSAGE_TYPE",
+                                "recoverable": True,
+                                "timestamp": time.time()
+                            }
+                            await websocket.send_text(json.dumps(error_response))
+                            
+                except WebSocketDisconnect:
+                    logger.info(f"TTS binary WebSocket session {session_id} disconnected")
+                except Exception as e:
+                    logger.error(f"TTS binary WebSocket session {session_id} error: {e}")
+            
             return router
             
         except ImportError:
@@ -559,6 +1221,22 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
     def get_api_tags(self) -> list[str]:
         """Get OpenAPI tags for TTS endpoints"""
         return ["Text-To-Speech"]
+    
+    def get_websocket_spec(self) -> Optional[dict]:
+        """Get AsyncAPI specification for TTS WebSocket endpoints"""
+        try:
+            from ..web_api.asyncapi import extract_websocket_specs_from_router
+            router = self.get_router()
+            if router:
+                return extract_websocket_specs_from_router(
+                    router=router,
+                    component_name="tts",
+                    api_prefix=self.get_api_prefix()
+                )
+            return None
+        except Exception as e:
+            logger.error(f"Error generating AsyncAPI spec for TTS component: {e}")
+            return None
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

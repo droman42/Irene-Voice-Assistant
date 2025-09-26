@@ -476,6 +476,29 @@ class ASRProvidersResponse(BaseAPIResponse):
 # TTS (TEXT-TO-SPEECH) SCHEMAS
 # ============================================================
 
+class AudioConfigRequest(BaseModel):
+    """Audio output configuration for TTS synthesis"""
+    sample_rate: int = Field(
+        default=16000,
+        description="Output sample rate in Hz",
+        ge=8000,
+        le=192000,
+        example=16000
+    )
+    channels: int = Field(
+        default=1,
+        description="Number of audio channels (1=mono, 2=stereo)",
+        ge=1,
+        le=2,
+        example=1
+    )
+    format: str = Field(
+        default="pcm16",
+        description="Audio format specification",
+        example="pcm16"
+    )
+
+
 class TTSRequest(BaseAPIRequest):
     """HTTP request for text-to-speech synthesis"""
     text: str = Field(description="Text to synthesize")
@@ -487,9 +510,13 @@ class TTSRequest(BaseAPIRequest):
         default=None,
         description="Speaker voice to use"
     )
-    language: Optional[str] = Field(
+    language: str = Field(
+        description="Language code for synthesis (ISO 639-1 format)",
+        example="en"
+    )
+    audio_config: Optional[AudioConfigRequest] = Field(
         default=None,
-        description="Language code for synthesis"
+        description="Audio output configuration (optional, uses defaults if not specified)"
     )
 
 
@@ -500,6 +527,10 @@ class TTSResponse(BaseAPIResponse):
     audio_content: Optional[str] = Field(
         default=None,
         description="Base64 encoded audio data"
+    )
+    audio_metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Audio format metadata (sample_rate, channels, format, duration_ms, file_size)"
     )
     error: Optional[str] = Field(
         default=None,
@@ -513,6 +544,604 @@ class TTSProvidersResponse(BaseAPIResponse):
         description="Available providers and their capabilities"
     )
     default: str = Field(description="Default provider name")
+
+
+# ============================================================
+# TTS WEBSOCKET SCHEMAS
+# ============================================================
+
+class ChunkMetadata(BaseModel):
+    """Metadata for audio chunk"""
+    sample_rate: int = Field(description="Sample rate of the chunk")
+    channels: int = Field(description="Number of channels")
+    format: str = Field(description="Audio format")
+    duration_ms: float = Field(description="Chunk duration in milliseconds")
+    chunk_size_bytes: int = Field(description="Size of chunk in bytes")
+
+
+class SynthesisMetadata(BaseModel):
+    """Metadata about TTS synthesis"""
+    provider: str = Field(description="TTS provider used")
+    speaker: Optional[str] = Field(description="Speaker voice used")
+    language: str = Field(description="Language used for synthesis")
+    original_text: str = Field(description="Original text that was synthesized")
+
+
+class SynthesisStats(BaseModel):
+    """Performance statistics for TTS synthesis"""
+    generation_time_ms: float = Field(description="Time taken to generate audio")
+    total_audio_bytes: int = Field(description="Total bytes of audio generated")
+    provider: str = Field(description="Provider used for synthesis")
+
+
+class TTSStreamRequest(BaseAPIMessage):
+    """
+    WebSocket message for text-to-speech synthesis request
+    
+    Sent by clients to TTS WebSocket endpoints for streaming speech synthesis.
+    """
+    type: Literal["tts_request"] = Field(
+        default="tts_request",
+        description="Message type identifier"
+    )
+    text: str = Field(
+        description="Text to synthesize into speech",
+        example="Hello, how are you doing today?"
+    )
+    language: str = Field(
+        description="Language code for synthesis (ISO 639-1 format)",
+        example="en"
+    )
+    provider: Optional[str] = Field(
+        default=None,
+        description="Specific TTS provider to use (optional, uses default if not specified)",
+        example="silero_v4"
+    )
+    speaker: Optional[str] = Field(
+        default=None,
+        description="Speaker voice to use (optional, provider-specific)",
+        example="natasha"
+    )
+    audio_config: AudioConfigRequest = Field(
+        default_factory=AudioConfigRequest,
+        description="Audio output configuration"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "tts_request",
+                    "text": "Hello, how are you doing today?",
+                    "language": "en",
+                    "provider": "silero_v4",
+                    "speaker": "natasha",
+                    "audio_config": {
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "format": "pcm16"
+                    },
+                    "timestamp": 1704067200.123
+                },
+                {
+                    "type": "tts_request",
+                    "text": "Привет, как дела?",
+                    "language": "ru",
+                    "provider": "silero_v4",
+                    "audio_config": {
+                        "sample_rate": 22050,
+                        "channels": 1,
+                        "format": "pcm16"
+                    },
+                    "timestamp": 1704067200.456
+                }
+            ]
+        }
+
+
+class TTSAudioChunk(BaseAPIMessage):
+    """
+    WebSocket message containing synthesized audio chunk
+    
+    Sent by TTS WebSocket endpoints to clients with speech synthesis results.
+    """
+    type: Literal["audio_chunk"] = Field(
+        default="audio_chunk",
+        description="Message type identifier"
+    )
+    data: str = Field(
+        description="Base64-encoded PCM audio data",
+        example="UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqF..."
+    )
+    sequence: int = Field(
+        description="Chunk sequence number starting from 1",
+        example=1,
+        ge=1
+    )
+    chunk_info: ChunkMetadata = Field(
+        description="Audio chunk metadata"
+    )
+    synthesis_metadata: SynthesisMetadata = Field(
+        description="TTS synthesis information"
+    )
+    is_final_chunk: bool = Field(
+        description="Whether this is the last chunk for current synthesis",
+        example=False
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "audio_chunk",
+                    "data": "UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqF...",
+                    "sequence": 1,
+                    "chunk_info": {
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "format": "pcm16",
+                        "duration_ms": 100,
+                        "chunk_size_bytes": 3200
+                    },
+                    "synthesis_metadata": {
+                        "provider": "silero_v4",
+                        "speaker": "natasha",
+                        "language": "en",
+                        "original_text": "Hello, how are you doing today?"
+                    },
+                    "is_final_chunk": False,
+                    "timestamp": 1704067200.456
+                }
+            ]
+        }
+
+
+class TTSSynthesisComplete(BaseAPIMessage):
+    """
+    WebSocket message indicating synthesis completion
+    
+    Sent by TTS WebSocket endpoints when speech synthesis is complete.
+    """
+    type: Literal["synthesis_complete"] = Field(
+        default="synthesis_complete",
+        description="Message type identifier"
+    )
+    total_chunks: int = Field(
+        description="Total number of audio chunks sent",
+        example=12,
+        ge=0
+    )
+    total_duration_ms: float = Field(
+        description="Total audio duration in milliseconds",
+        example=1250.0,
+        ge=0.0
+    )
+    synthesis_stats: SynthesisStats = Field(
+        description="Synthesis performance statistics"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "synthesis_complete",
+                    "total_chunks": 12,
+                    "total_duration_ms": 1250.0,
+                    "synthesis_stats": {
+                        "generation_time_ms": 234.5,
+                        "total_audio_bytes": 40000,
+                        "provider": "silero_v4"
+                    },
+                    "timestamp": 1704067200.789
+                }
+            ]
+        }
+
+
+class TTSErrorMessage(BaseAPIMessage):
+    """
+    WebSocket message containing TTS error information
+    
+    Sent by TTS WebSocket endpoints when speech synthesis fails.
+    """
+    type: Literal["error"] = Field(
+        default="error",
+        description="Message type identifier"
+    )
+    error: str = Field(
+        description="Error message describing what went wrong",
+        example="Provider temporarily unavailable"
+    )
+    error_code: Optional[str] = Field(
+        default=None,
+        description="Machine-readable error code",
+        example="PROVIDER_UNAVAILABLE"
+    )
+    provider: Optional[str] = Field(
+        default=None,
+        description="TTS provider that encountered the error (if known)",
+        example="silero_v4"
+    )
+    recoverable: bool = Field(
+        default=True,
+        description="Whether the client can retry the request",
+        example=True
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "error",
+                    "error": "Provider temporarily unavailable",
+                    "error_code": "PROVIDER_UNAVAILABLE",
+                    "provider": "silero_v4",
+                    "recoverable": True,
+                    "timestamp": 1704067200.123
+                },
+                {
+                    "type": "error",
+                    "error": "Text too long for synthesis",
+                    "error_code": "TEXT_TOO_LONG",
+                    "recoverable": False,
+                    "timestamp": 1704067200.456
+                }
+            ]
+        }
+
+
+# Binary TTS Protocol Schemas
+
+class TTSSessionConfig(BaseModel):
+    """Configuration for binary TTS streaming session"""
+    sample_rate: int = Field(
+        default=16000,
+        description="Output sample rate in Hz (16000 recommended for voice)",
+        example=16000,
+        ge=8000,
+        le=48000
+    )
+    channels: int = Field(
+        default=1,
+        description="Number of audio channels (1=mono, 2=stereo)",
+        example=1,
+        ge=1,
+        le=2
+    )
+    format: str = Field(
+        default="pcm_s16le",
+        description="Audio format specification (pcm_s16le = 16-bit signed little-endian PCM)",
+        example="pcm_s16le"
+    )
+    language: str = Field(
+        description="Language code for synthesis (ISO 639-1 format)",
+        example="en"
+    )
+    provider: Optional[str] = Field(
+        default=None,
+        description="Specific TTS provider to use (optional, uses default if not specified)",
+        example="silero_v4"
+    )
+    speaker: Optional[str] = Field(
+        default=None,
+        description="Speaker voice to use (optional, provider-specific)",
+        example="natasha"
+    )
+    chunk_size_ms: int = Field(
+        default=100,
+        description="Audio chunk size in milliseconds",
+        example=100,
+        ge=50,
+        le=1000
+    )
+
+
+class BinaryTTSSessionMessage(BaseAPIMessage):
+    """
+    WebSocket session configuration for binary TTS streaming
+    
+    Initial JSON message sent to configure binary TTS streaming session.
+    After this message, text requests are JSON and audio responses are binary frames.
+    """
+    type: Literal["binary_tts_session"] = Field(
+        default="binary_tts_session",
+        description="Message type identifier"
+    )
+    session_config: TTSSessionConfig = Field(
+        description="TTS session configuration"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "binary_tts_session",
+                    "session_config": {
+                        "sample_rate": 16000,
+                        "channels": 1,
+                        "format": "pcm_s16le",
+                        "language": "en",
+                        "provider": "silero_v4",
+                        "speaker": "natasha",
+                        "chunk_size_ms": 100
+                    },
+                    "timestamp": 1704067200.123
+                },
+                {
+                    "type": "binary_tts_session",
+                    "session_config": {
+                        "sample_rate": 22050,
+                        "channels": 1,
+                        "format": "pcm_s16le",
+                        "language": "ru",
+                        "chunk_size_ms": 100
+                    },
+                    "timestamp": 1704067200.456
+                }
+            ]
+        }
+
+
+class TTSTextRequest(BaseAPIMessage):
+    """
+    Text synthesis request for binary protocol
+    
+    JSON message sent during binary TTS session to request synthesis of text.
+    """
+    type: Literal["text_request"] = Field(
+        default="text_request",
+        description="Message type identifier"
+    )
+    text: str = Field(
+        description="Text to synthesize into speech",
+        example="Hello, how are you doing today?"
+    )
+    request_id: str = Field(
+        description="Unique request identifier for tracking",
+        example="req_001"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "text_request",
+                    "text": "Hello, how are you doing today?",
+                    "request_id": "req_001",
+                    "timestamp": 1704067200.300
+                },
+                {
+                    "type": "text_request",
+                    "text": "Привет, как дела?",
+                    "request_id": "req_002",
+                    "timestamp": 1704067200.600
+                }
+            ]
+        }
+
+
+class TTSSynthesisStarted(BaseAPIMessage):
+    """
+    Synthesis started notification for binary protocol
+    
+    JSON message sent when TTS synthesis begins for a text request.
+    """
+    type: Literal["synthesis_started"] = Field(
+        default="synthesis_started",
+        description="Message type identifier"
+    )
+    request_id: str = Field(
+        description="Request ID from the text_request",
+        example="req_001"
+    )
+    estimated_chunks: int = Field(
+        description="Estimated number of audio chunks",
+        example=12,
+        ge=0
+    )
+    estimated_duration_ms: float = Field(
+        description="Estimated audio duration in milliseconds",
+        example=1250.0,
+        ge=0.0
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "synthesis_started",
+                    "request_id": "req_001",
+                    "estimated_chunks": 12,
+                    "estimated_duration_ms": 1250.0,
+                    "timestamp": 1704067200.350
+                }
+            ]
+        }
+
+
+class TTSBinarySynthesisComplete(BaseAPIMessage):
+    """
+    Synthesis complete notification for binary protocol
+    
+    JSON message sent when binary TTS synthesis is complete.
+    """
+    type: Literal["synthesis_complete"] = Field(
+        default="synthesis_complete",
+        description="Message type identifier"
+    )
+    request_id: str = Field(
+        description="Request ID from the text_request",
+        example="req_001"
+    )
+    total_chunks: int = Field(
+        description="Total number of binary audio chunks sent",
+        example=12,
+        ge=0
+    )
+    total_bytes: int = Field(
+        description="Total bytes of binary audio sent",
+        example=38400,
+        ge=0
+    )
+    synthesis_time_ms: float = Field(
+        description="Time taken for synthesis in milliseconds",
+        example=234.5,
+        ge=0.0
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "type": "synthesis_complete",
+                    "request_id": "req_001",
+                    "total_chunks": 12,
+                    "total_bytes": 38400,
+                    "synthesis_time_ms": 234.5,
+                    "timestamp": 1704067200.600
+                }
+            ]
+        }
+
+
+class BinaryTTSStreamMessage(BaseAPIMessage):
+    """
+    Documentation schema for binary TTS audio frames
+    
+    Note: This schema is for AsyncAPI documentation only. In actual implementation,
+    audio data is sent as raw binary WebSocket frames (not JSON) after text requests.
+    
+    Binary Format Specification:
+    - Raw PCM audio data as configured in session_config
+    - Default: 16-bit signed little-endian, mono, 16kHz
+    - Frame size: Variable (typically based on chunk_size_ms configuration)
+    - No headers or metadata - pure audio samples
+    """
+    type: Literal["binary_tts_audio"] = Field(
+        default="binary_tts_audio",
+        description="Message type identifier (documentation only)"
+    )
+    description: str = Field(
+        default="Raw PCM audio data as binary WebSocket frame",
+        description="Binary audio data stream (not JSON - sent as WebSocket binary frames)"
+    )
+    format_specification: str = Field(
+        default="16-bit signed little-endian PCM samples, no headers",
+        description="Technical format of the binary data"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "description": "This schema documents binary TTS audio frames. Actual data is sent as WebSocket binary frames.",
+            "x-binary-format": {
+                "type": "binary",
+                "format": "pcm_s16le",
+                "sample_rate": 16000,
+                "channels": 1,
+                "frame_size": "variable_based_on_chunk_size_ms",
+                "notes": "Raw audio samples without headers or metadata"
+            },
+            "examples": [
+                {
+                    "type": "binary_tts_audio", 
+                    "description": "Raw PCM audio data as binary WebSocket frame",
+                    "format_specification": "16-bit signed little-endian PCM samples, no headers",
+                    "timestamp": 1704067200.123
+                }
+            ]
+        }
+
+
+class BinaryTTSProtocol(BaseAPIMessage):
+    """
+    Complete protocol documentation for binary TTS WebSocket streaming
+    
+    This schema documents the full protocol flow for binary TTS streaming:
+    1. Client sends BinaryTTSSessionMessage (JSON) for configuration
+    2. Server responds with session_ready confirmation (JSON)
+    3. Client sends TTSTextRequest (JSON) for text synthesis
+    4. Server responds with synthesis_started (JSON)
+    5. Server streams BinaryTTSStreamMessage frames (raw binary)
+    6. Server sends synthesis_complete (JSON) when done
+    
+    This wrapper schema allows AsyncAPI to properly document the mixed
+    JSON/binary protocol while maintaining tool compatibility.
+    """
+    type: Literal["binary_tts_protocol"] = Field(
+        default="binary_tts_protocol",
+        description="Protocol documentation identifier"
+    )
+    session_config: BinaryTTSSessionMessage = Field(
+        description="Initial session configuration sent as JSON message"
+    )
+    text_requests: List[TTSTextRequest] = Field(
+        description="Text synthesis requests sent as JSON messages",
+        default_factory=list
+    )
+    audio_streams: List[BinaryTTSStreamMessage] = Field(
+        description="Subsequent binary audio frames (sent as WebSocket binary frames, not JSON)",
+        default_factory=list
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "description": "Complete binary TTS WebSocket streaming protocol documentation",
+            "protocol_flow": [
+                "1. Client → Server: BinaryTTSSessionMessage (JSON)",
+                "2. Server → Client: session_ready confirmation (JSON)",
+                "3. Client → Server: TTSTextRequest (JSON)",
+                "4. Server → Client: synthesis_started (JSON)",
+                "5. Server → Client: Raw PCM binary frames (BinaryTTSStreamMessage format)",
+                "6. Server → Client: synthesis_complete (JSON) when done"
+            ],
+            "notes": [
+                "Only session config and text requests are sent as JSON",
+                "All audio streams are sent as WebSocket binary frames",
+                "Multiple text requests can be sent per session",
+                "This schema is for documentation - actual implementation uses mixed message types"
+            ],
+            "performance_benefits": [
+                "33% bandwidth reduction vs base64 encoding",
+                "Lower CPU usage on embedded devices",
+                "Real-time streaming capability",
+                "Session persistence for multiple synthesis requests"
+            ],
+            "examples": [
+                {
+                    "type": "binary_tts_protocol",
+                    "session_config": {
+                        "type": "binary_tts_session",
+                        "session_config": {
+                            "sample_rate": 16000,
+                            "channels": 1,
+                            "format": "pcm_s16le",
+                            "language": "en",
+                            "provider": "silero_v4",
+                            "speaker": "natasha",
+                            "chunk_size_ms": 100
+                        },
+                        "timestamp": 1704067200.123
+                    },
+                    "text_requests": [
+                        {
+                            "type": "text_request",
+                            "text": "Hello, how are you doing today?",
+                            "request_id": "req_001",
+                            "timestamp": 1704067200.300
+                        }
+                    ],
+                    "audio_streams": [
+                        {
+                            "type": "binary_tts_audio",
+                            "description": "Raw PCM audio data as binary WebSocket frame",
+                            "format_specification": "16-bit signed little-endian PCM samples, no headers",
+                            "timestamp": 1704067200.400
+                        }
+                    ],
+                    "timestamp": 1704067200.123
+                }
+            ]
+        }
 
 
 # ============================================================
