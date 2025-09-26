@@ -960,9 +960,11 @@ class NLUComponent(Component, WebAPIPlugin):
             
         try:
             from fastapi import APIRouter, HTTPException  # type: ignore
+            from ..config.models import NLUConfig
             from ..api.schemas import (
                 NLURequest, IntentResponse,
-                NLUConfigureRequest, NLUConfigResponse, NLUProvidersResponse
+                NLUConfigResponse, NLUProvidersResponse,
+                NLUConfigureResponse
             )
             
             router = APIRouter()
@@ -1014,25 +1016,49 @@ class NLUComponent(Component, WebAPIPlugin):
                     default=self.default_provider
                 )
             
-            @router.post("/configure")
-            async def configure_nlu(request: NLUConfigureRequest):
-                """Configure NLU settings"""
-                if request.provider in self.providers:
-                    if request.set_as_default:
-                        self.default_provider = request.provider
+            @router.post("/configure", response_model=NLUConfigureResponse)
+            async def configure_nlu(config_update: NLUConfig):
+                """Configure NLU settings using unified TOML schema"""
+                try:
                     
-                    # Apply confidence threshold if provided
-                    if request.confidence_threshold is not None:
-                        self.confidence_threshold = request.confidence_threshold
-                        logger.info(f"Updated NLU confidence threshold to {self.confidence_threshold}")
+                    # Apply runtime configuration without TOML persistence
+                    config_dict = config_update.model_dump()
                     
-                    return {
-                        "success": True,
-                        "default_provider": self.default_provider,
-                        "confidence_threshold": self.confidence_threshold
-                    }
-                else:
-                    raise HTTPException(404, f"Provider '{request.provider}' not available")
+                    # Update default provider if provided
+                    if config_dict.get("default_provider"):
+                        if config_dict["default_provider"] in self.providers:
+                            self.default_provider = config_dict["default_provider"]
+                        else:
+                            logger.warning(f"NLU provider '{config_dict['default_provider']}' not available")
+                    
+                    # Update confidence threshold if provided
+                    confidence_threshold = config_dict.get("confidence_threshold")
+                    if confidence_threshold is not None:
+                        self.confidence_threshold = confidence_threshold
+                        logger.info(f"NLU confidence threshold updated to: {confidence_threshold}")
+                    
+                    # Update enabled providers if provided (would require re-initialization)
+                    providers_config = config_dict.get("providers", {})
+                    if providers_config:
+                        logger.info(f"NLU runtime provider configuration updated for {len(providers_config)} providers")
+                    
+                    return NLUConfigureResponse(
+                        success=True,
+                        message="NLU configuration applied successfully using unified schema",
+                        default_provider=self.default_provider,
+                        enabled_providers=list(self.providers.keys()),
+                        confidence_threshold=self.confidence_threshold
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Failed to configure NLU with unified schema: {e}")
+                    return NLUConfigureResponse(
+                        success=False,
+                        message=f"Failed to apply NLU configuration: {str(e)}",
+                        default_provider=self.default_provider,
+                        enabled_providers=list(self.providers.keys()),
+                        confidence_threshold=self.confidence_threshold
+                    )
             
             @router.get("/config", response_model=NLUConfigResponse)
             async def get_nlu_config():

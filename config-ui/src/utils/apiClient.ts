@@ -62,6 +62,14 @@ import type {
   DeleteLocalizationLanguageResponse,
   // Configuration management types
   CoreConfig,
+  TTSConfig,
+  ASRConfig,
+  AudioConfig,
+  LLMConfig,
+  NLUConfig,
+  VoiceTriggerConfig,
+  TextProcessorConfig,
+  IntentSystemConfig,
   ConfigSchemaResponse,
   ConfigSectionOrderResponse,
   ConfigUpdateResponse,
@@ -85,7 +93,16 @@ import type {
   ChangeImpactAnalysisResponse,
   BatchAnalysisResponse,
   SystemHealthResponse,
-  ConflictReport
+  ConflictReport,
+  // Phase 4: Configure Response Types
+  TTSConfigureResponse,
+  ASRConfigureResponse,
+  AudioConfigureResponse,
+  LLMConfigureResponse,
+  NLUConfigureResponse,
+  VoiceTriggerConfigureResponse,
+  TextProcessorConfigureResponse,
+  IntentSystemConfigureResponse
 } from '@/types';
 
 interface RequestOptions extends RequestInit {
@@ -672,6 +689,66 @@ class IreneApiClient {
   }
 
   // ============================================================
+  // RUNTIME CONFIGURATION TESTING API (Phase 4)
+  // ============================================================
+
+  /**
+   * Configure TTS settings for live testing (no TOML persistence)
+   */
+  async configureTTS(config: TTSConfig): Promise<TTSConfigureResponse> {
+    return this.post<TTSConfigureResponse>('/tts/configure', config);
+  }
+
+  /**
+   * Configure ASR settings for live testing (no TOML persistence)
+   */
+  async configureASR(config: ASRConfig): Promise<ASRConfigureResponse> {
+    return this.post<ASRConfigureResponse>('/asr/configure', config);
+  }
+
+  /**
+   * Configure Audio settings for live testing (no TOML persistence)
+   */
+  async configureAudio(config: AudioConfig): Promise<AudioConfigureResponse> {
+    return this.post<AudioConfigureResponse>('/audio/configure', config);
+  }
+
+  /**
+   * Configure LLM settings for live testing (no TOML persistence)
+   */
+  async configureLLM(config: LLMConfig): Promise<LLMConfigureResponse> {
+    return this.post<LLMConfigureResponse>('/llm/configure', config);
+  }
+
+  /**
+   * Configure NLU settings for live testing (no TOML persistence)
+   */
+  async configureNLU(config: NLUConfig): Promise<NLUConfigureResponse> {
+    return this.post<NLUConfigureResponse>('/nlu/configure', config);
+  }
+
+  /**
+   * Configure Voice Trigger settings for live testing (no TOML persistence)
+   */
+  async configureVoiceTrigger(config: VoiceTriggerConfig): Promise<VoiceTriggerConfigureResponse> {
+    return this.post<VoiceTriggerConfigureResponse>('/voice_trigger/configure', config);
+  }
+
+  /**
+   * Configure Text Processor settings for live testing (no TOML persistence)
+   */
+  async configureTextProcessor(config: TextProcessorConfig): Promise<TextProcessorConfigureResponse> {
+    return this.post<TextProcessorConfigureResponse>('/text_processing/configure', config);
+  }
+
+  /**
+   * Configure Intent System settings for live testing (no TOML persistence)
+   */
+  async configureIntentSystem(config: IntentSystemConfig): Promise<IntentSystemConfigureResponse> {
+    return this.post<IntentSystemConfigureResponse>('/intent_system/configure', config);
+  }
+
+  // ============================================================
   // RAW TOML CONFIGURATION METHODS (Phase 5)
   // ============================================================
 
@@ -935,7 +1012,7 @@ class IreneApiClient {
     language?: string
   ): Promise<BatchAnalysisResponse> {
     // TODO: Implement severity-based filtering in backend
-    console.warn('getConflictsBySeverity not implemented in backend - using full batch analysis');
+    console.warn(`getConflictsBySeverity not implemented in backend - ignoring severity '${severity}' and using full batch analysis`);
     return this.getSystemAnalysis(language);
   }
 

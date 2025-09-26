@@ -8,7 +8,7 @@ import { DonationData, DonationListItem, ValidationResult, JsonSchema, HandlerLa
 // UI Component Props
 export interface BadgeProps {
   children: ReactNode;
-  variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
+  variant?: 'default' | 'success' | 'warning' | 'error' | 'info' | 'custom';
   className?: string;
 }
 

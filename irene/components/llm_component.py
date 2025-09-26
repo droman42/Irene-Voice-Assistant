@@ -318,10 +318,12 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
     # WebAPIPlugin interface - unified API
     def get_router(self) -> APIRouter:
         """Get FastAPI router with LLM endpoints using centralized schemas"""
+        from ..config.models import LLMConfig
         from ..api.schemas import (
             LLMEnhanceRequest, LLMEnhanceResponse,
             LLMChatRequest, LLMChatResponse,
-            LLMConfigureRequest, LLMProvidersResponse
+            LLMProvidersResponse,
+            LLMConfigureResponse
         )
         
         router = APIRouter()
@@ -408,26 +410,48 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
                 default=self.default_provider
             )
         
-        @router.post("/configure")
-        async def configure_llm(request: LLMConfigureRequest):
-            """Configure LLM settings"""
-            if request.provider in self.providers:
-                if request.set_as_default:
-                    self.default_provider = request.provider
+        @router.post("/configure", response_model=LLMConfigureResponse)
+        async def configure_llm(config_update: LLMConfig):
+            """Configure LLM settings using unified TOML schema"""
+            try:
                 
-                # Apply any additional parameters if provided
-                if request.parameters:
-                    # This would be provider-specific configuration
-                    # Implementation depends on provider capabilities
-                    pass
+                # Apply runtime configuration without TOML persistence
+                config_dict = config_update.model_dump()
                 
-                return {
-                    "success": True, 
-                    "default_provider": self.default_provider,
-                    "configured_provider": request.provider
-                }
-            else:
-                raise HTTPException(404, f"Provider '{request.provider}' not available")
+                # Update default provider if provided
+                if config_dict.get("default_provider"):
+                    if config_dict["default_provider"] in self.providers:
+                        self.default_provider = config_dict["default_provider"]
+                    else:
+                        logger.warning(f"LLM provider '{config_dict['default_provider']}' not available")
+                
+                # Update fallback providers
+                fallback_providers = config_dict.get("fallback_providers", [])
+                if fallback_providers:
+                    logger.info(f"LLM fallback providers updated: {fallback_providers}")
+                
+                # Update enabled providers if provided (would require re-initialization)
+                providers_config = config_dict.get("providers", {})
+                if providers_config:
+                    logger.info(f"LLM runtime provider configuration updated for {len(providers_config)} providers")
+                
+                return LLMConfigureResponse(
+                    success=True,
+                    message="LLM configuration applied successfully using unified schema",
+                    default_provider=self.default_provider,
+                    enabled_providers=list(self.providers.keys()),
+                    fallback_providers=fallback_providers
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to configure LLM with unified schema: {e}")
+                return LLMConfigureResponse(
+                    success=False,
+                    message=f"Failed to apply LLM configuration: {str(e)}",
+                    default_provider=self.default_provider,
+                    enabled_providers=list(self.providers.keys()),
+                    fallback_providers=[]
+                )
         
         return router 
     

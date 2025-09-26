@@ -100,6 +100,16 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
     }
   };
 
+  // Type guard functions
+  const isNLUValidationResult = (result: any): result is import('@/types/api').NLUValidationResult => {
+    return result && typeof result === 'object' && 'has_blocking_conflicts' in result;
+  };
+
+  const isLegacyValidationResult = (result: any): result is import('@/types/api').ValidationResult => {
+    return result && typeof result === 'object' && 'valid' in result;
+  };
+
+
   // Handle apply/save (dual mode)
   const handleApply = async (): Promise<void> => {
     if (!onSave) return;
@@ -126,14 +136,14 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
       }
     } else {
       // Legacy validation workflow
-      if (validationResult && !validationResult.valid) {
+      if (isLegacyValidationResult(validationResult) && !validationResult.valid) {
         const proceed = window.confirm(
           `There are validation errors. Do you want to proceed with saving anyway?`
         );
         if (!proceed) return;
       }
       
-      if (validationResult && validationResult.warnings && validationResult.warnings.length > 0) {
+      if (isLegacyValidationResult(validationResult) && validationResult.warnings && validationResult.warnings.length > 0) {
         const proceed = window.confirm(
           `There are ${validationResult.warnings.length} warning${validationResult.warnings.length !== 1 ? 's' : ''}. Do you want to proceed with saving anyway?`
         );
@@ -262,7 +272,7 @@ const ApplyChangesBar: React.FC<ApplyChangesBarProps> = ({
           {useEnhancedValidation ? (
             // Enhanced NLU validation display
             <ValidationIndicator 
-              result={validationResult} 
+              result={isNLUValidationResult(validationResult) ? validationResult : null} 
               isValidating={isValidating}
             />
           ) : (

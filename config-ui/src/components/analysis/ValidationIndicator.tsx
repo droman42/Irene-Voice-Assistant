@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { CheckCircle, AlertCircle, AlertTriangle, Clock, X } from 'lucide-react';
+import { CheckCircle, AlertCircle, AlertTriangle, Clock } from 'lucide-react';
 import type { NLUValidationResult } from '@/types';
 
 interface ValidationIndicatorProps {

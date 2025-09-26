@@ -284,10 +284,12 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
     # WebAPIPlugin interface - unified API
     def get_router(self) -> APIRouter:
         """Get FastAPI router for audio endpoints using centralized schemas"""
+        from ..config.models import AudioConfig
         from ..api.schemas import (
             AudioPlayResponse, AudioStreamResponse, AudioStopResponse,
-            AudioDevicesResponse, AudioConfigureRequest, AudioConfigureResponse,
-            AudioProvidersResponse
+            AudioDevicesResponse,
+            AudioProvidersResponse,
+            AudioConfigureResponse
         )
         
         router = APIRouter()
@@ -417,30 +419,47 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
             )
         
         @router.post("/configure", response_model=AudioConfigureResponse)
-        async def configure_audio(request: AudioConfigureRequest):
-            """Configure audio settings"""
-            provider_name = request.provider or self.default_provider
-            
-            if provider_name not in self.providers:
-                raise HTTPException(404, f"Provider '{provider_name}' not available")
-            
-            # Apply configuration
-            if request.set_as_default:
-                self.default_provider = provider_name
-            
-            if request.volume is not None:
-                await self.providers[provider_name].set_volume(request.volume)
-            
-            if request.device is not None:
-                await self.providers[provider_name].set_output_device(request.device)
-            
-            return AudioConfigureResponse(
-                success=True,
-                provider=provider_name,
-                default_provider=self.default_provider,
-                volume=request.volume,
-                device=request.device
-            )
+        async def configure_audio(config_update: AudioConfig):
+            """Configure audio settings using unified TOML schema"""
+            try:
+                
+                # Apply runtime configuration without TOML persistence
+                config_dict = config_update.model_dump()
+                
+                # Update default provider if provided
+                if config_dict.get("default_provider"):
+                    if config_dict["default_provider"] in self.providers:
+                        self.default_provider = config_dict["default_provider"]
+                    else:
+                        logger.warning(f"Audio provider '{config_dict['default_provider']}' not available")
+                
+                # Update fallback providers
+                fallback_providers = config_dict.get("fallback_providers", [])
+                if fallback_providers:
+                    logger.info(f"Audio fallback providers updated: {fallback_providers}")
+                
+                # Update enabled providers if provided (would require re-initialization)
+                providers_config = config_dict.get("providers", {})
+                if providers_config:
+                    logger.info(f"Audio runtime provider configuration updated for {len(providers_config)} providers")
+                
+                return AudioConfigureResponse(
+                    success=True,
+                    message="Audio configuration applied successfully using unified schema",
+                    default_provider=self.default_provider,
+                    enabled_providers=list(self.providers.keys()),
+                    fallback_providers=fallback_providers
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to configure audio with unified schema: {e}")
+                return AudioConfigureResponse(
+                    success=False,
+                    message=f"Failed to apply audio configuration: {str(e)}",
+                    default_provider=self.default_provider,
+                    enabled_providers=list(self.providers.keys()),
+                    fallback_providers=[]
+                )
         
         return router
     

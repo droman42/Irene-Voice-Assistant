@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Speaker, Info, ChevronDown } from 'lucide-react';
-import { apiClient } from '../../utils/apiClient';
+import apiClient from '../../utils/apiClient';
 import { AudioDeviceInfo } from '../../types/api';
 
 interface AudioOutputConfigSectionProps {

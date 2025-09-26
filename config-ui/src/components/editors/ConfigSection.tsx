@@ -11,7 +11,29 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Save, TestTube, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { ConfigWidget } from './ConfigWidgets';
 import MicrophoneConfigSection from './MicrophoneConfigSection';
+import TestConfigButton, { type ComponentName, type ComponentConfigType, type ComponentConfigureResponse } from '@/components/ui/TestConfigButton';
+import ConfigurationStatus from '@/components/ui/ConfigurationStatus';
+import WorkflowStatusIndicator, { type WorkflowStateType } from '@/components/ui/WorkflowStatusIndicator';
+import WorkflowActionButtons from '@/components/ui/WorkflowActionButtons';
 import type { FieldSchema } from './ConfigWidgets';
+
+interface ConfigurationTestState {
+  status: 'idle' | 'testing' | 'applied' | 'error';
+  message: string;
+  testResult?: ComponentConfigureResponse;
+  timestamp?: Date;
+}
+
+// Phase 4.3: Workflow status interface
+interface WorkflowStatus {
+  hasChanges: boolean;
+  isTested: boolean;
+  isPersisted: boolean;
+  hasConflicts: boolean;
+  canTest: boolean;
+  canPersist: boolean;
+  testStatus: 'idle' | 'testing' | 'applied' | 'error';
+}
 
 interface ConfigSectionProps {
   name: string;
@@ -22,9 +44,17 @@ interface ConfigSectionProps {
   onChange: (data: any) => void;
   onValidate?: () => Promise<{ valid: boolean; errors?: any[] }>;
   onApply?: () => Promise<any>;
+  onTestConfig?: (component: ComponentName, config: ComponentConfigType) => Promise<ComponentConfigureResponse>;
+  testState?: ConfigurationTestState;
   disabled?: boolean;
   level?: 1 | 2; // Level 1 = major section, Level 2 = subsection
   componentName?: string; // Original component name for provider lookups
+  // Phase 4.3: Enhanced workflow props
+  workflowStatus?: WorkflowStatus;
+  workflowStateType?: WorkflowStateType;
+  onPersistTested?: (component: ComponentName) => Promise<void>;
+  onRollbackToPersisted?: (component: ComponentName) => void;
+  onRollbackToTested?: (component: ComponentName) => void;
 }
 
 export const ConfigSection: React.FC<ConfigSectionProps> = ({
@@ -36,9 +66,17 @@ export const ConfigSection: React.FC<ConfigSectionProps> = ({
   onChange,
   onValidate,
   onApply,
+  onTestConfig,
+  testState,
   disabled = false,
   level = 1,
-  componentName
+  componentName,
+  // Phase 4.3: Enhanced workflow props
+  workflowStatus,
+  workflowStateType = 'pristine',
+  onPersistTested,
+  onRollbackToPersisted,
+  onRollbackToTested
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -53,6 +91,29 @@ export const ConfigSection: React.FC<ConfigSectionProps> = ({
       setIsExpanded(true);
     }
   }, [validationResult]);
+
+  // Check if this is a top-level voice assistant component section
+  const isComponentSection = level === 1 && ['tts', 'asr', 'audio', 'llm', 'nlu', 'voice_trigger', 'text_processor', 'intent_system'].includes(name);
+  
+  // Get component name for testing
+  const getComponentNameForTesting = (): ComponentName | null => {
+    if (!isComponentSection) return null;
+    
+    // Map section names to component names for API calls
+    const sectionToComponent: Record<string, ComponentName> = {
+      'tts': 'tts',
+      'asr': 'asr',
+      'audio': 'audio', 
+      'llm': 'llm',
+      'nlu': 'nlu',
+      'voice_trigger': 'voice_trigger',
+      'text_processor': 'text_processing', // Section name 'text_processor' maps to component 'text_processing'
+      'intent_system': 'intent_system'
+    };
+    
+    return sectionToComponent[name] || null;
+  };
+
   
   const handleValidate = async () => {
     if (!onValidate) return;
@@ -88,6 +149,23 @@ export const ConfigSection: React.FC<ConfigSectionProps> = ({
   const updateField = (fieldName: string, value: any) => {
     const newData = { ...data, [fieldName]: value };
     onChange(newData);
+    
+    // Trigger real-time validation for component sections after a short delay
+    if (isComponentSection && onValidate) {
+      // Clear any existing timeout to debounce validation calls
+      const timeoutId = setTimeout(async () => {
+        try {
+          const result = await onValidate();
+          setValidationResult(result);
+        } catch (error) {
+          // Silently handle validation errors for real-time feedback
+          console.debug('Real-time validation failed:', error);
+        }
+      }, 500); // 500ms debounce
+      
+      // Store timeout ID for cleanup if needed
+      return () => clearTimeout(timeoutId);
+    }
   };
   
   const renderField = (fieldName: string, fieldSchema: FieldSchema) => {
@@ -293,6 +371,43 @@ export const ConfigSection: React.FC<ConfigSectionProps> = ({
         <div className="flex items-center space-x-2">
           {getStatusIndicator()}
           
+          {/* Phase 4.3: Workflow Status Indicator for Component Sections */}
+          {isComponentSection && workflowStatus && isExpanded && (
+            <WorkflowStatusIndicator
+              status={workflowStatus}
+              stateType={workflowStateType}
+              size="sm"
+              showDetails={false}
+            />
+          )}
+          
+          {/* Test Configuration Button for Component Sections */}
+          {isComponentSection && onTestConfig && isExpanded && (
+            <TestConfigButton
+              component={getComponentNameForTesting()!}
+              config={data}
+              onTest={onTestConfig}
+              loading={testState?.status === 'testing'}
+              disabled={disabled || !hasChanges} // Only enable when there are changes
+              hasChanges={hasChanges} // Pass changes state for better UX
+              size="sm"
+              variant="outline"
+              showPreview={true}
+            />
+          )}
+
+          {/* Phase 4.3: Workflow Action Buttons for Component Sections */}
+          {isComponentSection && workflowStatus && onPersistTested && onRollbackToPersisted && onRollbackToTested && isExpanded && (
+            <WorkflowActionButtons
+              component={getComponentNameForTesting()!}
+              status={workflowStatus}
+              onPersistTested={onPersistTested}
+              onRollbackToPersisted={onRollbackToPersisted}
+              onRollbackToTested={onRollbackToTested}
+              size="sm"
+            />
+          )}
+          
           {hasChanges && isExpanded && level === 1 && (
             <div className="flex items-center space-x-2">
               {onValidate && (
@@ -341,6 +456,18 @@ export const ConfigSection: React.FC<ConfigSectionProps> = ({
               ))}
             </ul>
           </div>
+        </div>
+      )}
+
+      {/* Configuration Test Status */}
+      {isExpanded && isComponentSection && testState && testState.status !== 'idle' && (
+        <div className="px-4 pb-2">
+          <ConfigurationStatus
+            status={testState.status === 'testing' ? 'testing' : 
+                   testState.status === 'applied' ? 'applied' : 'error'}
+            message={testState.message}
+            testResult={testState.testResult}
+          />
         </div>
       )}
       

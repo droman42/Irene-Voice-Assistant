@@ -7,6 +7,7 @@ export default function Badge({ children, variant = 'default', className = '' }:
     warning: 'bg-yellow-50 text-yellow-700 border-yellow-200',
     error: 'bg-red-50 text-red-700 border-red-200',
     info: 'bg-blue-50 text-blue-700 border-blue-200',
+    custom: '', // Custom variant allows for completely custom className
   };
 
   const variantClass = variantClasses[variant] || variantClasses.default;

@@ -1177,21 +1177,6 @@ class IntentResponse(BaseAPIResponse):
     )
 
 
-class NLUConfigureRequest(BaseAPIRequest):
-    """HTTP request for configuring NLU settings"""
-    provider: str = Field(description="Provider name to configure")
-    set_as_default: bool = Field(
-        default=False,
-        description="Whether to set this provider as default"
-    )
-    confidence_threshold: Optional[float] = Field(
-        default=None,
-        description="Confidence threshold for intent recognition",
-        ge=0.0,
-        le=1.0
-    )
-
-
 class NLUConfigResponse(BaseAPIResponse):
     """HTTP response for NLU configuration"""
     confidence_threshold: float = Field(description="Current confidence threshold")
@@ -1344,18 +1329,6 @@ class LLMChatResponse(BaseAPIResponse):
         description="Token usage statistics if available"
     )
 
-
-class LLMConfigureRequest(BaseAPIRequest):
-    """HTTP request for configuring LLM settings"""
-    provider: str = Field(description="Provider name to configure")
-    set_as_default: bool = Field(
-        default=False,
-        description="Whether to set this provider as default"
-    )
-    parameters: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Provider-specific configuration parameters"
-    )
 
 
 class LLMProvidersResponse(BaseAPIResponse):
@@ -2051,34 +2024,6 @@ class AudioDevicesResponse(BaseAPIResponse):
     devices: List[Dict[str, Any]] = Field(description="Available audio output devices")
 
 
-class AudioConfigureRequest(BaseAPIRequest):
-    """Request for configuring audio settings"""
-    provider: Optional[str] = Field(
-        default=None,
-        description="Provider to configure"
-    )
-    set_as_default: bool = Field(
-        default=False,
-        description="Whether to set this provider as default"
-    )
-    volume: Optional[float] = Field(
-        default=None,
-        description="Volume to set (0.0-1.0)",
-        ge=0.0,
-        le=1.0
-    )
-    device: Optional[str] = Field(
-        default=None,
-        description="Device ID to set as output"
-    )
-
-
-class AudioConfigureResponse(BaseAPIResponse):
-    """Response for audio configuration"""
-    provider: str = Field(description="Configured provider")
-    default_provider: str = Field(description="Current default provider")
-    volume: Optional[float] = Field(description="Set volume")
-    device: Optional[str] = Field(description="Set device")
 
 
 class AudioProvidersResponse(BaseAPIResponse):
@@ -2107,25 +2052,8 @@ class VoiceTriggerStatus(BaseAPIResponse):
     providers_available: List[str] = Field(description="Available provider names")
 
 
-class WakeWordConfig(BaseAPIRequest):
-    """Request for configuring wake word settings (moved from component)"""
-    wake_words: List[str] = Field(
-        description="Wake words to configure",
-        min_items=1
-    )
-    threshold: float = Field(
-        default=0.8,
-        description="Detection threshold",
-        ge=0.0,
-        le=1.0
-    )
 
 
-class VoiceTriggerConfigureResponse(BaseAPIResponse):
-    """Response for voice trigger configuration"""
-    config: WakeWordConfig = Field(description="Applied configuration")
-    updated_words: bool = Field(description="Whether wake words were updated")
-    updated_threshold: bool = Field(description="Whether threshold was updated")
 
 
 class VoiceTriggerSwitchRequest(BaseAPIRequest):
@@ -2634,3 +2562,81 @@ class SystemHealthResponse(BaseAPIResponse):
                 }
             ]
         }
+
+
+# ============================================================
+# TEXT PROCESSOR CONFIGURATION SCHEMAS (Phase 1)
+# ============================================================
+
+class TextProcessorConfigureResponse(BaseAPIResponse):
+    """Response for text processor configuration using unified TOML schema"""
+    message: str = Field(description="Configuration operation message")
+    enabled_providers: List[str] = Field(description="List of enabled text processing providers")
+    stages: List[str] = Field(description="Configured processing stages")
+    normalizers: List[str] = Field(description="Configured normalizer names")
+
+
+# ============================================================
+# INTENT SYSTEM CONFIGURATION SCHEMAS (Phase 1)
+# ============================================================
+
+class IntentSystemConfigureResponse(BaseAPIResponse):
+    """Response for intent system configuration using unified TOML schema"""
+    message: str = Field(description="Configuration operation message")
+    confidence_threshold: float = Field(description="Applied confidence threshold")
+    fallback_intent: str = Field(description="Configured fallback intent")
+    enabled_handlers: List[str] = Field(description="List of enabled intent handlers")
+    loaded_donations: List[str] = Field(description="List of handlers with loaded donations")
+    handler_count: int = Field(description="Total number of active handlers")
+
+
+# ============================================================
+# PHASE 2: UNIFIED CONFIGURE RESPONSE SCHEMAS
+# ============================================================
+
+class TTSConfigureResponse(BaseAPIResponse):
+    """Response for TTS configuration using unified TOML schema"""
+    message: str = Field(description="Configuration operation message")
+    default_provider: Optional[str] = Field(description="Current default TTS provider")
+    enabled_providers: List[str] = Field(description="List of enabled TTS providers")
+    fallback_providers: List[str] = Field(description="Configured fallback providers")
+
+
+class ASRConfigureResponse(BaseAPIResponse):
+    """Response for ASR configuration using unified TOML schema"""
+    message: str = Field(description="Configuration operation message")
+    default_provider: Optional[str] = Field(description="Current default ASR provider")
+    enabled_providers: List[str] = Field(description="List of enabled ASR providers")
+    language: Optional[str] = Field(description="Configured language")
+
+
+class AudioConfigureResponse(BaseAPIResponse):
+    """Response for Audio configuration using unified TOML schema"""
+    message: str = Field(description="Configuration operation message")
+    default_provider: Optional[str] = Field(description="Current default audio provider")
+    enabled_providers: List[str] = Field(description="List of enabled audio providers")
+    fallback_providers: List[str] = Field(description="Configured fallback providers")
+
+
+class LLMConfigureResponse(BaseAPIResponse):
+    """Response for LLM configuration using unified TOML schema"""
+    message: str = Field(description="Configuration operation message")
+    default_provider: Optional[str] = Field(description="Current default LLM provider")
+    enabled_providers: List[str] = Field(description="List of enabled LLM providers")
+    fallback_providers: List[str] = Field(description="Configured fallback providers")
+
+
+class NLUConfigureResponse(BaseAPIResponse):
+    """Response for NLU configuration using unified TOML schema"""
+    message: str = Field(description="Configuration operation message")
+    default_provider: Optional[str] = Field(description="Current default NLU provider")
+    enabled_providers: List[str] = Field(description="List of enabled NLU providers")
+    confidence_threshold: Optional[float] = Field(description="Applied confidence threshold")
+
+
+class VoiceTriggerConfigureResponse(BaseAPIResponse):
+    """Response for Voice Trigger configuration using unified TOML schema"""
+    message: str = Field(description="Configuration operation message")
+    default_provider: Optional[str] = Field(description="Current default voice trigger provider")
+    enabled_providers: List[str] = Field(description="List of enabled voice trigger providers")
+    wake_words: List[str] = Field(description="Configured wake words")

@@ -294,8 +294,9 @@ class TextProcessorComponent(Component, WebAPIPlugin):
                 TextProcessingRequest, TextProcessingResponse,
                 NumberConversionRequest, NumberConversionResponse,
                 TextProcessingNormalizersResponse, TextNormalizerInfo,
-                TextProcessingConfigResponse
+                TextProcessingConfigResponse, TextProcessorConfigureResponse
             )
+            from ..config.models import TextProcessorConfig
             
             router = APIRouter()
                 
@@ -374,6 +375,70 @@ class TextProcessorComponent(Component, WebAPIPlugin):
                     supported_languages=["ru", "en"],
                     dependencies=self.get_component_dependencies()
                 )
+            
+            @router.post("/configure", response_model=TextProcessorConfigureResponse)
+            async def configure_text_processor(config_update: TextProcessorConfig):
+                """Configure text processor settings using unified TOML schema"""
+                try:
+                    # Apply runtime configuration without TOML persistence
+                    # Convert to dict for backward compatibility with existing logic
+                    config_dict = config_update.model_dump()
+                    
+                    # Update provider configurations if provided
+                    if config_dict.get("providers"):
+                        # Re-initialize providers with new configuration
+                        self.providers.clear()
+                        self._provider_classes.clear()
+                        
+                        providers_config = config_dict.get("providers", {})
+                        enabled_providers = [name for name, provider_config in providers_config.items() 
+                                           if provider_config.get("enabled", False)]
+                        
+                        # Discover and initialize providers with new config
+                        self._provider_classes = dynamic_loader.discover_providers("irene.providers.text_processing", enabled_providers)
+                        
+                        for provider_name, provider_class in self._provider_classes.items():
+                            provider_config = providers_config.get(provider_name, {})
+                            if provider_config.get("enabled", False):
+                                try:
+                                    provider = provider_class(provider_config)
+                                    if hasattr(provider, 'is_available'):
+                                        if await provider.is_available():
+                                            self.providers[provider_name] = provider
+                                            logger.info(f"Runtime reconfigured text processing provider: {provider_name}")
+                                    else:
+                                        self.providers[provider_name] = provider
+                                        logger.info(f"Runtime reconfigured text processing provider: {provider_name}")
+                                except Exception as e:
+                                    logger.error(f"Failed to runtime reconfigure text processing provider {provider_name}: {e}")
+                    
+                    # Update stages if provided
+                    if config_dict.get("stages"):
+                        # Stage configuration can be applied immediately
+                        logger.info(f"Runtime updated text processing stages: {config_dict['stages']}")
+                    
+                    # Update normalizers configuration if provided
+                    if config_dict.get("normalizers"):
+                        # Normalizer configuration can be applied to existing providers
+                        logger.info(f"Runtime updated normalizer configurations: {list(config_dict['normalizers'].keys())}")
+                    
+                    return TextProcessorConfigureResponse(
+                        success=True,
+                        message="Text processor configuration applied successfully",
+                        enabled_providers=list(self.providers.keys()),
+                        stages=config_dict.get("stages", []),
+                        normalizers=list(config_dict.get("normalizers", {}).keys())
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Failed to configure text processor: {e}")
+                    return TextProcessorConfigureResponse(
+                        success=False,
+                        message=f"Failed to apply text processor configuration: {str(e)}",
+                        enabled_providers=list(self.providers.keys()),
+                        stages=[],
+                        normalizers=[]
+                    )
             
             return router
             

@@ -328,9 +328,12 @@ class IntentComponent(Component, WebAPIPlugin):
                 LocalizationContentResponse, LocalizationUpdateRequest, LocalizationUpdateResponse,
                 LocalizationValidationRequest, LocalizationValidationResponse, LocalizationMetadata,
                 CreateLocalizationLanguageRequest, CreateLocalizationLanguageResponse, DeleteLocalizationLanguageResponse,
-                LocalizationDomainListResponse, DomainLanguageInfo
+                LocalizationDomainListResponse, DomainLanguageInfo,
+                # Phase 1: Configuration response schemas
+                IntentSystemConfigureResponse
             )
             from ..core.donations import HandlerDonation
+            from ..config.models import IntentSystemConfig
             
             router = APIRouter()
             
@@ -1950,6 +1953,69 @@ class IntentComponent(Component, WebAPIPlugin):
                     raise
                 except Exception as e:
                     raise HTTPException(500, f"Failed to create localization language: {str(e)}")
+            
+            @router.post("/configure", response_model=IntentSystemConfigureResponse)
+            async def configure_intent_system(config_update: IntentSystemConfig):
+                """Configure intent system settings using unified TOML schema"""
+                try:
+                    # Apply runtime configuration without TOML persistence
+                    # Store the new configuration
+                    self._config = config_update
+                    
+                    # Re-initialize handler manager with new configuration
+                    if self.handler_manager:
+                        # Extract handler configuration from IntentSystemConfig
+                        handlers_obj = getattr(config_update, "handlers", None)
+                        if handlers_obj:
+                            handler_config = {
+                                "enabled": handlers_obj.enabled,
+                                "disabled": handlers_obj.disabled,
+                                "auto_discover": handlers_obj.auto_discover,
+                                "discovery_paths": handlers_obj.discovery_paths,
+                                "asset_validation": handlers_obj.asset_validation
+                            }
+                        else:
+                            handler_config = {}
+                        
+                        # Reinitialize handler manager with new config
+                        await self.handler_manager.initialize(handler_config, intent_system_config=config_update)
+                        
+                        # Update references
+                        self.intent_registry = self.handler_manager.get_registry()
+                        self.intent_orchestrator = self.handler_manager.get_orchestrator()
+                        
+                        logger.info("Runtime reconfigured intent system successfully")
+                    
+                    # Get updated handler list
+                    handlers = self.handler_manager.get_handlers() if self.handler_manager else {}
+                    donations = self.handler_manager.get_donations() if self.handler_manager else {}
+                    
+                    return IntentSystemConfigureResponse(
+                        success=True,
+                        message="Intent system configuration applied successfully",
+                        confidence_threshold=config_update.confidence_threshold,
+                        fallback_intent=config_update.fallback_intent,
+                        enabled_handlers=list(handlers.keys()),
+                        loaded_donations=list(donations.keys()),
+                        handler_count=len(handlers)
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Failed to configure intent system: {e}")
+                    # Get current state for error response
+                    handlers = self.handler_manager.get_handlers() if self.handler_manager else {}
+                    donations = self.handler_manager.get_donations() if self.handler_manager else {}
+                    current_config = self._config if self._config else config_update
+                    
+                    return IntentSystemConfigureResponse(
+                        success=False,
+                        message=f"Failed to apply intent system configuration: {str(e)}",
+                        confidence_threshold=getattr(current_config, 'confidence_threshold', 0.7),
+                        fallback_intent=getattr(current_config, 'fallback_intent', 'conversation.general'),
+                        enabled_handlers=list(handlers.keys()),
+                        loaded_donations=list(donations.keys()),
+                        handler_count=len(handlers)
+                    )
             
             return router
             

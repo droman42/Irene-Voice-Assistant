@@ -34,7 +34,7 @@ interface StructuredAttributeEditorProps {
 
 // Structured attribute editor that handles complex SpaCy patterns
 function StructuredAttributeEditor({ 
-  attributeName, 
+  attributeName: _, // Mark as unused with underscore
   structure, 
   onChange, 
   onRemove, 

@@ -17,7 +17,6 @@ import ApplyChangesBar from '@/components/common/ApplyChangesBar';
 // Import analysis components
 import { 
   ConflictStatusBar, 
-  ConflictBadge, 
   SuggestionPanel 
 } from '@/components/analysis';
 
@@ -84,9 +83,8 @@ function MethodDonationEditor({
   // Real-time analysis for conflict detection
   const { 
     conflicts, 
-    analysisStatus, 
-    analyzeNow 
-  } = useRealtimeAnalysis(selectedHandler, currentLanguage, value, {
+    analysisStatus
+  } = useRealtimeAnalysis(selectedHandler || null, currentLanguage || null, value, {
     debounceMs: 800, // Slightly longer debounce for editing
     autoAnalyze: true,
     enableCaching: true
@@ -100,7 +98,7 @@ function MethodDonationEditor({
   // Helper function for checking sync issues
   const hasLemmaSyncIssues = (method: any): boolean => {
     if (!extractLemmasFromTokenPatterns) return false;
-    const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || [], method.slot_patterns);
+    const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || []);
     const currentLemmas = method.lemmas || [];
     return extractedLemmas.some(lemma => !currentLemmas.includes(lemma));
   };
@@ -194,10 +192,10 @@ function MethodDonationEditor({
               const newMethods = [...(v.method_donations || [])];
               let hasChanges = false;
               
-              methodsWithSyncIssues.forEach((method, originalIndex) => {
+              methodsWithSyncIssues.forEach((method, _) => {
                 const methodIndex = newMethods.findIndex(m => m === method);
                 if (methodIndex !== -1 && extractLemmasFromTokenPatterns) {
-                  const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || [], method.slot_patterns);
+                  const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || []);
                   const currentLemmas = method.lemmas || [];
                   const mergedLemmas = [...new Set([...currentLemmas, ...extractedLemmas])];
                   
@@ -350,7 +348,7 @@ function MethodDonationEditor({
                         slotPatterns={method.slot_patterns || {}}
                         onAutoSync={() => {
                           if (!extractLemmasFromTokenPatterns) return;
-                          const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || [], method.slot_patterns);
+                          const extractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || []);
                           const currentLemmas = method.lemmas || [];
                           const mergedLemmas = [...new Set([...currentLemmas, ...extractedLemmas])];
                           
@@ -374,7 +372,7 @@ function MethodDonationEditor({
                         currentLemmas={method.lemmas || []}
                         onLemmasSync={(extractedLemmas) => {
                           const currentLemmas = method.lemmas || [];
-                          const allExtractedLemmas = extractLemmasFromTokenPatterns(method.token_patterns || [], method.slot_patterns);
+                          const allExtractedLemmas = extractLemmasFromTokenPatterns?.(method.token_patterns || []) || [];
                           const mergedLemmas = [...new Set([...currentLemmas, ...allExtractedLemmas, ...extractedLemmas])];
                           
                           const newMethods = [...(v.method_donations || [])];

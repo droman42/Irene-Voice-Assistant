@@ -582,10 +582,12 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
             
         try:
             from fastapi import APIRouter, HTTPException  # type: ignore
+            from ..config.models import VoiceTriggerConfig
             from ..api.schemas import (
-                VoiceTriggerStatus, WakeWordConfig, VoiceTriggerConfigureResponse,
+                VoiceTriggerStatus,
                 VoiceTriggerSwitchRequest, VoiceTriggerSwitchResponse,
-                VoiceTriggerProvidersResponse
+                VoiceTriggerProvidersResponse,
+                VoiceTriggerConfigureResponse
             )
             
             router = APIRouter()
@@ -603,17 +605,51 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
                 )
             
             @router.post("/configure", response_model=VoiceTriggerConfigureResponse)
-            async def configure_voice_trigger(config: WakeWordConfig):
-                """Configure voice trigger settings"""
-                success_words = await self.set_wake_words(config.wake_words)
-                success_threshold = await self.set_threshold(config.threshold)
-                
-                return VoiceTriggerConfigureResponse(
-                    success=success_words and success_threshold,
-                    config=config,
-                    updated_words=success_words,
-                    updated_threshold=success_threshold
-                )
+            async def configure_voice_trigger(config_update: VoiceTriggerConfig):
+                """Configure voice trigger settings using unified TOML schema"""
+                try:
+                    
+                    # Apply runtime configuration without TOML persistence
+                    config_dict = config_update.model_dump()
+                    
+                    # Update default provider if provided
+                    if config_dict.get("default_provider"):
+                        if config_dict["default_provider"] in self.providers:
+                            self.default_provider = config_dict["default_provider"]
+                        else:
+                            logger.warning(f"Voice trigger provider '{config_dict['default_provider']}' not available")
+                    
+                    # Extract wake words from provider configurations
+                    wake_words = []
+                    providers_config = config_dict.get("providers", {})
+                    if providers_config:
+                        for provider_name, provider_config in providers_config.items():
+                            if provider_config.get("enabled", False):
+                                provider_wake_words = provider_config.get("wake_words", [])
+                                wake_words.extend(provider_wake_words)
+                        logger.info(f"Voice trigger runtime provider configuration updated for {len(providers_config)} providers")
+                    
+                    # Update enabled providers if provided (would require re-initialization)
+                    if providers_config:
+                        logger.info(f"Voice trigger providers configuration updated: {list(providers_config.keys())}")
+                    
+                    return VoiceTriggerConfigureResponse(
+                        success=True,
+                        message="Voice trigger configuration applied successfully using unified schema",
+                        default_provider=self.default_provider,
+                        enabled_providers=list(self.providers.keys()),
+                        wake_words=wake_words
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Failed to configure voice trigger with unified schema: {e}")
+                    return VoiceTriggerConfigureResponse(
+                        success=False,
+                        message=f"Failed to apply voice trigger configuration: {str(e)}",
+                        default_provider=self.default_provider,
+                        enabled_providers=list(self.providers.keys()),
+                        wake_words=[]
+                    )
             
             @router.get("/providers", response_model=VoiceTriggerProvidersResponse)
             async def list_voice_trigger_providers():

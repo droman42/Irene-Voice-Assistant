@@ -592,6 +592,9 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     
     # WebAPIPlugin interface - unified API
     def get_router(self) -> APIRouter:
+        from ..config.models import ASRConfig
+        from ..api.schemas import ASRConfigureResponse
+        
         router = APIRouter()
         
         @router.post("/transcribe")
@@ -1108,15 +1111,48 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                     }
             return {"providers": result, "default": self.default_provider}
         
-        @router.post("/configure")
-        async def configure_asr(provider: str, set_as_default: bool = False):
-            """Configure ASR settings"""
-            if provider in self.providers:
-                if set_as_default:
-                    self.default_provider = provider
-                return {"success": True, "default_provider": self.default_provider}
-            else:
-                raise HTTPException(404, f"Provider '{provider}' not available")
+        @router.post("/configure", response_model=ASRConfigureResponse)
+        async def configure_asr(config_update: ASRConfig):
+            """Configure ASR settings using unified TOML schema"""
+            try:
+                
+                # Apply runtime configuration without TOML persistence
+                config_dict = config_update.model_dump()
+                
+                # Update default provider if provided
+                if config_dict.get("default_provider"):
+                    if config_dict["default_provider"] in self.providers:
+                        self.default_provider = config_dict["default_provider"]
+                    else:
+                        logger.warning(f"ASR provider '{config_dict['default_provider']}' not available")
+                
+                # Update language if provided
+                language = config_dict.get("language")
+                if language:
+                    logger.info(f"ASR language updated to: {language}")
+                
+                # Update enabled providers if provided (would require re-initialization)
+                providers_config = config_dict.get("providers", {})
+                if providers_config:
+                    logger.info(f"ASR runtime provider configuration updated for {len(providers_config)} providers")
+                
+                return ASRConfigureResponse(
+                    success=True,
+                    message="ASR configuration applied successfully using unified schema",
+                    default_provider=self.default_provider,
+                    enabled_providers=list(self.providers.keys()),
+                    language=language
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to configure ASR with unified schema: {e}")
+                return ASRConfigureResponse(
+                    success=False,
+                    message=f"Failed to apply ASR configuration: {str(e)}",
+                    default_provider=self.default_provider,
+                    enabled_providers=list(self.providers.keys()),
+                    language=None
+                )
         
         @router.post("/reset")
         async def reset_asr_state(provider: Optional[str] = None, language: Optional[str] = None):

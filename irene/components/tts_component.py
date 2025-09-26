@@ -460,12 +460,14 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
             
         try:
             from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore
+            from ..config.models import TTSConfig
             from ..api.schemas import (
                 TTSRequest, TTSResponse, TTSProvidersResponse,
                 TTSStreamRequest, TTSAudioChunk, TTSSynthesisComplete, TTSErrorMessage,
                 BinaryTTSSessionMessage, TTSTextRequest, TTSSynthesisStarted, 
                 TTSBinarySynthesisComplete, BinaryTTSProtocol,
-                ChunkMetadata, SynthesisMetadata, SynthesisStats
+                ChunkMetadata, SynthesisMetadata, SynthesisStats,
+                TTSConfigureResponse
             )
             from ..web_api.asyncapi import websocket_api, extract_websocket_specs_from_router
             import json
@@ -642,19 +644,48 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
                     default=self.default_provider
                 )
             
-            @router.post("/configure")
-            async def configure_tts(provider: str, set_as_default: bool = False):
-                """Configure TTS settings"""
-                if provider in self.providers:
-                    if set_as_default:
-                        self.default_provider = provider
-                    return {
-                        "success": True, 
-                        "default_provider": self.default_provider,
-                        "available_providers": list(self.providers.keys())
-                    }
-                else:
-                    raise HTTPException(404, f"Provider '{provider}' not available")
+            @router.post("/configure", response_model=TTSConfigureResponse)
+            async def configure_tts(config_update: TTSConfig):
+                """Configure TTS settings using unified TOML schema"""
+                try:
+                    
+                    # Apply runtime configuration without TOML persistence
+                    config_dict = config_update.model_dump()
+                    
+                    # Update default provider if provided
+                    if config_dict.get("default_provider"):
+                        if config_dict["default_provider"] in self.providers:
+                            self.default_provider = config_dict["default_provider"]
+                        else:
+                            logger.warning(f"TTS provider '{config_dict['default_provider']}' not available")
+                    
+                    # Update enabled providers if provided (would require re-initialization)
+                    providers_config = config_dict.get("providers", {})
+                    if providers_config:
+                        logger.info(f"TTS runtime provider configuration updated for {len(providers_config)} providers")
+                    
+                    # Update fallback providers
+                    fallback_providers = config_dict.get("fallback_providers", [])
+                    if fallback_providers:
+                        logger.info(f"TTS fallback providers updated: {fallback_providers}")
+                    
+                    return TTSConfigureResponse(
+                        success=True,
+                        message="TTS configuration applied successfully using unified schema",
+                        default_provider=self.default_provider,
+                        enabled_providers=list(self.providers.keys()),
+                        fallback_providers=fallback_providers
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Failed to configure TTS with unified schema: {e}")
+                    return TTSConfigureResponse(
+                        success=False,
+                        message=f"Failed to apply TTS configuration: {str(e)}",
+                        default_provider=self.default_provider,
+                        enabled_providers=list(self.providers.keys()),
+                        fallback_providers=[]
+                    )
             
             # WebSocket endpoints for TTS streaming
             

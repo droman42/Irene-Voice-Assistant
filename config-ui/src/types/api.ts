@@ -1084,3 +1084,66 @@ export interface BasicNLUAnalysisResult extends BaseApiResponse {
   language_coverage: Record<string, number>;
   analysis_time_ms: number;
 }
+
+// ============================================================
+// PHASE 4: CONFIGURE RESPONSE TYPES FOR LIVE TESTING
+// ============================================================
+
+// Configure Response Types - matching backend schemas exactly
+export interface TTSConfigureResponse extends BaseApiResponse {
+  message: string;
+  default_provider?: string;
+  enabled_providers: string[];
+  fallback_providers: string[];
+}
+
+export interface ASRConfigureResponse extends BaseApiResponse {
+  message: string;
+  default_provider?: string;
+  enabled_providers: string[];
+  language?: string;
+}
+
+export interface AudioConfigureResponse extends BaseApiResponse {
+  message: string;
+  default_provider?: string;
+  enabled_providers: string[];
+  fallback_providers: string[];
+}
+
+export interface LLMConfigureResponse extends BaseApiResponse {
+  message: string;
+  default_provider?: string;
+  enabled_providers: string[];
+  fallback_providers: string[];
+}
+
+export interface NLUConfigureResponse extends BaseApiResponse {
+  message: string;
+  default_provider?: string;
+  enabled_providers: string[];
+  confidence_threshold?: number;
+}
+
+export interface VoiceTriggerConfigureResponse extends BaseApiResponse {
+  message: string;
+  default_provider?: string;
+  enabled_providers: string[];
+  wake_words: string[];
+}
+
+export interface TextProcessorConfigureResponse extends BaseApiResponse {
+  message: string;
+  enabled_providers: string[];
+  stages: string[];
+  normalizers: string[];
+}
+
+export interface IntentSystemConfigureResponse extends BaseApiResponse {
+  message: string;
+  confidence_threshold: number;
+  fallback_intent: string;
+  enabled_handlers: string[];
+  loaded_donations: string[];
+  handler_count: number;
+}
