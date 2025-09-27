@@ -8,9 +8,10 @@ supporting both voice assistant mode (with wake words) and continuous mode.
 import asyncio
 import logging
 import time
-from typing import Dict, Any, Optional, AsyncIterator, List
+from typing import Dict, Any, Optional, AsyncIterator, List, Union
 from enum import Enum
 
+from .trace_context import TraceContext
 from ..workflows.base import Workflow, RequestContext
 from ..intents.models import AudioData, IntentResult
 from ..inputs.base import InputSource
@@ -413,7 +414,8 @@ class WorkflowManager:
         text: str, 
         session_id: str = "default", 
         wants_audio: bool = False,
-        client_context: Optional[Dict[str, Any]] = None
+        client_context: Optional[Dict[str, Any]] = None,
+        trace_context: Optional[TraceContext] = None
     ) -> IntentResult:
         """
         Process text input through the unified workflow (enhanced interface).
@@ -426,6 +428,7 @@ class WorkflowManager:
             session_id: Session identifier for conversation context
             wants_audio: Whether the response should include audio output (TTS)
             client_context: Optional client context and metadata
+            trace_context: Optional trace context for detailed execution tracking
             
         Returns:
             IntentResult from processing with optional action metadata
@@ -454,13 +457,135 @@ class WorkflowManager:
             device_context=client_context.get("device_context") if client_context else None
         )
         
-        result = await unified_workflow.process_text_input(text, context)
+        result = await unified_workflow.process_text_input(text, context, trace_context)
         
         # Process action metadata if present
         if result.action_metadata:
             await self._process_action_metadata_integration(result, session_id)
         
         return result
+    
+    async def process_audio_input(
+        self, 
+        audio_data: Union[bytes, 'AudioData'],
+        session_id: str = "default",
+        wants_audio: bool = True,
+        client_context: Optional[Dict[str, Any]] = None,
+        trace_context: Optional[TraceContext] = None
+    ) -> IntentResult:
+        """
+        Process audio input (file bytes or AudioData) through the unified workflow.
+        
+        This method implements the audio processing entry point with trace support.
+        Handles audio conversion and processing through voice trigger → ASR → text pipeline.
+        
+        Args:
+            audio_data: Audio input - either raw bytes from uploaded file or AudioData object
+            session_id: Session identifier for conversation context
+            wants_audio: Whether the response should include audio output (TTS)
+            client_context: Optional client context and metadata
+            trace_context: Optional trace context for detailed execution tracking
+            
+        Returns:
+            IntentResult from processing with optional action metadata
+        """
+        from ..intents.models import AudioData
+        
+        # Use active workflow or create unified workflow on-demand
+        if not self.active_workflow:
+            await self.create_workflow_on_demand("unified_voice_assistant")
+            if "unified_voice_assistant" in self.workflows:
+                self.active_workflow = self.workflows["unified_voice_assistant"]
+                self.active_mode = WorkflowMode.UNIFIED
+        
+        if not self.active_workflow:
+            raise RuntimeError("No active workflow available and failed to create unified_voice_assistant workflow")
+        
+        unified_workflow = self.active_workflow
+        
+        try:
+            # Convert audio input to AudioData if needed
+            if isinstance(audio_data, bytes):
+                # Import the loading utility
+                from ..utils.audio_helpers import load_audio_file_to_audiodata_from_bytes
+                
+                if trace_context:
+                    stage_start = time.time()
+                    
+                converted_audio = await load_audio_file_to_audiodata_from_bytes(
+                    audio_bytes=audio_data,
+                    filename=client_context.get("filename") if client_context else None
+                )
+                
+                if trace_context:
+                    trace_context.record_stage(
+                        stage_name="audio_file_loading",
+                        input_data={"size_bytes": len(audio_data), "format": "auto_detected"},
+                        output_data=converted_audio,
+                        metadata={
+                            "original_size_bytes": len(audio_data),
+                            "converted_sample_rate": converted_audio.sample_rate,
+                            "converted_channels": converted_audio.channels,
+                            "detected_format": converted_audio.metadata.get("detected_format"),
+                            "source_type": "uploaded_bytes"
+                        },
+                        processing_time_ms=(time.time() - stage_start) * 1000
+                    )
+                
+                audio_data = converted_audio
+            elif not isinstance(audio_data, AudioData):
+                raise ValueError(f"audio_data must be bytes or AudioData, got {type(audio_data)}")
+            
+            # Create enhanced request context for audio processing
+            context = RequestContext(
+                source="audio",
+                session_id=session_id,
+                wants_audio=wants_audio,
+                skip_wake_word=client_context.get("skip_wake_word", False) if client_context else False,
+                metadata=client_context or {"mode": "audio_input"},
+                client_id=client_context.get("client_id") if client_context else None,
+                room_name=client_context.get("room_name") if client_context else None,
+                device_context=client_context.get("device_context") if client_context else None
+            )
+            
+            # Process audio through unified workflow with trace support
+            result = await unified_workflow.process_audio_input(audio_data, context, trace_context)
+            
+            # Process action metadata if present
+            if result.action_metadata:
+                await self._process_action_metadata_integration(result, session_id)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Audio processing error in WorkflowManager: {e}")
+            
+            # Record error in trace if available
+            if trace_context:
+                trace_context.record_stage(
+                    stage_name="workflow_manager_audio_error",
+                    input_data={"audio_type": type(audio_data).__name__},
+                    output_data=None,
+                    metadata={
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "session_id": session_id
+                    },
+                    processing_time_ms=0.0
+                )
+            
+            # Return error result
+            return IntentResult(
+                text=f"Audio processing failed: {str(e)}",
+                success=False,
+                metadata={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "source": "workflow_manager_audio"
+                },
+                error=str(e),
+                confidence=0.0
+            )
     
     async def process_audio_stream(
         self,

@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.asr import ASRPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.trace_context import TraceContext
 from ..intents.models import AudioData
 from ..core.metrics import get_metrics_collector
 from ..web_api.asyncapi import websocket_api, extract_websocket_specs_from_router
@@ -172,9 +173,9 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
             logger.error(f"Failed to initialize Universal ASR Plugin: {e}")
     
     # Workflow-compatible interface for AudioData objects
-    async def process_audio(self, audio_data: AudioData, **kwargs) -> str:
+    async def process_audio(self, audio_data: AudioData, trace_context: Optional[TraceContext] = None, **kwargs) -> str:
         """
-        Process AudioData with intelligent sample rate handling (Phase 4 enhancement)
+        Workflow-compatible ASR processing with optional provider performance tracing.
         
         This method implements the complete Phase 4 workflow:
         1. Extract provider requirements
@@ -185,11 +186,32 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         
         Args:
             audio_data: AudioData object containing audio bytes and metadata
+            trace_context: Optional trace context for detailed execution tracking
             **kwargs: Additional provider-specific parameters
             
         Returns:
             Transcribed text
         """
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation logic here
+            provider_name = kwargs.get("provider", self.default_provider)
+            
+            # Debug logging for audio data reception
+            logger.info(f"🎧 ASR received audio data: {len(audio_data.data)} bytes, "
+                       f"sample_rate={audio_data.sample_rate}, channels={audio_data.channels}, "
+                       f"format={audio_data.format}, provider={provider_name}")
+            
+            if provider_name not in self.providers:
+                logger.error(f"❌ ASR provider '{provider_name}' not available. Available: {list(self.providers.keys())}")
+                raise ValueError(f"ASR provider '{provider_name}' not available")
+            
+            provider = self.providers[provider_name]
+            return await provider.transcribe(audio_data)
+        
+        # Trace path - detailed provider performance tracking
+        stage_start = time.time()
+        provider_attempts = []
         provider_name = kwargs.get("provider", self.default_provider)
         
         # Debug logging for audio data reception
@@ -203,6 +225,48 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         
         provider = self.providers[provider_name]
         
+        # Execute transcription with timing
+        attempt_start = time.time()
+        try:
+            transcription = await provider.transcribe(audio_data)
+            provider_attempts.append({
+                "provider": provider_name,
+                "result": transcription,
+                "confidence": getattr(provider, 'last_confidence', 0.0),
+                "processing_time_ms": (time.time() - attempt_start) * 1000,
+                "success": True
+            })
+            
+        except Exception as e:
+            provider_attempts.append({
+                "provider": provider_name,
+                "error": str(e),
+                "processing_time_ms": (time.time() - attempt_start) * 1000,
+                "success": False
+            })
+            raise
+        
+        trace_context.record_stage(
+            stage_name="asr_transcription",
+            input_data=audio_data,  # AudioData object - will be converted to base64 by _sanitize_for_trace()
+            output_data=transcription,
+            metadata={
+                "provider_attempts": provider_attempts,
+                "audio_properties": {
+                    "sample_rate": audio_data.sample_rate,
+                    "channels": audio_data.channels,
+                    "duration_ms": len(audio_data.data) / (audio_data.sample_rate * audio_data.channels * 2) * 1000  # Assuming 16-bit
+                },
+                "default_provider": self.default_provider,
+                "component_name": self.__class__.__name__
+            },
+            processing_time_ms=(time.time() - stage_start) * 1000
+        )
+        
+        return transcription
+    
+    async def _original_process_audio_logic(self, audio_data: AudioData, **kwargs) -> str:
+        """Original process_audio implementation for reference"""
         # Phase 4 Step 1: Get ASR configuration (AUTHORITATIVE per fix_vosk.md)
         asr_config = {}
         if hasattr(self, 'core') and self.core:

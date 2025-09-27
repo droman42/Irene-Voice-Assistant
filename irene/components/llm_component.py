@@ -7,12 +7,14 @@ Provides unified web API (/llm/*), voice commands, and text enhancement capabili
 
 from typing import Dict, Any, List, Optional, Type
 import logging
+import time
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.llm import LLMPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.trace_context import TraceContext
 
 
 # Import LLM provider base class and dynamic loader
@@ -151,56 +153,160 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
             logger.error(f"Failed to initialize Universal LLM Plugin: {e}")
     
     # Primary LLM interface - used by other plugins
-    async def enhance_text(self, text: str, task: str = "improve", **kwargs) -> str:
+    async def enhance_text(self, text: str, task: str = "improve", trace_context: Optional[TraceContext] = None, **kwargs) -> str:
         """
-        Core LLM functionality - enhance text using specified task
+        Core LLM functionality - enhance text using specified task with optional tracing
         
         Args:
             text: Input text to enhance
             task: Enhancement task type
+            trace_context: Optional trace context for detailed execution tracking
             provider: LLM provider to use (default: self.default_provider)
             **kwargs: Provider-specific parameters
             
         Returns:
             Enhanced text
         """
-        provider_name = kwargs.get("provider", self.default_provider)
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation unchanged
+            provider_name = kwargs.get("provider", self.default_provider)
+            
+            if provider_name not in self.providers:
+                logger.warning(f"LLM provider '{provider_name}' not available, using fallback")
+                # Try to use any available provider as fallback
+                if self.providers:
+                    provider_name = list(self.providers.keys())[0]
+                    logger.info(f"Using fallback provider: {provider_name}")
+                else:
+                    logger.error("No LLM providers available")
+                    return text  # Return original text if no providers
+            
+            provider = self.providers[provider_name]
+            try:
+                return await provider.enhance_text(text, task=task, **kwargs)
+            except Exception as e:
+                logger.error(f"LLM enhancement failed with {provider_name}: {e}")
+                return text  # Return original text on error
         
+        # Trace path - detailed enhancement tracking
+        stage_start = time.time()
+        provider_name = kwargs.get("provider", self.default_provider)
+        enhancement_metadata = {
+            "input_text_length": len(text),
+            "input_word_count": len(text.split()),
+            "task": task,
+            "provider": provider_name,
+            "component_name": self.__class__.__name__
+        }
+        
+        # Handle provider availability and fallbacks with tracing
+        original_provider = provider_name
         if provider_name not in self.providers:
             logger.warning(f"LLM provider '{provider_name}' not available, using fallback")
-            # Try to use any available provider as fallback
             if self.providers:
                 provider_name = list(self.providers.keys())[0]
                 logger.info(f"Using fallback provider: {provider_name}")
+                enhancement_metadata["fallback_used"] = True
+                enhancement_metadata["original_provider"] = original_provider
+                enhancement_metadata["actual_provider"] = provider_name
             else:
                 logger.error("No LLM providers available")
-                return text  # Return original text if no providers
+                enhancement_metadata.update({
+                    "enhancement_success": False,
+                    "error": "No LLM providers available",
+                    "fallback_to_original": True
+                })
+                
+                trace_context.record_stage(
+                    stage_name="llm_enhancement",
+                    input_data=text,
+                    output_data=text,
+                    metadata=enhancement_metadata,
+                    processing_time_ms=(time.time() - stage_start) * 1000
+                )
+                return text
         
+        # Execute enhancement with timing
         provider = self.providers[provider_name]
         try:
-            return await provider.enhance_text(text, task=task, **kwargs)
+            enhanced_text = await provider.enhance_text(text, task=task, **kwargs)
+            enhancement_metadata.update({
+                "enhancement_success": True,
+                "text_changed": text != enhanced_text,
+                "output_text_length": len(enhanced_text),
+                "output_word_count": len(enhanced_text.split()),
+                "provider_used": provider_name
+            })
+            
         except Exception as e:
             logger.error(f"LLM enhancement failed with {provider_name}: {e}")
-            return text  # Return original text on error
+            enhanced_text = text
+            enhancement_metadata.update({
+                "enhancement_success": False,
+                "error": str(e),
+                "fallback_to_original": True,
+                "provider_used": provider_name
+            })
+        
+        trace_context.record_stage(
+            stage_name="llm_enhancement",
+            input_data=text,
+            output_data=enhanced_text,
+            metadata=enhancement_metadata,
+            processing_time_ms=(time.time() - stage_start) * 1000
+        )
+        
+        return enhanced_text
     
     # Public methods for intent handler delegation
     
     async def generate_response(self, messages: List[Dict[str, str]], 
                                model: Optional[str] = None, 
                                provider: Optional[str] = None,
+                               trace_context: Optional[TraceContext] = None,
                                **kwargs) -> str:
         """
-        Generate a chat response from messages - conversation handler compatibility method.
+        Generate a chat response from messages with optional conversation tracing.
         
         Args:
             messages: List of message dicts with 'role' and 'content' keys
             model: Model name (optional, uses provider default). Can be in format "provider/model"
             provider: Provider name (optional, uses default provider)
+            trace_context: Optional trace context for detailed execution tracking
             **kwargs: Additional parameters
             
         Returns:
             Generated response text
         """
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation unchanged
+            # Parse provider/model format if present
+            if model and "/" in model and not provider:
+                provider_name, model_name = model.split("/", 1)
+                if provider_name not in self.providers:
+                    logger.warning(f"Provider '{provider_name}' from model spec '{model}' not available, using default")
+                    provider_name = self.default_provider
+                    model_name = model  # Use full original model string as fallback
+                else:
+                    model = model_name  # Use just the model part for the provider
+            else:
+                provider_name = provider or self.default_provider
+            
+            if provider_name not in self.providers:
+                raise ValueError(f"LLM provider '{provider_name}' not available")
+            
+            # Forward to provider's chat_completion method
+            response = await self.providers[provider_name].chat_completion(
+                messages, model=model, **kwargs
+            )
+            
+            return response
+        
+        # Trace path - detailed conversation generation tracking
+        stage_start = time.time()
+        
         # Parse provider/model format if present
         if model and "/" in model and not provider:
             provider_name, model_name = model.split("/", 1)
@@ -213,12 +319,49 @@ class LLMComponent(Component, LLMPlugin, WebAPIPlugin):
         else:
             provider_name = provider or self.default_provider
         
-        if provider_name not in self.providers:
-            raise ValueError(f"LLM provider '{provider_name}' not available")
+        conversation_metadata = {
+            "message_count": len(messages),
+            "conversation_length": sum(len(msg.get("content", "")) for msg in messages),
+            "roles_present": list(set(msg.get("role", "") for msg in messages)),
+            "model": model,
+            "provider": provider_name,
+            "component_name": self.__class__.__name__
+        }
         
-        # Forward to provider's chat_completion method
-        response = await self.providers[provider_name].chat_completion(
-            messages, model=model, **kwargs
+        try:
+            if provider_name not in self.providers:
+                raise ValueError(f"LLM provider '{provider_name}' not available")
+            
+            # Execute conversation generation with timing
+            response = await self.providers[provider_name].chat_completion(
+                messages, model=model, **kwargs
+            )
+            
+            conversation_metadata.update({
+                "generation_success": True,
+                "response_length": len(response),
+                "response_word_count": len(response.split()),
+                "provider_used": provider_name
+            })
+            
+        except Exception as e:
+            conversation_metadata.update({
+                "generation_success": False,
+                "error": str(e),
+                "provider_used": provider_name
+            })
+            raise
+        
+        trace_context.record_stage(
+            stage_name="llm_conversation",
+            input_data={
+                "messages": messages,
+                "model": model,
+                "provider": provider_name
+            },
+            output_data=response,
+            metadata=conversation_metadata,
+            processing_time_ms=(time.time() - stage_start) * 1000
         )
         
         return response

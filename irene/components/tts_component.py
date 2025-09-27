@@ -9,6 +9,7 @@ and provides unified web APIs and voice command interfaces.
 import asyncio
 import logging
 import base64
+import time
 from typing import Dict, Any, List, Optional, Type
 from pathlib import Path
 from datetime import datetime
@@ -18,6 +19,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.tts import TTSPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.trace_context import TraceContext
 
 # Import TTS provider base class and dynamic loader
 from ..providers.tts import TTSProvider
@@ -295,22 +297,72 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
             logger.error(f"Failed to load fallback console provider: {e}")
     
     # TTSPlugin interface - delegates to providers
-    async def synthesize_to_file(self, text: str, output_path: Path, **kwargs) -> None:
-        """Generate speech file using configured provider with lazy loading support"""
-        provider_name = kwargs.get("provider", self.default_provider)
+    async def synthesize_to_file(self, text: str, output_path: Path, trace_context: Optional[TraceContext] = None, **kwargs) -> None:
+        """Generate audio file with optional synthesis tracing"""
         
-        # Try to get provider, with lazy loading if enabled
-        provider = await self._get_provider(provider_name)
-        
-        if provider:
-            try:
-                await provider.synthesize_to_file(text, output_path, **kwargs)
-            except Exception as e:
-                logger.error(f"TTS provider {provider_name} failed: {e}")
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation unchanged - delegate to provider
+            provider_name = kwargs.get("provider", self.default_provider)
+            
+            # Try to get provider, with lazy loading if enabled
+            provider = await self._get_provider(provider_name)
+            
+            if provider:
+                try:
+                    await provider.synthesize_to_file(text, output_path, **kwargs)
+                except Exception as e:
+                    logger.error(f"TTS provider {provider_name} failed: {e}")
+                    await self._synthesize_with_fallback(text, output_path, **kwargs)
+            else:
+                logger.warning(f"TTS provider {provider_name} not available")
                 await self._synthesize_with_fallback(text, output_path, **kwargs)
-        else:
-            logger.warning(f"TTS provider {provider_name} not available")
-            await self._synthesize_with_fallback(text, output_path, **kwargs)
+            return
+        
+        # Trace path - detailed synthesis tracking
+        stage_start = time.time()
+        provider_name = kwargs.get("provider", self.default_provider)
+        synthesis_metadata = {
+            "input_text_length": len(text),
+            "input_word_count": len(text.split()),
+            "provider": provider_name,
+            "auto_play": getattr(self, 'auto_play', False),
+            "component_name": self.__class__.__name__
+        }
+        
+        try:
+            # Execute original synthesis logic via provider
+            provider = await self._get_provider(provider_name)
+            if provider:
+                await provider.synthesize_to_file(text, output_path, **kwargs)
+                synthesis_metadata.update({
+                    "synthesis_success": True,
+                    "output_file": str(output_path),
+                    "provider_used": getattr(provider, 'name', provider_name)
+                })
+            else:
+                # Fallback handling
+                await self._synthesize_with_fallback(text, output_path, **kwargs)
+                synthesis_metadata.update({
+                    "synthesis_success": True,
+                    "output_file": str(output_path),
+                    "provider_used": "fallback"
+                })
+            
+        except Exception as e:
+            synthesis_metadata.update({
+                "synthesis_success": False,
+                "error": str(e)
+            })
+            raise
+        
+        trace_context.record_stage(
+            stage_name="tts_synthesis",
+            input_data=text,
+            output_data=output_path,  # Path object - will be read and converted to base64 by _sanitize_for_trace()
+            metadata=synthesis_metadata,
+            processing_time_ms=(time.time() - stage_start) * 1000
+        )
     
     async def speak(self, text: str, **kwargs) -> str:
         """

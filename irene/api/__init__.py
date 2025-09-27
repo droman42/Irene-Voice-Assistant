@@ -39,5 +39,11 @@ __all__ = [
     # Configuration schemas
     "ConfigUpdateResponse",
     "ConfigValidationResponse",
-    "ConfigStatusResponse"
+    "ConfigStatusResponse",
+    # Trace execution schemas (Phase 7 - TODO16)
+    "PipelineStageTrace",
+    "ContextEvolution", 
+    "PerformanceMetrics",
+    "ExecutionTrace",
+    "TraceCommandResponse"
 ]

@@ -1256,6 +1256,120 @@ class CommandResponse(BaseAPIResponse):
 
 
 # ============================================================
+# TRACE EXECUTION SCHEMAS (PHASE 7 - TODO16)
+# ============================================================
+
+class PipelineStageTrace(BaseModel):
+    """Detailed trace information for a single pipeline stage"""
+    stage: str = Field(description="Name of the pipeline stage")
+    input_data: Any = Field(description="Input data for this stage")
+    output_data: Any = Field(description="Output data from this stage")
+    metadata: Dict[str, Any] = Field(description="Stage-specific metadata and processing details")
+    processing_time_ms: float = Field(description="Processing time for this stage in milliseconds")
+    timestamp: float = Field(description="Unix timestamp when stage was executed")
+
+
+class ContextEvolution(BaseModel):
+    """Context state changes during pipeline execution"""
+    before: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Conversation context state before processing"
+    )
+    after: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Conversation context state after processing"
+    )
+    changes: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Summary of changes between before and after states"
+    )
+
+
+class PerformanceMetrics(BaseModel):
+    """Performance metrics for pipeline execution"""
+    total_processing_time_ms: float = Field(description="Total processing time in milliseconds")
+    stage_breakdown: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Processing time breakdown by stage"
+    )
+    total_stages: int = Field(description="Total number of stages executed")
+
+
+class ExecutionTrace(BaseModel):
+    """Complete pipeline execution trace"""
+    request_id: str = Field(description="Unique identifier for this trace request")
+    pipeline_stages: List[PipelineStageTrace] = Field(
+        default_factory=list,
+        description="Detailed trace of each pipeline stage"
+    )
+    context_evolution: ContextEvolution = Field(
+        default_factory=ContextEvolution,
+        description="How conversation context changed during execution"
+    )
+    performance_metrics: PerformanceMetrics = Field(
+        default_factory=PerformanceMetrics,
+        description="Performance timing and metrics"
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Error message if trace collection failed"
+    )
+
+
+class TraceCommandResponse(BaseAPIResponse):
+    """Response for trace command execution with complete pipeline visibility"""
+    final_result: Dict[str, Any] = Field(
+        description="Normal command execution result (same as CommandResponse)"
+    )
+    execution_trace: ExecutionTrace = Field(
+        description="Complete pipeline execution trace with detailed stage information"
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Error message if command execution failed"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "success": True,
+                    "final_result": {
+                        "text": "Playing music",
+                        "success": True,
+                        "metadata": {"intent": "audio.play"},
+                        "confidence": 0.95
+                    },
+                    "execution_trace": {
+                        "request_id": "trace-abc123",
+                        "pipeline_stages": [
+                            {
+                                "stage": "text_processing",
+                                "input_data": "play music",
+                                "output_data": "play music",
+                                "metadata": {"normalizers_applied": []},
+                                "processing_time_ms": 2.3,
+                                "timestamp": 1704067200.123
+                            }
+                        ],
+                        "context_evolution": {
+                            "before": {"active_actions": {}},
+                            "after": {"active_actions": {"audio": "play_music"}},
+                            "changes": {"active_actions_added": ["audio"]}
+                        },
+                        "performance_metrics": {
+                            "total_processing_time_ms": 45.2,
+                            "stage_breakdown": {"text_processing": 2.3, "nlu_cascade": 15.7},
+                            "total_stages": 3
+                        }
+                    },
+                    "timestamp": 1704067200.123
+                }
+            ]
+        }
+
+
+# ============================================================
 # LLM (LARGE LANGUAGE MODEL) SCHEMAS
 # ============================================================
 

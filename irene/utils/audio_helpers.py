@@ -1398,6 +1398,233 @@ def get_audio_info(file_path: Union[str, Path]) -> Dict[str, Any]:
     return info
 
 
+async def load_audio_file_to_audiodata(
+    file_path: Union[str, Path], 
+    target_sample_rate: int = 16000,
+    target_channels: int = 1,
+    target_format: str = "pcm16"
+) -> 'AudioData':
+    """
+    Load audio file and convert to AudioData object.
+    
+    Handles format detection, resampling, and channel conversion.
+    Returns standardized AudioData for pipeline processing.
+    
+    Args:
+        file_path: Path to the audio file
+        target_sample_rate: Target sample rate in Hz (default: 16000)
+        target_channels: Target channel count (default: 1)
+        target_format: Target format (default: "pcm16")
+        
+    Returns:
+        AudioData object ready for pipeline processing
+        
+    Raises:
+        FileNotFoundError: If audio file doesn't exist
+        ValueError: If audio format is not supported
+        RuntimeError: If audio conversion fails
+    """
+    from ..intents.models import AudioData
+    import time
+    
+    file_path = Path(file_path)
+    
+    # Validate file exists and is supported
+    if not file_path.exists():
+        raise FileNotFoundError(f"Audio file not found: {file_path}")
+    
+    if not validate_audio_file(file_path):
+        raise ValueError(f"Unsupported audio format: {file_path.suffix}")
+    
+    try:
+        # Get audio file info
+        audio_info = get_audio_info(file_path)
+        logger.debug(f"Loading audio file: {file_path}, "
+                    f"format={audio_info.get('format')}, "
+                    f"duration={audio_info.get('duration'):.2f}s, "
+                    f"sample_rate={audio_info.get('sample_rate')}Hz")
+        
+        # Load audio data using soundfile (preferred) or wave for WAV files
+        try:
+            import soundfile as sf  # type: ignore
+            import numpy as np  # type: ignore
+            
+            def _load_with_soundfile():
+                # Load audio data
+                data, sample_rate = sf.read(str(file_path), dtype='int16')
+                
+                # Convert to mono if needed
+                if len(data.shape) > 1 and data.shape[1] > 1:
+                    if target_channels == 1:
+                        # Convert stereo to mono by averaging channels
+                        data = np.mean(data, axis=1).astype(np.int16)
+                    elif data.shape[1] != target_channels:
+                        # For other channel configurations, take first N channels
+                        data = data[:, :target_channels]
+                
+                # Ensure data is 1D for mono
+                if target_channels == 1 and len(data.shape) > 1:
+                    data = data.flatten()
+                
+                return data.tobytes(), sample_rate
+            
+            audio_bytes, original_sample_rate = await asyncio.to_thread(_load_with_soundfile)
+            
+        except ImportError:
+            # Fallback to wave module for WAV files
+            if file_path.suffix.lower() != '.wav':
+                raise RuntimeError(f"soundfile library not available and file is not WAV format: {file_path}")
+            
+            import wave
+            
+            def _load_with_wave():
+                with wave.open(str(file_path), 'rb') as wav_file:
+                    frames = wav_file.readframes(-1)
+                    sample_rate = wav_file.getframerate()
+                    channels = wav_file.getnchannels()
+                    
+                    # Convert to mono if needed (basic channel mixing)
+                    if channels > 1 and target_channels == 1:
+                        import numpy as np
+                        # Assume 16-bit samples
+                        data = np.frombuffer(frames, dtype=np.int16)
+                        data = data.reshape(-1, channels)
+                        data = np.mean(data, axis=1).astype(np.int16)
+                        frames = data.tobytes()
+                    
+                    return frames, sample_rate
+            
+            audio_bytes, original_sample_rate = await asyncio.to_thread(_load_with_wave)
+        
+        # Create initial AudioData object
+        audio_data = AudioData(
+            data=audio_bytes,
+            timestamp=time.time(),
+            sample_rate=original_sample_rate,
+            channels=target_channels,
+            format=target_format,
+            metadata={
+                'source_file': str(file_path),
+                'original_sample_rate': original_sample_rate,
+                'file_format': file_path.suffix.lower().lstrip('.'),
+                'file_size_bytes': file_path.stat().st_size
+            }
+        )
+        
+        # Resample if needed
+        if original_sample_rate != target_sample_rate:
+            logger.debug(f"Resampling audio from {original_sample_rate}Hz to {target_sample_rate}Hz")
+            audio_data = await AudioProcessor.resample_audio_data(
+                audio_data, 
+                target_sample_rate,
+                method=ConversionMethod.POLYPHASE
+            )
+        
+        logger.debug(f"Audio loaded successfully: {len(audio_data.data)} bytes, "
+                    f"{target_sample_rate}Hz, {target_channels} channel(s)")
+        
+        return audio_data
+        
+    except Exception as e:
+        logger.error(f"Failed to load audio file {file_path}: {e}")
+        raise RuntimeError(f"Audio conversion failed: {e}") from e
+
+
+async def load_audio_file_to_audiodata_from_bytes(
+    audio_bytes: bytes,
+    filename: Optional[str] = None,
+    target_sample_rate: int = 16000,
+    target_channels: int = 1,
+    target_format: str = "pcm16"
+) -> 'AudioData':
+    """
+    Load audio from bytes and convert to AudioData object.
+    
+    Handles format detection from filename, temporary file creation,
+    and conversion to standardized AudioData for pipeline processing.
+    
+    Args:
+        audio_bytes: Raw audio file bytes
+        filename: Original filename for format detection (optional)
+        target_sample_rate: Target sample rate in Hz (default: 16000)
+        target_channels: Target channel count (default: 1)
+        target_format: Target format (default: "pcm16")
+        
+    Returns:
+        AudioData object ready for pipeline processing
+        
+    Raises:
+        ValueError: If audio format cannot be determined or is not supported
+        RuntimeError: If audio conversion fails
+    """
+    import tempfile
+    import time
+    
+    # Determine file format from filename
+    if filename:
+        file_format = Path(filename).suffix.lower().lstrip('.')
+        if not file_format:
+            raise ValueError("Cannot determine audio format from filename (no extension)")
+    else:
+        # Try to detect format from bytes (basic detection)
+        if audio_bytes.startswith(b'RIFF') and b'WAVE' in audio_bytes[:12]:
+            file_format = 'wav'
+        elif audio_bytes.startswith(b'ID3') or audio_bytes.startswith(b'\xff\xfb'):
+            file_format = 'mp3'
+        elif audio_bytes.startswith(b'OggS'):
+            file_format = 'ogg'
+        elif audio_bytes.startswith(b'fLaC'):
+            file_format = 'flac'
+        else:
+            raise ValueError("Cannot determine audio format from bytes and no filename provided")
+    
+    # Validate format is supported
+    supported_formats = {'wav', 'mp3', 'ogg', 'flac', 'm4a', 'aac'}
+    if file_format not in supported_formats:
+        raise ValueError(f"Unsupported audio format: {file_format}")
+    
+    # Create temporary file for processing
+    temp_file = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=f'.{file_format}', delete=False) as temp_file:
+            temp_file.write(audio_bytes)
+            temp_file.flush()
+            temp_path = Path(temp_file.name)
+        
+        logger.debug(f"Processing audio from bytes: {len(audio_bytes)} bytes, "
+                    f"detected format: {file_format}")
+        
+        # Load using existing file loading utility
+        audio_data = await load_audio_file_to_audiodata(
+            temp_path,
+            target_sample_rate=target_sample_rate,
+            target_channels=target_channels,
+            target_format=target_format
+        )
+        
+        # Update metadata to reflect bytes source
+        audio_data.metadata.update({
+            'source_type': 'bytes',
+            'original_filename': filename or 'unknown',
+            'original_size_bytes': len(audio_bytes),
+            'detected_format': file_format
+        })
+        
+        return audio_data
+        
+    except Exception as e:
+        logger.error(f"Failed to load audio from bytes: {e}")
+        raise RuntimeError(f"Audio conversion from bytes failed: {e}") from e
+    
+    finally:
+        # Clean up temporary file
+        if temp_file and temp_path and temp_path.exists():
+            try:
+                temp_path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temporary audio file {temp_path}: {e}")
+
+
 async def test_audio_playback_capability() -> Dict[str, Any]:
     """
     Test system audio playback capabilities.

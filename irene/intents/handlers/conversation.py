@@ -363,7 +363,8 @@ class ConversationIntentHandler(IntentHandler):
         try:
             # Use LLM component's default model for factual queries
             response = await self.llm_component.generate_response(
-                messages=[{"role": "user", "content": formatted_prompt}]
+                messages=[{"role": "user", "content": formatted_prompt}],
+                trace_context=self._trace_context
             )
             
             return IntentResult(
@@ -414,7 +415,8 @@ class ConversationIntentHandler(IntentHandler):
             
             # Generate response using LLM component's default model
             response = await self.llm_component.generate_response(
-                messages=messages
+                messages=messages,
+                trace_context=self._trace_context
             )
             
             # Add assistant response to session

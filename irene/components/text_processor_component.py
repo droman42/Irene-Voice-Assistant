@@ -8,11 +8,13 @@ Phase 3 of TODO #2: Updated to use new stage-specific providers
 """
 
 import logging
+import time
 from typing import Dict, Any, List, Optional, Type
 
 from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.trace_context import TraceContext
 from ..intents.models import ConversationContext
 from ..utils.loader import dynamic_loader
 from ..utils.text_processing import all_num_to_text_async
@@ -97,33 +99,66 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         
         logger.info(f"Text processing component initialized with {enabled_count} providers")
     
-    async def process(self, text: str) -> str:
+    async def process(self, text: str, trace_context: Optional[TraceContext] = None) -> str:
         """
-        Process text using the general text processing provider.
+        Process text using the general text processing provider with optional tracing.
         
         Args:
             text: Input text to process
+            trace_context: Optional trace context for detailed execution tracking
             
         Returns:
             Processed text
         """
-        # For simple text processing, just return the text as-is if no providers available
-        # This matches the workflow expectation for simple text preprocessing
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation unchanged
+            if not self.providers:
+                logger.debug("No text processing providers available, returning original text")
+                return text
+            
+            from ..intents.models import ConversationContext
+            context = ConversationContext(session_id="text_processing", user_id=None, conversation_history=[])
+            return await self.improve(text, context, "general")
+        
+        # Trace path - detailed stage tracking
+        stage_start = time.time()
+        normalizers_applied = []
+        
         if not self.providers:
-            logger.debug("No text processing providers available, returning original text")
-            return text
+            processed_text = text
+        else:
+            # Trace each normalization step through improve() method
+            from ..intents.models import ConversationContext
+            context = ConversationContext(session_id="text_processing", user_id=None, conversation_history=[])
+            
+            # Call improve and trace internal provider calls
+            processed_text = await self.improve(text, context, "general")
+            
+            # Track which providers were used
+            if self._stage_providers:
+                for stage, provider_name in self._stage_providers.items():
+                    normalizers_applied.append({
+                        "stage": stage,
+                        "provider": provider_name,
+                        "used": stage == "general"
+                    })
         
-        # Use the improve method with a minimal context for general text processing
-        from ..intents.models import ConversationContext
-        
-        # Create a minimal context for processing
-        context = ConversationContext(
-            session_id="text_processing",
-            user_id=None,
-            conversation_history=[]
+        trace_context.record_stage(
+            stage_name="text_processing",
+            input_data=text,
+            output_data=processed_text,
+            metadata={
+                "normalizers_applied": normalizers_applied,
+                "text_changed": text != processed_text,
+                "providers_available": list(self.providers.keys()),
+                "default_provider": getattr(self, 'default_provider', None),
+                "component_name": self.__class__.__name__
+            },
+            processing_time_ms=(time.time() - stage_start) * 1000
         )
         
-        return await self.improve(text, context, "general")
+        return processed_text
     
     def get_providers_info(self) -> str:
         """Implementation of abstract method - Get text processing providers information"""

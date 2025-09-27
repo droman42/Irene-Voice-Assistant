@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional, List
 from .models import Intent, IntentResult, ConversationContext
 from .registry import IntentRegistry
 from ..core.metrics import get_metrics_collector, MetricsCollector
+from ..core.trace_context import TraceContext
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +55,10 @@ class IntentOrchestrator:
         self._use_donation_routing = enabled
         logger.info(f"Donation-driven routing {'enabled' if enabled else 'disabled'}")
     
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: ConversationContext, 
+                     trace_context: Optional[TraceContext] = None) -> IntentResult:
         """
-        Execute an intent - workflow compatibility method.
+        Execute intent with optional handler resolution and disambiguation tracing.
         
         This is a wrapper for execute_intent() to maintain compatibility with the workflow
         interface that expects an 'execute' method.
@@ -64,11 +66,65 @@ class IntentOrchestrator:
         Args:
             intent: The recognized intent to execute
             context: Conversation context for execution
+            trace_context: Optional trace context for detailed execution tracking
             
         Returns:
             IntentResult containing the response and metadata
         """
-        return await self.execute_intent(intent, context)
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation unchanged
+            return await self.execute_intent(intent, context)
+        
+        # Trace path - detailed handler resolution tracking
+        stage_start = time.time()
+        execution_metadata = {
+            "input_intent": {
+                "name": intent.name,
+                "domain": intent.domain,
+                "action": intent.action,
+                "confidence": intent.confidence,
+                "entities": intent.entities
+            },
+            "disambiguation_process": None,
+            "handler_resolution": {},
+            "handler_execution": {},
+            "component_name": self.__class__.__name__
+        }
+        
+        # Execute with detailed tracking
+        try:
+            # Store trace_context for handler access
+            self._current_trace_context = trace_context
+            
+            result = await self.execute_intent(intent, context)
+            execution_metadata["handler_execution"]["success"] = result.success
+            execution_metadata["handler_execution"]["text"] = result.text
+            execution_metadata["handler_execution"]["confidence"] = result.confidence
+            
+        except Exception as e:
+            execution_metadata["handler_execution"]["success"] = False
+            execution_metadata["handler_execution"]["error"] = str(e)
+            raise
+        finally:
+            # Clear the stored trace_context
+            self._current_trace_context = None
+        
+        trace_context.record_stage(
+            stage_name="intent_execution",
+            input_data=execution_metadata["input_intent"],
+            output_data={
+                "success": result.success,
+                "text": result.text,
+                "confidence": result.confidence,
+                "should_speak": result.should_speak,
+                "action_metadata": result.action_metadata
+            } if 'result' in locals() else None,
+            metadata=execution_metadata,
+            processing_time_ms=(time.time() - stage_start) * 1000
+        )
+        
+        return result
     
     async def execute_intent(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """
@@ -204,6 +260,9 @@ class IntentOrchestrator:
             execution_start_time = time.time()
             
             try:
+                # Set trace_context on handler for LLM component calls
+                handler._trace_context = getattr(self, '_current_trace_context', None)
+                
                 if (self._use_donation_routing and 
                     hasattr(handler, 'execute_with_donation_routing') and 
                     hasattr(handler, 'has_donation') and 
@@ -215,6 +274,9 @@ class IntentOrchestrator:
                     # Fallback to standard execution
                     logger.debug(f"Using standard execution for {processed_intent.name}")
                     result = await handler.execute(processed_intent, context)
+                
+                # Clear trace_context from handler after execution
+                handler._trace_context = None
                 
                 # Phase 2: Record successful intent execution
                 execution_time = time.time() - execution_start_time

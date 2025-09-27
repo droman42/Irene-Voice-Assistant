@@ -11,6 +11,7 @@ from ...core.metadata import EntryPointMetadata
 from ...core.notifications import get_notification_service, NotificationService
 from ...core.metrics import get_metrics_collector, MetricsCollector
 from ...core.debug_tools import get_action_debugger, ActionDebugger, InspectionLevel
+from ...core.trace_context import TraceContext
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class IntentHandler(EntryPointMetadata, ABC):
         self._notification_service: Optional[NotificationService] = None  # Phase 3.1: Notification service
         self._metrics_collector: Optional[MetricsCollector] = None  # Phase 3.2: Metrics collector
         self._action_debugger: Optional[ActionDebugger] = None  # Phase 3.4: Action debugger
+        self._trace_context: Optional[TraceContext] = None  # Phase 6: Trace context for component calls
     
     def set_context_manager(self, context_manager: Any) -> None:
         """Set the context manager for fire-and-forget action tracking."""

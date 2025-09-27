@@ -11,6 +11,7 @@ import argparse
 import logging
 import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -298,7 +299,7 @@ monitoring = true
     
     async def _create_fastapi_app(self, args):
         """Create and configure FastAPI application"""
-        from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore
+        from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File  # type: ignore
         from fastapi.middleware.cors import CORSMiddleware  # type: ignore
         from fastapi.responses import HTMLResponse  # type: ignore
         from pydantic import BaseModel  # type: ignore
@@ -336,7 +337,8 @@ monitoring = true
         await self._mount_static_files(app)
         
         # Import centralized API schemas
-        from ..api.schemas import CommandRequest, CommandResponse
+        from ..api.schemas import CommandRequest, CommandResponse, TraceCommandResponse
+        from ..core.trace_context import TraceContext
         
         class StatusResponse(BaseModel):
             status: str
@@ -418,6 +420,221 @@ monitoring = true
                 "timestamp": asyncio.get_event_loop().time()
             }
         
+        # PHASE 7 - TODO16: Trace endpoints for detailed pipeline execution visibility
+        @app.post("/trace/command", response_model=TraceCommandResponse, tags=["Tracing"])
+        async def trace_command_execution(request: CommandRequest):
+            """Execute command with full execution trace"""
+            try:
+                if not self.core:
+                    raise HTTPException(status_code=503, detail="Assistant not initialized")
+                
+                # Create trace context for detailed execution tracking with production limits
+                trace_context = TraceContext(
+                    enabled=True, 
+                    request_id=str(uuid.uuid4()),
+                    max_stages=50,  # Limit stages for command traces
+                    max_data_size_mb=5  # 5MB limit for command traces
+                )
+                
+                # Execute same workflow as normal command but with tracing
+                result = await self.core.workflow_manager.process_text_input(
+                    text=request.command,
+                    session_id=request.metadata.get("session_id", "trace_session") if request.metadata else "trace_session",
+                    wants_audio=False,
+                    client_context={"source": "trace_api", "trace_enabled": True},
+                    trace_context=trace_context  # Pass trace context to workflow
+                )
+                
+                return TraceCommandResponse(
+                    success=result.success,
+                    final_result={
+                        "text": result.text,
+                        "success": result.success,
+                        "metadata": result.metadata,
+                        "confidence": result.confidence,
+                        "timestamp": result.timestamp
+                    },
+                    execution_trace={
+                        "request_id": trace_context.request_id,
+                        "pipeline_stages": [
+                            {
+                                "stage": stage.get("stage", "unknown"),
+                                "input_data": stage.get("input"),
+                                "output_data": stage.get("output"),
+                                "metadata": stage.get("metadata", {}),
+                                "processing_time_ms": stage.get("processing_time_ms", 0.0),
+                                "timestamp": stage.get("timestamp", time.time())
+                            }
+                            for stage in trace_context.stages
+                        ],
+                        "context_evolution": {
+                            "before": trace_context.context_snapshots.get("before"),
+                            "after": trace_context.context_snapshots.get("after"),
+                            "changes": self._calculate_context_changes(trace_context.context_snapshots)
+                        },
+                        "performance_metrics": {
+                            "total_processing_time_ms": sum(
+                                stage.get("processing_time_ms", 0) for stage in trace_context.stages
+                            ),
+                            "stage_breakdown": {
+                                stage.get("stage", "unknown"): stage.get("processing_time_ms", 0) 
+                                for stage in trace_context.stages
+                            },
+                            "total_stages": len(trace_context.stages)
+                        }
+                    },
+                    timestamp=time.time()
+                )
+                
+            except Exception as e:
+                logger.error(f"Trace command execution error: {e}")
+                trace_request_id = trace_context.request_id if 'trace_context' in locals() else "unknown"
+                return TraceCommandResponse(
+                    success=False,
+                    final_result={},
+                    execution_trace={
+                        "request_id": trace_request_id,
+                        "pipeline_stages": [],
+                        "context_evolution": {
+                            "before": None,
+                            "after": None,
+                            "changes": {}
+                        },
+                        "performance_metrics": {
+                            "total_processing_time_ms": 0.0,
+                            "stage_breakdown": {},
+                            "total_stages": 0
+                        },
+                        "error": str(e)
+                    },
+                    timestamp=time.time(),
+                    error=str(e)
+                )
+        
+        @app.post("/trace/audio", response_model=TraceCommandResponse, tags=["Tracing"])
+        async def trace_audio_execution(audio_file: UploadFile = File(...)):
+            """Execute audio processing with full execution trace"""
+            try:
+                if not self.core:
+                    raise HTTPException(status_code=503, detail="Assistant not initialized")
+                
+                # Validate file size (limit to 10MB for safety)
+                MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+                file_size = 0
+                audio_data = b""
+                
+                # Read audio data with size check
+                while True:
+                    chunk = await audio_file.read(8192)  # Read in 8KB chunks
+                    if not chunk:
+                        break
+                    file_size += len(chunk)
+                    if file_size > MAX_FILE_SIZE:
+                        raise HTTPException(
+                            status_code=413, 
+                            detail=f"Audio file too large (max {MAX_FILE_SIZE / 1024 / 1024:.1f}MB)"
+                        )
+                    audio_data += chunk
+                
+                # Create trace context with production limits for audio
+                trace_context = TraceContext(
+                    enabled=True, 
+                    request_id=str(uuid.uuid4()),
+                    max_stages=75,  # More stages for audio processing
+                    max_data_size_mb=15  # Higher limit for audio traces (includes audio data)
+                )
+                
+                logger.info(f"Trace audio processing: {audio_file.filename}, size: {file_size} bytes")
+                
+                # Process audio through workflow manager with tracing
+                result = await self.core.workflow_manager.process_audio_input(
+                    audio_data=audio_data,
+                    session_id="trace_audio_session",
+                    wants_audio=False,  # Don't generate TTS for trace endpoint
+                    client_context={
+                        "source": "trace_audio_api",
+                        "filename": audio_file.filename,
+                        "skip_wake_word": True,  # Skip wake word for uploaded files
+                        "file_size_bytes": file_size
+                    },
+                    trace_context=trace_context
+                )
+                
+                return TraceCommandResponse(
+                    success=result.success,
+                    final_result={
+                        "text": result.text,
+                        "success": result.success,
+                        "metadata": result.metadata,
+                        "confidence": result.confidence,
+                        "timestamp": result.timestamp
+                    },
+                    execution_trace={
+                        "request_id": trace_context.request_id,
+                        "pipeline_stages": [
+                            {
+                                "stage": stage.get("stage", "unknown"),
+                                "input_data": stage.get("input"),
+                                "output_data": stage.get("output"),
+                                "metadata": stage.get("metadata", {}),
+                                "processing_time_ms": stage.get("processing_time_ms", 0.0),
+                                "timestamp": stage.get("timestamp", time.time())
+                            }
+                            for stage in trace_context.stages
+                        ],
+                        "context_evolution": {
+                            "before": trace_context.context_snapshots.get("before"),
+                            "after": trace_context.context_snapshots.get("after"),
+                            "changes": self._calculate_context_changes(trace_context.context_snapshots)
+                        },
+                        "performance_metrics": {
+                            "total_processing_time_ms": sum(
+                                stage.get("processing_time_ms", 0) for stage in trace_context.stages
+                            ),
+                            "stage_breakdown": {
+                                stage.get("stage", "unknown"): stage.get("processing_time_ms", 0) 
+                                for stage in trace_context.stages
+                            },
+                            "total_stages": len(trace_context.stages)
+                        }
+                    },
+                    timestamp=time.time()
+                )
+                
+            except HTTPException:
+                # Re-raise HTTP exceptions (like file too large)
+                raise
+                
+            except Exception as e:
+                logger.error(f"Trace audio execution error: {e}")
+                trace_request_id = trace_context.request_id if 'trace_context' in locals() else "unknown"
+                return TraceCommandResponse(
+                    success=False,
+                    final_result={},
+                    execution_trace={
+                        "request_id": trace_request_id,
+                        "pipeline_stages": trace_context.stages if 'trace_context' in locals() else [],
+                        "context_evolution": {
+                            "before": trace_context.context_snapshots.get("before") if 'trace_context' in locals() else None,
+                            "after": trace_context.context_snapshots.get("after") if 'trace_context' in locals() else None,
+                            "changes": self._calculate_context_changes(trace_context.context_snapshots) if 'trace_context' in locals() else {}
+                        },
+                        "performance_metrics": {
+                            "total_processing_time_ms": sum(
+                                stage.get("processing_time_ms", 0) for stage in trace_context.stages
+                            ) if 'trace_context' in locals() else 0.0,
+                            "stage_breakdown": {
+                                stage.get("stage", "unknown"): stage.get("processing_time_ms", 0) 
+                                for stage in trace_context.stages
+                            } if 'trace_context' in locals() else {},
+                            "total_stages": len(trace_context.stages) if 'trace_context' in locals() else 0
+                        },
+                        "error": str(e)
+                    },
+                    timestamp=time.time(),
+                    error=str(e)
+                )
+        
         # Mount component routers - NEW PHASE 4 FUNCTIONALITY
         await self._mount_component_routers(app)
         
@@ -448,6 +665,66 @@ monitoring = true
             return info
         
         return app
+    
+    def _calculate_context_changes(self, context_snapshots: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate changes between before/after context snapshots"""
+        before = context_snapshots.get("before", {})
+        after = context_snapshots.get("after", {})
+        
+        changes = {
+            "active_actions_added": [],
+            "active_actions_removed": [],
+            "conversation_history_entries_added": 0,
+            "summary": "No context tracking"
+        }
+        
+        if before and after:
+            # Analyze active actions changes
+            before_actions = before.get("active_actions", {})
+            after_actions = after.get("active_actions", {})
+            
+            # Find added actions
+            for domain, action_info in after_actions.items():
+                if domain not in before_actions:
+                    changes["active_actions_added"].append({
+                        "domain": domain,
+                        "action": action_info.get("action") if isinstance(action_info, dict) else str(action_info)
+                    })
+            
+            # Find removed actions
+            for domain, action_info in before_actions.items():
+                if domain not in after_actions:
+                    changes["active_actions_removed"].append({
+                        "domain": domain,
+                        "action": action_info.get("action") if isinstance(action_info, dict) else str(action_info)
+                    })
+            
+            # Calculate conversation history changes
+            before_history_length = before.get("conversation_history_length", 0)
+            after_history_length = after.get("conversation_history_length", 0)
+            changes["conversation_history_entries_added"] = max(0, after_history_length - before_history_length)
+            
+            # Generate summary
+            total_changes = (
+                len(changes["active_actions_added"]) + 
+                len(changes["active_actions_removed"]) + 
+                changes["conversation_history_entries_added"]
+            )
+            
+            if total_changes > 0:
+                change_parts = []
+                if changes["active_actions_added"]:
+                    change_parts.append(f"{len(changes['active_actions_added'])} actions started")
+                if changes["active_actions_removed"]:
+                    change_parts.append(f"{len(changes['active_actions_removed'])} actions stopped")
+                if changes["conversation_history_entries_added"]:
+                    change_parts.append(f"{changes['conversation_history_entries_added']} history entries added")
+                
+                changes["summary"] = ", ".join(change_parts)
+            else:
+                changes["summary"] = "No context changes detected"
+        
+        return changes
     
     async def _mount_static_files(self, app) -> None:
         """Mount static files for CSS/JS assets"""

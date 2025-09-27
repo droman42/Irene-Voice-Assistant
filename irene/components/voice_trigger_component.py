@@ -7,11 +7,13 @@ loader.py for dependency validation, following the implementation plan.
 
 import logging
 import asyncio
+import time
 from typing import Dict, Any, List, Optional, Type
 
 from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.trace_context import TraceContext
 from ..intents.models import AudioData, WakeWordResult
 from ..utils.audio_helpers import calculate_audio_buffer_size, validate_audio_file
 from ..utils.loader import DependencyChecker, safe_import
@@ -206,20 +208,58 @@ class VoiceTriggerComponent(Component, WebAPIPlugin):
         
         return self.active
     
-    async def process_audio(self, audio_data: AudioData) -> WakeWordResult:
+    async def process_audio(self, audio_data: AudioData, trace_context: Optional[TraceContext] = None) -> WakeWordResult:
         """
-        Process audio for workflow compatibility (Phase 1 bridge method)
+        Voice trigger detection with optional model performance tracing
         
         This is a bridge method that calls the existing detect method
         to maintain compatibility with workflow expectations.
         
         Args:
             audio_data: Audio data to analyze
+            trace_context: Optional trace context for detailed execution tracking
             
         Returns:
             WakeWordResult with detection information
         """
-        return await self.detect(audio_data)
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation unchanged
+            return await self.detect(audio_data)
+        
+        # Trace path - detailed detection tracking
+        stage_start = time.time()
+        detection_metadata = {
+            "audio_duration_ms": len(audio_data.data) / (audio_data.sample_rate * audio_data.channels * 2) * 1000,  # Assuming 16-bit
+            "wake_words_configured": self.wake_words,
+            "threshold": self.threshold,
+            "provider": self.default_provider,
+            "component_name": self.__class__.__name__
+        }
+        
+        # Execute detection with timing
+        result = await self.detect(audio_data)
+        
+        detection_metadata.update({
+            "wake_word_detected": result.detected,
+            "detected_word": result.word if result.detected else None,
+            "confidence": result.confidence,
+            "detection_threshold_met": result.confidence >= self.threshold if result.detected else False
+        })
+        
+        trace_context.record_stage(
+            stage_name="voice_trigger_detection",
+            input_data=audio_data,  # AudioData object - will be converted to base64 by _sanitize_for_trace()
+            output_data={
+                "detected": result.detected,
+                "wake_word": result.word,
+                "confidence": result.confidence
+            },
+            metadata=detection_metadata,
+            processing_time_ms=(time.time() - stage_start) * 1000
+        )
+        
+        return result
         
     async def detect(self, audio_data: AudioData) -> WakeWordResult:
         """

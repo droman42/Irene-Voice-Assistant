@@ -20,6 +20,7 @@ from typing import AsyncIterator, Optional, Dict, Any, List
 from .base import Workflow, RequestContext
 from .audio_processor import AudioProcessorInterface, VoiceSegment
 from ..core.metrics import get_metrics_collector
+from ..core.trace_context import TraceContext
 from ..intents.models import AudioData, ConversationContext, Intent, IntentResult, WakeWordResult
 from ..utils.audio_helpers import test_audio_playback_capability, calculate_audio_buffer_size
 from ..utils.loader import safe_import
@@ -176,7 +177,8 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         self.logger.info("UnifiedVoiceAssistantWorkflow initialized successfully")
         self.initialized = True
     
-    async def process_text_input(self, text: str, context: RequestContext) -> IntentResult:
+    async def process_text_input(self, text: str, context: RequestContext, 
+                                trace_context: Optional[TraceContext] = None) -> IntentResult:
         """
         Process text input through unified pipeline (skips audio stages)
         
@@ -185,6 +187,7 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         Args:
             text: Input text to process
             context: Request context with client info and preferences
+            trace_context: Optional trace context for detailed execution tracking
             
         Returns:
             IntentResult with response and optional action metadata
@@ -203,6 +206,7 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
                 input_data=text,
                 context=context,
                 conversation_context=conversation_context,
+                trace_context=trace_context,
                 skip_wake_word=True,    # Always skip for text input
                 skip_asr=True          # Always skip for text input
             )
@@ -218,6 +222,65 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             return IntentResult(
                 text="Sorry, there was an error processing your request.",
                 success=False,
+                error=str(e),
+                confidence=0.0
+            )
+    
+    async def process_audio_input(self, audio_data: AudioData, context: RequestContext, 
+                                 trace_context: Optional[TraceContext] = None) -> IntentResult:
+        """
+        Process single audio input through unified pipeline with optional tracing.
+        
+        Pipeline: AudioData → [Voice Trigger] → ASR → Text Processing → NLU → Intent → Response (+TTS)
+        
+        Similar to process_text_input but handles voice trigger and ASR stages first.
+        Uses conditional pipeline stages based on context.skip_wake_word flag.
+        
+        Args:
+            audio_data: Single AudioData object to process
+            context: Request context with skip_wake_word flag and client info
+            trace_context: Optional trace context for detailed execution tracking
+            
+        Returns:
+            IntentResult from processing with optional action metadata
+        """
+        if not self.initialized:
+            await self.initialize()
+        
+        self.logger.debug(f"Processing audio input from {context.source}, skip_wake_word={context.skip_wake_word}")
+        
+        try:
+            # Create conversation context
+            conversation_context = await self._create_conversation_context(context)
+            
+            # Record initial context state for tracing
+            if trace_context:
+                trace_context.record_context_snapshot("before", conversation_context)
+            
+            # Process single audio input through conditional pipeline
+            result = await self._process_single_audio_pipeline(
+                audio_data=audio_data,
+                context=context,
+                conversation_context=conversation_context,
+                trace_context=trace_context
+            )
+            
+            # Record final context state for tracing
+            if trace_context:
+                trace_context.record_context_snapshot("after", conversation_context)
+            
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error processing audio input: {e}")
+            return IntentResult(
+                text=f"Error processing audio request: {str(e)}",
+                success=False,
+                metadata={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "source": "audio_processing"
+                },
                 error=str(e),
                 confidence=0.0
             )
@@ -291,31 +354,37 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
     
     async def _process_pipeline(self, input_data: str, context: RequestContext, 
                               conversation_context: ConversationContext,
+                              trace_context: Optional[TraceContext] = None,
                               skip_wake_word: bool = False, skip_asr: bool = False) -> IntentResult:
         """
-        Core unified pipeline processing with conditional stages
+        Core unified pipeline processing with conditional stages and optional trace collection
         
         Args:
             input_data: Text input (from direct text or ASR output)
             context: Request context
             conversation_context: Conversation context for tracking
+            trace_context: Optional trace context for detailed execution tracking
             skip_wake_word: Whether wake word detection was skipped
             skip_asr: Whether ASR processing was skipped
             
         Returns:
             IntentResult with response and action metadata
         """
+        # Record initial context state
+        if trace_context:
+            trace_context.record_context_snapshot("before", conversation_context)
+        
         processed_text = input_data
         
         # Stage 1: Text Processing (if enabled and component available)
         if self._text_processing_enabled and self.text_processor:
             self.logger.debug("Stage: Text Processing")
-            processed_text = await self.text_processor.process(processed_text)
+            processed_text = await self.text_processor.process(processed_text, trace_context)
         
         # Stage 2: NLU (Natural Language Understanding)
         self.logger.debug("Stage: NLU")
         recognition_start_time = time.time()
-        intent = await self.nlu.process(processed_text, conversation_context)
+        intent = await self.nlu.process(processed_text, conversation_context, trace_context)
         
         # Phase 2: Record intent recognition metrics
         recognition_time = time.time() - recognition_start_time
@@ -328,11 +397,25 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         
         # Stage 3: Intent Execution
         self.logger.debug(f"Stage: Intent Execution - {intent.name}")
-        result = await self.intent_orchestrator.execute(intent, conversation_context)
+        result = await self.intent_orchestrator.execute(intent, conversation_context, trace_context)
         
         # Stage 4: Action Metadata Processing (fire-and-forget)
         if result.action_metadata:
+            metadata_start_time = time.time()
             await self._process_action_metadata(result.action_metadata, conversation_context)
+            metadata_time = time.time() - metadata_start_time
+            
+            if trace_context:
+                trace_context.record_stage(
+                    stage_name="action_metadata_processing",
+                    input_data=result.action_metadata,
+                    output_data={"processed": True},
+                    metadata={
+                        "metadata_keys": list(result.action_metadata.keys()) if isinstance(result.action_metadata, dict) else [],
+                        "processing_time": metadata_time
+                    },
+                    processing_time_ms=metadata_time * 1000
+                )
         
         # Update conversation history
         conversation_context.add_to_history(
@@ -340,6 +423,10 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             response=result.text,
             intent=intent.name
         )
+        
+        # Record final context state
+        if trace_context:
+            trace_context.record_context_snapshot("after", conversation_context)
         
         return result
     
@@ -460,6 +547,154 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             client_id=context.client_id,
             client_metadata=context.metadata
         )
+    
+    async def _process_single_audio_pipeline(self, audio_data: AudioData, context: RequestContext, 
+                                           conversation_context: ConversationContext,
+                                           trace_context: Optional[TraceContext] = None) -> IntentResult:
+        """
+        Process single audio input through conditional pipeline stages.
+        
+        This is the core pipeline for single audio processing with tracing support.
+        Handles conditional execution of voice trigger and ASR stages.
+        
+        Args:
+            audio_data: Single AudioData object to process
+            context: Request context with pipeline configuration
+            conversation_context: Conversation context for intent processing
+            trace_context: Optional trace context for detailed execution tracking
+            
+        Returns:
+            IntentResult from processing
+        """
+        transcribed_text = ""
+        wake_word_detected = False
+        
+        try:
+            # Stage 1: Voice Trigger Detection (conditional)
+            if not context.skip_wake_word and self._voice_trigger_enabled and self.voice_trigger:
+                stage_start = time.time()
+                
+                wake_word_result = await self.voice_trigger.process_audio(audio_data, trace_context)
+                wake_word_detected = wake_word_result.detected
+                
+                if trace_context:
+                    trace_context.record_stage(
+                        stage_name="voice_trigger_detection",
+                        input_data=audio_data,
+                        output_data=wake_word_result.__dict__,
+                        metadata={
+                            "wake_word_detected": wake_word_detected,
+                            "detected_word": wake_word_result.wake_word if wake_word_detected else None,
+                            "confidence": wake_word_result.confidence,
+                            "threshold": self.voice_trigger.threshold if hasattr(self.voice_trigger, 'threshold') else None,
+                            "stage_enabled": self._voice_trigger_enabled
+                        },
+                        processing_time_ms=(time.time() - stage_start) * 1000
+                    )
+                
+                if not wake_word_detected:
+                    self.logger.debug("Wake word not detected, stopping audio processing")
+                    return IntentResult(
+                        text="Wake word not detected",
+                        success=False,
+                        metadata={
+                            "wake_word_detected": False,
+                            "reason": "wake_word_required"
+                        },
+                        confidence=0.0
+                    )
+                    
+                self.logger.debug(f"Wake word detected: {wake_word_result.wake_word} (confidence: {wake_word_result.confidence:.2f})")
+            
+            # Stage 2: ASR Transcription (conditional)
+            if not context.skip_asr and self._asr_enabled and self.asr:
+                stage_start = time.time()
+                
+                transcribed_text = await self.asr.process_audio(audio_data, trace_context)
+                
+                if trace_context:
+                    trace_context.record_stage(
+                        stage_name="asr_transcription",
+                        input_data=audio_data,
+                        output_data=transcribed_text,
+                        metadata={
+                            "transcription_length": len(transcribed_text),
+                            "audio_duration_ms": len(audio_data.data) / audio_data.sample_rate * 1000,
+                            "provider": self.asr.default_provider if hasattr(self.asr, 'default_provider') else None,
+                            "stage_enabled": self._asr_enabled
+                        },
+                        processing_time_ms=(time.time() - stage_start) * 1000
+                    )
+                
+                if not transcribed_text.strip():
+                    self.logger.debug("ASR produced empty transcription")
+                    return IntentResult(
+                        text="No speech detected",
+                        success=False,
+                        metadata={
+                            "transcription": transcribed_text,
+                            "reason": "empty_transcription"
+                        },
+                        confidence=0.0
+                    )
+                    
+                self.logger.debug(f"ASR transcription: '{transcribed_text}'")
+            else:
+                # If ASR is skipped, we need audio data converted to text somehow
+                # This shouldn't happen in normal audio processing, but handle gracefully
+                self.logger.warning("ASR stage skipped but processing audio input - cannot continue")
+                return IntentResult(
+                    text="Cannot process audio without ASR",
+                    success=False,
+                    metadata={
+                        "reason": "asr_required_for_audio"
+                    },
+                    confidence=0.0
+                )
+            
+            # Stage 3: Continue with text processing pipeline
+            # Use existing _process_pipeline method with skip flags for completed stages
+            result = await self._process_pipeline(
+                input_data=transcribed_text,
+                context=context,
+                conversation_context=conversation_context,
+                trace_context=trace_context,
+                skip_wake_word=True,  # Already processed
+                skip_asr=True        # Already processed
+            )
+            
+            # Add audio processing metadata to result
+            if result.metadata is None:
+                result.metadata = {}
+            
+            result.metadata.update({
+                "audio_processing": {
+                    "wake_word_detected": wake_word_detected,
+                    "transcribed_text": transcribed_text,
+                    "audio_duration_ms": len(audio_data.data) / audio_data.sample_rate * 1000,
+                    "audio_format": audio_data.format,
+                    "audio_sample_rate": audio_data.sample_rate
+                }
+            })
+            
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error in single audio pipeline: {e}")
+            if trace_context:
+                trace_context.record_stage(
+                    stage_name="audio_pipeline_error",
+                    input_data=audio_data,
+                    output_data=None,
+                    metadata={
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "transcribed_text": transcribed_text,
+                        "wake_word_detected": wake_word_detected
+                    },
+                    processing_time_ms=0.0
+                )
+            raise
     
     async def _process_action_metadata(self, action_metadata: Dict[str, Any], 
                                      conversation_context: ConversationContext):

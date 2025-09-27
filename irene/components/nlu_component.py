@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional, Type
 from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.trace_context import TraceContext
 from ..intents.models import Intent, ConversationContext
 from ..utils.loader import dynamic_loader
 from ..providers.nlu.base import NLUProvider
@@ -893,9 +894,10 @@ class NLUComponent(Component, WebAPIPlugin):
         
         return "\n".join(info_lines)
     
-    async def process(self, text: str, context: ConversationContext) -> Intent:
+    async def process(self, text: str, context: ConversationContext, 
+                     trace_context: Optional[TraceContext] = None) -> Intent:
         """
-        Process text using NLU recognition with parameter extraction - workflow compatibility method.
+        Process text using NLU recognition with optional detailed cascade tracing.
         
         This method provides the full NLU pipeline including:
         - Intent recognition with cascading providers 
@@ -906,11 +908,66 @@ class NLUComponent(Component, WebAPIPlugin):
         Args:
             text: Input text to analyze
             context: Conversation context for better understanding
+            trace_context: Optional trace context for detailed execution tracking
             
         Returns:
             Intent with extracted parameters, entities and confidence
         """
-        return await self.recognize_with_context(text, context)
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation - calls recognize_with_context()
+            return await self.recognize_with_context(text, context)
+        
+        # Trace path - detailed provider cascade tracking
+        stage_start = time.time()
+        cascade_attempts = []
+        
+        # Execute original recognition but with detailed provider tracking
+        try:
+            # Call existing method and trace at higher level
+            result = await self.recognize_with_context(text, context)
+            
+            cascade_attempts.append({
+                "final_result": {
+                    "intent_name": result.name,
+                    "domain": result.domain,
+                    "action": result.action,
+                    "confidence": result.confidence,
+                    "entities": result.entities
+                },
+                "success": True,
+                "confidence": result.confidence
+            })
+            
+        except Exception as e:
+            cascade_attempts.append({
+                "error": str(e),
+                "success": False
+            })
+            raise
+        
+        trace_context.record_stage(
+            stage_name="nlu_cascade",
+            input_data=text,
+            output_data={
+                "intent_name": result.name,
+                "domain": result.domain,
+                "action": result.action,
+                "confidence": result.confidence,
+                "entities": result.entities
+            } if 'result' in locals() else None,
+            metadata={
+                "cascade_attempts": cascade_attempts,
+                "providers_available": list(self.providers.keys()),
+                "confidence_threshold": getattr(self, 'confidence_threshold', 0.0),
+                "context_aware_processing": True,
+                "component_name": self.__class__.__name__,
+                "session_id": context.session_id
+            },
+            processing_time_ms=(time.time() - stage_start) * 1000
+        )
+        
+        return result
     
     async def recognize_with_context(self, text: str, context: ConversationContext) -> Intent:
         """

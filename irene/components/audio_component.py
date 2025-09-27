@@ -7,6 +7,7 @@ Manages multiple audio providers based on configuration and provides unified web
 
 import asyncio
 import logging
+import time
 from typing import Dict, Any, List, Optional, AsyncIterator, Type
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.audio import AudioPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
+from ..core.trace_context import TraceContext
 
 
 # Import audio provider base class and dynamic loader
@@ -186,20 +188,80 @@ class AudioComponent(Component, AudioPlugin, WebAPIPlugin):
         logger.info(f"Universal audio plugin initialized with {enabled_count} providers. Default: {self.default_provider}")
     
     # AudioPlugin interface - delegates to providers
-    async def play_file(self, file_path: Path, **kwargs) -> None:
-        """Play an audio file using the specified or default provider"""
-        provider_name = kwargs.get("provider", self.default_provider)
+    async def play_file(self, file_path: Path, trace_context: Optional[TraceContext] = None, **kwargs) -> None:
+        """Play an audio file with optional playback tracing"""
         
-        if provider_name in self.providers:
-            try:
-                await self.providers[provider_name].play_file(file_path, **kwargs)
-                self._current_provider = provider_name
-            except Exception as e:
-                logger.error(f"Audio playback failed with provider {provider_name}: {e}")
+        # Fast path - existing logic when no tracing
+        if not trace_context or not trace_context.enabled:
+            # Original implementation unchanged
+            provider_name = kwargs.get("provider", self.default_provider)
+            
+            if provider_name in self.providers:
+                try:
+                    await self.providers[provider_name].play_file(file_path, **kwargs)
+                    self._current_provider = provider_name
+                except Exception as e:
+                    logger.error(f"Audio playback failed with provider {provider_name}: {e}")
+                    await self._play_with_fallback(file_path, provider_name, **kwargs)
+            else:
+                logger.warning(f"Provider '{provider_name}' not available, using fallback")
                 await self._play_with_fallback(file_path, provider_name, **kwargs)
-        else:
-            logger.warning(f"Provider '{provider_name}' not available, using fallback")
-            await self._play_with_fallback(file_path, provider_name, **kwargs)
+            return
+        
+        # Trace path - detailed playback tracking
+        stage_start = time.time()
+        provider_name = kwargs.get("provider", self.default_provider)
+        playback_metadata = {
+            "file_path": str(file_path),
+            "file_exists": file_path.exists(),
+            "file_size_bytes": file_path.stat().st_size if file_path.exists() else 0,
+            "provider": provider_name,
+            "component_name": self.__class__.__name__
+        }
+        
+        try:
+            if provider_name in self.providers:
+                try:
+                    await self.providers[provider_name].play_file(file_path, **kwargs)
+                    self._current_provider = provider_name
+                    playback_metadata.update({
+                        "playback_success": True,
+                        "provider_used": provider_name,
+                        "fallback_used": False
+                    })
+                except Exception as e:
+                    logger.error(f"Audio playback failed with provider {provider_name}: {e}")
+                    await self._play_with_fallback(file_path, provider_name, **kwargs)
+                    playback_metadata.update({
+                        "playback_success": True,
+                        "provider_used": "fallback",
+                        "fallback_used": True,
+                        "original_error": str(e)
+                    })
+            else:
+                logger.warning(f"Provider '{provider_name}' not available, using fallback")
+                await self._play_with_fallback(file_path, provider_name, **kwargs)
+                playback_metadata.update({
+                    "playback_success": True,
+                    "provider_used": "fallback",
+                    "fallback_used": True,
+                    "reason": "provider_not_available"
+                })
+            
+        except Exception as e:
+            playback_metadata.update({
+                "playback_success": False,
+                "error": str(e)
+            })
+            raise
+        
+        trace_context.record_stage(
+            stage_name="audio_playback",
+            input_data=file_path,  # Path object - will be read and converted to base64 by _sanitize_for_trace()
+            output_data={"playback_completed": True},
+            metadata=playback_metadata,
+            processing_time_ms=(time.time() - stage_start) * 1000
+        )
     
     async def play_stream(self, audio_data: bytes, format: str = "wav", **kwargs) -> None:
         """Play audio from a byte stream"""
