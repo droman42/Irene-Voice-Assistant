@@ -263,11 +263,11 @@ Fire-and-forget actions are **implemented in the intent handler code**, not conf
 
 ```bash
 # Send commands that trigger fire-and-forget actions
-curl -X POST http://localhost:8000/command \
+curl -X POST http://localhost:8000/execute/command \
   -H "Content-Type: application/json" \
   -d '{"command": "set timer for 30 seconds"}'
 
-curl -X POST http://localhost:8000/command \
+curl -X POST http://localhost:8000/execute/command \
   -H "Content-Type: application/json" \
   -d '{"command": "play some music"}'
 

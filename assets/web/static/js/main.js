@@ -26,7 +26,7 @@ async function sendCommand() {
     const command = input.value.trim();
     if (command) {
         try {
-            const response = await fetch('/command', {
+            const response = await fetch('/execute/command', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

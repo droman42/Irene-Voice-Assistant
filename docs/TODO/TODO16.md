@@ -626,7 +626,7 @@ TOML File → ConfigManager → Pydantic Models → Components → Frontend UI
 
 ### 🎯 **The Real Requirement: Full Execution Trace Endpoints**
 
-**Current System Limitation**: Existing endpoints (`/command`, `/nlu/recognize`, etc.) return simple request/response pairs with no visibility into internal pipeline execution.
+**Current System Limitation**: Existing endpoints (`/execute/command`, `/nlu/recognize`, etc.) return simple request/response pairs with no visibility into internal pipeline execution.
 
 **New Requirement**: Trace endpoints that:
 1. **Receive the same input** as existing endpoints (text, audio, etc.)
@@ -1197,7 +1197,7 @@ class IntentOrchestrator:
 **Principle**: Extend existing WebAPIRunner with trace endpoints instead of creating new component
 
 #### **7.1 WebAPIRunner Extension Strategy**
-**Objective**: Add trace endpoints to existing WebAPIRunner alongside current endpoints (`/command`, `/status`, `/health`)
+**Objective**: Add trace endpoints to existing WebAPIRunner alongside current endpoints (`/execute/command`, `/status`, `/health`)
 
 **Rationale**: WebAPIRunner already handles command execution and has access to `self.core.workflow_manager` - perfect for trace functionality
 
@@ -1217,7 +1217,7 @@ class WebAPIRunner(BaseRunner):
         async def get_status():
             # ... existing implementation ...
         
-        @app.post("/command", response_model=CommandResponse, tags=["General"])
+        @app.post("/execute/command", response_model=CommandResponse, tags=["General"])
         async def execute_command(request: CommandRequest):
             """Execute a voice assistant command via REST API"""
             # ... existing implementation ...
@@ -1420,7 +1420,7 @@ class TraceContext(BaseModel):
 # The trace endpoints will automatically appear in /docs with proper Swagger documentation:
 
 # GET /docs -> Shows both normal and trace endpoints
-# /command -> "Execute voice assistant command"
+# /execute/command -> "Execute voice assistant command"
 # /trace/command -> "Execute command with detailed execution trace"
 # /trace/audio -> "Process audio with detailed execution trace"
 ```
@@ -1429,7 +1429,7 @@ class TraceContext(BaseModel):
 
 **Advantages of WebAPIRunner Extension:**
 1. **✅ No New Component**: Leverages existing WebAPIRunner infrastructure
-2. **✅ Consistent API**: `/command` vs `/trace/command` - clear, logical naming
+2. **✅ Consistent API**: `/execute/command` vs `/trace/command` - clear, logical naming
 3. **✅ Existing Infrastructure**: Uses current request handling, error management, logging
 4. **✅ Core Access**: Already has `self.core` reference for workflow execution
 5. **✅ Schema Reuse**: Uses existing request schemas (`CommandRequest`)
@@ -1439,7 +1439,7 @@ class TraceContext(BaseModel):
 **API Design:**
 ```
 Normal Operation:
-POST /command -> CommandResponse
+POST /execute/command -> CommandResponse
 
 Debug/Development:
 POST /trace/command -> TraceCommandResponse (with full execution trace)
@@ -1551,7 +1551,7 @@ class TraceContext:
 - **✅ Context Evolution Tracking**: Before/after conversation context state changes tracked
 
 ### **Phase 7 Success Criteria** (Trace Endpoints) ✅ **COMPLETED**
-- **✅ Trace API Endpoints**: `/trace/command` and `/trace/audio` endpoints implemented in WebAPIRunner
+- **✅ Trace API Endpoints**: `/trace/command` and `/trace/audio` endpoints implemented in WebAPIRunner (alongside updated `/execute/command`)
 - **✅ Complete Pipeline Visibility**: Full input/output and internal reasoning for all stages via structured trace response
 - **✅ Response Schema**: Structured trace response with performance metrics and context evolution (TraceCommandResponse schema)
 - **✅ WebAPIRunner Integration**: Extends existing WebAPIRunner with trace endpoints using same patterns
@@ -1619,7 +1619,7 @@ class TraceContext:
 
 **Phase 7 Implementation Summary** ✅ **COMPLETED**:
 1. ✅ **Phase 7.1**: Added comprehensive trace execution schemas to `irene/api/schemas.py` (PipelineStageTrace, ContextEvolution, PerformanceMetrics, ExecutionTrace, TraceCommandResponse)
-2. ✅ **Phase 7.2**: Implemented `/trace/command` and `/trace/audio` endpoints in WebAPIRunner with full TraceContext integration
+2. ✅ **Phase 7.2**: Implemented `/trace/command` and `/trace/audio` endpoints in WebAPIRunner with full TraceContext integration (alongside updated `/execute/command`)
 3. ✅ **Phase 7.3**: Added `_calculate_context_changes()` helper method for detailed context evolution tracking between before/after snapshots
 4. ✅ **Schema Integration**: Updated API module exports to include all new trace schemas for external access
 5. ✅ **WebAPIRunner Extension**: Leveraged existing FastAPI infrastructure with conditional trace collection and zero overhead when disabled
