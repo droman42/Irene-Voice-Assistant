@@ -143,6 +143,27 @@ class MetricsCollector:
             "zcr_cache_size": 0,
             "array_cache_size": 0
         }
+        
+        # Phase 4 TODO16: Contextual command metrics integration
+        self._contextual_command_metrics = {
+            "total_disambiguations": 0,
+            "successful_disambiguations": 0,
+            "failed_disambiguations": 0,
+            "average_latency_ms": 0.0,
+            "max_latency_ms": 0.0,
+            "min_latency_ms": float('inf'),
+            "total_latency_ms": 0.0,
+            "threshold_violations": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "domain_resolutions": {},  # Per-domain resolution counts
+            "command_type_stats": {},  # Per-command-type statistics
+            "confidence_scores": [],   # Recent confidence scores for analysis
+            "last_updated": time.time()
+        }
+        
+        # Performance thresholds (configurable)
+        self._contextual_command_config = None
     
     async def start_monitoring(self) -> None:
         """Start real-time metrics monitoring"""
@@ -1017,6 +1038,163 @@ class MetricsCollector:
         if domain in self._domain_metrics:
             return getattr(self._domain_metrics[domain], 'detection_metrics', {})
         return {}
+
+    # Phase 4 TODO16: Contextual command performance tracking methods
+    
+    def set_contextual_command_config(self, config) -> None:
+        """Set contextual command configuration for threshold monitoring"""
+        self._contextual_command_config = config
+        self.logger.info(f"Contextual command monitoring configured with {config.latency_threshold_ms}ms threshold")
+    
+    def record_contextual_disambiguation(
+        self, 
+        command_type: str,
+        target_domain: Optional[str],
+        latency_ms: float,
+        confidence: float,
+        resolution_method: str,
+        cache_hit: bool = False
+    ) -> None:
+        """Record contextual command disambiguation metrics"""
+        
+        # Update counters
+        self._contextual_command_metrics["total_disambiguations"] += 1
+        if target_domain:
+            self._contextual_command_metrics["successful_disambiguations"] += 1
+        else:
+            self._contextual_command_metrics["failed_disambiguations"] += 1
+        
+        # Update latency statistics
+        self._update_contextual_latency_stats(latency_ms)
+        
+        # Check threshold violations
+        if (self._contextual_command_config and 
+            latency_ms > self._contextual_command_config.latency_threshold_ms):
+            self._contextual_command_metrics["threshold_violations"] += 1
+            self.logger.warning(f"Contextual disambiguation exceeded threshold: {latency_ms:.2f}ms > {self._contextual_command_config.latency_threshold_ms}ms")
+        
+        # Update cache statistics
+        if cache_hit:
+            self._contextual_command_metrics["cache_hits"] += 1
+        else:
+            self._contextual_command_metrics["cache_misses"] += 1
+        
+        # Track per-domain and per-command statistics
+        self._update_contextual_resolution_stats(target_domain, command_type, confidence, resolution_method)
+        
+        # Store confidence score for analysis (keep last 100)
+        self._contextual_command_metrics["confidence_scores"].append(confidence)
+        if len(self._contextual_command_metrics["confidence_scores"]) > 100:
+            self._contextual_command_metrics["confidence_scores"].pop(0)
+        
+        self._contextual_command_metrics["last_updated"] = time.time()
+        
+        # Log detailed metrics for debugging
+        self.logger.debug(f"Contextual disambiguation recorded: {command_type} -> {target_domain} "
+                         f"({latency_ms:.3f}ms, confidence={confidence:.2f}, method={resolution_method}, cache_hit={cache_hit})")
+    
+    def _update_contextual_latency_stats(self, latency_ms: float) -> None:
+        """Update contextual command latency statistics"""
+        metrics = self._contextual_command_metrics
+        
+        # Update total and average
+        metrics["total_latency_ms"] += latency_ms
+        total_count = metrics["total_disambiguations"]
+        if total_count > 0:
+            metrics["average_latency_ms"] = metrics["total_latency_ms"] / total_count
+        
+        # Update min/max
+        if latency_ms > metrics["max_latency_ms"]:
+            metrics["max_latency_ms"] = latency_ms
+        if latency_ms < metrics["min_latency_ms"]:
+            metrics["min_latency_ms"] = latency_ms
+    
+    def _update_contextual_resolution_stats(
+        self, 
+        target_domain: Optional[str], 
+        command_type: str, 
+        confidence: float, 
+        resolution_method: str
+    ) -> None:
+        """Update per-domain and per-command resolution statistics"""
+        
+        # Track domain resolution counts
+        if target_domain:
+            domain_stats = self._contextual_command_metrics["domain_resolutions"]
+            if target_domain not in domain_stats:
+                domain_stats[target_domain] = {
+                    "count": 0,
+                    "total_confidence": 0.0,
+                    "resolution_methods": {}
+                }
+            
+            domain_stats[target_domain]["count"] += 1
+            domain_stats[target_domain]["total_confidence"] += confidence
+            
+            # Track resolution methods per domain
+            method_stats = domain_stats[target_domain]["resolution_methods"]
+            method_stats[resolution_method] = method_stats.get(resolution_method, 0) + 1
+        
+        # Track command type statistics
+        cmd_stats = self._contextual_command_metrics["command_type_stats"]
+        if command_type not in cmd_stats:
+            cmd_stats[command_type] = {
+                "count": 0,
+                "successful": 0,
+                "total_confidence": 0.0,
+                "total_latency": 0.0
+            }
+        
+        cmd_stats[command_type]["count"] += 1
+        if target_domain:
+            cmd_stats[command_type]["successful"] += 1
+        cmd_stats[command_type]["total_confidence"] += confidence
+    
+    def get_contextual_command_metrics(self) -> Dict[str, Any]:
+        """Get contextual command performance metrics with derived calculations"""
+        metrics = self._contextual_command_metrics.copy()
+        
+        # Calculate derived metrics
+        total = metrics["total_disambiguations"]
+        if total > 0:
+            metrics["success_rate"] = metrics["successful_disambiguations"] / total
+            metrics["failure_rate"] = metrics["failed_disambiguations"] / total
+            metrics["threshold_violation_rate"] = metrics["threshold_violations"] / total
+            
+            # Cache performance
+            total_cache_requests = metrics["cache_hits"] + metrics["cache_misses"]
+            if total_cache_requests > 0:
+                metrics["cache_hit_rate"] = metrics["cache_hits"] / total_cache_requests
+            else:
+                metrics["cache_hit_rate"] = 0.0
+            
+            # Confidence analysis
+            if metrics["confidence_scores"]:
+                confidence_scores = metrics["confidence_scores"]
+                metrics["confidence_analysis"] = {
+                    "average": sum(confidence_scores) / len(confidence_scores),
+                    "min": min(confidence_scores),
+                    "max": max(confidence_scores),
+                    "count": len(confidence_scores)
+                }
+        else:
+            metrics["success_rate"] = 0.0
+            metrics["failure_rate"] = 0.0
+            metrics["threshold_violation_rate"] = 0.0
+            metrics["cache_hit_rate"] = 0.0
+        
+        # Add domain resolution analysis
+        for domain, stats in metrics["domain_resolutions"].items():
+            if stats["count"] > 0:
+                stats["average_confidence"] = stats["total_confidence"] / stats["count"]
+        
+        # Add command type analysis  
+        for cmd_type, stats in metrics["command_type_stats"].items():
+            if stats["count"] > 0:
+                stats["success_rate"] = stats["successful"] / stats["count"]
+                stats["average_confidence"] = stats["total_confidence"] / stats["count"]
+        
+        return metrics
 
 
 # Global metrics collector instance

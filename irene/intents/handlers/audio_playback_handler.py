@@ -83,10 +83,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
         
     async def _handle_play_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle audio playback request with fire-and-forget action execution"""
-        # Check for stop commands first
-        stop_info = self.parse_stop_command(intent)
-        if stop_info and stop_info.get("is_stop_command"):
-            return await self._handle_stop_command(stop_info, context)
+        # Phase 2 TODO16: No more stop command parsing - handlers only receive resolved intents
         
         # Extract audio file or track information
         audio_file = intent.entities.get("file", intent.entities.get("track", "default_audio"))
@@ -144,38 +141,83 @@ class AudioPlaybackIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
     
-    async def _handle_stop_command(self, stop_info: dict, context: ConversationContext) -> IntentResult:
-        """Handle stop commands for audio actions with disambiguation"""
-        target_domains = stop_info.get("target_domains", [])
+    async def _handle_stop_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle domain-specific audio stop intent (audio.stop).
         
-        # Check if stop command targets audio domain
-        if not target_domains or "audio" in target_domains or "music" in target_domains:
-            # Determine language
-            language = self._get_language_from_context(context)
-            
-            # Use fire-and-forget action execution for stopping audio
-            stop_id = f"audio_stop_all_{int(time.time() * 1000)}"
-            action_metadata = await self.execute_fire_and_forget_with_context(
-                self._stop_audio_playback_action,
-                action_name=stop_id,
-                domain="audio",
-                context=context,
-                language=language
-            )
-            
-            return self.create_action_result(
-                response_text=self._get_template("stop_audio", language),
-                action_name=stop_id,
-                domain="audio",
-                should_speak=True,
-                action_metadata=action_metadata
-            )
-        
-        # Not targeting audio domain
+        Phase 2 TODO16: Standardized stop handling - only receives resolved intents.
+        """
+        # Determine language
         language = self._get_language_from_context(context)
-        return self._create_success_result(
-            text=self._get_template("command_not_audio", language),
-            should_speak=False
+        
+        # Use fire-and-forget action execution for stopping audio
+        stop_id = f"audio_stop_all_{int(time.time() * 1000)}"
+        action_metadata = await self.execute_fire_and_forget_with_context(
+            self._stop_audio_playback_action,
+            action_name=stop_id,
+            domain="audio",
+            context=context,
+            language=language
+        )
+        
+        return self.create_action_result(
+            response_text=self._get_template("stop_audio", language),
+            action_name=stop_id,
+            domain="audio",
+            should_speak=True,
+            action_metadata=action_metadata
+        )
+    
+    async def _handle_pause_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle domain-specific audio pause intent (audio.pause).
+        
+        Phase 2 TODO16: Standardized contextual command handling.
+        """
+        language = self._get_language_from_context(context)
+        
+        # Use fire-and-forget action execution for pausing audio
+        pause_id = f"audio_pause_{int(time.time() * 1000)}"
+        action_metadata = await self.execute_fire_and_forget_with_context(
+            self._pause_audio_playback_action,
+            action_name=pause_id,
+            domain="audio",
+            context=context,
+            language=language
+        )
+        
+        return self.create_action_result(
+            response_text=self._get_template("pause_audio", language),
+            action_name=pause_id,
+            domain="audio",
+            should_speak=True,
+            action_metadata=action_metadata
+        )
+    
+    async def _handle_resume_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle domain-specific audio resume intent (audio.resume).
+        
+        Phase 2 TODO16: Standardized contextual command handling.
+        """
+        language = self._get_language_from_context(context)
+        
+        # Use fire-and-forget action execution for resuming audio
+        resume_id = f"audio_resume_{int(time.time() * 1000)}"
+        action_metadata = await self.execute_fire_and_forget_with_context(
+            self._resume_audio_playback_action,
+            action_name=resume_id,
+            domain="audio",
+            context=context,
+            language=language
+        )
+        
+        return self.create_action_result(
+            response_text=self._get_template("resume_audio", language),
+            action_name=resume_id,
+            domain="audio",
+            should_speak=True,
+            action_metadata=action_metadata
         )
         
     async def _handle_switch_audio_provider(self, intent: Intent, context: ConversationContext) -> IntentResult:
@@ -337,6 +379,38 @@ class AudioPlaybackIntentHandler(IntentHandler):
             self.logger.error(f"Audio playback action failed: {e}")
             return False
     
+    async def _pause_audio_playback_action(self, language: str) -> bool:
+        """Pause audio playback action"""
+        audio_component = await self._get_audio_component()
+        if not audio_component:
+            logger.error("Audio component not available for pause action")
+            return False
+        
+        try:
+            # Pause current audio playback
+            await audio_component.pause_audio()
+            logger.info("Audio playback paused successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to pause audio playback: {e}")
+            return False
+    
+    async def _resume_audio_playback_action(self, language: str) -> bool:
+        """Resume audio playback action"""
+        audio_component = await self._get_audio_component()
+        if not audio_component:
+            logger.error("Audio component not available for resume action")
+            return False
+        
+        try:
+            # Resume current audio playback
+            await audio_component.resume_audio()
+            logger.info("Audio playback resumed successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to resume audio playback: {e}")
+            return False
+
     async def _stop_audio_playback_action(self, language: str) -> bool:
         """Fire-and-forget audio stop action"""
         try:

@@ -7,6 +7,8 @@
   "intent_name_patterns": [
     "audio.play",
     "audio.stop",
+    "audio.pause",
+    "audio.resume",
     "audio.switch",
     "audio.list"
   ],
@@ -215,6 +217,100 @@
         }
       ],
       "boost": 1.4
+    },
+    {
+      "method_name": "_handle_pause_audio",
+      "intent_suffix": "pause",
+      "description": "Pause audio playback",
+      "phrases": [
+        "pause audio",
+        "pause music",
+        "pause playback",
+        "pause"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "pause"
+          },
+          {
+            "TEXT": {
+              "IN": [
+                "audio",
+                "music",
+                "playback"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "pause"
+              ]
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "pause music",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_resume_audio",
+      "intent_suffix": "resume",
+      "description": "Resume audio playback",
+      "phrases": [
+        "resume audio",
+        "resume music",
+        "resume playback",
+        "continue audio",
+        "resume"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "resume"
+          },
+          {
+            "TEXT": {
+              "IN": [
+                "audio",
+                "music",
+                "playback"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "IN": [
+                "resume",
+                "continue"
+              ]
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "resume music",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.3
     },
     {
       "method_name": "_handle_switch_audio_provider",

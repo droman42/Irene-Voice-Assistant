@@ -218,6 +218,60 @@ class VoiceSynthesisIntentHandler(IntentHandler):
             success=success
         )
     
+    async def _handle_stop_synthesis(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle domain-specific voice synthesis stop intent (voice_synthesis.stop).
+        
+        Phase 2 TODO16: Standardized stop handling - only receives resolved intents.
+        """
+        # Determine language
+        language = self._get_language_from_context(context)
+        
+        # Use fire-and-forget action execution for stopping synthesis
+        stop_id = f"tts_stop_all_{int(time.time() * 1000)}"
+        action_metadata = await self.execute_fire_and_forget_with_context(
+            self._stop_synthesis_action,
+            action_name=stop_id,
+            domain="voice_synthesis",
+            context=context,
+            language=language
+        )
+        
+        return self.create_action_result(
+            response_text=self._get_template("stop_synthesis", language),
+            action_name=stop_id,
+            domain="voice_synthesis",
+            should_speak=True,
+            action_metadata=action_metadata
+        )
+    
+    async def _handle_cancel_synthesis(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle domain-specific voice synthesis cancel intent (voice_synthesis.cancel).
+        
+        Phase 2 TODO16: Standardized cancel handling - only receives resolved intents.
+        """
+        # Determine language
+        language = self._get_language_from_context(context)
+        
+        # Use fire-and-forget action execution for canceling synthesis
+        cancel_id = f"tts_cancel_all_{int(time.time() * 1000)}"
+        action_metadata = await self.execute_fire_and_forget_with_context(
+            self._cancel_synthesis_action,
+            action_name=cancel_id,
+            domain="voice_synthesis",
+            context=context,
+            language=language
+        )
+        
+        return self.create_action_result(
+            response_text=self._get_template("cancel_synthesis", language),
+            action_name=cancel_id,
+            domain="voice_synthesis",
+            should_speak=True,
+            action_metadata=action_metadata
+        )
+    
     async def _get_tts_component(self):
         """Get TTS component from core"""
         if self._tts_component is None:
@@ -514,3 +568,39 @@ class VoiceSynthesisIntentHandler(IntentHandler):
     # Configuration metadata: No configuration needed
     # This handler delegates to TTS component and uses asset loader for voice mappings
     # No get_config_schema() method = no configuration required
+    
+    def _get_language_from_context(self, context: ConversationContext) -> str:
+        """Get language from conversation context with fallback"""
+        return context.language or "ru"
+    
+    async def _stop_synthesis_action(self, language: str) -> bool:
+        """Stop voice synthesis action"""
+        tts_component = await self._get_tts_component()
+        if not tts_component:
+            logger.error("TTS component not available for stop action")
+            return False
+        
+        try:
+            # Stop current synthesis
+            await tts_component.stop_synthesis()
+            logger.info("Voice synthesis stopped successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to stop voice synthesis: {e}")
+            return False
+    
+    async def _cancel_synthesis_action(self, language: str) -> bool:
+        """Cancel voice synthesis action"""
+        tts_component = await self._get_tts_component()
+        if not tts_component:
+            logger.error("TTS component not available for cancel action")
+            return False
+        
+        try:
+            # Cancel current synthesis (same as stop for TTS)
+            await tts_component.cancel_synthesis()
+            logger.info("Voice synthesis cancelled successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to cancel voice synthesis: {e}")
+            return False

@@ -1,8 +1,38 @@
 # Russian command patterns for BaseIntentHandler
 # Phase 2: Extracted from hardcoded patterns in base.py
+# Phase 1 TODO16: Extended with contextual command patterns
 
 stop_patterns:
   - "стоп"
   - "останови"
   - "прекрати"
   - "выключи"
+
+# Phase 1 TODO16: Contextual command patterns for disambiguation
+contextual_commands:
+  stop:
+    - "стоп"
+    - "останови"
+    - "прекрати"
+    - "выключи"
+  pause:
+    - "пауза"
+    - "приостанови"
+    - "задержи"
+  resume:
+    - "продолжи"
+    - "возобнови"
+    - "запусти снова"
+  volume:
+    - "громкость"
+    - "громче"
+    - "тише"
+    - "звук"
+  next:
+    - "следующий"
+    - "дальше"
+    - "пропусти"
+  previous:
+    - "предыдущий"
+    - "назад"
+    - "прошлый"

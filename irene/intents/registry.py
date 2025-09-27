@@ -10,13 +10,17 @@ logger = logging.getLogger(__name__)
 
 
 class IntentRegistry:
-    """Registry of intent handlers with pattern matching support."""
+    """Registry of intent handlers with pattern matching support and capability tracking."""
     
     def __init__(self):
         """Initialize the intent registry."""
         self.handlers: Dict[str, Any] = {}  # pattern -> handler
         self.compiled_patterns: Dict[str, Pattern] = {}  # pattern -> compiled regex
         self.handler_metadata: Dict[str, Dict[str, Any]] = {}  # pattern -> metadata
+        
+        # Phase 3 TODO16: Capability tracking for contextual commands
+        self.contextual_capabilities: Dict[str, List[str]] = {}  # domain -> [supported_commands]
+        self.command_handlers: Dict[str, List[str]] = {}  # command -> [supporting_domains]
     
     def register_handler(self, pattern: str, handler: Any, metadata: Optional[Dict[str, Any]] = None):
         """
@@ -44,11 +48,17 @@ class IntentRegistry:
         self.handlers[pattern] = handler
         self.handler_metadata[pattern] = metadata or {}
         
+        # Phase 3 TODO16: Extract and track contextual command capabilities
+        self._update_contextual_capabilities(pattern, handler, metadata or {})
+        
         logger.info(f"Registered intent handler: {pattern} -> {handler.__class__.__name__}")
     
     def unregister_handler(self, pattern: str):
         """Remove a handler from the registry."""
         if pattern in self.handlers:
+            # Phase 3 TODO16: Clean up capability tracking
+            self._cleanup_contextual_capabilities(pattern)
+            
             del self.handlers[pattern]
             if pattern in self.compiled_patterns:
                 del self.compiled_patterns[pattern]
@@ -205,4 +215,193 @@ class IntentRegistry:
                     "error": str(e)
                 }
         
-        return results 
+        return results
+    
+    # Phase 3 TODO16: Contextual command capability tracking methods
+    
+    def _update_contextual_capabilities(self, pattern: str, handler: Any, metadata: Dict[str, Any]) -> None:
+        """
+        Extract and update contextual command capabilities from handler metadata.
+        
+        Args:
+            pattern: Handler pattern
+            handler: Handler instance
+            metadata: Handler metadata containing capability information
+        """
+        # Extract domain from pattern or metadata
+        domain = self._extract_domain_from_pattern(pattern)
+        if not domain and 'handler_domain' in metadata:
+            domain = metadata['handler_domain']
+        
+        if not domain:
+            return  # Skip if no domain can be determined
+        
+        # Extract supported contextual commands from metadata
+        supported_commands = set()
+        
+        # Check for action_patterns in metadata (from donation files)
+        if 'supported_actions' in metadata:
+            actions = metadata['supported_actions']
+            if isinstance(actions, list):
+                supported_commands.update(actions)
+        
+        # Check for contextual command patterns
+        contextual_commands = ['stop', 'pause', 'resume', 'cancel', 'next', 'previous', 'volume']
+        for command in contextual_commands:
+            # Check if handler supports this command based on patterns or methods
+            if self._handler_supports_command(handler, command, metadata):
+                supported_commands.add(command)
+        
+        # Update capability tracking
+        if supported_commands:
+            self.contextual_capabilities[domain] = list(supported_commands)
+            
+            # Update reverse mapping (command -> domains)
+            for command in supported_commands:
+                if command not in self.command_handlers:
+                    self.command_handlers[command] = []
+                if domain not in self.command_handlers[command]:
+                    self.command_handlers[command].append(domain)
+            
+            logger.debug(f"Registered contextual capabilities for {domain}: {list(supported_commands)}")
+    
+    def _cleanup_contextual_capabilities(self, pattern: str) -> None:
+        """
+        Clean up contextual command capabilities when a handler is unregistered.
+        
+        Args:
+            pattern: Handler pattern being unregistered
+        """
+        domain = self._extract_domain_from_pattern(pattern)
+        if not domain:
+            return
+        
+        # Remove domain from capabilities
+        if domain in self.contextual_capabilities:
+            commands = self.contextual_capabilities[domain]
+            del self.contextual_capabilities[domain]
+            
+            # Clean up reverse mapping
+            for command in commands:
+                if command in self.command_handlers:
+                    if domain in self.command_handlers[command]:
+                        self.command_handlers[command].remove(domain)
+                    # Remove command entry if no domains support it
+                    if not self.command_handlers[command]:
+                        del self.command_handlers[command]
+            
+            logger.debug(f"Cleaned up contextual capabilities for {domain}")
+    
+    def _extract_domain_from_pattern(self, pattern: str) -> Optional[str]:
+        """Extract domain from handler pattern."""
+        if '.' in pattern:
+            return pattern.split('.')[0]
+        return pattern if not ('*' in pattern or '?' in pattern) else None
+    
+    def _handler_supports_command(self, handler: Any, command: str, metadata: Dict[str, Any]) -> bool:
+        """
+        Check if a handler supports a specific contextual command.
+        
+        Args:
+            handler: Handler instance
+            command: Contextual command to check
+            metadata: Handler metadata
+            
+        Returns:
+            True if handler supports the command
+        """
+        # Check method existence
+        method_name = f"_handle_{command}_action"
+        if hasattr(handler, method_name):
+            return True
+        
+        # Check generic method patterns
+        generic_methods = [f"_handle_{command}", f"handle_{command}", f"{command}_action"]
+        for method in generic_methods:
+            if hasattr(handler, method):
+                return True
+        
+        # Check metadata patterns
+        if 'supported_actions' in metadata:
+            actions = metadata['supported_actions']
+            if isinstance(actions, list) and command in actions:
+                return True
+        
+        return False
+    
+    def get_handlers_for_contextual_command(self, command: str) -> List[str]:
+        """
+        Get list of domains that support a specific contextual command.
+        
+        Args:
+            command: Contextual command (e.g., "stop", "pause", "resume")
+            
+        Returns:
+            List of domain names that support the command
+        """
+        return self.command_handlers.get(command, [])
+    
+    def get_contextual_capabilities(self, domain: str) -> List[str]:
+        """
+        Get list of contextual commands supported by a domain.
+        
+        Args:
+            domain: Domain name
+            
+        Returns:
+            List of supported contextual commands
+        """
+        return self.contextual_capabilities.get(domain, [])
+    
+    def get_all_contextual_capabilities(self) -> Dict[str, List[str]]:
+        """
+        Get complete mapping of domains to their supported contextual commands.
+        
+        Returns:
+            Dictionary mapping domain names to lists of supported commands
+        """
+        return self.contextual_capabilities.copy()
+    
+    def can_handle_contextual_command(self, command: str, domain: str = None) -> bool:
+        """
+        Check if a contextual command can be handled, optionally by a specific domain.
+        
+        Args:
+            command: Contextual command to check
+            domain: Optional specific domain to check
+            
+        Returns:
+            True if the command can be handled
+        """
+        if domain:
+            return command in self.contextual_capabilities.get(domain, [])
+        else:
+            return command in self.command_handlers
+    
+    def get_capability_summary(self) -> Dict[str, Any]:
+        """
+        Get summary of all contextual command capabilities.
+        
+        Returns:
+            Summary dictionary with capability statistics
+        """
+        total_domains = len(self.contextual_capabilities)
+        total_commands = len(self.command_handlers)
+        
+        # Calculate coverage statistics
+        command_coverage = {}
+        for command, domains in self.command_handlers.items():
+            command_coverage[command] = len(domains)
+        
+        domain_coverage = {}
+        for domain, commands in self.contextual_capabilities.items():
+            domain_coverage[domain] = len(commands)
+        
+        return {
+            "total_domains_with_capabilities": total_domains,
+            "total_contextual_commands": total_commands,
+            "command_coverage": command_coverage,  # command -> number of supporting domains
+            "domain_coverage": domain_coverage,    # domain -> number of supported commands
+            "domains": list(self.contextual_capabilities.keys()),
+            "commands": list(self.command_handlers.keys())
+        }

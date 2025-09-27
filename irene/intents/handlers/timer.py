@@ -252,10 +252,7 @@ class TimerIntentHandler(IntentHandler):
     
     async def _handle_cancel_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
         """Handle timer cancellation intent with stop command disambiguation"""
-        # Check for stop commands first
-        stop_info = self.parse_stop_command(intent)
-        if stop_info and stop_info.get("is_stop_command"):
-            return await self._handle_stop_command(stop_info, context)
+        # Phase 2 TODO16: No more stop command parsing - handlers only receive resolved intents
         
         timer_id = intent.entities.get('timer_id')
         
@@ -320,51 +317,117 @@ class TimerIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
     
-    async def _handle_stop_command(self, stop_info: dict, context: ConversationContext) -> IntentResult:
-        """Handle stop commands for timer actions with disambiguation"""
-        target_domains = stop_info.get("target_domains", [])
+    async def _handle_stop_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle domain-specific timer stop intent (timer.stop).
         
-        # Check if stop command targets timers domain
-        if not target_domains or "timer" in target_domains or "timers" in target_domains:
-            session_timers = [tid for tid, timer in self.active_timers.items() 
-                            if timer['session_id'] == context.session_id]
-            
-            if not session_timers:
-                # Use language from context (detected by NLU)
-                language = context.language or "ru"
-                response_text = self._get_template("stop_no_timers", language)
-                return IntentResult(
-                    text=response_text,
-                    should_speak=True,
-                    success=True
-                )
-            
-            # Cancel all active timers for this session
-            action_metadata = await self.execute_fire_and_forget_with_context(
-                self._cancel_multiple_timers_action,
-                action_name="stop_all_timers",
-                domain="timers",
-                context=context,
-                session_timers=session_timers,
-                session_id=context.session_id
-            )
-            
+        Phase 2 TODO16: Standardized stop handling - only receives resolved intents.
+        """
+        session_timers = [tid for tid, timer in self.active_timers.items() 
+                        if timer['session_id'] == context.session_id]
+        
+        if not session_timers:
+            # Use language from context (detected by NLU)
             language = context.language or "ru"
-            response_text = self._get_template("stop_all_timers", language, count=len(session_timers))
-            return self.create_action_result(
-                response_text=response_text,
-                action_name="stop_all_timers",
-                domain="timers",
+            response_text = self._get_template("stop_no_timers", language)
+            return IntentResult(
+                text=response_text,
                 should_speak=True,
-                action_metadata=action_metadata
+                success=True
             )
         
-        # Not targeting timers domain
+        # Cancel all active timers for this session
+        action_metadata = await self.execute_fire_and_forget_with_context(
+            self._cancel_multiple_timers_action,
+            action_name="stop_all_timers",
+            domain="timers",
+            context=context,
+            session_timers=session_timers,
+            session_id=context.session_id
+        )
+        
         language = context.language or "ru"
-        response_text = self._get_template("stop_not_timer_domain", language)
+        response_text = self._get_template("stop_all_timers", language, count=len(session_timers))
+        return self.create_action_result(
+            response_text=response_text,
+            action_name="stop_all_timers",
+            domain="timers",
+            should_speak=True,
+            action_metadata=action_metadata
+        )
+    
+    async def _handle_pause_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle domain-specific timer pause intent (timer.pause).
+        
+        Phase 2 TODO16: Standardized contextual command handling.
+        """
+        # For timers, pause means temporarily stopping without canceling
+        session_timers = [tid for tid, timer in self.active_timers.items() 
+                        if timer['session_id'] == context.session_id and timer.get('status') == 'running']
+        
+        if not session_timers:
+            language = context.language or "ru"
+            response_text = self._get_template("pause_no_active_timers", language)
+            return IntentResult(
+                text=response_text,
+                should_speak=True,
+                success=True
+            )
+        
+        # Pause all active timers for this session
+        paused_count = 0
+        for timer_id in session_timers:
+            if timer_id in self.active_timers:
+                self.active_timers[timer_id]['status'] = 'paused'
+                self.active_timers[timer_id]['paused_at'] = time.time()
+                paused_count += 1
+        
+        language = context.language or "ru"
+        response_text = self._get_template("pause_timers", language, count=paused_count)
         return IntentResult(
             text=response_text,
-            should_speak=False,
+            should_speak=True,
+            success=True
+        )
+    
+    async def _handle_resume_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
+        """
+        Handle domain-specific timer resume intent (timer.resume).
+        
+        Phase 2 TODO16: Standardized contextual command handling.
+        """
+        # Resume paused timers
+        session_timers = [tid for tid, timer in self.active_timers.items() 
+                        if timer['session_id'] == context.session_id and timer.get('status') == 'paused']
+        
+        if not session_timers:
+            language = context.language or "ru"
+            response_text = self._get_template("resume_no_paused_timers", language)
+            return IntentResult(
+                text=response_text,
+                should_speak=True,
+                success=True
+            )
+        
+        # Resume all paused timers for this session
+        resumed_count = 0
+        current_time = time.time()
+        for timer_id in session_timers:
+            if timer_id in self.active_timers:
+                timer = self.active_timers[timer_id]
+                # Adjust the end time by the pause duration
+                pause_duration = current_time - timer.get('paused_at', current_time)
+                timer['end_time'] += pause_duration
+                timer['status'] = 'running'
+                timer.pop('paused_at', None)
+                resumed_count += 1
+        
+        language = context.language or "ru"
+        response_text = self._get_template("resume_timers", language, count=resumed_count)
+        return IntentResult(
+            text=response_text,
+            should_speak=True,
             success=True
         )
     

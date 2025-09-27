@@ -460,6 +460,22 @@ enabled = true                      # Enable intent system component (essential)
 confidence_threshold = 0.7          # Minimum confidence for intent recognition (0.0-1.0)
 fallback_intent = "conversation.general"  # Fallback intent when recognition fails
 
+# Domain priorities for contextual command disambiguation (Phase 1 - TODO16)
+[intent_system.domain_priorities]
+audio = 90                          # Audio playback commands (highest priority)
+timer = 70                          # Timer and alarm commands (medium priority)
+voice_synthesis = 60                # TTS and speech commands (lower priority)
+system = 50                         # System commands (default priority)
+conversation = 40                   # General conversation (lowest priority)
+
+# Contextual command performance optimization (Phase 4 - TODO16)
+[intent_system.contextual_commands]
+enable_pattern_caching = true       # Enable contextual command pattern caching
+cache_ttl_seconds = 300             # Cache time-to-live in seconds (5 minutes)
+max_cache_size_patterns = 1000      # Maximum cached patterns per language
+performance_monitoring = true       # Monitor disambiguation latency
+latency_threshold_ms = 5.0          # Alert threshold for disambiguation latency
+
 # Intent handler configuration
 [intent_system.handlers]
 enabled = ["conversation", "greetings", "timer", "datetime", "system", "text_enhancement_handler"]  # Enabled handlers
@@ -769,6 +785,7 @@ concurrent_downloads = 2           # Maximum concurrent model downloads
 # - Reduce cache sizes: assets.max_cache_size_mb=256
 # - Audio optimization: Use "fast" resampling quality, reduce resampling cache size
 # - Disable performance monitoring: workflows.unified_voice_assistant.resampling.performance_monitoring=false
+
 
 # ============================================================
 # END OF MASTER CONFIGURATION

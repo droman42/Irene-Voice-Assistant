@@ -1,8 +1,38 @@
 # English command patterns for BaseIntentHandler
 # Phase 2: Extracted from hardcoded patterns in base.py
+# Phase 1 TODO16: Extended with contextual command patterns
 
 stop_patterns:
   - "stop"
   - "halt"
   - "cancel"
   - "turn off"
+
+# Phase 1 TODO16: Contextual command patterns for disambiguation
+contextual_commands:
+  stop:
+    - "stop"
+    - "halt"
+    - "cancel"
+    - "turn off"
+  pause:
+    - "pause"
+    - "hold"
+    - "suspend"
+  resume:
+    - "resume"
+    - "continue"
+    - "restart"
+  volume:
+    - "volume"
+    - "louder"
+    - "quieter"
+    - "sound"
+  next:
+    - "next"
+    - "skip"
+    - "forward"
+  previous:
+    - "previous"
+    - "back"
+    - "last"

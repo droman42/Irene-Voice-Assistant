@@ -16,6 +16,9 @@
   "intent_name_patterns": [
     "timer.set",
     "timer.cancel",
+    "timer.stop",
+    "timer.pause",
+    "timer.resume",
     "timer.list",
     "timer.status"
   ],
@@ -366,6 +369,119 @@
       "examples": [
         {
           "text": "cancel timer",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_stop_timer",
+      "intent_suffix": "stop",
+      "description": "Stop all active timers",
+      "phrases": [
+        "stop timer",
+        "stop all timers",
+        "halt timer",
+        "stop"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "stop|halt"
+            }
+          },
+          {
+            "TEXT": "timer"
+          }
+        ],
+        [
+          {
+            "TEXT": "stop"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "stop timer",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_pause_timer",
+      "intent_suffix": "pause",
+      "description": "Pause active timers",
+      "phrases": [
+        "pause timer",
+        "pause all timers",
+        "hold timer",
+        "pause"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "pause|hold"
+            }
+          },
+          {
+            "TEXT": "timer"
+          }
+        ],
+        [
+          {
+            "TEXT": "pause"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "pause timer",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_resume_timer",
+      "intent_suffix": "resume",
+      "description": "Resume paused timers",
+      "phrases": [
+        "resume timer",
+        "resume all timers",
+        "continue timer",
+        "resume"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "resume|continue"
+            }
+          },
+          {
+            "TEXT": "timer"
+          }
+        ],
+        [
+          {
+            "TEXT": {
+              "REGEX": "resume|continue"
+            }
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "resume timer",
           "parameters": {}
         }
       ],

@@ -573,6 +573,17 @@ class SystemHandlerConfig(BaseModel):
     info_detail_level: str = Field(default="basic", description="Level of system info to provide (basic/detailed)")
 
 
+class ContextualCommandsConfig(BaseModel):
+    """Configuration for contextual command performance and caching (Phase 4 TODO16)"""
+    enable_pattern_caching: bool = Field(default=True, description="Enable contextual command pattern caching")
+    cache_ttl_seconds: int = Field(default=300, ge=60, le=3600, description="Cache time-to-live in seconds")
+    max_cache_size_patterns: int = Field(default=1000, ge=100, le=10000, description="Maximum cached patterns per language")
+    performance_monitoring: bool = Field(default=True, description="Monitor disambiguation latency")
+    latency_threshold_ms: float = Field(default=5.0, ge=1.0, le=100.0, description="Alert threshold for disambiguation latency in milliseconds")
+
+
+
+
 class IntentHandlerListConfig(BaseModel):
     """Intent handler enable/disable configuration"""
     enabled: List[str] = Field(
@@ -670,6 +681,25 @@ class IntentSystemConfig(BaseModel):
         default="conversation.general",
         description="Fallback intent when recognition fails"
     )
+    
+    # Phase 1 TODO16: Domain priorities for contextual command disambiguation
+    domain_priorities: Dict[str, int] = Field(
+        default_factory=lambda: {
+            "audio": 90,
+            "timer": 70,
+            "voice_synthesis": 60,
+            "system": 50,
+            "conversation": 40
+        },
+        description="Domain priorities for contextual command disambiguation (higher values = higher priority)"
+    )
+    
+    # Phase 4 TODO16: Performance optimization configuration
+    contextual_commands: 'ContextualCommandsConfig' = Field(
+        default_factory=lambda: ContextualCommandsConfig(),
+        description="Contextual command performance and caching configuration"
+    )
+    
     handlers: IntentHandlerListConfig = Field(
         default_factory=IntentHandlerListConfig,
         description="Intent handler configuration"
@@ -1205,6 +1235,7 @@ class CoreConfig(BaseSettings):
     vad: VADConfig = Field(default_factory=VADConfig, description="Voice Activity Detection component configuration")
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig, description="Monitoring component configuration (Phase 5 unified metrics system)")
     nlu_analysis: NLUAnalysisConfig = Field(default_factory=NLUAnalysisConfig, description="NLU Analysis component configuration (Phase 2)")
+    
     
     # Language and locale
     language: str = Field(default="en-US", description="Primary language")

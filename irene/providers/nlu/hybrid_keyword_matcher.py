@@ -105,6 +105,10 @@ class HybridKeywordMatcherProvider(NLUProvider):
         self._rapidfuzz_available = False
         self._fuzz = None
         self._process = None
+        
+        # Phase 1 TODO16: Contextual command patterns for disambiguation
+        self.contextual_patterns: Dict[str, Dict[str, List[str]]] = {}  # language -> command_type -> patterns
+        self.contextual_commands_loaded = False
     
     def get_provider_name(self) -> str:
         return "hybrid_keyword_matcher"
@@ -143,6 +147,9 @@ class HybridKeywordMatcherProvider(NLUProvider):
             self.fuzzy_keywords = {}
         if not hasattr(self, 'fuzzy_keywords_lc') or self.fuzzy_keywords_lc is None:
             self.fuzzy_keywords_lc = {}
+        
+        # Phase 1 TODO16: Load contextual command patterns
+        await self._load_contextual_patterns()
         if not hasattr(self, 'global_keyword_map') or self.global_keyword_map is None:
             self.global_keyword_map = {}
         if not hasattr(self, 'parameter_specs') or self.parameter_specs is None:
@@ -409,6 +416,16 @@ class HybridKeywordMatcherProvider(NLUProvider):
                 confidence=0.0,
                 raw_text=text
             )
+        
+        # Phase 1 TODO16: Check for contextual intents first (highest priority)
+        language = getattr(context, 'language', 'en') or 'en'
+        if language not in ['en', 'ru']:
+            language = 'en'  # Fallback to English
+        
+        contextual_intent = self._detect_contextual_intent(text, language)
+        if contextual_intent:
+            logger.debug(f"Detected contextual intent: {contextual_intent.name}")
+            return contextual_intent
         
         # Skip fuzzy matching for very long texts (performance)
         use_fuzzy = self.fuzzy_enabled and len(text) <= self.max_text_length_for_fuzzy
@@ -1160,6 +1177,87 @@ class HybridKeywordMatcherProvider(NLUProvider):
             return False
         
         return True
+    
+    async def _load_contextual_patterns(self) -> None:
+        """
+        Load contextual command patterns from localization files.
+        
+        Phase 1 TODO16: Load patterns for contextual command recognition.
+        """
+        try:
+            # Import here to avoid circular imports
+            from pathlib import Path
+            import yaml
+            
+            # Load patterns from localization files
+            localization_dir = Path("assets/localization/commands")
+            if not localization_dir.exists():
+                logger.warning(f"Contextual commands directory not found: {localization_dir}")
+                return
+            
+            for lang_file in localization_dir.glob("*.yaml"):
+                language = lang_file.stem
+                
+                try:
+                    with open(lang_file, 'r', encoding='utf-8') as f:
+                        data = yaml.safe_load(f)
+                    
+                    if 'contextual_commands' in data:
+                        self.contextual_patterns[language] = data['contextual_commands']
+                        logger.debug(f"Loaded contextual patterns for language '{language}': {list(data['contextual_commands'].keys())}")
+                
+                except Exception as e:
+                    logger.warning(f"Failed to load contextual patterns from {lang_file}: {e}")
+            
+            if self.contextual_patterns:
+                self.contextual_commands_loaded = True
+                logger.info(f"Loaded contextual command patterns for languages: {list(self.contextual_patterns.keys())}")
+            else:
+                logger.warning("No contextual command patterns loaded")
+                
+        except Exception as e:
+            logger.error(f"Failed to load contextual patterns: {e}")
+    
+    def _detect_contextual_intent(self, text: str, language: str = "en") -> Optional[Intent]:
+        """
+        Detect if input text matches a contextual command pattern.
+        
+        Phase 1 TODO16: Recognize contextual vs domain-specific intents.
+        
+        Args:
+            text: Input text to analyze
+            language: Language for pattern matching
+            
+        Returns:
+            Intent with contextual domain if matched, None otherwise
+        """
+        if not self.contextual_commands_loaded or language not in self.contextual_patterns:
+            return None
+        
+        text_lower = text.lower().strip()
+        patterns = self.contextual_patterns[language]
+        
+        # Check each contextual command type
+        for command_type, command_patterns in patterns.items():
+            for pattern in command_patterns:
+                # Exact match for contextual commands (they should be simple)
+                if text_lower == pattern.lower():
+                    return Intent(
+                        name=f"contextual.{command_type}",
+                        domain="contextual",
+                        action=command_type,
+                        entities={},
+                        confidence=0.95,  # High confidence for exact contextual matches
+                        raw_text=text
+                    )
+                
+                # Also check if text starts with the pattern (for "stop music" -> should NOT be contextual)
+                # This helps distinguish "stop" (contextual) from "stop music" (domain-specific)
+                if len(text_lower.split()) > 1 and text_lower.startswith(pattern.lower()):
+                    # Multi-word command starting with contextual pattern - likely domain-specific
+                    return None
+        
+        return None
     
     async def cleanup(self) -> None:
         """Clean up hybrid keyword matcher resources"""

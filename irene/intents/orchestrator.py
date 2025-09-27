@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from .models import Intent, IntentResult, ConversationContext
 from .registry import IntentRegistry
@@ -14,18 +14,24 @@ logger = logging.getLogger(__name__)
 class IntentOrchestrator:
     """Central intent coordinator that routes intents to appropriate handlers with donation-driven execution."""
     
-    def __init__(self, registry: IntentRegistry):
+    def __init__(self, registry: IntentRegistry, context_manager=None, domain_priorities: Dict[str, int] = None):
         """
         Initialize the intent orchestrator.
         
         Args:
             registry: Intent registry containing available handlers
+            context_manager: Context manager for contextual command disambiguation (Phase 1 TODO16)
+            domain_priorities: Domain priorities for contextual command resolution (Phase 1 TODO16)
         """
         self.registry = registry
         self.middleware: list = []
         self.error_handlers: Dict[str, callable] = {}
         self._use_donation_routing = True  # Phase 6: Enable donation-driven routing
         self.metrics_collector = get_metrics_collector()  # Phase 2: Intent analytics integration
+        
+        # Phase 1 TODO16: Contextual command disambiguation support
+        self.context_manager = context_manager
+        self.domain_priorities = domain_priorities or {}
         
         # Cache for capabilities to prevent excessive provider availability checks
         self._capabilities_cache = None
@@ -78,6 +84,97 @@ class IntentOrchestrator:
         try:
             # Apply middleware processing
             processed_intent = await self._apply_middleware(intent, context)
+            
+            # Phase 2 TODO16: Central disambiguation - handlers never see ambiguous commands
+            if processed_intent.domain == "contextual":
+                # STEP 1: Check if this is a contextual intent from NLU cascade
+                # STEP 2: Analyze active fire-and-forget actions for disambiguation
+                active_actions = context.active_actions
+                if not active_actions:
+                    return self._create_error_result(
+                        "No active actions to target with that command.",
+                        "no_active_actions",
+                        intent
+                    )
+                
+                # STEP 3: Central disambiguation using existing sophisticated logic
+                # Phase 3 TODO16: Enhanced disambiguation with capability checking
+                available_domains = self.registry.get_handlers_for_contextual_command(processed_intent.action)
+                
+                # Filter active actions to only those with handlers that support this command
+                filtered_active_actions = {}
+                for action_name, action_info in active_actions.items():
+                    action_domain = action_info.get('domain', 'unknown')
+                    if action_domain in available_domains:
+                        filtered_active_actions[action_name] = action_info
+                
+                if not filtered_active_actions:
+                    return self._create_error_result(
+                        f"No active actions support the '{processed_intent.action}' command.",
+                        "no_capable_handlers",
+                        intent,
+                        f"Available handlers for '{processed_intent.action}': {', '.join(available_domains) if available_domains else 'none'}"
+                    )
+                
+                # Determine if confirmation is needed based on ambiguity
+                require_confirmation = len(filtered_active_actions) > 1 and self._should_require_confirmation(
+                    filtered_active_actions, processed_intent.action
+                )
+                
+                resolution = self.context_manager.resolve_contextual_command_ambiguity(
+                    session_id=context.session_id,
+                    command_type=processed_intent.action,  # "stop", "pause", "resume", etc.
+                    target_domains=None,  # No explicit domain targeting for pure contextual commands
+                    domain_priorities=self.domain_priorities,
+                    require_confirmation=require_confirmation
+                )
+                
+                # Phase 3 TODO16: Handle confirmation requests
+                if resolution.get("resolution") == "requires_confirmation":
+                    return await self._handle_disambiguation_confirmation(resolution, intent, context)
+                
+                # Check if resolution was successful
+                if resolution["resolution"] in ["no_session", "no_active_actions", "no_actions"]:
+                    logger.debug(f"Contextual intent resolution failed: {resolution['resolution']}")
+                    return self._create_error_result(
+                        "No active actions to target with that command.",
+                        "contextual_resolution_failed",
+                        intent
+                    )
+                
+                # Extract target domain from resolution
+                target_domain = resolution.get("target_domain")
+                if not target_domain:
+                    logger.warning(f"No target domain in contextual resolution: {resolution}")
+                    return self._create_error_result(
+                        "Could not determine which action to target.",
+                        "ambiguous_target",
+                        intent
+                    )
+                
+                # STEP 4: Transform to resolved domain-specific intent
+                resolved_intent = Intent(
+                    name=f"{target_domain}.{processed_intent.action}",
+                    action=processed_intent.action,
+                    domain=target_domain,
+                    text=processed_intent.text,
+                    entities=processed_intent.entities.copy(),
+                    confidence=processed_intent.confidence,
+                    raw_text=processed_intent.raw_text
+                )
+                
+                # Add resolution metadata to entities
+                resolved_intent.entities["_contextual_resolution"] = {
+                    "original_intent": processed_intent.name,
+                    "resolution_method": resolution["resolution"],
+                    "target_domain": target_domain,
+                    "command_type": processed_intent.action
+                }
+                
+                logger.info(f"Resolved contextual intent '{processed_intent.name}' to '{resolved_intent.name}' "
+                           f"using {resolution['resolution']} method")
+                
+                processed_intent = resolved_intent
             
             # Find handler for the intent
             handler = self.registry.get_handler(processed_intent)
@@ -226,7 +323,10 @@ class IntentOrchestrator:
             "supported_domains": set(),
             "supported_actions": set(),
             "donation_routing_enabled": self._use_donation_routing,
-            "parameter_extraction_integrated": True  # PHASE 5: Parameter extraction now integrated into NLU providers
+            "parameter_extraction_integrated": True,  # PHASE 5: Parameter extraction now integrated into NLU providers
+            # Phase 3 TODO16: Contextual command capabilities
+            "contextual_capabilities": self.registry.get_all_contextual_capabilities(),
+            "contextual_command_summary": self.registry.get_capability_summary()
         }
         
         for pattern, handler in handlers.items():
@@ -261,6 +361,171 @@ class IntentOrchestrator:
         
         return capabilities
     
+    # Phase 3 TODO16: Enhanced user experience methods
+    
+    def _should_require_confirmation(self, active_actions: Dict[str, Any], command_type: str) -> bool:
+        """
+        Determine if user confirmation should be required for ambiguous contextual commands.
+        
+        Args:
+            active_actions: Dictionary of active actions
+            command_type: Type of contextual command
+            
+        Returns:
+            True if confirmation should be required
+        """
+        # Require confirmation if multiple domains have similar priority scores
+        if len(active_actions) <= 1:
+            return False
+        
+        # Check if domains have very different priorities (clear winner)
+        domains = set(action_info.get('domain', 'unknown') for action_info in active_actions.values())
+        if len(domains) <= 1:
+            return False  # All actions in same domain
+        
+        # Check priority differences
+        if self.domain_priorities:
+            priorities = [self.domain_priorities.get(domain, 0) for domain in domains]
+            max_priority = max(priorities)
+            min_priority = min(priorities)
+            
+            # If priority difference is significant (>20 points), don't require confirmation
+            if max_priority - min_priority > 20:
+                return False
+        
+        # For destructive commands, always require confirmation when ambiguous
+        destructive_commands = ['stop', 'cancel', 'delete', 'remove']
+        if command_type in destructive_commands:
+            return True
+        
+        # For non-destructive commands, require confirmation if more than 2 domains
+        return len(domains) > 2
+    
+    async def _handle_disambiguation_confirmation(
+        self, 
+        resolution: Dict[str, Any], 
+        original_intent: Intent, 
+        context: ConversationContext
+    ) -> IntentResult:
+        """
+        Handle disambiguation confirmation for ambiguous contextual commands.
+        
+        Args:
+            resolution: Disambiguation resolution requiring confirmation
+            original_intent: Original contextual intent
+            context: Conversation context
+            
+        Returns:
+            IntentResult with confirmation request or error
+        """
+        ambiguous_domains = resolution.get("ambiguous_domains", [])
+        command_type = resolution.get("command_type", "unknown")
+        
+        if not ambiguous_domains:
+            return self._create_error_result(
+                "Unable to determine which action to target.",
+                "disambiguation_failed",
+                original_intent
+            )
+        
+        # Create user-friendly confirmation message
+        domain_descriptions = self._get_domain_descriptions(ambiguous_domains, context)
+        
+        if len(ambiguous_domains) == 2:
+            confirmation_message = (
+                f"I found multiple active actions for '{command_type}'. "
+                f"Did you mean to {command_type} {domain_descriptions[0]} or {domain_descriptions[1]}? "
+                f"Please specify which one."
+            )
+        else:
+            domain_list = ", ".join(domain_descriptions[:-1]) + f", or {domain_descriptions[-1]}"
+            confirmation_message = (
+                f"I found multiple active actions for '{command_type}': {domain_list}. "
+                f"Please specify which one you'd like to {command_type}."
+            )
+        
+        # Store disambiguation context for follow-up
+        self._store_disambiguation_context(context.session_id, resolution, original_intent)
+        
+        return IntentResult(
+            text=confirmation_message,
+            should_speak=True,
+            success=True,
+            metadata={
+                "requires_disambiguation": True,
+                "disambiguation_type": "contextual_command",
+                "command_type": command_type,
+                "ambiguous_domains": ambiguous_domains,
+                "domain_descriptions": domain_descriptions,
+                "original_intent": original_intent.name,
+                "confidence_scores": resolution.get("domain_scores", {}),
+                "session_id": context.session_id
+            },
+            confidence=0.5  # Medium confidence due to ambiguity
+        )
+    
+    def _get_domain_descriptions(self, domains: List[str], context: ConversationContext) -> List[str]:
+        """
+        Get user-friendly descriptions for domains based on active actions.
+        
+        Args:
+            domains: List of domain names
+            context: Conversation context
+            
+        Returns:
+            List of user-friendly domain descriptions
+        """
+        descriptions = []
+        active_actions = getattr(context, 'active_actions', {})
+        
+        for domain in domains:
+            # Find actions in this domain
+            domain_actions = [
+                action_name for action_name, action_info in active_actions.items()
+                if action_info.get('domain') == domain
+            ]
+            
+            if domain_actions:
+                # Use the most descriptive action name or domain name
+                if domain == 'audio':
+                    descriptions.append("audio playback")
+                elif domain == 'timer':
+                    descriptions.append("timer")
+                elif domain == 'voice_synthesis':
+                    descriptions.append("voice synthesis")
+                else:
+                    descriptions.append(domain)
+            else:
+                descriptions.append(domain)
+        
+        return descriptions
+    
+    def _store_disambiguation_context(
+        self, 
+        session_id: str, 
+        resolution: Dict[str, Any], 
+        original_intent: Intent
+    ) -> None:
+        """
+        Store disambiguation context for follow-up resolution.
+        
+        Args:
+            session_id: Session identifier
+            resolution: Disambiguation resolution
+            original_intent: Original contextual intent
+        """
+        # Store in context manager for follow-up processing
+        if hasattr(self.context_manager, 'store_disambiguation_context'):
+            self.context_manager.store_disambiguation_context(
+                session_id, 
+                {
+                    "type": "contextual_command",
+                    "resolution": resolution,
+                    "original_intent": original_intent,
+                    "timestamp": time.time()
+                }
+            )
+    
     def invalidate_capabilities_cache(self):
         """Invalidate the capabilities cache to force a fresh check"""
         self._capabilities_cache = None
@@ -276,4 +541,5 @@ class IntentOrchestrator:
         try:
             return await handler.can_handle(intent)
         except Exception:
-            return False 
+            return False
+    

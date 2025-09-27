@@ -4,8 +4,27 @@
   "donation_version": "1.0",
   "handler_domain": "audio",
   "description": "Команды управления воспроизведением аудио - управление музыкой и звуком",
-  "intent_name_patterns": [],
-  "action_patterns": [],
+  "intent_name_patterns": [
+    "audio.play",
+    "audio.stop",
+    "audio.pause",
+    "audio.resume",
+    "audio.switch",
+    "audio.list"
+  ],
+  "action_patterns": [
+    "play",
+    "stop",
+    "pause",
+    "resume",
+    "switch",
+    "list",
+    "control",
+    "start",
+    "next",
+    "previous",
+    "volume"
+  ],
   "action_domain_priority": 90,
   "stop_command_patterns": [
     "стоп аудио",
@@ -337,6 +356,117 @@
         }
       ],
       "boost": 1.4
+    },
+    {
+      "method_name": "_handle_pause_audio",
+      "intent_suffix": "pause",
+      "description": "Приостановить воспроизведение аудио",
+      "phrases": [
+        "пауза аудио",
+        "пауза музыка",
+        "приостанови аудио",
+        "приостанови музыку",
+        "пауза воспроизведение",
+        "пауза"
+      ],
+      "lemmas": [
+        "пауза",
+        "приостанавливать",
+        "музыка",
+        "аудио",
+        "воспроизведение"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "пауза"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "аудио",
+                "музыка",
+                "воспроизведение"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "пауза",
+                "приостанавливать"
+              ]
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "пауза музыка",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.3
+    },
+    {
+      "method_name": "_handle_resume_audio",
+      "intent_suffix": "resume",
+      "description": "Возобновить воспроизведение аудио",
+      "phrases": [
+        "продолжи аудио",
+        "продолжи музыку",
+        "возобнови аудио",
+        "возобнови музыку",
+        "продолжи воспроизведение",
+        "продолжи",
+        "возобнови"
+      ],
+      "lemmas": [
+        "продолжать",
+        "возобновлять",
+        "музыка",
+        "аудио",
+        "воспроизведение"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "продолжать"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "аудио",
+                "музыка",
+                "воспроизведение"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "продолжать",
+                "возобновлять"
+              ]
+            }
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "продолжи музыку",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.3
     },
     {
       "method_name": "_handle_switch_audio_provider",

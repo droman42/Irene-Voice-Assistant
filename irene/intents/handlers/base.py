@@ -1089,50 +1089,6 @@ class IntentHandler(EntryPointMetadata, ABC):
         
         return domain_hints
     
-    def parse_stop_command(self, intent: Intent) -> Optional[Dict[str, Any]]:
-        """
-        Parse stop command to extract target action/domain information.
-        
-        Args:
-            intent: Stop command intent
-            
-        Returns:
-            Dictionary with target information or None if not a stop command
-        """
-        text = intent.text.lower()
-        
-        # Get stop patterns from localization data (both languages)
-        ru_stop_patterns = self._get_stop_patterns("ru")
-        en_stop_patterns = self._get_stop_patterns("en")
-        all_stop_patterns = ru_stop_patterns + en_stop_patterns
-        
-        if not any(pattern in text for pattern in all_stop_patterns):
-            return None
-        
-        # Get domain hints from localization data (both languages)
-        ru_domain_hints = self._get_domain_hints("ru")
-        en_domain_hints = self._get_domain_hints("en")
-        
-        target_domains = []
-        
-        # Check Russian domain hints
-        for domain, keywords in ru_domain_hints.items():
-            if any(keyword in text for keyword in keywords):
-                target_domains.append(domain)
-        
-        # Check English domain hints
-        for domain, keywords in en_domain_hints.items():
-            if any(keyword in text for keyword in keywords):
-                target_domains.append(domain)
-        
-        # Remove duplicates
-        target_domains = list(set(target_domains))
-        
-        return {
-            "is_stop_command": True,
-            "target_domains": target_domains,
-            "original_text": intent.text
-        }
     
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

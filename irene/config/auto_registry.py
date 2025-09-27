@@ -24,7 +24,7 @@ import logging
 import inspect
 import tomllib
 from pathlib import Path
-from typing import Dict, Any, Type, Optional, Set
+from typing import Dict, Any, Type, Optional, Set, get_origin, get_args
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -48,13 +48,27 @@ class AutoSchemaRegistry:
             for field_name, field_info in CoreConfig.model_fields.items():
                 if hasattr(field_info, 'annotation'):
                     annotation = field_info.annotation
+                    model_class = None
                     
+                    # Handle direct BaseModel subclasses
                     if (inspect.isclass(annotation) and 
                         issubclass(annotation, BaseModel) and 
                         annotation != BaseModel):
-                        
-                        cls._section_models_cache[field_name] = annotation
-                        logger.debug(f"Auto-registered: {field_name} -> {annotation.__name__}")
+                        model_class = annotation
+                    
+                    # Handle Optional[BaseModel] (Union[BaseModel, None])
+                    elif get_origin(annotation) is not None:
+                        args = get_args(annotation)
+                        for arg in args:
+                            if (inspect.isclass(arg) and 
+                                issubclass(arg, BaseModel) and 
+                                arg != BaseModel):
+                                model_class = arg
+                                break
+                    
+                    if model_class:
+                        cls._section_models_cache[field_name] = model_class
+                        logger.debug(f"Auto-registered: {field_name} -> {model_class.__name__}")
             
             logger.info(f"Auto-generated {len(cls._section_models_cache)} section models")
         

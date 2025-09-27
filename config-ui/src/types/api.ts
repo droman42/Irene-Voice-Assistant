@@ -596,6 +596,7 @@ export interface CoreConfig {
   vad: VADConfig;
   monitoring: MonitoringConfig;
   
+  
   // Language and locale
   language: string;
   timezone?: string;
@@ -737,10 +738,26 @@ export interface IntentSystemConfig {
   enabled: boolean;
   confidence_threshold: number;
   fallback_intent: string;
+  
+  // Phase 1 TODO16: Domain priorities for contextual command disambiguation
+  domain_priorities: Record<string, number>;
+  
+  // Phase 4 TODO16: Contextual command performance optimization
+  contextual_commands: ContextualCommandsConfig;
+  
   handlers: IntentHandlerListConfig;
   // Handler-specific configurations would be included here
   [key: string]: any;
 }
+
+export interface ContextualCommandsConfig {
+  enable_pattern_caching: boolean;
+  cache_ttl_seconds: number;
+  max_cache_size_patterns: number;
+  performance_monitoring: boolean;
+  latency_threshold_ms: number;
+}
+
 
 export interface IntentHandlerListConfig {
   enabled: string[];

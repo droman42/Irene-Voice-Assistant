@@ -9,6 +9,8 @@
     "tts.voice",
     "tts.list",
     "tts.switch",
+    "voice_synthesis.stop",
+    "voice_synthesis.cancel",
     "voice.synthesis"
   ],
   "action_patterns": [
@@ -20,7 +22,8 @@
     "generate",
     "synthesize",
     "play",
-    "stop"
+    "stop",
+    "cancel"
   ],
   "action_domain_priority": 60,
   "stop_command_patterns": [
@@ -685,6 +688,96 @@
         }
       ],
       "boost": 1.1
+    },
+    {
+      "method_name": "_handle_stop_synthesis",
+      "intent_suffix": "stop",
+      "description": "Stop voice synthesis",
+      "phrases": [
+        "stop synthesis",
+        "stop speech",
+        "halt voice",
+        "stop speaking",
+        "stop"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": {
+              "REGEX": "stop|halt"
+            }
+          },
+          {
+            "TEXT": {
+              "IN": [
+                "synthesis",
+                "speech",
+                "voice",
+                "speaking"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "stop"
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "stop synthesis",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_cancel_synthesis",
+      "intent_suffix": "cancel",
+      "description": "Cancel voice synthesis",
+      "phrases": [
+        "cancel synthesis",
+        "cancel speech",
+        "cancel voice",
+        "cancel speaking",
+        "cancel"
+      ],
+      "lemmas": [],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "TEXT": "cancel"
+          },
+          {
+            "TEXT": {
+              "IN": [
+                "synthesis",
+                "speech",
+                "voice",
+                "speaking"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "TEXT": "cancel"
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "cancel synthesis",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
     }
   ],
   "negative_patterns": [

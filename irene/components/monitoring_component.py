@@ -262,6 +262,62 @@ class MonitoringComponent(Component, WebAPIPlugin):
                     performance_summary=self.metrics_collector.get_performance_summary(3600)  # Last hour
                 )
             
+            # Phase 4 TODO16: Contextual command metrics endpoints
+            @router.get("/contextual-commands")
+            async def get_contextual_command_metrics():
+                """Get contextual command disambiguation metrics"""
+                if not self.metrics_collector:
+                    raise HTTPException(status_code=503, detail="Metrics collector not available")
+                
+                metrics = self.metrics_collector.get_contextual_command_metrics()
+                return {
+                    "success": True,
+                    "data": {
+                        "contextual_commands": metrics,
+                        "timestamp": __import__('time').time(),
+                        "monitoring_enabled": True
+                    }
+                }
+            
+            @router.get("/contextual-commands/performance")
+            async def get_contextual_performance_details():
+                """Get detailed contextual command performance analysis"""
+                if not self.metrics_collector:
+                    raise HTTPException(status_code=503, detail="Metrics collector not available")
+                
+                metrics = self.metrics_collector.get_contextual_command_metrics()
+                
+                # Enhanced analysis
+                analysis = {
+                    "latency_analysis": {
+                        "average_ms": metrics.get("average_latency_ms", 0.0),
+                        "max_ms": metrics.get("max_latency_ms", 0.0),
+                        "min_ms": metrics.get("min_latency_ms", float('inf')),
+                        "threshold_violations": metrics.get("threshold_violations", 0),
+                        "violation_rate": metrics.get("threshold_violation_rate", 0.0)
+                    },
+                    "resolution_patterns": {
+                        "success_rate": metrics.get("success_rate", 0.0),
+                        "domain_distribution": metrics.get("domain_resolutions", {}),
+                        "command_type_stats": metrics.get("command_type_stats", {})
+                    },
+                    "cache_performance": {
+                        "hit_rate": metrics.get("cache_hit_rate", 0.0),
+                        "total_hits": metrics.get("cache_hits", 0),
+                        "total_misses": metrics.get("cache_misses", 0)
+                    },
+                    "confidence_analysis": metrics.get("confidence_analysis", {})
+                }
+                
+                return {
+                    "success": True,
+                    "data": {
+                        "performance_analysis": analysis,
+                        "raw_metrics": metrics,
+                        "timestamp": __import__('time').time()
+                    }
+                }
+            
             # Memory management endpoints
             @router.get("/memory", response_model=MemoryStatusResponse)
             async def get_memory_status():

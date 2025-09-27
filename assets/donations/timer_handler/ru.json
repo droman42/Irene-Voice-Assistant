@@ -13,8 +13,27 @@
       "description": "Сохранять ли состояние между сессиями"
     }
   ],
-  "intent_name_patterns": [],
-  "action_patterns": [],
+  "intent_name_patterns": [
+    "timer.set",
+    "timer.cancel",
+    "timer.stop",
+    "timer.pause",
+    "timer.resume",
+    "timer.list",
+    "timer.status"
+  ],
+  "action_patterns": [
+    "set",
+    "cancel",
+    "stop",
+    "pause",
+    "resume",
+    "list",
+    "status",
+    "create",
+    "remove",
+    "start"
+  ],
   "stop_command_patterns": [
     "стоп таймер",
     "останови таймер",
@@ -465,6 +484,152 @@
         },
         {
           "text": "стоп таймер",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_stop_timer",
+      "intent_suffix": "stop",
+      "description": "Остановить все активные таймеры",
+      "phrases": [
+        "стоп таймер",
+        "останови таймер",
+        "останови все таймеры",
+        "прекрати таймер",
+        "стоп"
+      ],
+      "lemmas": [
+        "стоп",
+        "останавливать",
+        "прекращать",
+        "таймер"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "стоп",
+                "останавливать",
+                "прекращать"
+              ]
+            }
+          },
+          {
+            "LEMMA": "таймер"
+          }
+        ],
+        [
+          {
+            "LEMMA": "стоп"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "стоп таймер",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_pause_timer",
+      "intent_suffix": "pause",
+      "description": "Приостановить активные таймеры",
+      "phrases": [
+        "пауза таймер",
+        "приостанови таймер",
+        "приостанови все таймеры",
+        "задержи таймер",
+        "пауза"
+      ],
+      "lemmas": [
+        "пауза",
+        "приостанавливать",
+        "задерживать",
+        "таймер"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "пауза",
+                "приостанавливать",
+                "задерживать"
+              ]
+            }
+          },
+          {
+            "LEMMA": "таймер"
+          }
+        ],
+        [
+          {
+            "LEMMA": "пауза"
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "пауза таймер",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.1
+    },
+    {
+      "method_name": "_handle_resume_timer",
+      "intent_suffix": "resume",
+      "description": "Возобновить приостановленные таймеры",
+      "phrases": [
+        "продолжи таймер",
+        "возобнови таймер",
+        "возобнови все таймеры",
+        "запусти снова таймер",
+        "продолжи",
+        "возобнови"
+      ],
+      "lemmas": [
+        "продолжать",
+        "возобновлять",
+        "запускать",
+        "таймер"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "продолжать",
+                "возобновлять"
+              ]
+            }
+          },
+          {
+            "LEMMA": "таймер"
+          }
+        ],
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "продолжать",
+                "возобновлять"
+              ]
+            }
+          }
+        ]
+      ],
+      "examples": [
+        {
+          "text": "продолжи таймер",
           "parameters": {}
         }
       ],

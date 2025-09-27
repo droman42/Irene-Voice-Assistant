@@ -4,8 +4,27 @@
   "donation_version": "1.0",
   "handler_domain": "voice_synthesis",
   "description": "Синтез речи с конкретными голосами и управление TTS провайдерами",
-  "intent_name_patterns": [],
-  "action_patterns": [],
+  "intent_name_patterns": [
+    "tts.speak",
+    "tts.voice",
+    "tts.list",
+    "tts.switch",
+    "voice_synthesis.stop",
+    "voice_synthesis.cancel",
+    "voice.synthesis"
+  ],
+  "action_patterns": [
+    "speak",
+    "say",
+    "voice",
+    "synthesis",
+    "pronounce",
+    "generate",
+    "synthesize",
+    "play",
+    "stop",
+    "cancel"
+  ],
   "action_domain_priority": 60,
   "stop_command_patterns": [
     "стоп синтез",
@@ -841,6 +860,112 @@
         }
       ],
       "boost": 1.1
+    },
+    {
+      "method_name": "_handle_stop_synthesis",
+      "intent_suffix": "stop",
+      "description": "Остановить синтез речи",
+      "phrases": [
+        "стоп синтез",
+        "останови синтез",
+        "прекрати синтез",
+        "останови речь",
+        "стоп голос",
+        "останови голос",
+        "стоп"
+      ],
+      "lemmas": [
+        "стоп",
+        "останавливать",
+        "прекращать",
+        "синтез",
+        "речь",
+        "голос"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": {
+              "IN": [
+                "стоп",
+                "останавливать",
+                "прекращать"
+              ]
+            }
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "синтез",
+                "речь",
+                "голос"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "стоп"
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "стоп синтез",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
+    },
+    {
+      "method_name": "_handle_cancel_synthesis",
+      "intent_suffix": "cancel",
+      "description": "Отменить синтез речи",
+      "phrases": [
+        "отмени синтез",
+        "отмени речь",
+        "отмени голос",
+        "отмени синтез речи",
+        "отмени"
+      ],
+      "lemmas": [
+        "отменять",
+        "синтез",
+        "речь",
+        "голос"
+      ],
+      "parameters": [],
+      "token_patterns": [
+        [
+          {
+            "LEMMA": "отменять"
+          },
+          {
+            "LEMMA": {
+              "IN": [
+                "синтез",
+                "речь",
+                "голос"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "LEMMA": "отменять"
+          }
+        ]
+      ],
+      "slot_patterns": {},
+      "examples": [
+        {
+          "text": "отмени синтез",
+          "parameters": {}
+        }
+      ],
+      "boost": 1.2
     }
   ],
   "negative_patterns": [

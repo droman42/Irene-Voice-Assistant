@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 
 from .registry import IntentRegistry
 from .orchestrator import IntentOrchestrator
+from ..core.metrics import get_metrics_collector
 from ..utils.loader import dynamic_loader
 from ..core.intent_asset_loader import IntentAssetLoader, AssetLoaderConfig
 
@@ -39,6 +40,7 @@ class IntentHandlerManager:
         self._asset_loader: Optional[IntentAssetLoader] = None
         self._donations: Dict[str, Any] = {}
         self._intent_system_config: Optional[Any] = None  # Phase 5: Store full intent system config
+        self._domain_priorities: Dict[str, int] = {}  # Phase 1 TODO16: Domain priorities for contextual commands
         self._initialized = False
         
     async def initialize(self, config: Optional[Dict[str, Any]] = None, intent_system_config: Optional[Any] = None) -> None:
@@ -56,6 +58,14 @@ class IntentHandlerManager:
         
         # Phase 5: Store full intent system config for handler-specific configurations
         self._intent_system_config = intent_system_config
+        
+        # Phase 4 TODO16: Configure contextual command monitoring in unified MetricsCollector
+        if (intent_system_config and
+            hasattr(intent_system_config, 'contextual_commands') and
+            intent_system_config.contextual_commands):
+            metrics_collector = get_metrics_collector()
+            metrics_collector.set_contextual_command_config(intent_system_config.contextual_commands)
+            logger.info("Configured contextual command monitoring in unified MetricsCollector")
         
         # Configuration is now purely driven by IntentSystemConfig - no defaults here
         if not config:
@@ -107,26 +117,39 @@ class IntentHandlerManager:
         # Phase 6: Load JSON donations (CRITICAL - must happen before handler instantiation)
         await self._load_donations()
         
+        # Phase 1 TODO16: Load domain priorities from donations and config
+        await self._load_domain_priorities(config)
+        
         # Instantiate and register discovered handlers with donations
         await self._instantiate_handlers()
         await self._initialize_handlers_with_donations()
         await self._register_handlers()
         
         
-        # Create orchestrator with registry only (no parameter extractor needed)
-        self._orchestrator = IntentOrchestrator(self._registry)
+        # Create orchestrator with registry, context manager, and domain priorities (Phase 1 TODO16)
+        self._orchestrator = IntentOrchestrator(
+            self._registry, 
+            context_manager=None,  # Will be set later via set_context_manager
+            domain_priorities=self._domain_priorities
+        )
         
         self._initialized = True
         logger.info(f"IntentHandlerManager initialized with {len(self._handler_instances)} handlers and donation support")
     
     def set_context_manager(self, context_manager: Any) -> None:
-        """Set the context manager on all registered handlers for fire-and-forget action tracking."""
+        """Set the context manager on all registered handlers and orchestrator for fire-and-forget action tracking."""
+        # Set on all handlers
         for handler_name, handler in self._handler_instances.items():
             if hasattr(handler, 'set_context_manager'):
                 handler.set_context_manager(context_manager)
                 logger.debug(f"Set context manager on handler: {handler_name}")
             else:
                 logger.warning(f"Handler {handler_name} does not support context manager injection")
+        
+        # Phase 1 TODO16: Set on orchestrator for contextual command disambiguation
+        if self._orchestrator:
+            self._orchestrator.context_manager = context_manager
+            logger.debug("Set context manager on orchestrator for contextual command resolution")
     
     def _get_handler_config(self, handler_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -487,4 +510,92 @@ class IntentHandlerManager:
         await self.initialize(config)
         
         # Recreate orchestrator
-        self._orchestrator = IntentOrchestrator(self._registry) 
+        self._orchestrator = IntentOrchestrator(self._registry)
+    
+    async def _load_domain_priorities(self, config: Dict[str, Any]) -> None:
+        """
+        Load domain priorities from donation files and merge with structured configuration.
+        
+        Phase 1 TODO16: Centralize domain priorities for contextual command disambiguation.
+        Phase 4 TODO16: Add caching support for performance optimization.
+        Uses proper IntentSystemConfig Pydantic schema exclusively.
+        
+        Args:
+            config: Intent system configuration dict (unused - kept for interface compatibility)
+        """
+        try:
+        # Phase 4 TODO16: Cache integration moved to unified MetricsCollector
+        # TODO: Implement domain priority caching in MetricsCollector if needed
+        # For now, load fresh each time (performance impact is minimal)
+            
+            # Step 1: Load priorities from donation files
+            donation_priorities = self._extract_priorities_from_donations()
+            
+            # Step 2: Load priorities from IntentSystemConfig schema (required)
+            config_priorities = {}
+            if self._intent_system_config and hasattr(self._intent_system_config, 'domain_priorities'):
+                # Pydantic IntentSystemConfig object
+                config_priorities = self._intent_system_config.domain_priorities
+                logger.debug("Using domain priorities from IntentSystemConfig schema")
+            else:
+                raise ValueError("IntentSystemConfig with domain_priorities is required - no dict fallback supported")
+            
+            # Step 3: Merge priorities (config overrides donations)
+            self._domain_priorities = {**donation_priorities, **config_priorities}
+            
+            # Phase 4 TODO16: Domain priorities loaded successfully
+            # Caching moved to unified MetricsCollector system
+            
+            logger.info(f"Loaded domain priorities: {self._domain_priorities}")
+            
+            if not self._domain_priorities:
+                logger.warning("No domain priorities configured - contextual command disambiguation may not work properly")
+            
+        except Exception as e:
+            logger.error(f"Failed to load domain priorities: {e}")
+            # Set default priorities to prevent system failure (matching IntentSystemConfig defaults)
+            self._domain_priorities = {
+                "audio": 90,
+                "timer": 70, 
+                "voice_synthesis": 60,
+                "system": 50,
+                "conversation": 40
+            }
+            logger.warning(f"Using default domain priorities: {self._domain_priorities}")
+    
+    def _extract_priorities_from_donations(self) -> Dict[str, int]:
+        """
+        Extract action_domain_priority values from loaded donation files.
+        
+        Returns:
+            Dictionary mapping domain names to priority values
+        """
+        priorities = {}
+        
+        for handler_name, donation in self._donations.items():
+            try:
+                # Get domain from donation
+                domain = getattr(donation, 'handler_domain', None)
+                if not domain:
+                    continue
+                
+                # Get priority from donation
+                priority = getattr(donation, 'action_domain_priority', None)
+                if priority is not None:
+                    priorities[domain] = priority
+                    logger.debug(f"Found domain priority in donation {handler_name}: {domain} = {priority}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to extract priority from donation {handler_name}: {e}")
+                continue
+        
+        return priorities
+    
+    def get_domain_priorities(self) -> Dict[str, int]:
+        """
+        Get the unified domain priorities for contextual command disambiguation.
+        
+        Returns:
+            Dictionary mapping domain names to priority values
+        """
+        return self._domain_priorities.copy() 
