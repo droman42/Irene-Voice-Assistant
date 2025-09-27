@@ -427,7 +427,7 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         start_time = time.time()
         
         # Perform transcription
-        result = await provider.transcribe_audio(audio_data, language=language, **kwargs)
+        result = await provider.transcribe_audio(audio_data, **kwargs)
         
         # Calculate processing time
         processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
