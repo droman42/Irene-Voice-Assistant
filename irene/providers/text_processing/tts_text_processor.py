@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional, List
 
 from .base import TextProcessingProvider
 from ...utils.text_normalizers import NumberNormalizer, PrepareNormalizer, RunormNormalizer
-from ...intents.models import ConversationContext
+from ...intents.models import UnifiedConversationContext
 
 logger = logging.getLogger(__name__)
 
@@ -243,7 +243,7 @@ class TTSTextProcessor(TextProcessingProvider):
         
         return await self.process_tts_input(text)
     
-    async def improve_text(self, text: str, context: ConversationContext, stage: str = "tts_input") -> str:
+    async def improve_text(self, text: str, context: UnifiedConversationContext, stage: str = "tts_input") -> str:
         """
         Improve text using context-aware processing.
         

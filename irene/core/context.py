@@ -204,16 +204,16 @@ class ContextManager:
         
     async def get_or_create_context(self, session_id: str, client_id: Optional[str] = None, 
                                    client_metadata: Optional[dict] = None):
-        """Get existing context or create a new one - returns ConversationContext for workflow compatibility"""
-        # Import ConversationContext here to avoid circular imports
-        from ..intents.models import ConversationContext
+        """Get existing context or create a new one - returns UnifiedConversationContext for workflow compatibility"""
+        # Import UnifiedConversationContext here to avoid circular imports
+        from ..intents.models import UnifiedConversationContext
         
         # Check if we already have a context (basic Context type)
         basic_context = self.get_context(session_id)
         
-        # Always return a ConversationContext for workflow compatibility
+        # Always return a UnifiedConversationContext for workflow compatibility
         # Convert basic context data if it exists, otherwise create new
-        conversation_context = ConversationContext(
+        conversation_context = UnifiedConversationContext(
             session_id=session_id,
             user_id=client_id,
             client_id=client_id,

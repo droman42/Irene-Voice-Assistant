@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..core.trace_context import TraceContext
-from ..intents.models import Intent, ConversationContext
+from ..intents.models import Intent, UnifiedConversationContext
 from ..utils.loader import dynamic_loader
 from ..providers.nlu.base import NLUProvider
 from ..core.entity_resolver import ContextualEntityResolver
@@ -34,14 +34,14 @@ class ContextAwareNLUProcessor:
         # Entity resolver for context-based entity resolution
         self.entity_resolver = ContextualEntityResolver()
     
-    async def process_with_context(self, text: str, context: ConversationContext) -> Intent:
+    async def process_with_context(self, text: str, context: UnifiedConversationContext) -> Intent:
         """
         Enhanced NLU processing with context-aware entity resolution and 
         intent disambiguation using client identification and device capabilities.
         
         Args:
             text: Input text to analyze
-            context: Enhanced ConversationContext with client and device info
+            context: Enhanced UnifiedConversationContext with client and device info
             
         Returns:
             Intent with context-enhanced entities and disambiguation
@@ -61,7 +61,7 @@ class ContextAwareNLUProcessor:
         
         return enhanced_intent
     
-    async def _enhance_with_context(self, intent: Intent, context: ConversationContext, 
+    async def _enhance_with_context(self, intent: Intent, context: UnifiedConversationContext, 
                                    resolved_entities: Dict[str, Any]) -> Intent:
         """
         Enhance intent with context-aware entity resolution and disambiguation.
@@ -115,7 +115,7 @@ class ContextAwareNLUProcessor:
         self.logger.info(f"Context-enhanced intent: {enhanced_intent.name} with {len(enhanced_entities)} entities")
         return enhanced_intent
     
-    async def _resolve_device_entities(self, entities: Dict[str, Any], context: ConversationContext) -> Dict[str, Any]:
+    async def _resolve_device_entities(self, entities: Dict[str, Any], context: UnifiedConversationContext) -> Dict[str, Any]:
         """
         Resolve device references in entities using client context and fuzzy matching.
         
@@ -153,7 +153,7 @@ class ContextAwareNLUProcessor:
         
         return enhanced_entities
     
-    async def _disambiguate_with_device_context(self, intent: Intent, context: ConversationContext) -> Intent:
+    async def _disambiguate_with_device_context(self, intent: Intent, context: UnifiedConversationContext) -> Intent:
         """
         Disambiguate intent based on available device capabilities and context.
         
@@ -185,7 +185,7 @@ class ContextAwareNLUProcessor:
         # In the future, this could return a different intent based on context
         return intent
     
-    async def _detect_language(self, text: str, context: ConversationContext) -> str:
+    async def _detect_language(self, text: str, context: UnifiedConversationContext) -> str:
         """
         Detect language from text with context awareness.
         
@@ -254,7 +254,7 @@ class ContextAwareNLUProcessor:
         else:
             return "ru"  # Default to Russian
     
-    def _should_redetect_language(self, context: ConversationContext) -> bool:
+    def _should_redetect_language(self, context: UnifiedConversationContext) -> bool:
         """
         Determine if language should be re-detected based on context and configuration.
         """
@@ -284,7 +284,7 @@ class ContextAwareNLUProcessor:
         
         return False
     
-    def _get_language_confidence(self, context: ConversationContext) -> float:
+    def _get_language_confidence(self, context: UnifiedConversationContext) -> float:
         """
         Calculate confidence in the current language detection based on conversation history.
         """
@@ -719,7 +719,7 @@ class NLUComponent(Component, WebAPIPlugin):
         """
         return self.provider_cascade_order
     
-    def _get_cache_key(self, text: str, context: ConversationContext) -> str:
+    def _get_cache_key(self, text: str, context: UnifiedConversationContext) -> str:
         """Generate cache key for recognition results"""
         # Include client context for cache differentiation
         context_key = f"{context.session_id}:{context.client_id}:{context.language}"
@@ -752,7 +752,7 @@ class NLUComponent(Component, WebAPIPlugin):
         return self.confidence_threshold
     
     async def _try_provider_recognition(self, provider_name: str, text: str, 
-                                      context: ConversationContext) -> Optional[Intent]:
+                                      context: UnifiedConversationContext) -> Optional[Intent]:
         """
         Try recognition with a single provider with timeout and error handling.
         
@@ -796,7 +796,7 @@ class NLUComponent(Component, WebAPIPlugin):
             logger.warning(f"Provider {provider_name} failed: {e}")
             return None
     
-    async def recognize(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize(self, text: str, context: UnifiedConversationContext) -> Intent:
         """
         Recognize intent from text using cascading NLU providers.
         
@@ -894,7 +894,7 @@ class NLUComponent(Component, WebAPIPlugin):
         
         return "\n".join(info_lines)
     
-    async def process(self, text: str, context: ConversationContext, 
+    async def process(self, text: str, context: UnifiedConversationContext, 
                      trace_context: Optional[TraceContext] = None) -> Intent:
         """
         Process text using NLU recognition with optional detailed cascade tracing.
@@ -969,7 +969,7 @@ class NLUComponent(Component, WebAPIPlugin):
         
         return result
     
-    async def recognize_with_context(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize_with_context(self, text: str, context: UnifiedConversationContext) -> Intent:
         """
         Context-aware intent recognition with enhanced entity resolution and disambiguation.
         
@@ -979,7 +979,7 @@ class NLUComponent(Component, WebAPIPlugin):
         
         Args:
             text: Input text to analyze
-            context: Enhanced ConversationContext with client and device info
+            context: Enhanced UnifiedConversationContext with client and device info
             
         Returns:
             Intent with context-enhanced entities and disambiguation
@@ -1030,7 +1030,7 @@ class NLUComponent(Component, WebAPIPlugin):
             async def recognize_intent(request: NLURequest):
                 """Recognize intent from text input"""
                 # Create context from request
-                context = ConversationContext(
+                context = UnifiedConversationContext(
                     session_id=request.context.get("session_id", "default") if request.context else "default",
                     history=request.context.get("history", []) if request.context else []
                 )

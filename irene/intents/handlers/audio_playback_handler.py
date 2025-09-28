@@ -11,7 +11,7 @@ import time
 from typing import List, Dict, Any, TYPE_CHECKING
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -76,12 +76,12 @@ class AudioPlaybackIntentHandler(IntentHandler):
         
         return False
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute audio playback intent"""
         # Use donation-driven routing exclusively
         return await self.execute_with_donation_routing(intent, context)
         
-    async def _handle_play_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_play_audio(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle audio playback request with fire-and-forget action execution"""
         # Phase 2 TODO16: No more stop command parsing - handlers only receive resolved intents
         
@@ -115,7 +115,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
         
-    async def _handle_stop_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_stop_audio(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle audio stop request with fire-and-forget action execution"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -141,7 +141,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
     
-    async def _handle_stop_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_stop_audio(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle domain-specific audio stop intent (audio.stop).
         
@@ -168,7 +168,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
     
-    async def _handle_pause_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_pause_audio(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle domain-specific audio pause intent (audio.pause).
         
@@ -194,7 +194,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
     
-    async def _handle_resume_audio(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_resume_audio(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle domain-specific audio resume intent (audio.resume).
         
@@ -220,7 +220,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
         
-    async def _handle_switch_audio_provider(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_switch_audio_provider(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle audio provider switching request"""
         audio_component = await self._get_audio_component()
         if not audio_component:
@@ -260,7 +260,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
             success=success
         )
         
-    async def _handle_list_audio_providers(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_list_audio_providers(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle audio providers information request"""
         audio_component = await self._get_audio_component()
         if not audio_component:
@@ -324,7 +324,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
                 f"Check assets/templates/audio_playback/{language}/status_messages.yaml for correct placeholders."
             )
     
-    def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
+    def _create_error_result(self, intent: Intent, context: UnifiedConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = context.language or "ru"
         
@@ -340,7 +340,7 @@ class AudioPlaybackIntentHandler(IntentHandler):
             success=False
         )
     
-    def _get_language_from_context(self, context: ConversationContext) -> str:
+    def _get_language_from_context(self, context: UnifiedConversationContext) -> str:
         """Get language from conversation context"""
         return getattr(context, 'language', 'ru')
     

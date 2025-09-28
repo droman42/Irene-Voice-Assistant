@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Optional, List, Dict, Any, AsyncIterator, Callable, Union
 from pathlib import Path
 
-from ..intents.models import AudioData, ConversationContext
+from ..intents.models import AudioData, UnifiedConversationContext
 from ..config.models import VADConfig
 from ..utils.vad import SimpleVAD, AdvancedVAD, VADResult
 from ..utils.audio_helpers import calculate_audio_energy, estimate_optimal_vad_threshold

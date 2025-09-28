@@ -11,7 +11,7 @@ import logging
 from typing import List, Dict, Any, Optional, Type, TYPE_CHECKING
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -112,12 +112,12 @@ class RandomIntentHandler(IntentHandler):
         
         return False
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute random generation intent"""
         # Use donation-driven routing exclusively
         return await self.execute_with_donation_routing(intent, context)
         
-    async def _handle_coin_flip(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_coin_flip(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle coin flip request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -136,7 +136,7 @@ class RandomIntentHandler(IntentHandler):
             success=True
         )
         
-    async def _handle_dice_roll(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_dice_roll(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle dice roll request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -181,7 +181,7 @@ class RandomIntentHandler(IntentHandler):
                 success=False
             )
         
-    async def _handle_random_number(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_random_number(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle random number generation request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -225,7 +225,7 @@ class RandomIntentHandler(IntentHandler):
                 success=False
             )
         
-    async def _handle_random_choice(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_random_choice(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle random choice from options"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"

@@ -12,7 +12,7 @@ from typing import List, Optional, Dict, Any, Type, TYPE_CHECKING
 from ...__version__ import __version__
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -113,7 +113,7 @@ class SystemIntentHandler(IntentHandler):
         
         return False
     
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute system intent"""
         try:
             # Use language from context (detected by NLU)
@@ -174,7 +174,7 @@ class SystemIntentHandler(IntentHandler):
                 f"Check assets/templates/system/{language}/system_messages.yaml for correct placeholders."
             )
     
-    async def _handle_help_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_help_request(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle help/assistance request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -191,7 +191,7 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_status_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_status_request(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle system status request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -226,7 +226,7 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_version_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_version_request(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle version information request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -244,7 +244,7 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_info_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_info_request(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle general information request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -270,7 +270,7 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_general_info(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_general_info(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle general system information request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -287,7 +287,7 @@ class SystemIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_language_switch(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_language_switch(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle language switching requests.
         
@@ -329,7 +329,7 @@ class SystemIntentHandler(IntentHandler):
             success=True
         )
     
-    def _get_session_stats(self, context: ConversationContext) -> Dict[str, Any]:
+    def _get_session_stats(self, context: UnifiedConversationContext) -> Dict[str, Any]:
         """Get session statistics"""
         return {
             "session_id": context.session_id,

@@ -10,7 +10,7 @@ import logging
 from typing import List, Optional, Dict
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class GreetingsIntentHandler(IntentHandler):
         
         return False
     
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute greeting intent"""
         try:
             # Use language from context (detected by NLU)
@@ -159,7 +159,7 @@ class GreetingsIntentHandler(IntentHandler):
         
         return greeting
     
-    async def _handle_greeting(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_greeting(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle hello greeting intent"""
         # Use language from context (already detected by NLU)
         language = context.language or "ru"
@@ -182,7 +182,7 @@ class GreetingsIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_farewell(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_farewell(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle goodbye farewell intent"""
         # Use language from context (already detected by NLU)
         language = context.language or "ru"
@@ -200,7 +200,7 @@ class GreetingsIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_welcome(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_welcome(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle welcome message intent"""
         # Use language from context (already detected by NLU)
         language = context.language or "ru"

@@ -21,7 +21,7 @@ from .base import Workflow, RequestContext
 from .audio_processor import AudioProcessorInterface, VoiceSegment
 from ..core.metrics import get_metrics_collector
 from ..core.trace_context import TraceContext
-from ..intents.models import AudioData, ConversationContext, Intent, IntentResult, WakeWordResult
+from ..intents.models import AudioData, UnifiedConversationContext, Intent, IntentResult, WakeWordResult
 from ..utils.audio_helpers import test_audio_playback_capability, calculate_audio_buffer_size
 from ..utils.loader import safe_import
 from ..config.manager import ConfigValidationError
@@ -353,7 +353,7 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             )
     
     async def _process_pipeline(self, input_data: str, context: RequestContext, 
-                              conversation_context: ConversationContext,
+                              conversation_context: UnifiedConversationContext,
                               trace_context: Optional[TraceContext] = None,
                               skip_wake_word: bool = False, skip_asr: bool = False) -> IntentResult:
         """
@@ -432,7 +432,7 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
     
     
     async def _process_audio_pipeline(self, audio_stream: AsyncIterator[AudioData], 
-                                     context: RequestContext, conversation_context: ConversationContext) -> AsyncIterator[IntentResult]:
+                                     context: RequestContext, conversation_context: UnifiedConversationContext) -> AsyncIterator[IntentResult]:
         """
         VAD-enabled audio processing pipeline
         
@@ -540,7 +540,7 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             self.logger.error(f"Voice segment processing error: {result.get('error', 'Unknown error')}")
             return None
     
-    async def _create_conversation_context(self, context: RequestContext) -> ConversationContext:
+    async def _create_conversation_context(self, context: RequestContext) -> UnifiedConversationContext:
         """Create or retrieve conversation context from context manager"""
         return await self.context_manager.get_or_create_context(
             session_id=context.session_id,
@@ -549,7 +549,7 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         )
     
     async def _process_single_audio_pipeline(self, audio_data: AudioData, context: RequestContext, 
-                                           conversation_context: ConversationContext,
+                                           conversation_context: UnifiedConversationContext,
                                            trace_context: Optional[TraceContext] = None) -> IntentResult:
         """
         Process single audio input through conditional pipeline stages.
@@ -697,7 +697,7 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             raise
     
     async def _process_action_metadata(self, action_metadata: Dict[str, Any], 
-                                     conversation_context: ConversationContext):
+                                     conversation_context: UnifiedConversationContext):
         """Process action metadata and update conversation context"""
         if 'active_actions' in action_metadata:
             active_actions = action_metadata['active_actions']

@@ -6,7 +6,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Callable, Coroutine
 
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 from ...core.metadata import EntryPointMetadata
 from ...core.notifications import get_notification_service, NotificationService
 from ...core.metrics import get_metrics_collector, MetricsCollector
@@ -93,7 +93,7 @@ class IntentHandler(EntryPointMetadata, ABC):
         action_func: Callable[..., Coroutine[Any, Any, Any]], 
         action_name: str,
         domain: str,
-        context: ConversationContext,
+        context: UnifiedConversationContext,
         timeout: Optional[float] = None,
         max_retries: int = 0,
         retry_delay: float = 1.0,
@@ -131,7 +131,7 @@ class IntentHandler(EntryPointMetadata, ABC):
         )
     
     @abstractmethod
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Execute the intent and return a result.
         
@@ -245,7 +245,7 @@ class IntentHandler(EntryPointMetadata, ABC):
         
         return None
     
-    async def execute_with_donation_routing(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute_with_donation_routing(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Execute intent using donation-driven method routing.
         
@@ -413,7 +413,7 @@ class IntentHandler(EntryPointMetadata, ABC):
         """
         return intent.entities.get(entity_name, default)
     
-    async def preprocess_intent(self, intent: Intent, context: ConversationContext) -> Intent:
+    async def preprocess_intent(self, intent: Intent, context: UnifiedConversationContext) -> Intent:
         """
         Preprocess the intent before execution (can be overridden).
         
@@ -426,7 +426,7 @@ class IntentHandler(EntryPointMetadata, ABC):
         """
         return intent
     
-    async def postprocess_result(self, result: IntentResult, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def postprocess_result(self, result: IntentResult, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Postprocess the result after execution (can be overridden).
         
@@ -704,7 +704,7 @@ class IntentHandler(EntryPointMetadata, ABC):
             self.logger.error(f"Failed to update conversation context on action completion: {e}")
     
     async def _notify_critical_failure(self, action_name: str, domain: str, error: str, 
-                                     context: ConversationContext) -> None:
+                                     context: UnifiedConversationContext) -> None:
         """
         Notify about critical action failures that may require user attention.
         
@@ -883,7 +883,7 @@ class IntentHandler(EntryPointMetadata, ABC):
         exception_name = error.__class__.__name__
         return exception_name in transient_exceptions
     
-    async def cancel_action(self, domain: str, context: ConversationContext, 
+    async def cancel_action(self, domain: str, context: UnifiedConversationContext, 
                           reason: str = "User requested cancellation") -> bool:
         """
         Cancel an active fire-and-forget action.
@@ -913,7 +913,7 @@ class IntentHandler(EntryPointMetadata, ABC):
             self.logger.error(f"Error cancelling action in domain {domain}: {e}")
             return False
     
-    def get_active_actions(self, context: ConversationContext) -> List[Dict[str, Any]]:
+    def get_active_actions(self, context: UnifiedConversationContext) -> List[Dict[str, Any]]:
         """
         Get list of active fire-and-forget actions.
         
@@ -1114,7 +1114,7 @@ class IntentHandler(EntryPointMetadata, ABC):
         return ["linux.ubuntu", "linux.alpine", "macos", "windows"]
     
     # Phase 3.5: Enhanced Action Management Interface
-    async def get_action_status(self, domain: str, context: ConversationContext) -> Dict[str, Any]:
+    async def get_action_status(self, domain: str, context: UnifiedConversationContext) -> Dict[str, Any]:
         """Get detailed status of an action in a specific domain"""
         try:
             if domain in context.active_actions:
@@ -1169,7 +1169,7 @@ class IntentHandler(EntryPointMetadata, ABC):
                 "is_active": False
             }
     
-    async def list_all_actions(self, context: ConversationContext, 
+    async def list_all_actions(self, context: UnifiedConversationContext, 
                              include_history: bool = True,
                              history_limit: int = 10) -> Dict[str, Any]:
         """List all actions (active and recent history)"""
@@ -1227,7 +1227,7 @@ class IntentHandler(EntryPointMetadata, ABC):
                 "summary": {"active_count": 0, "recent_count": 0, "failed_count": 0}
             }
     
-    async def cancel_all_actions(self, context: ConversationContext, 
+    async def cancel_all_actions(self, context: UnifiedConversationContext, 
                                reason: str = "Bulk cancellation requested") -> Dict[str, Any]:
         """Cancel all active actions in the context"""
         try:
@@ -1300,7 +1300,7 @@ class IntentHandler(EntryPointMetadata, ABC):
                 "cancelled_count": 0
             }
     
-    async def inspect_action(self, domain: str, context: ConversationContext,
+    async def inspect_action(self, domain: str, context: UnifiedConversationContext,
                            level: InspectionLevel = InspectionLevel.BASIC) -> Dict[str, Any]:
         """Inspect an action using the debugger (Phase 3.4 integration)"""
         try:

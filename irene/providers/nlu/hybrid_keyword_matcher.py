@@ -17,7 +17,7 @@ from typing import Dict, Any, List, Pattern, Optional, Tuple, Set
 from dataclasses import dataclass
 
 from .base import NLUProvider
-from ...intents.models import Intent, ConversationContext
+from ...intents.models import Intent, UnifiedConversationContext
 from ...core.donations import ParameterSpec, KeywordDonation
 
 logger = logging.getLogger(__name__)
@@ -397,7 +397,7 @@ class HybridKeywordMatcherProvider(NLUProvider):
         keyword_scores.sort(key=lambda x: x[1], reverse=True)
         return [kw for kw, _ in keyword_scores[:self.max_fuzzy_keywords_per_intent]]
     
-    async def recognize(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize(self, text: str, context: UnifiedConversationContext) -> Intent:
         """
         Hybrid recognition: patterns first, then fuzzy matching.
         
@@ -458,7 +458,7 @@ class HybridKeywordMatcherProvider(NLUProvider):
         logger.debug(f"No match for '{text[:30]}...' (pattern: {pattern_time:.1f}ms, total: {total_time:.1f}ms)")
         return None
     
-    async def _pattern_matching(self, text: str, context: ConversationContext) -> Optional[KeywordMatchResult]:
+    async def _pattern_matching(self, text: str, context: UnifiedConversationContext) -> Optional[KeywordMatchResult]:
         """Fast regex pattern matching with enhanced confidence calculation"""
         normalized_text = self._normalize_text(text)
         
@@ -528,7 +528,7 @@ class HybridKeywordMatcherProvider(NLUProvider):
         
         return None
     
-    async def _fuzzy_matching(self, text: str, context: ConversationContext) -> Optional[KeywordMatchResult]:
+    async def _fuzzy_matching(self, text: str, context: UnifiedConversationContext) -> Optional[KeywordMatchResult]:
         """Optimized fuzzy matching with global shortlisting and batch operations"""
         if not self._rapidfuzz_available:
             return None
@@ -765,7 +765,7 @@ class HybridKeywordMatcherProvider(NLUProvider):
             for key in cache_keys[:100]:
                 del self.fuzzy_cache[key]
     
-    def _create_intent_from_result(self, result: KeywordMatchResult, text: str, context: ConversationContext) -> Intent:
+    def _create_intent_from_result(self, result: KeywordMatchResult, text: str, context: UnifiedConversationContext) -> Intent:
         """Create Intent object from match result"""
         # Parse domain and action from intent name
         domain, action = self._parse_intent_name(result.intent_name)

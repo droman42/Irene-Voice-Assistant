@@ -9,7 +9,7 @@ from abc import abstractmethod
 from typing import Dict, Any, List
 
 from ..base import ProviderBase
-from ...intents.models import ConversationContext
+from ...intents.models import UnifiedConversationContext
 
 
 class TextProcessingProvider(ProviderBase):
@@ -51,7 +51,7 @@ class TextProcessingProvider(ProviderBase):
         """
         pass
     
-    async def improve_text(self, text: str, context: ConversationContext, stage: str = "general") -> str:
+    async def improve_text(self, text: str, context: UnifiedConversationContext, stage: str = "general") -> str:
         """Legacy method for text improvement (optional override)
         
         Default implementation delegates to process_pipeline for backwards compatibility.

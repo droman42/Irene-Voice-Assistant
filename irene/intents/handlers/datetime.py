@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class DateTimeIntentHandler(IntentHandler):
         
         return False
     
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute datetime intent"""
         try:
             # Use language from context (detected by NLU)
@@ -101,7 +101,7 @@ class DateTimeIntentHandler(IntentHandler):
         
         return locale_data
     
-    async def _handle_date_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_date_request(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle current date request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -136,7 +136,7 @@ class DateTimeIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_time_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_time_request(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle current time request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -198,7 +198,7 @@ class DateTimeIntentHandler(IntentHandler):
             }
         )
     
-    async def _handle_datetime_request(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_datetime_request(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle combined date and time request"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"

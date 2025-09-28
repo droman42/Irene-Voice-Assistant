@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any, AsyncIterator, Optional, List
 
-from ..intents.models import AudioData, ConversationContext, IntentResult
+from ..intents.models import AudioData, UnifiedConversationContext, IntentResult
 from ..core.metadata import EntryPointMetadata
 
 logger = logging.getLogger(__name__)

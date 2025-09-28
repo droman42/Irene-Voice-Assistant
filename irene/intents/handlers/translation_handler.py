@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any, TYPE_CHECKING
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -74,12 +74,12 @@ class TranslationIntentHandler(IntentHandler):
         
         return False
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute translation intent"""
         # Use donation-driven routing exclusively
         return await self.execute_with_donation_routing(intent, context)
         
-    async def _handle_translate_text(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_translate_text(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle text translation request"""
         llm_component = await self._get_llm_component()
         if not llm_component:
@@ -117,7 +117,7 @@ class TranslationIntentHandler(IntentHandler):
         else:
             return self._create_error_result(intent, context, "Could not extract text to translate")
         
-    async def _handle_translate_specific(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_translate_specific(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle specific text translation with extracted entities"""
         llm_component = await self._get_llm_component()
         if not llm_component:
@@ -210,7 +210,7 @@ class TranslationIntentHandler(IntentHandler):
                 f"Check assets/templates/translation/{language}/result_messages.yaml for correct placeholders."
             )
     
-    def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
+    def _create_error_result(self, intent: Intent, context: UnifiedConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = context.language or "ru"
         

@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..core.trace_context import TraceContext
-from ..intents.models import ConversationContext
+from ..intents.models import UnifiedConversationContext
 from ..utils.loader import dynamic_loader
 from ..utils.text_processing import all_num_to_text_async
 from ..providers.text_processing.base import TextProcessingProvider
@@ -117,8 +117,8 @@ class TextProcessorComponent(Component, WebAPIPlugin):
                 logger.debug("No text processing providers available, returning original text")
                 return text
             
-            from ..intents.models import ConversationContext
-            context = ConversationContext(session_id="text_processing", user_id=None, conversation_history=[])
+            from ..intents.models import UnifiedConversationContext
+            context = UnifiedConversationContext(session_id="text_processing", user_id=None, conversation_history=[])
             return await self.improve(text, context, "general")
         
         # Trace path - detailed stage tracking
@@ -129,8 +129,8 @@ class TextProcessorComponent(Component, WebAPIPlugin):
             processed_text = text
         else:
             # Trace each normalization step through improve() method
-            from ..intents.models import ConversationContext
-            context = ConversationContext(session_id="text_processing", user_id=None, conversation_history=[])
+            from ..intents.models import UnifiedConversationContext
+            context = UnifiedConversationContext(session_id="text_processing", user_id=None, conversation_history=[])
             
             # Call improve and trace internal provider calls
             processed_text = await self.improve(text, context, "general")
@@ -206,7 +206,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         return []  # All platforms
     
 
-    async def improve(self, text: str, context: ConversationContext, stage: str = "general") -> str:
+    async def improve(self, text: str, context: UnifiedConversationContext, stage: str = "general") -> str:
         """
         Improve text using stage-specific providers or fallback to legacy processor.
         Stages: 'asr_output', 'general', 'tts_input'
@@ -356,7 +356,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
                         normalizers_applied = []
                 else:
                     # Use full pipeline
-                    context = ConversationContext(session_id="api")
+                    context = UnifiedConversationContext(session_id="api")
                     processed = await self.improve(request.text, context, request.stage)
                     normalizers_applied = [n.__class__.__name__ for n in self.processor.normalizers 
                                          if n.applies_to_stage(request.stage)]

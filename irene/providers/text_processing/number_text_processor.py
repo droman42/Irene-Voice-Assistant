@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional, List
 
 from .base import TextProcessingProvider
 from ...utils.text_normalizers import NumberNormalizer
-from ...intents.models import ConversationContext
+from ...intents.models import UnifiedConversationContext
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +144,7 @@ class NumberTextProcessor(TextProcessingProvider):
         """
         return await self.process_numbers_only(text)
     
-    async def improve_text(self, text: str, context: ConversationContext, stage: str = "number_processing") -> str:
+    async def improve_text(self, text: str, context: UnifiedConversationContext, stage: str = "number_processing") -> str:
         """
         Improve text using context-aware number processing.
         

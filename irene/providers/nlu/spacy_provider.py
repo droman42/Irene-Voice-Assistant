@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
 from .base import NLUProvider
-from ...intents.models import Intent, ConversationContext
+from ...intents.models import Intent, UnifiedConversationContext
 from ...utils.loader import safe_import
 from ...core.donations import ParameterSpec, KeywordDonation
 
@@ -673,7 +673,7 @@ class SpaCyNLUProvider(NLUProvider):
         except Exception as e:
             logger.warning(f"Failed to cache artifacts: {e}")
     
-    async def recognize(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize(self, text: str, context: UnifiedConversationContext) -> Intent:
         """
         Recognize intent using spaCy's NLP capabilities.
         
@@ -1268,8 +1268,8 @@ class SpaCyNLUProvider(NLUProvider):
         Returns:
             Intent analysis results
         """
-        from ...intents.models import ConversationContext
-        context = kwargs.get('context', ConversationContext())
+        from ...intents.models import UnifiedConversationContext
+        context = kwargs.get('context', UnifiedConversationContext())
         intent = await self.recognize(text, context)
         
         return {

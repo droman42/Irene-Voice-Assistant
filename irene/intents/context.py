@@ -10,7 +10,7 @@ import time
 import logging
 import asyncio
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
-from .models import ConversationContext, Intent, IntentResult
+from .models import UnifiedConversationContext, Intent, IntentResult
 from ..core.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
@@ -30,14 +30,14 @@ class ContextManager:
             session_timeout: Session timeout in seconds (default: 30 minutes)
             max_history_turns: Maximum conversation turns to keep in history
         """
-        self.sessions: Dict[str, ConversationContext] = {}
+        self.sessions: Dict[str, UnifiedConversationContext] = {}
         self.session_timeout = session_timeout
         self.max_history_turns = max_history_turns
         self.cleanup_interval = 300  # Cleanup every 5 minutes
         self.last_cleanup = time.time()
         self.metrics_collector = get_metrics_collector()  # Phase 2: Session analytics integration
     
-    async def get_context(self, session_id: str) -> ConversationContext:
+    async def get_context(self, session_id: str) -> UnifiedConversationContext:
         """
         Retrieve or create conversation context for a session.
         
@@ -45,7 +45,7 @@ class ContextManager:
             session_id: Unique session identifier
             
         Returns:
-            ConversationContext for the session
+            UnifiedConversationContext for the session
         """
         # Clean up expired sessions periodically
         await self._cleanup_expired_sessions()
@@ -68,7 +68,7 @@ class ContextManager:
                 return context
         
         # Create new context with Russian default
-        context = ConversationContext(
+        context = UnifiedConversationContext(
             session_id=session_id,
             language="ru",  # Russian-first default
             max_history_turns=self.max_history_turns
@@ -81,7 +81,7 @@ class ContextManager:
             self.metrics_collector.record_session_start(session_id)
         return context
     
-    async def get_context_with_request_info(self, session_id: str, request_context: 'RequestContext' = None) -> ConversationContext:
+    async def get_context_with_request_info(self, session_id: str, request_context: 'RequestContext' = None) -> UnifiedConversationContext:
         """
         Retrieve or create conversation context with client information from request context.
         
@@ -90,7 +90,7 @@ class ContextManager:
             request_context: Request context with client identification information
             
         Returns:
-            ConversationContext for the session with client context applied
+            UnifiedConversationContext for the session with client context applied
         """
         # Get or create base context
         context = await self.get_context(session_id)
@@ -273,7 +273,7 @@ class ContextManager:
         logger.info(f"Configured context manager: timeout={self.session_timeout}s, "
                    f"max_turns={self.max_history_turns}, cleanup_interval={self.cleanup_interval}s")
     
-    async def process_intent_with_context(self, intent: Intent, session_id: str) -> ConversationContext:
+    async def process_intent_with_context(self, intent: Intent, session_id: str) -> UnifiedConversationContext:
         """
         Process an intent and update conversation context.
         
@@ -308,7 +308,7 @@ class ContextManager:
         
         return context
     
-    async def get_context_for_intent_processing(self, session_id: str, intent_domain: str = None) -> ConversationContext:
+    async def get_context_for_intent_processing(self, session_id: str, intent_domain: str = None) -> UnifiedConversationContext:
         """
         Get context optimized for intent processing with domain awareness.
         
@@ -477,6 +477,11 @@ class ContextManager:
     def get_all_session_ids(self) -> List[str]:
         """Get list of all active session IDs."""
         return list(self.sessions.keys())
+    
+    async def get_all_contexts(self) -> Dict[str, UnifiedConversationContext]:
+        """Get all active conversation contexts for memory management."""
+        await self._cleanup_expired_sessions()
+        return self.sessions.copy()
     
     # Action ambiguity resolution methods for TODO16
     def resolve_contextual_command_ambiguity(

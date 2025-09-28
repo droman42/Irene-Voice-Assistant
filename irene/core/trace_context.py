@@ -19,7 +19,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..intents.models import ConversationContext
+from ..intents.models import UnifiedConversationContext
 
 logger = logging.getLogger(__name__)
 
@@ -114,13 +114,13 @@ class TraceContext:
         self._current_data_size += stage_size
         self.stages.append(stage_data)
     
-    def record_context_snapshot(self, when: str, context: ConversationContext) -> None:
+    def record_context_snapshot(self, when: str, context: UnifiedConversationContext) -> None:
         """
         Record conversation context state snapshots with production error handling
         
         Args:
             when: When the snapshot was taken ("before" or "after")
-            context: ConversationContext to snapshot
+            context: UnifiedConversationContext to snapshot
         """
         # Phase 8: Ultra-fast path - immediate return when disabled
         if not self.enabled:

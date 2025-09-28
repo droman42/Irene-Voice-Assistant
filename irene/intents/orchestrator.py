@@ -4,7 +4,7 @@ import logging
 import time
 from typing import Dict, Any, Optional, List
 
-from .models import Intent, IntentResult, ConversationContext
+from .models import Intent, IntentResult, UnifiedConversationContext
 from .registry import IntentRegistry
 from ..core.metrics import get_metrics_collector, MetricsCollector
 from ..core.trace_context import TraceContext
@@ -55,7 +55,7 @@ class IntentOrchestrator:
         self._use_donation_routing = enabled
         logger.info(f"Donation-driven routing {'enabled' if enabled else 'disabled'}")
     
-    async def execute(self, intent: Intent, context: ConversationContext, 
+    async def execute(self, intent: Intent, context: UnifiedConversationContext, 
                      trace_context: Optional[TraceContext] = None) -> IntentResult:
         """
         Execute intent with optional handler resolution and disambiguation tracing.
@@ -126,7 +126,7 @@ class IntentOrchestrator:
         
         return result
     
-    async def execute_intent(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute_intent(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Execute an intent by routing it to the appropriate handler with donation-driven execution.
         
@@ -334,7 +334,7 @@ class IntentOrchestrator:
                 str(e)
             )
     
-    async def _apply_middleware(self, intent: Intent, context: ConversationContext) -> Intent:
+    async def _apply_middleware(self, intent: Intent, context: UnifiedConversationContext) -> Intent:
         """Apply middleware functions to process the intent."""
         processed_intent = intent
         
@@ -467,7 +467,7 @@ class IntentOrchestrator:
         self, 
         resolution: Dict[str, Any], 
         original_intent: Intent, 
-        context: ConversationContext
+        context: UnifiedConversationContext
     ) -> IntentResult:
         """
         Handle disambiguation confirmation for ambiguous contextual commands.
@@ -526,7 +526,7 @@ class IntentOrchestrator:
             confidence=0.5  # Medium confidence due to ambiguity
         )
     
-    def _get_domain_descriptions(self, domains: List[str], context: ConversationContext) -> List[str]:
+    def _get_domain_descriptions(self, domains: List[str], context: UnifiedConversationContext) -> List[str]:
         """
         Get user-friendly descriptions for domains based on active actions.
         

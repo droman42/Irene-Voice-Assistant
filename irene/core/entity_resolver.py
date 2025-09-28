@@ -10,7 +10,7 @@ import logging
 import re
 from typing import Dict, Any, List, Optional, Tuple, Set
 from dataclasses import dataclass
-from ..intents.models import ConversationContext, Intent
+from ..intents.models import UnifiedConversationContext, Intent
 
 # Required rapidfuzz import for fuzzy matching
 from rapidfuzz import fuzz, process
@@ -46,13 +46,13 @@ class ContextualEntityResolver:
         self.temporal_resolver = TemporalEntityResolver()
         self.quantity_resolver = QuantityEntityResolver()
     
-    async def resolve_entities(self, intent: Intent, context: ConversationContext) -> Dict[str, Any]:
+    async def resolve_entities(self, intent: Intent, context: UnifiedConversationContext) -> Dict[str, Any]:
         """
         Resolve all entities in the intent using context-aware resolution.
         
         Args:
             intent: Intent with entities to resolve
-            context: ConversationContext with client and device information
+            context: UnifiedConversationContext with client and device information
             
         Returns:
             Dictionary with resolved entities and resolution metadata
@@ -84,7 +84,7 @@ class ContextualEntityResolver:
         return resolved_entities
     
     async def _resolve_single_entity(self, entity_name: str, entity_value: str, 
-                                   intent: Intent, context: ConversationContext) -> Optional[EntityResolutionResult]:
+                                   intent: Intent, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve a single entity using appropriate resolution strategy.
         """
@@ -183,7 +183,7 @@ class DeviceEntityResolver:
     def __init__(self):
         self.logger = logging.getLogger(f"{__name__}.DeviceEntityResolver")
     
-    async def resolve(self, device_reference: str, context: ConversationContext) -> Optional[EntityResolutionResult]:
+    async def resolve(self, device_reference: str, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve device reference using client context and fuzzy matching.
         """
@@ -296,7 +296,7 @@ class LocationEntityResolver:
     def __init__(self):
         self.logger = logging.getLogger(f"{__name__}.LocationEntityResolver")
     
-    async def resolve(self, location_reference: str, context: ConversationContext) -> Optional[EntityResolutionResult]:
+    async def resolve(self, location_reference: str, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve location reference using client and room context.
         """
@@ -357,7 +357,7 @@ class TemporalEntityResolver:
     def __init__(self):
         self.logger = logging.getLogger(f"{__name__}.TemporalEntityResolver")
     
-    async def resolve(self, temporal_reference: str, context: ConversationContext) -> Optional[EntityResolutionResult]:
+    async def resolve(self, temporal_reference: str, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve temporal references using context and patterns.
         """
@@ -441,7 +441,7 @@ class QuantityEntityResolver:
     def __init__(self):
         self.logger = logging.getLogger(f"{__name__}.QuantityEntityResolver")
     
-    async def resolve(self, quantity_reference: str, context: ConversationContext) -> Optional[EntityResolutionResult]:
+    async def resolve(self, quantity_reference: str, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve quantity references with unit inference.
         """
