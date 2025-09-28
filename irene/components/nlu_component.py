@@ -32,6 +32,7 @@ class ContextAwareNLUProcessor:
         self.logger = logging.getLogger(f"{__name__}.ContextAwareNLUProcessor")
         
         # Entity resolver for context-based entity resolution
+        # Will be updated with asset loader when available
         self.entity_resolver = ContextualEntityResolver()
     
     async def process_with_context(self, text: str, context: UnifiedConversationContext) -> Intent:
@@ -325,6 +326,7 @@ class NLUComponent(Component, WebAPIPlugin):
         self.fallback_intent = "conversation.general"
         self._provider_classes: Dict[str, type] = {}
         self.context_manager = None  # Will be injected
+        self.asset_loader = None  # Will be initialized during provider loading
         
         # Cascading provider coordination configuration
         self.provider_cascade_order: List[str] = []
@@ -511,6 +513,13 @@ class NLUComponent(Component, WebAPIPlugin):
             if intent_component and hasattr(intent_component, 'get_enabled_handler_donations'):
                 donations = intent_component.get_enabled_handler_donations()
                 enabled_handlers = intent_component.get_enabled_handler_names()
+                
+                # Get asset loader from IntentComponent if available
+                if hasattr(intent_component, 'handler_manager') and intent_component.handler_manager:
+                    self.asset_loader = intent_component.handler_manager._asset_loader
+                    # Update entity resolver with asset loader
+                    self.context_processor.entity_resolver = ContextualEntityResolver(self.asset_loader)
+                
                 logger.info(f"Using shared donations from IntentComponent for handlers: {enabled_handlers}")
             
             # Fallback: Load donations independently if IntentComponent not available
@@ -534,13 +543,16 @@ class NLUComponent(Component, WebAPIPlugin):
                 # Initialize asset loader with strict validation
                 asset_config = AssetLoaderConfig(strict_mode=True)
                 assets_root = Path("assets")
-                asset_loader = IntentAssetLoader(assets_root, asset_config)
+                self.asset_loader = IntentAssetLoader(assets_root, asset_config)
                 
                 # Load assets only for enabled handlers
-                await asset_loader.load_all_assets(enabled_handler_names)
+                await self.asset_loader.load_all_assets(enabled_handler_names)
                 
                 # Get donations from the unified loader
-                donations = asset_loader.donations
+                donations = self.asset_loader.donations
+                
+                # Update entity resolver with asset loader
+                self.context_processor.entity_resolver = ContextualEntityResolver(self.asset_loader)
             
             if not donations:
                 logger.warning("No JSON donations found - providers will use fallback patterns")
@@ -1022,7 +1034,7 @@ class NLUComponent(Component, WebAPIPlugin):
             from ..api.schemas import (
                 NLURequest, IntentResponse,
                 NLUConfigResponse, NLUProvidersResponse,
-                NLUConfigureResponse
+                NLUConfigureResponse, RoomAliasesResponse
             )
             
             router = APIRouter()
@@ -1143,6 +1155,44 @@ class NLUComponent(Component, WebAPIPlugin):
                     default_provider=self.default_provider,
                     available_providers=list(self.providers.keys())
                 )
+            
+            @router.get("/room_aliases", response_model=RoomAliasesResponse)
+            async def get_room_aliases(language: str = "en"):
+                """Get valid room aliases/IDs from localization files
+                
+                Returns list of room identifiers that can be used for:
+                - ESP32 room_id parameter in config messages
+                - Session ID generation (room_id + "_session")
+                - Room-scoped context management
+                """
+                try:
+                    # Access localization data through asset loader
+                    if not hasattr(self, 'asset_loader') or not self.asset_loader:
+                        raise HTTPException(503, "Asset loader not available")
+                    
+                    room_localization = self.asset_loader.localizations.get("rooms", {})
+                    room_data = room_localization.get(language, {})
+                    
+                    # Fallback to English if requested language not available
+                    if not room_data and language != "en":
+                        room_data = room_localization.get("en", {})
+                        language = "en"  # Update language to reflect fallback
+                    
+                    # Extract room aliases (keys from room_aliases section)
+                    room_aliases_data = room_data.get("room_keywords", {}).get("room_aliases", {})
+                    room_ids = list(room_aliases_data.keys()) if room_aliases_data else []
+                    
+                    return RoomAliasesResponse(
+                        success=True,
+                        room_aliases=room_ids,
+                        language=language,
+                        fallback_language="en",
+                        total_count=len(room_ids)
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Failed to get room aliases: {e}")
+                    raise HTTPException(500, f"Failed to retrieve room aliases: {str(e)}")
             
             return router
             

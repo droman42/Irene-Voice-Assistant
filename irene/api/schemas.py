@@ -1193,6 +1193,34 @@ class NLUProvidersResponse(BaseAPIResponse):
     default: Optional[str] = Field(description="Default provider name")
 
 
+class RoomAliasesResponse(BaseAPIResponse):
+    """Response model for room aliases endpoint"""
+    room_aliases: List[str] = Field(
+        description="List of valid room IDs: ['kitchen', 'living_room', ...]"
+    )
+    language: str = Field(
+        description="Language used for response"
+    )
+    fallback_language: str = Field(
+        description="Fallback language if requested not available"
+    )
+    total_count: int = Field(
+        description="Number of room aliases returned"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "room_aliases": ["kitchen", "living_room", "bedroom", "bathroom"],
+                "language": "en",
+                "fallback_language": "en",
+                "total_count": 4,
+                "timestamp": 1704067200.123
+            }
+        }
+
+
 # ============================================================
 # SYSTEM/HEALTH SCHEMAS
 # ============================================================

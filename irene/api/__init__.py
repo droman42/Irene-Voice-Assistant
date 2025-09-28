@@ -30,6 +30,7 @@ __all__ = [
     # NLU schemas
     "NLURequest",
     "IntentResponse",
+    "RoomAliasesResponse",
     # System schemas
     "HealthResponse",
     "ComponentInfo",

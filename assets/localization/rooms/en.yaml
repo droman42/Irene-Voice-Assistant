@@ -1,0 +1,25 @@
+room_keywords:
+  here_indicators:
+    - "here"
+    - "this room"
+    - "current room"
+    - "in here"
+  
+  room_aliases:
+    kitchen:
+      - "kitchen"
+      - "cook area"
+      - "cooking space"
+    living_room:
+      - "living room"
+      - "lounge"
+      - "main room"
+      - "family room"
+    bedroom:
+      - "bedroom"
+      - "bed room"
+      - "sleeping room"
+    bathroom:
+      - "bathroom"
+      - "bath"
+      - "restroom"
