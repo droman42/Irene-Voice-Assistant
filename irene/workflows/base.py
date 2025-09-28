@@ -6,6 +6,7 @@ from typing import Dict, Any, AsyncIterator, Optional, List
 
 from ..intents.models import AudioData, UnifiedConversationContext, IntentResult
 from ..core.metadata import EntryPointMetadata
+from ..core.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class RequestContext:
     
     def __init__(self,
                  source: str = "unknown",
-                 session_id: str = "default", 
+                 session_id: Optional[str] = None, 
                  wants_audio: bool = False,
                  skip_wake_word: bool = False,
                  metadata: Optional[Dict[str, Any]] = None,
@@ -28,7 +29,7 @@ class RequestContext:
         
         Args:
             source: Source of the request (e.g., "microphone", "web", "cli", "esp32")
-            session_id: Session identifier for context management
+            session_id: Session identifier for context management (auto-generated if None)
             wants_audio: Whether the response should include audio output
             skip_wake_word: Whether to skip wake word detection
             metadata: Additional request metadata
@@ -38,7 +39,7 @@ class RequestContext:
             language: Primary language for this request (defaults to Russian)
         """
         self.source = source
-        self.session_id = session_id
+        self.session_id = session_id or SessionManager.generate_session_id(source)
         self.wants_audio = wants_audio
         self.skip_wake_word = skip_wake_word
         self.metadata = metadata or {}

@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 
 from ..core.engine import AsyncVACore
+from ..core.session_manager import SessionManager
 from ..config.models import CoreConfig, API_PROFILE
 from ..inputs.cli import CLIInput
 # TextOutput functionality now handled by unified workflow
@@ -87,7 +88,7 @@ async def async_demo():
                 # Use unified workflow interface
                 result = await core.workflow_manager.process_text_input(
                     text=command,
-                    session_id="async_demo",
+                    session_id=SessionManager.generate_session_id("async_demo"),
                     wants_audio=False,
                     client_context={"source": "async_demo"}
                 )
@@ -123,7 +124,7 @@ async def demo_async_features(core: AsyncVACore):
     results = await asyncio.gather(*[
         core.workflow_manager.process_text_input(
             text=cmd,
-            session_id="async_demo_concurrent",
+            session_id=SessionManager.generate_session_id("async_demo_concurrent"),
             wants_audio=False,
             client_context={"source": "async_demo", "original_context": context}
         ) for cmd in commands
@@ -136,7 +137,7 @@ async def demo_async_features(core: AsyncVACore):
     # Use unified workflow interface
     result = await core.workflow_manager.process_text_input(
         text="timer 5 seconds demo completed",
-        session_id="async_demo_timer",
+        session_id=SessionManager.generate_session_id("async_demo_timer"),
         wants_audio=False,
         client_context={"source": "async_demo", "original_context": context}
     )
@@ -147,7 +148,7 @@ async def demo_async_features(core: AsyncVACore):
     # Use unified workflow interface
     result = await core.workflow_manager.process_text_input(
         text="service status",
-        session_id="async_demo_service",
+        session_id=SessionManager.generate_session_id("async_demo_service"),
         wants_audio=False,
         client_context={"source": "async_demo", "original_context": context}
     )

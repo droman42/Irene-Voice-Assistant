@@ -580,9 +580,9 @@ GET /nlu/room_aliases?language=ru
 
 **Status:** Localization system fully implemented and integrated with entity resolution and API endpoints. System now enforces proper configuration by failing fast when assets are unavailable.
 
-### **Phase 4: Session ID Unification**
+### **Phase 4: Session ID Unification** ✅ **COMPLETED**
 
-#### **4.1 Create Unified Session ID Generator**
+#### **4.1 Create Unified Session ID Generator** ✅ **COMPLETED**
 
 **File:** `irene/core/session_manager.py` (new)
 ```python
@@ -624,7 +624,7 @@ class SessionManager:
 
 > 🎯 **Key Principle:** Session IDs remain room/client-scoped to preserve fire-and-forget action boundaries and contextual command resolution within physical locations.
 
-#### **4.2 Update All Components**
+#### **4.2 Update All Components** ✅ **COMPLETED**
 
 **Target Components:**
 - `ASRComponent` - Replace WebSocket session generation
@@ -633,9 +633,26 @@ class SessionManager:
 - `WebAPIRouter` - Replace hardcoded session IDs
 
 **Implementation:**
-- Import and use `SessionManager.generate_session_id()` in all components
-- Replace hardcoded session ID generation across all components
-- Update all components to use unified session management
+- ✅ Import and use `SessionManager.generate_session_id()` in all components
+- ✅ Replace hardcoded session ID generation across all components
+- ✅ Update all components to use unified session management
+
+**Phase 4 Completion Summary:**
+- ✅ **SessionManager class created**: `irene/core/session_manager.py` with unified session ID generation, validation, and room extraction methods
+- ✅ **TTSComponent updated**: Replaced `f"tts_session_{uuid.uuid4().hex[:8]}"` with `SessionManager.generate_session_id("tts")`
+- ✅ **WebAPI Router updated**: Replaced hardcoded `"audio_session"`, `"trace_session"`, `"trace_audio_session"`, `"webapi_session"` with SessionManager calls
+- ✅ **CLI Runner updated**: Replaced `"cli_session"` with `SessionManager.generate_session_id("cli")`
+- ✅ **VOSK Runner updated**: Replaced `"vosk_session"` with `SessionManager.generate_session_id("vosk")`
+- ✅ **Workflow base updated**: Changed default session_id parameter to auto-generate using SessionManager when None provided
+- ✅ **Example files updated**: All demo files now use SessionManager for consistent session ID generation
+- ✅ **Legacy imports updated**: `train_schedule_demo.py` migrated from `ConversationContext` to `UnifiedConversationContext`
+
+**Session ID Format Strategy (Room-Scoped):**
+- Room-based: `{room_id}_session` (e.g., "kitchen_session") - **PRIMARY for IoT**
+- Client-based: `{client_id}_session` (e.g., "browser_abc123_session") - For web clients  
+- Generated: `{source}_{uuid8}_session` (e.g., "tts_a1b2c3d4_session") - Fallback
+
+**Status:** Session ID unification fully implemented across all components, runners, and examples. System now uses consistent session ID generation while preserving room-scoped session boundaries for fire-and-forget actions.
 
 ### **Phase 5: Enhanced Context Integration**
 

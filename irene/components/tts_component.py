@@ -20,6 +20,7 @@ from .base import Component
 from ..core.interfaces.tts import TTSPlugin
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..core.trace_context import TraceContext
+from ..core.session_manager import SessionManager
 
 # Import TTS provider base class and dynamic loader
 from ..providers.tts import TTSProvider
@@ -1054,7 +1055,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
                     "type": "session_ready",
                     "message": "Binary TTS session initialized",
                     "config": {...},
-                    "session_id": "tts_session_abc123"
+                    "session_id": "tts_a1b2c3d4_session"
                 }
                 Synthesis Started: {
                     "type": "synthesis_started",
@@ -1089,7 +1090,7 @@ class TTSComponent(Component, TTSPlugin, WebAPIPlugin):
                 logger.debug("TTS binary WebSocket client connected")
                 
                 session_config = None
-                session_id = f"tts_session_{uuid.uuid4().hex[:8]}"
+                session_id = SessionManager.generate_session_id("tts")
                 
                 try:
                     # Session initialization

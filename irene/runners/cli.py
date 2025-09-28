@@ -17,6 +17,7 @@ from prompt_toolkit import prompt
 from ..config.models import CoreConfig, ComponentConfig, LogLevel
 from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
+from ..core.session_manager import SessionManager
 from ..utils.loader import get_component_status, suggest_installation
 from ..utils.logging import setup_logging
 from .base import BaseRunner, RunnerConfig, InteractiveRunnerMixin, check_component_dependencies, print_dependency_status
@@ -313,7 +314,7 @@ Note: CLI runner always uses CLI input only, regardless of config file settings.
                 # Use unified workflow interface
                 result = await self.core.workflow_manager.process_text_input(
                     text=args.command,
-                    session_id="cli_session",
+                    session_id=SessionManager.generate_session_id("cli"),
                     wants_audio=getattr(args, 'enable_tts', False),  # Phase 5: TTS support
                     client_context={"source": "cli", "quiet": args.quiet}
                 )

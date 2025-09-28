@@ -23,6 +23,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from irene.core.engine import AsyncVACore
+from irene.core.session_manager import SessionManager
 from irene.intents.models import UnifiedConversationContext
 # CommandResult removed - use IntentResult instead
 from irene.config.models import CoreConfig as Config
@@ -73,7 +74,7 @@ class ConversationDemoRunner:
         logger.info("="*60)
         
         # Create context for commands
-        context = UnifiedConversationContext(session_id="demo_session", user_id="demo_user")
+        context = UnifiedConversationContext(session_id=SessionManager.generate_session_id("demo"), user_id="demo_user")
         
         # Demo commands
         commands = [
@@ -117,7 +118,7 @@ class ConversationDemoRunner:
         logger.info("Session management now handled by UnifiedConversationContext")
         
         # Create demo contexts with handler-specific conversation data
-        context1 = UnifiedConversationContext(session_id="demo_1")
+        context1 = UnifiedConversationContext(session_id=SessionManager.generate_session_id("demo_1"))
         context1.get_handler_context("conversation")["conversation_type"] = "chat"
         context1.get_handler_context("conversation")["messages"] = [
             {"role": "system", "content": "Ты дружелюбный помощник"},
@@ -125,7 +126,7 @@ class ConversationDemoRunner:
             {"role": "assistant", "content": "Привет! Как дела?"}
         ]
         
-        context2 = UnifiedConversationContext(session_id="demo_2")
+        context2 = UnifiedConversationContext(session_id=SessionManager.generate_session_id("demo_2"))
         context2.get_handler_context("conversation")["conversation_type"] = "reference"
         context2.get_handler_context("conversation")["messages"] = [
             {"role": "system", "content": "Ты справочный помощник"},

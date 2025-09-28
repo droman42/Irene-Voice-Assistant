@@ -16,12 +16,14 @@ try:
     from ..core.engine import AsyncVACore
     from ..core.intent_asset_loader import IntentAssetLoader  
     from ..inputs.web import WebInput
+    from ..core.session_manager import SessionManager
     from fastapi import APIRouter  # type: ignore
 except ImportError:
     # Handle import errors gracefully for type checking
     AsyncVACore = object
     IntentAssetLoader = object
     WebInput = object
+    SessionManager = object
     APIRouter = object
 
 logger = logging.getLogger(__name__)
@@ -199,7 +201,7 @@ def create_webapi_router(
             # Process command through unified workflow interface
             result = await core.workflow_manager.process_text_input(
                 text=request.command,
-                session_id="webapi_session",
+                session_id=SessionManager.generate_session_id("webapi"),
                 wants_audio=False,
                 client_context={"source": "rest_api"}
             )
@@ -249,7 +251,7 @@ def create_webapi_router(
             # Process audio through workflow manager without tracing
             result = await core.workflow_manager.process_audio_input(
                 audio_data=audio_data,
-                session_id="audio_session",
+                session_id=SessionManager.generate_session_id("api"),
                 wants_audio=False,  # Don't generate TTS for API endpoint
                 client_context={
                     "source": "audio_api",
@@ -306,7 +308,7 @@ def create_webapi_router(
             # Execute same workflow as normal command but with tracing
             result = await core.workflow_manager.process_text_input(
                 text=request.command,
-                session_id=request.metadata.get("session_id", "trace_session") if request.metadata else "trace_session",
+                session_id=request.metadata.get("session_id", SessionManager.generate_session_id("trace")) if request.metadata else SessionManager.generate_session_id("trace"),
                 wants_audio=False,
                 client_context={"source": "trace_api", "trace_enabled": True},
                 trace_context=trace_context  # Pass trace context to workflow
@@ -416,7 +418,7 @@ def create_webapi_router(
             # Process audio through workflow manager with tracing
             result = await core.workflow_manager.process_audio_input(
                 audio_data=audio_data,
-                session_id="trace_audio_session",
+                session_id=SessionManager.generate_session_id("trace_audio"),
                 wants_audio=False,  # Don't generate TTS for trace endpoint
                 client_context={
                     "source": "trace_audio_api",
