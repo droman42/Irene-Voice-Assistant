@@ -10,7 +10,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 from typing import Dict, Any
 
-from irene.intents.models import ConversationContext, Intent
+from irene.intents.models import UnifiedConversationContext, Intent
 from irene.components.nlu_component import ContextAwareNLUProcessor, NLUComponent
 from irene.core.entity_resolver import ContextualEntityResolver
 
@@ -33,7 +33,7 @@ class TestContextAwareNLU:
     @pytest.fixture
     def sample_context_kitchen(self):
         """Create a sample kitchen context with devices"""
-        context = ConversationContext(
+        context = UnifiedConversationContext(
             session_id="test_session",
             user_id="test_user",
             client_id="kitchen_node",
@@ -78,7 +78,7 @@ class TestContextAwareNLU:
     @pytest.fixture
     def sample_context_living_room(self):
         """Create a sample living room context with devices"""
-        context = ConversationContext(
+        context = UnifiedConversationContext(
             session_id="test_session_2",
             user_id="test_user",
             client_id="living_room_node",
@@ -281,7 +281,7 @@ class TestContextAwareNLU:
             session_id="test"
         )
         
-        context = ConversationContext(session_id="test")
+        context = UnifiedConversationContext(session_id="test")
         
         # Resolve entities
         resolved_entities = await resolver.resolve_entities(intent, context)
@@ -326,7 +326,7 @@ def run_simple_device_scenario_test():
     print("🧪 Running simple device scenario test...")
     
     # Create test context
-    context = ConversationContext(
+    context = UnifiedConversationContext(
         session_id="test",
         client_id="kitchen"
     )

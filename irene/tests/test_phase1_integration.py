@@ -10,7 +10,7 @@ import asyncio
 import time
 from typing import Dict, Any, List
 
-from irene.intents.models import ConversationContext
+from irene.intents.models import UnifiedConversationContext
 from irene.intents.context import ContextManager
 from irene.workflows.base import RequestContext
 from irene.core.client_registry import ClientRegistry, ClientRegistration, ClientDevice
@@ -221,7 +221,7 @@ class TestPhase1EntityResolution:
     @pytest.fixture
     def sample_context_with_devices(self):
         """Create context with Russian device names"""
-        context = ConversationContext(
+        context = UnifiedConversationContext(
             session_id="test_session",
             client_id="kitchen_esp32",
             language="ru"
@@ -266,7 +266,7 @@ class TestPhase1EntityResolution:
         """Test temporal entity resolution with Russian time expressions"""
         from irene.intents.models import Intent
         
-        context = ConversationContext(session_id="test", language="ru")
+        context = UnifiedConversationContext(session_id="test", language="ru")
         
         # Test Russian duration
         intent = Intent(
@@ -334,8 +334,8 @@ class TestPhase1RussianLanguageSupport:
     
     def test_russian_language_preference_in_context(self):
         """Test Russian language preference in context objects"""
-        # Test ConversationContext defaults to Russian
-        context = ConversationContext(session_id="test")
+        # Test UnifiedConversationContext defaults to Russian
+        context = UnifiedConversationContext(session_id="test")
         assert context.language == "ru"
         
         # Test RequestContext defaults to Russian
@@ -346,12 +346,12 @@ class TestPhase1RussianLanguageSupport:
         print("✅ Russian language preference in context test passed!")
     
     def test_conversation_context_russian_defaults(self):
-        """Test that ConversationContext defaults to Russian"""
-        context = ConversationContext(session_id="test")
+        """Test that UnifiedConversationContext defaults to Russian"""
+        context = UnifiedConversationContext(session_id="test")
         assert context.language == "ru"
         
         # Test context creation with explicit language
-        context_en = ConversationContext(session_id="test", language="en")
+        context_en = UnifiedConversationContext(session_id="test", language="en")
         assert context_en.language == "en"
         
         print("✅ ConversationContext Russian defaults test passed!")
@@ -457,7 +457,7 @@ async def run_phase1_tests():
     resolver = ContextualEntityResolver()
     
     # Create sample context
-    sample_context = ConversationContext(session_id="test", client_id="kitchen", language="ru")
+    sample_context = UnifiedConversationContext(session_id="test", client_id="kitchen", language="ru")
     sample_context.set_client_context("kitchen", {
         "room_name": "Кухня",
         "available_devices": [

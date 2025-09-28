@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from ..core.trace_context import TraceContext
-from ..intents.models import ConversationContext
+from ..intents.models import UnifiedConversationContext
 
 
 class TestTraceContextPerformance(unittest.TestCase):
