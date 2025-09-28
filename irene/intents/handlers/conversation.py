@@ -18,37 +18,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ConversationSession:
-    """Manages a single conversation session with message history"""
-    
-    def __init__(self, session_id: str, conversation_type: str = "chat", 
-                 system_prompt: str = "", model_preference: str = ""):
-        self.session_id = session_id
-        self.conversation_type = conversation_type  # "chat" or "reference"
-        self.messages: List[Dict[str, str]] = []
-        self.created_at = time.time()
-        self.last_activity = time.time()
-        self.model_preference = model_preference
-        
-        if system_prompt:
-            self.messages.append({"role": "system", "content": system_prompt})
-    
-    def add_message(self, role: str, content: str) -> None:
-        """Add a message to the conversation history"""
-        self.messages.append({"role": role, "content": content})
-        self.last_activity = time.time()
-    
-    def get_messages(self) -> List[Dict[str, str]]:
-        """Get the complete message history"""
-        return self.messages.copy()
-    
-    def clear_history(self, keep_system: bool = True) -> None:
-        """Clear conversation history, optionally keeping system message"""
-        if keep_system and self.messages and self.messages[0].get("role") == "system":
-            system_msg = self.messages[0]
-            self.messages = [system_msg]
-        else:
-            self.messages = []
+# ConversationSession class removed - functionality moved to UnifiedConversationContext.handler_contexts
 
 
 class ConversationIntentHandler(IntentHandler):
