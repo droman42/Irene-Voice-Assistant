@@ -14,7 +14,7 @@ from pathlib import Path
 from ..config.models import CoreConfig, ComponentConfig
 from ..plugins.manager import AsyncPluginManager
 from ..inputs.base import InputManager
-from .context import Context, ContextManager
+from ..intents.context import ContextManager
 from .timers import AsyncTimerManager
 
 from .components import ComponentManager

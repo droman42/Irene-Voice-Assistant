@@ -324,6 +324,7 @@ class NLUComponent(Component, WebAPIPlugin):
         self.confidence_threshold = 0.7
         self.fallback_intent = "conversation.general"
         self._provider_classes: Dict[str, type] = {}
+        self.context_manager = None  # Will be injected
         
         # Cascading provider coordination configuration
         self.provider_cascade_order: List[str] = []
@@ -1029,30 +1030,45 @@ class NLUComponent(Component, WebAPIPlugin):
             @router.post("/recognize", response_model=IntentResponse)
             async def recognize_intent(request: NLURequest):
                 """Recognize intent from text input"""
-                # Create context from request
-                context = UnifiedConversationContext(
-                    session_id=request.context.get("session_id", "default") if request.context else "default",
-                    history=request.context.get("history", []) if request.context else []
-                )
-                
-                # Use specific provider if requested
-                if request.provider and request.provider in self.providers:
-                    # PHASE 4: Use integrated parameter extraction for direct provider calls
-                    intent = await self.providers[request.provider].recognize_with_parameters(request.text, context)
-                    provider_name = request.provider
-                else:
-                    intent = await self.recognize(request.text, context)
-                    provider_name = self.default_provider or "fallback"
-                
-                return IntentResponse(
-                    success=True,
-                    name=intent.name,
-                    entities=intent.entities,
-                    confidence=intent.confidence,
-                    provider=provider_name,
-                    domain=intent.domain,
-                    action=intent.action
-                )
+                try:
+                    # GET CONTEXT FROM CONTEXT MANAGER - NO CREATION
+                    session_id = request.context.get("session_id", "nlu_api_session") if request.context else "nlu_api_session"
+                    context = await self.context_manager.get_context(session_id)
+                    
+                    # Inject API request context if available
+                    if request.context:
+                        if "client_id" in request.context:
+                            context.client_id = request.context["client_id"]
+                        if "room_name" in request.context:
+                            context.room_name = request.context["room_name"]
+                        if "device_context" in request.context:
+                            context.client_metadata.update(request.context["device_context"])
+                        if "history" in request.context:
+                            context.conversation_history = request.context["history"]
+                    
+                    # Use specific provider if requested
+                    if request.provider and request.provider in self.providers:
+                        intent = await self.providers[request.provider].recognize_with_parameters(request.text, context=context)
+                        provider_name = request.provider
+                    else:
+                        intent = await self.recognize(request.text, context)
+                        provider_name = self.default_provider or "fallback"
+                    
+                    return IntentResponse(
+                        success=True,
+                        name=intent.name,
+                        entities=intent.entities,
+                        confidence=intent.confidence,
+                        domain=intent.domain,
+                        action=intent.action,
+                        provider=provider_name,
+                        session_id=context.session_id,
+                        room_context=bool(context.client_id)
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Intent recognition error: {e}")
+                    raise HTTPException(500, f"Intent recognition failed: {str(e)}")
             
             @router.get("/providers", response_model=NLUProvidersResponse)
             async def list_nlu_providers():
@@ -1150,6 +1166,21 @@ class NLUComponent(Component, WebAPIPlugin):
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for NLU endpoints"""
         return ["Natural Language Understanding"]
+
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Define service dependencies for injection"""
+        from ..intents.context import ContextManager
+        return {
+            'context_manager': ContextManager
+        }
+    
+    def inject_dependency(self, name: str, dependency: Any) -> None:
+        """Inject service dependencies"""
+        if name == 'context_manager':
+            self.context_manager = dependency
+            logger.debug("Context manager injected into NLUComponent")
+        else:
+            super().inject_dependency(name, dependency)
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

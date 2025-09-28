@@ -36,6 +36,27 @@ class ContextManager:
         self.cleanup_interval = 300  # Cleanup every 5 minutes
         self.last_cleanup = time.time()
         self.metrics_collector = get_metrics_collector()  # Phase 2: Session analytics integration
+        self._running = False
+        self._cleanup_task: Optional['asyncio.Task'] = None
+    
+    async def start(self) -> None:
+        """Start the context manager with periodic cleanup"""
+        self._running = True
+        # Start periodic cleanup task
+        self._cleanup_task = asyncio.create_task(self._cleanup_expired_contexts())
+        logger.debug("Context manager started with periodic cleanup")
+    
+    async def stop(self) -> None:
+        """Stop the context manager and cleanup task"""
+        self._running = False
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+            self._cleanup_task = None
+        logger.debug("Context manager stopped")
     
     async def get_context(self, session_id: str) -> UnifiedConversationContext:
         """
@@ -82,47 +103,55 @@ class ContextManager:
         return context
     
     async def get_context_with_request_info(self, session_id: str, request_context: 'RequestContext' = None) -> UnifiedConversationContext:
-        """
-        Retrieve or create conversation context with client information from request context.
+        """Enhanced context creation with proper room context injection
         
-        Args:
-            session_id: Unique session identifier
-            request_context: Request context with client identification information
-            
-        Returns:
-            UnifiedConversationContext for the session with client context applied
+        CRITICAL: Preserves room-scoped session boundaries for fire-and-forget actions
+        and contextual command resolution.
         """
-        # Get or create base context
+        
+        # Get existing context or create new
         context = await self.get_context(session_id)
         
-        # Apply client information from request context if provided
+        # Priority 1: Extract from session ID if room-based (always check, even without request_context)
+        if not context.client_id:
+            # TODO: Integrate with SessionManager.extract_room_from_session() from Phase 4
+            if session_id.endswith("_session"):
+                room_part = session_id[:-8]  # Remove "_session"
+                # Check if it looks like a room ID (not a UUID)
+                if not any(c.isdigit() for c in room_part[-8:]):
+                    context.client_id = room_part
+        
+        # Extract room information from request context if provided
         if request_context:
-            # Update language preference
-            if hasattr(request_context, 'language') and request_context.language:
-                context.language = request_context.language
+            # Priority 2: Explicit room information from request context
+            if request_context.client_id and not context.client_id:
+                context.client_id = request_context.client_id
+                
+            if request_context.room_name and not context.room_name:
+                context.room_name = request_context.room_name
+                
+            # Priority 3: Extract from device context
+            if request_context.device_context:
+                if not context.room_name and "room_name" in request_context.device_context:
+                    context.room_name = request_context.device_context["room_name"]
+                    
+                # Populate device information
+                if "available_devices" in request_context.device_context:
+                    context.available_devices = request_context.device_context["available_devices"]
+                    
+                if "device_capabilities" in request_context.device_context:
+                    context.client_metadata["device_capabilities"] = request_context.device_context["device_capabilities"]
             
-            # Set client identification and context
-            if hasattr(request_context, 'client_id') and request_context.client_id:
-                client_metadata = {
-                    "room_name": getattr(request_context, 'room_name', None),
-                    "source": request_context.source,
-                    "last_request_time": time.time()
-                }
+            # Update language if specified
+            if request_context.language and request_context.language != context.language:
+                context.language = request_context.language
                 
-                # Add device context if available
-                if hasattr(request_context, 'device_context') and request_context.device_context:
-                    client_metadata["available_devices"] = request_context.device_context.get("available_devices", [])
-                    client_metadata["device_capabilities"] = request_context.device_context.get("device_capabilities", {})
-                
-                # Merge additional metadata
-                if request_context.metadata:
-                    client_metadata.update(request_context.metadata)
-                
-                # Set client context
-                context.set_client_context(request_context.client_id, client_metadata)
-                context.request_source = request_context.source
-                
-                logger.debug(f"Applied client context for session {session_id}: client_id={request_context.client_id}, room={request_context.room_name}")
+            # Merge additional metadata
+            if request_context.metadata:
+                context.client_metadata.update(request_context.metadata)
+        
+        # Update activity timestamp
+        context.last_activity = time.time()
         
         return context
     
@@ -896,4 +925,92 @@ class ContextManager:
         context = self.sessions[session_id]
         if hasattr(context, 'disambiguation_context'):
             delattr(context, 'disambiguation_context')
-            logger.debug(f"Cleared disambiguation context for session {session_id}") 
+            logger.debug(f"Cleared disambiguation context for session {session_id}")
+    
+    def _is_context_expired(self, context: UnifiedConversationContext) -> bool:
+        """
+        Check if a context has expired based on last activity.
+        
+        Args:
+            context: UnifiedConversationContext to check
+            
+        Returns:
+            True if context has expired, False otherwise
+        """
+        if not hasattr(context, 'last_activity') or context.last_activity is None:
+            # If no last_activity, use created_at
+            last_activity = getattr(context, 'created_at', time.time())
+        else:
+            last_activity = context.last_activity
+        
+        # Check if context has been inactive longer than timeout
+        return (time.time() - last_activity) > self.session_timeout
+    
+    async def remove_context(self, session_id: str) -> None:
+        """
+        Remove a context and clean up any associated resources.
+        
+        Args:
+            session_id: Session identifier to remove
+        """
+        if session_id not in self.sessions:
+            return
+        
+        context = self.sessions[session_id]
+        
+        # Clean up any active actions or resources
+        if hasattr(context, 'active_actions') and context.active_actions:
+            logger.debug(f"Cleaning up {len(context.active_actions)} active actions for session {session_id}")
+        
+        # Remove from sessions
+        del self.sessions[session_id]
+        logger.debug(f"Removed expired context for session {session_id}")
+    
+    async def _cleanup_expired_contexts(self) -> None:
+        """
+        Periodically clean up expired contexts to prevent memory leaks.
+        
+        This runs as a background task while the context manager is active.
+        """
+        logger.debug("Started periodic context cleanup task")
+        
+        while self._running:
+            try:
+                # Find expired sessions
+                expired_sessions = [
+                    session_id for session_id, context in self.sessions.items()
+                    if self._is_context_expired(context)
+                ]
+                
+                # Remove expired contexts
+                for session_id in expired_sessions:
+                    await self.remove_context(session_id)
+                
+                # Log cleanup activity
+                if expired_sessions:
+                    logger.info(f"Cleaned up {len(expired_sessions)} expired contexts")
+                    
+                    # Record cleanup metrics (if method exists)
+                    if hasattr(self.metrics_collector, 'record_session_cleanup'):
+                        self.metrics_collector.record_session_cleanup(len(expired_sessions))
+                
+                # Update last cleanup time
+                self.last_cleanup = time.time()
+                
+                # Sleep until next cleanup cycle
+                await asyncio.sleep(self.cleanup_interval)
+                
+            except asyncio.CancelledError:
+                logger.debug("Context cleanup task cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in context cleanup: {e}")
+                # Wait 1 minute before retrying on error
+                await asyncio.sleep(60)
+        
+        logger.debug("Context cleanup task stopped")
+    
+    @property
+    def active_contexts_count(self) -> int:
+        """Get the number of active contexts"""
+        return len(self.sessions) 

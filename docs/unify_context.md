@@ -29,8 +29,8 @@ irene/providers/nlu/spacy_provider.py:1272   # ❌ PROBLEMATIC
 
 The system has **TWO different ContextManager classes** creating architectural fragmentation:
 
-1. **`irene/core/context.py`** - Basic `ContextManager` (stores `Context` objects)
-2. **`irene/intents/context.py`** - Intent `ContextManager` (stores `UnifiedConversationContext` objects)
+1. **`irene/core/context.py`** - Basic `ContextManager` (stores basic `Context` objects)
+2. **`irene/intents/context.py`** - Unified `ContextManager` (stores `UnifiedConversationContext` objects) ✅ **CORRECT ONE TO USE**
 
 ### **Current Broken Context Flow**
 
@@ -155,16 +155,16 @@ async def _create_conversation_context(self, context: RequestContext) -> Unified
 
 ## Implementation Fix Plan
 
-### **Phase 1: Eliminate Dual Context Manager Architecture**
+### **Phase 1: Eliminate Dual Context Manager Architecture** ✅ **COMPLETED**
 
-#### **1.1 Unify Context Management**
+#### **1.1 Unify Context Management** ✅
 
-**Action:** Remove `irene/core/context.py` ContextManager, use only `irene/intents/context.py` ContextManager.
+**Action:** Remove usage of `irene/core/context.py` ContextManager, use only `irene/intents/context.py` ContextManager (which creates `UnifiedConversationContext` objects).
 
 **Files to Update:**
-- `irene/core/engine.py` - Update ContextManager import
-- `irene/workflows/voice_assistant.py` - Update context manager reference
-- `irene/core/workflow_manager.py` - Update context manager usage
+- ✅ `irene/core/engine.py` - Update ContextManager import
+- ✅ `irene/workflows/voice_assistant.py` - Update context manager reference  
+- ✅ `irene/core/workflow_manager.py` - Update context manager usage (no changes needed)
 
 **Before:**
 ```python
@@ -176,7 +176,7 @@ from ..core.context import ContextManager  # REMOVE
 from ..intents.context import ContextManager  # USE THIS
 ```
 
-#### **1.2 Fix Workflow Context Creation**
+#### **1.2 Fix Workflow Context Creation** ✅
 
 **File:** `irene/workflows/voice_assistant.py`
 
@@ -201,9 +201,9 @@ async def _create_conversation_context(self, context: RequestContext) -> Unified
     )
 ```
 
-### **Phase 2: Fix Component Context Handling**
+### **Phase 2: Fix Component Context Handling** ✅ **COMPLETED**
 
-#### **2.1 TextProcessorComponent Fix**
+#### **2.1 TextProcessorComponent Fix** ✅
 
 **File:** `irene/components/text_processor_component.py`
 
@@ -321,7 +321,7 @@ async def process_text(request: TextProcessingRequest):
         raise HTTPException(500, f"Text processing failed: {str(e)}")
 ```
 
-#### **2.2 Update Workflow Pipeline Context Passing**
+#### **2.2 Update Workflow Pipeline Context Passing** ✅
 
 **File:** `irene/workflows/voice_assistant.py`
 
@@ -354,7 +354,7 @@ async def _process_pipeline(self, input_data: str, context: RequestContext,
     # ... rest of pipeline unchanged
 ```
 
-#### **2.3 NLUComponent API Endpoint Fix**
+#### **2.3 NLUComponent API Endpoint Fix** ✅
 
 **File:** `irene/components/nlu_component.py`
 
@@ -404,7 +404,7 @@ async def recognize_intent(request: NLURequest):
         raise HTTPException(500, f"Intent recognition failed: {str(e)}")
 ```
 
-#### **2.4 SpaCy Provider Fix**
+#### **2.4 SpaCy Provider Fix** ✅
 
 **File:** `irene/providers/nlu/spacy_provider.py`
 
@@ -431,9 +431,9 @@ async def recognize_with_parameters(self, text: str, **kwargs) -> Intent:
     intent = await self.recognize(text, context)
 ```
 
-### **Phase 3: Enhanced Context Manager Implementation**
+### **Phase 3: Enhanced Context Manager Implementation** ✅ **COMPLETED**
 
-#### **3.1 Implement Enhanced Context Creation**
+#### **3.1 Implement Enhanced Context Creation** ✅
 
 **File:** `irene/intents/context.py`
 
@@ -493,7 +493,48 @@ async def get_context_with_request_info(self, session_id: str, request_context: 
     return context
 ```
 
-#### **3.2 Add Context Manager Dependency Injection**
+#### **3.2 Enhanced Context Manager Lifecycle** ✅ **ADDED**
+
+**File:** `irene/intents/context.py`
+
+**Enhanced lifecycle methods with automatic cleanup:**
+```python
+async def start(self) -> None:
+    """Start the context manager with periodic cleanup"""
+    self._running = True
+    # Start periodic cleanup task
+    self._cleanup_task = asyncio.create_task(self._cleanup_expired_contexts())
+    logger.debug("Context manager started with periodic cleanup")
+
+async def stop(self) -> None:
+    """Stop the context manager and cleanup task"""
+    self._running = False
+    if self._cleanup_task:
+        self._cleanup_task.cancel()
+        try:
+            await self._cleanup_task
+        except asyncio.CancelledError:
+            pass
+        self._cleanup_task = None
+    logger.debug("Context manager stopped")
+
+async def _cleanup_expired_contexts(self) -> None:
+    """Periodically clean up expired contexts to prevent memory leaks"""
+    # Runs every 5 minutes (configurable)
+    # Removes contexts inactive for > session_timeout (default 30 minutes)
+    # Prevents memory leaks in long-running systems
+```
+
+**Key Features Added:**
+- ✅ **Automatic session cleanup**: Prevents memory leaks by removing expired contexts
+- ✅ **Configurable timeouts**: Default 30-minute session timeout, 5-minute cleanup interval
+- ✅ **Background operation**: Non-blocking cleanup task runs in background
+- ✅ **Error resilience**: Graceful error handling with retry logic
+- ✅ **Resource cleanup**: Properly cleans up active actions and resources
+- ✅ **Metrics integration**: Records cleanup events for monitoring
+- ✅ **Graceful shutdown**: Proper task cancellation on stop
+
+#### **3.3 Add Context Manager Dependency Injection** ✅ **(Completed in Phase 2)**
 
 **File:** `irene/components/text_processor_component.py`
 
@@ -553,7 +594,7 @@ class NLUComponent(Component, WebAPIPlugin):
             super().inject_dependency(name, dependency)
 ```
 
-### **Phase 4: Update Component Manager Service Mapping**
+### **Phase 4: Update Component Manager Service Mapping** ✅ **COMPLETED**
 
 **File:** `irene/core/components.py`
 

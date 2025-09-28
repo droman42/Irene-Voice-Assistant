@@ -1268,8 +1268,10 @@ class SpaCyNLUProvider(NLUProvider):
         Returns:
             Intent analysis results
         """
-        from ...intents.models import UnifiedConversationContext
-        context = kwargs.get('context', UnifiedConversationContext())
+        context = kwargs.get('context')
+        if not context:
+            raise ValueError("UnifiedConversationContext is required for SpaCy provider")
+        
         intent = await self.recognize(text, context)
         
         return {

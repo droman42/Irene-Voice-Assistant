@@ -112,8 +112,8 @@ async def demo_async_features(core: AsyncVACore):
     """Demonstrate key async features"""
     print("🔍 Demonstrating async features...")
     
-    # Create a demo context
-    context = core.context_manager.create_context(user_id="demo_user")
+    # Get or create a demo context
+    context = await core.context_manager.get_context("demo_session")
     
     # Demo 1: Concurrent command processing
     print("1️⃣  Testing concurrent command processing...")

@@ -379,7 +379,8 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         # Stage 1: Text Processing (if enabled and component available)
         if self._text_processing_enabled and self.text_processor:
             self.logger.debug("Stage: Text Processing")
-            processed_text = await self.text_processor.process(processed_text, trace_context)
+            # PASS CONVERSATION CONTEXT TO TEXT PROCESSOR
+            processed_text = await self.text_processor.process(processed_text, conversation_context, trace_context)
         
         # Stage 2: NLU (Natural Language Understanding)
         self.logger.debug("Stage: NLU")
@@ -541,11 +542,10 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             return None
     
     async def _create_conversation_context(self, context: RequestContext) -> UnifiedConversationContext:
-        """Create or retrieve conversation context from context manager"""
-        return await self.context_manager.get_or_create_context(
+        """Create or retrieve conversation context with proper room context injection"""
+        return await self.context_manager.get_context_with_request_info(
             session_id=context.session_id,
-            client_id=context.client_id,
-            client_metadata=context.metadata
+            request_context=context  # Pass full RequestContext for room info extraction
         )
     
     async def _process_single_audio_pipeline(self, audio_data: AudioData, context: RequestContext, 

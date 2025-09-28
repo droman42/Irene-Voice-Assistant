@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from irene.core.engine import AsyncVACore
-from irene.core.context import Context
+from irene.intents.models import UnifiedConversationContext
 # CommandResult removed - use IntentResult instead
 from irene.config.models import CoreConfig as Config
 from irene.intents.handlers.conversation import ConversationIntentHandler, ConversationSession
@@ -73,7 +73,7 @@ class ConversationDemoRunner:
         logger.info("="*60)
         
         # Create context for commands
-        context = Context()
+        context = UnifiedConversationContext(session_id="demo_session", user_id="demo_user")
         
         # Demo commands
         commands = [
