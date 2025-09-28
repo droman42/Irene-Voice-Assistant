@@ -109,44 +109,44 @@ class ContextManager:
         and contextual command resolution.
         """
         
+        # Extract room information from multiple sources
+        room_id = None
+        room_name = None
+        
+        if request_context:
+            # Priority 1: Explicit room information
+            room_id = getattr(request_context, 'client_id', None)
+            room_name = getattr(request_context, 'room_name', None)
+            
+            # Priority 2: Extract from session ID if room-based
+            if not room_id:
+                from ..core.session_manager import SessionManager
+                room_id = SessionManager().extract_room_from_session(session_id)
+                
+            # Priority 3: Extract from device context
+            if not room_name and request_context.device_context:
+                room_name = request_context.device_context.get('room_name')
+        
         # Get existing context or create new
         context = await self.get_context(session_id)
         
-        # Priority 1: Extract from session ID if room-based (always check, even without request_context)
-        if not context.client_id:
-            # TODO: Integrate with SessionManager.extract_room_from_session() from Phase 4
-            if session_id.endswith("_session"):
-                room_part = session_id[:-8]  # Remove "_session"
-                # Check if it looks like a room ID (not a UUID)
-                if not any(c.isdigit() for c in room_part[-8:]):
-                    context.client_id = room_part
+        # Update room information if extracted
+        if room_id and not context.client_id:
+            context.client_id = room_id
+        if room_name and not context.room_name:
+            context.room_name = room_name
         
-        # Extract room information from request context if provided
+        # Populate with device context if available
+        if request_context and request_context.device_context:
+            if "available_devices" in request_context.device_context:
+                context.available_devices = request_context.device_context["available_devices"]
+            if "device_capabilities" in request_context.device_context:
+                context.client_metadata["device_capabilities"] = request_context.device_context["device_capabilities"]
+        
+        # Update language and metadata if provided
         if request_context:
-            # Priority 2: Explicit room information from request context
-            if request_context.client_id and not context.client_id:
-                context.client_id = request_context.client_id
-                
-            if request_context.room_name and not context.room_name:
-                context.room_name = request_context.room_name
-                
-            # Priority 3: Extract from device context
-            if request_context.device_context:
-                if not context.room_name and "room_name" in request_context.device_context:
-                    context.room_name = request_context.device_context["room_name"]
-                    
-                # Populate device information
-                if "available_devices" in request_context.device_context:
-                    context.available_devices = request_context.device_context["available_devices"]
-                    
-                if "device_capabilities" in request_context.device_context:
-                    context.client_metadata["device_capabilities"] = request_context.device_context["device_capabilities"]
-            
-            # Update language if specified
             if request_context.language and request_context.language != context.language:
                 context.language = request_context.language
-                
-            # Merge additional metadata
             if request_context.metadata:
                 context.client_metadata.update(request_context.metadata)
         

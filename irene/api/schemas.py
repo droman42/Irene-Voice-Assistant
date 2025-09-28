@@ -1262,17 +1262,32 @@ class SystemStatusResponse(BaseAPIResponse):
 # ============================================================
 
 class CommandRequest(BaseAPIRequest):
-    """Request to execute a command"""
+    """Request to execute a command with optional room context"""
     command: str = Field(description="Command text to execute")
+    room_alias: Optional[str] = Field(
+        default=None,
+        description="Optional room identifier for room-scoped execution (e.g., 'kitchen', 'living_room')"
+    )
     metadata: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Additional command metadata"
     )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "command": "turn off the lights",
+                "room_alias": "kitchen",
+                "metadata": {"source": "mobile_app"}
+            }
+        }
 
 
 class CommandResponse(BaseAPIResponse):
     """Response from command execution"""
     response: str = Field(description="Command execution result")
+    session_id: str = Field(description="Session ID used for execution")
+    room_alias: Optional[str] = Field(default=None, description="Room alias used for execution")
     error: Optional[str] = Field(
         default=None,
         description="Error message if command failed"
@@ -1352,9 +1367,15 @@ class TraceCommandResponse(BaseAPIResponse):
     execution_trace: ExecutionTrace = Field(
         description="Complete pipeline execution trace with detailed stage information"
     )
+    session_id: str = Field(description="Session ID used for execution")
+    room_alias: Optional[str] = Field(default=None, description="Room alias used for execution")
     error: Optional[str] = Field(
         default=None,
         description="Error message if command execution failed"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional trace metadata"
     )
 
     class Config:

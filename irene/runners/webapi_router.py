@@ -190,43 +190,128 @@ def create_webapi_router(
             web_clients=web_clients
         )
     
+    # Room alias validation helper function
+    async def _validate_and_resolve_room_alias(
+        room_alias: str, 
+        asset_loader: Optional[IntentAssetLoader]
+    ) -> tuple[bool, str]:
+        """Validate room alias against localization files and return session_id
+        
+        Args:
+            room_alias: Room identifier to validate (e.g., 'kitchen')
+            asset_loader: Asset loader for accessing room localization data
+            
+        Returns:
+            Tuple of (is_valid, session_id_or_error_message)
+        """
+        if not asset_loader:
+            return False, f"Room alias '{room_alias}' cannot be validated - asset loader unavailable"
+        
+        try:
+            # Get room aliases from localization files
+            room_localization = asset_loader.localizations.get("rooms", {})
+            room_data = room_localization.get("en", {})  # Default to English
+            
+            # Fallback to Russian if English not available
+            if not room_data:
+                room_data = room_localization.get("ru", {})
+            
+            room_aliases = room_data.get("room_keywords", {}).get("room_aliases", {})
+            
+            if room_alias not in room_aliases:
+                available_aliases = list(room_aliases.keys())
+                return False, f"Invalid room alias '{room_alias}'. Valid aliases: {available_aliases}"
+            
+            # Generate session_id using SessionManager from Phase 4
+            session_id = SessionManager.generate_session_id("api", room_id=room_alias)
+            
+            return True, session_id
+            
+        except Exception as e:
+            return False, f"Room alias validation failed: {str(e)}"
+    
     # Command execution endpoint
     @router.post("/execute/command", response_model=CommandResponse, tags=["General"])
     async def execute_command(request: CommandRequest):
-        """Execute a voice assistant command via REST API"""
+        """Execute a voice assistant command via REST API with optional room context"""
         try:
             if not core:
                 raise HTTPException(status_code=503, detail="Assistant not initialized")
             
-            # Process command through unified workflow interface
+            # NEW: Room alias validation and session_id generation
+            if request.room_alias:
+                is_valid, session_id_or_error = await _validate_and_resolve_room_alias(
+                    request.room_alias, asset_loader
+                )
+                if not is_valid:
+                    raise HTTPException(status_code=400, detail=session_id_or_error)
+                
+                session_id = session_id_or_error
+                client_id = request.room_alias
+                logger.debug(f"Using room-scoped session: {session_id} for room '{request.room_alias}'")
+            else:
+                # Existing behavior - use metadata or fallback
+                session_id = request.metadata.get("session_id", SessionManager.generate_session_id("webapi")) if request.metadata else SessionManager.generate_session_id("webapi")
+                client_id = None
+            
+            # Enhanced client context with room information
+            client_context = {
+                "source": "api",
+                "room_alias": request.room_alias,
+                "client_id": client_id
+            }
+            if request.metadata:
+                client_context.update(request.metadata)
+            
+            # Execute command with enhanced context
             result = await core.workflow_manager.process_text_input(
                 text=request.command,
-                session_id=SessionManager.generate_session_id("webapi"),
+                session_id=session_id,
                 wants_audio=False,
-                client_context={"source": "rest_api"}
+                client_context=client_context
             )
             
             return CommandResponse(
-                success=result.success,
-                response=result.text or f"Command '{request.command}' processed successfully",
-                metadata={"processed_via": "rest_api", "intent_result": result.metadata}
+                success=True,
+                response=result.text or "Command executed successfully",
+                session_id=session_id,
+                room_alias=request.room_alias,  # NEW: Include room alias in response
+                metadata={
+                    "intent_name": result.intent_name,
+                    "confidence": result.confidence,
+                    "execution_time": result.metadata.get("execution_time") if result.metadata else None
+                }
             )
             
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Command execution error: {e}")
-            return CommandResponse(
-                success=False,
-                response="Command execution failed",
-                error=str(e)
-            )
+            raise HTTPException(status_code=500, detail=f"Command execution failed: {str(e)}")
     
     # Audio execution endpoint
     @router.post("/execute/audio", response_model=CommandResponse, tags=["General"])
-    async def execute_audio(audio_file: UploadFile = File(...)):
-        """Execute audio processing via REST API"""
+    async def execute_audio(audio_file: UploadFile = File(...), room_alias: Optional[str] = None):
+        """Execute audio processing via REST API with optional room context"""
         try:
             if not core:
                 raise HTTPException(status_code=503, detail="Assistant not initialized")
+            
+            # NEW: Room alias validation and session_id generation
+            if room_alias:
+                is_valid, session_id_or_error = await _validate_and_resolve_room_alias(
+                    room_alias, asset_loader
+                )
+                if not is_valid:
+                    raise HTTPException(status_code=400, detail=session_id_or_error)
+                
+                session_id = session_id_or_error
+                client_id = room_alias
+                logger.debug(f"Using room-scoped session: {session_id} for audio in room '{room_alias}'")
+            else:
+                # Existing behavior - hardcoded session
+                session_id = SessionManager.generate_session_id("api")
+                client_id = None
             
             # Validate file size (limit to 10MB for safety)
             MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -246,25 +331,37 @@ def create_webapi_router(
                     )
                 audio_data += chunk
             
-            logger.info(f"Audio processing: {audio_file.filename}, size: {file_size} bytes")
+            logger.info(f"Audio processing: {audio_file.filename}, size: {file_size} bytes, room: {room_alias or 'none'}")
             
-            # Process audio through workflow manager without tracing
+            # Enhanced client context with room information
+            client_context = {
+                "source": "audio_api",
+                "filename": audio_file.filename,
+                "skip_wake_word": True,  # Skip wake word for uploaded files
+                "file_size_bytes": file_size,
+                "room_alias": room_alias,
+                "client_id": client_id
+            }
+            
+            # Process audio through workflow manager with enhanced context
             result = await core.workflow_manager.process_audio_input(
                 audio_data=audio_data,
-                session_id=SessionManager.generate_session_id("api"),
+                session_id=session_id,
                 wants_audio=False,  # Don't generate TTS for API endpoint
-                client_context={
-                    "source": "audio_api",
-                    "filename": audio_file.filename,
-                    "skip_wake_word": True,  # Skip wake word for uploaded files
-                    "file_size_bytes": file_size
-                }
+                client_context=client_context
             )
             
             return CommandResponse(
                 success=result.success,
                 response=result.text or f"Audio file '{audio_file.filename}' processed successfully",
-                metadata={"processed_via": "audio_api", "filename": audio_file.filename, "file_size_bytes": file_size}
+                session_id=session_id,
+                room_alias=room_alias,  # NEW: Include room alias in response
+                metadata={
+                    "processed_via": "audio_api", 
+                    "filename": audio_file.filename, 
+                    "file_size_bytes": file_size,
+                    "room_context": bool(room_alias)
+                }
             )
             
         except HTTPException:
@@ -292,140 +389,49 @@ def create_webapi_router(
     # PHASE 7 - TODO16: Trace endpoints for detailed pipeline execution visibility
     @router.post("/trace/command", response_model=TraceCommandResponse, tags=["Tracing"])
     async def trace_command_execution(request: CommandRequest):
-        """Execute command with full execution trace"""
+        """Execute command with full execution trace and optional room context"""
         try:
             if not core:
                 raise HTTPException(status_code=503, detail="Assistant not initialized")
             
-            # Create trace context for detailed execution tracking with production limits
+            # NEW: Room alias validation and session_id generation (same as execute)
+            if request.room_alias:
+                is_valid, session_id_or_error = await _validate_and_resolve_room_alias(
+                    request.room_alias, asset_loader
+                )
+                if not is_valid:
+                    raise HTTPException(status_code=400, detail=session_id_or_error)
+                
+                session_id = session_id_or_error
+                client_id = request.room_alias
+            else:
+                session_id = request.metadata.get("session_id", SessionManager.generate_session_id("trace")) if request.metadata else SessionManager.generate_session_id("trace")
+                client_id = None
+            
+            # Create trace context for detailed execution tracking
             trace_context = TraceContext(
                 enabled=True, 
                 request_id=str(uuid.uuid4()),
-                max_stages=50,  # Limit stages for command traces
-                max_data_size_mb=5  # 5MB limit for command traces
+                max_stages=50,
+                max_data_size_mb=5
             )
             
-            # Execute same workflow as normal command but with tracing
+            # Enhanced client context with room information and tracing
+            client_context = {
+                "source": "trace_api", 
+                "trace_enabled": True,
+                "room_alias": request.room_alias,
+                "client_id": client_id
+            }
+            if request.metadata:
+                client_context.update(request.metadata)
+            
+            # Execute with tracing and room context
             result = await core.workflow_manager.process_text_input(
                 text=request.command,
-                session_id=request.metadata.get("session_id", SessionManager.generate_session_id("trace")) if request.metadata else SessionManager.generate_session_id("trace"),
+                session_id=session_id,
                 wants_audio=False,
-                client_context={"source": "trace_api", "trace_enabled": True},
-                trace_context=trace_context  # Pass trace context to workflow
-            )
-            
-            return TraceCommandResponse(
-                success=result.success,
-                final_result={
-                    "text": result.text,
-                    "success": result.success,
-                    "metadata": result.metadata,
-                    "confidence": result.confidence,
-                    "timestamp": result.timestamp
-                },
-                execution_trace={
-                    "request_id": trace_context.request_id,
-                    "pipeline_stages": [
-                        {
-                            "stage": stage.get("stage", "unknown"),
-                            "input_data": stage.get("input"),
-                            "output_data": stage.get("output"),
-                            "metadata": stage.get("metadata", {}),
-                            "processing_time_ms": stage.get("processing_time_ms", 0.0),
-                            "timestamp": stage.get("timestamp", time.time())
-                        }
-                        for stage in trace_context.stages
-                    ],
-                    "context_evolution": {
-                        "before": trace_context.context_snapshots.get("before"),
-                        "after": trace_context.context_snapshots.get("after"),
-                        "changes": trace_context._calculate_context_changes()
-                    },
-                    "performance_metrics": {
-                        "total_processing_time_ms": sum(
-                            stage.get("processing_time_ms", 0) for stage in trace_context.stages
-                        ),
-                        "stage_breakdown": {
-                            stage.get("stage", "unknown"): stage.get("processing_time_ms", 0) 
-                            for stage in trace_context.stages
-                        },
-                        "total_stages": len(trace_context.stages)
-                    }
-                },
-                timestamp=time.time()
-            )
-            
-        except Exception as e:
-            logger.error(f"Trace command execution error: {e}")
-            trace_request_id = trace_context.request_id if 'trace_context' in locals() else "unknown"
-            return TraceCommandResponse(
-                success=False,
-                final_result={},
-                execution_trace={
-                    "request_id": trace_request_id,
-                    "pipeline_stages": [],
-                    "context_evolution": {
-                        "before": None,
-                        "after": None,
-                        "changes": {}
-                    },
-                    "performance_metrics": {
-                        "total_processing_time_ms": 0.0,
-                        "stage_breakdown": {},
-                        "total_stages": 0
-                    },
-                    "error": str(e)
-                },
-                timestamp=time.time(),
-                error=str(e)
-            )
-    
-    @router.post("/trace/audio", response_model=TraceCommandResponse, tags=["Tracing"])
-    async def trace_audio_execution(audio_file: UploadFile = File(...)):
-        """Execute audio processing with full execution trace"""
-        try:
-            if not core:
-                raise HTTPException(status_code=503, detail="Assistant not initialized")
-            
-            # Validate file size (limit to 10MB for safety)
-            MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-            file_size = 0
-            audio_data = b""
-            
-            # Read audio data with size check
-            while True:
-                chunk = await audio_file.read(8192)  # Read in 8KB chunks
-                if not chunk:
-                    break
-                file_size += len(chunk)
-                if file_size > MAX_FILE_SIZE:
-                    raise HTTPException(
-                        status_code=413, 
-                        detail=f"Audio file too large (max {MAX_FILE_SIZE / 1024 / 1024:.1f}MB)"
-                    )
-                audio_data += chunk
-            
-            # Create trace context with production limits for audio
-            trace_context = TraceContext(
-                enabled=True, 
-                request_id=str(uuid.uuid4()),
-                max_stages=75,  # More stages for audio processing
-                max_data_size_mb=15  # Higher limit for audio traces (includes audio data)
-            )
-            
-            logger.info(f"Trace audio processing: {audio_file.filename}, size: {file_size} bytes")
-            
-            # Process audio through workflow manager with tracing
-            result = await core.workflow_manager.process_audio_input(
-                audio_data=audio_data,
-                session_id=SessionManager.generate_session_id("trace_audio"),
-                wants_audio=False,  # Don't generate TTS for trace endpoint
-                client_context={
-                    "source": "trace_audio_api",
-                    "filename": audio_file.filename,
-                    "skip_wake_word": True,  # Skip wake word for uploaded files
-                    "file_size_bytes": file_size
-                },
+                client_context=client_context,
                 trace_context=trace_context
             )
             
@@ -466,6 +472,158 @@ def create_webapi_router(
                         },
                         "total_stages": len(trace_context.stages)
                     }
+                },
+                session_id=session_id,
+                room_alias=request.room_alias,  # NEW: Include room alias in trace response
+                metadata={
+                    "trace_id": trace_context.request_id,
+                    "total_stages": len(trace_context.stages),
+                    "execution_time": sum(stage.get("processing_time_ms", 0) for stage in trace_context.stages)
+                },
+                timestamp=time.time()
+            )
+            
+        except Exception as e:
+            logger.error(f"Trace command execution error: {e}")
+            trace_request_id = trace_context.request_id if 'trace_context' in locals() else "unknown"
+            return TraceCommandResponse(
+                success=False,
+                final_result={},
+                execution_trace={
+                    "request_id": trace_request_id,
+                    "pipeline_stages": [],
+                    "context_evolution": {
+                        "before": None,
+                        "after": None,
+                        "changes": {}
+                    },
+                    "performance_metrics": {
+                        "total_processing_time_ms": 0.0,
+                        "stage_breakdown": {},
+                        "total_stages": 0
+                    },
+                    "error": str(e)
+                },
+                timestamp=time.time(),
+                error=str(e)
+            )
+    
+    @router.post("/trace/audio", response_model=TraceCommandResponse, tags=["Tracing"])
+    async def trace_audio_execution(audio_file: UploadFile = File(...), room_alias: Optional[str] = None):
+        """Execute audio processing with full execution trace and optional room context"""
+        try:
+            if not core:
+                raise HTTPException(status_code=503, detail="Assistant not initialized")
+            
+            # NEW: Room alias validation and session_id generation (same as execute/audio)
+            if room_alias:
+                is_valid, session_id_or_error = await _validate_and_resolve_room_alias(
+                    room_alias, asset_loader
+                )
+                if not is_valid:
+                    raise HTTPException(status_code=400, detail=session_id_or_error)
+                
+                session_id = session_id_or_error
+                client_id = room_alias
+            else:
+                session_id = SessionManager.generate_session_id("trace_audio")
+                client_id = None
+            
+            # Validate file size (limit to 10MB for safety)
+            MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+            file_size = 0
+            audio_data = b""
+            
+            # Read audio data with size check
+            while True:
+                chunk = await audio_file.read(8192)  # Read in 8KB chunks
+                if not chunk:
+                    break
+                file_size += len(chunk)
+                if file_size > MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=413, 
+                        detail=f"Audio file too large (max {MAX_FILE_SIZE / 1024 / 1024:.1f}MB)"
+                    )
+                audio_data += chunk
+            
+            # Create trace context with production limits for audio
+            trace_context = TraceContext(
+                enabled=True, 
+                request_id=str(uuid.uuid4()),
+                max_stages=75,  # More stages for audio processing
+                max_data_size_mb=15  # Higher limit for audio traces (includes audio data)
+            )
+            
+            logger.info(f"Trace audio processing: {audio_file.filename}, size: {file_size} bytes, room: {room_alias or 'none'}")
+            
+            # Enhanced client context with room information and tracing
+            client_context = {
+                "source": "trace_audio_api",
+                "filename": audio_file.filename,
+                "skip_wake_word": True,  # Skip wake word for uploaded files
+                "file_size_bytes": file_size,
+                "trace_enabled": True,
+                "room_alias": room_alias,
+                "client_id": client_id
+            }
+            
+            # Process audio through workflow manager with tracing and room context
+            result = await core.workflow_manager.process_audio_input(
+                audio_data=audio_data,
+                session_id=session_id,
+                wants_audio=False,  # Don't generate TTS for trace endpoint
+                client_context=client_context,
+                trace_context=trace_context
+            )
+            
+            return TraceCommandResponse(
+                success=result.success,
+                final_result={
+                    "text": result.text,
+                    "success": result.success,
+                    "metadata": result.metadata,
+                    "confidence": result.confidence,
+                    "timestamp": result.timestamp
+                },
+                execution_trace={
+                    "request_id": trace_context.request_id,
+                    "pipeline_stages": [
+                        {
+                            "stage": stage.get("stage", "unknown"),
+                            "input_data": stage.get("input"),
+                            "output_data": stage.get("output"),
+                            "metadata": stage.get("metadata", {}),
+                            "processing_time_ms": stage.get("processing_time_ms", 0.0),
+                            "timestamp": stage.get("timestamp", time.time())
+                        }
+                        for stage in trace_context.stages
+                    ],
+                    "context_evolution": {
+                        "before": trace_context.context_snapshots.get("before"),
+                        "after": trace_context.context_snapshots.get("after"),
+                        "changes": trace_context._calculate_context_changes()
+                    },
+                    "performance_metrics": {
+                        "total_processing_time_ms": sum(
+                            stage.get("processing_time_ms", 0) for stage in trace_context.stages
+                        ),
+                        "stage_breakdown": {
+                            stage.get("stage", "unknown"): stage.get("processing_time_ms", 0) 
+                            for stage in trace_context.stages
+                        },
+                        "total_stages": len(trace_context.stages)
+                    }
+                },
+                session_id=session_id,
+                room_alias=room_alias,  # NEW: Include room alias in trace response
+                metadata={
+                    "trace_id": trace_context.request_id,
+                    "total_stages": len(trace_context.stages),
+                    "execution_time": sum(stage.get("processing_time_ms", 0) for stage in trace_context.stages),
+                    "filename": audio_file.filename,
+                    "file_size_bytes": file_size,
+                    "room_context": bool(room_alias)
                 },
                 timestamp=time.time()
             )

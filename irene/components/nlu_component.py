@@ -73,14 +73,14 @@ class ContextAwareNLUProcessor:
         # Start with resolved entities (includes original entities plus resolved ones)
         enhanced_entities = resolved_entities.copy()
         
-        # 1. Client Context Enhancement
+        # 1. Room Context Injection (simplified with unified context)
         if context.client_id:
             enhanced_entities["client_id"] = context.client_id
+            enhanced_entities["room_id"] = context.client_id  # Explicit room ID
             
-            room_name = context.get_room_name()
-            if room_name:
-                enhanced_entities["room_name"] = room_name
-                self.logger.debug(f"Added room context: {room_name}")
+        if context.room_name:
+            enhanced_entities["room_name"] = context.room_name
+            self.logger.debug(f"Added room context: {context.room_name}")
         
         # 2. Device Entity Resolution
         enhanced_entities = await self._resolve_device_entities(enhanced_entities, context)
