@@ -155,6 +155,86 @@ class TraceContext:
                 snapshot["user_id"] = None
                 snapshot["session_error"] = str(e)
             
+            # NEW: Room context from session unification
+            try:
+                snapshot["client_id"] = getattr(context, 'client_id', None)
+                snapshot["room_name"] = getattr(context, 'room_name', None)
+            except Exception as e:
+                snapshot["client_id"] = None
+                snapshot["room_name"] = None
+                snapshot["room_context_error"] = str(e)
+            
+            # NEW: Handler contexts (replaces ConversationSession)
+            try:
+                handler_contexts = getattr(context, 'handler_contexts', {})
+                snapshot["handler_contexts"] = {
+                    handler: {
+                        "message_count": len(ctx.get("messages", [])),
+                        "conversation_type": ctx.get("conversation_type", "unknown"),
+                        "created_at": ctx.get("created_at", 0)
+                    }
+                    for handler, ctx in handler_contexts.items()
+                } if handler_contexts else {}
+            except Exception as e:
+                snapshot["handler_contexts"] = {"error": f"Failed to extract handler contexts: {str(e)}"}
+            
+            # NEW: Enhanced fire-and-forget tracking
+            try:
+                snapshot["recent_actions_count"] = len(getattr(context, 'recent_actions', []))
+                snapshot["failed_actions_count"] = len(getattr(context, 'failed_actions', []))
+                snapshot["action_error_count"] = getattr(context, 'action_error_count', {}).copy()
+            except Exception as e:
+                snapshot["recent_actions_count"] = 0
+                snapshot["failed_actions_count"] = 0
+                snapshot["action_error_count"] = {}
+                snapshot["action_tracking_error"] = str(e)
+            
+            # NEW: Room-scoped device context
+            try:
+                available_devices = getattr(context, 'available_devices', [])
+                snapshot["available_devices_count"] = len(available_devices)
+                snapshot["device_types"] = list(set(
+                    device.get("type", "unknown") for device in available_devices
+                )) if available_devices else []
+                snapshot["language"] = getattr(context, 'language', 'unknown')
+            except Exception as e:
+                snapshot["available_devices_count"] = 0
+                snapshot["device_types"] = []
+                snapshot["language"] = "unknown"
+                snapshot["device_context_error"] = str(e)
+            
+            # NEW: Memory usage from unification
+            try:
+                if hasattr(context, 'get_memory_usage_estimate'):
+                    memory_usage = context.get_memory_usage_estimate()
+                    snapshot["memory_usage"] = {
+                        "total_mb": memory_usage.get("total_mb", 0.0),
+                        "total_bytes": memory_usage.get("total_bytes", 0),
+                        "breakdown_summary": {
+                            key: data.get("bytes", 0) if isinstance(data, dict) else 0
+                            for key, data in memory_usage.get("breakdown", {}).items()
+                        }
+                    }
+                else:
+                    snapshot["memory_usage"] = {"total_mb": 0.0, "total_bytes": 0, "breakdown_summary": {}}
+            except Exception as e:
+                snapshot["memory_usage"] = {
+                    "total_mb": 0.0, 
+                    "total_bytes": 0, 
+                    "error": f"Memory estimation failed: {str(e)}"
+                }
+            
+            # NEW: Timestamps for change analysis
+            try:
+                snapshot["created_at"] = getattr(context, 'created_at', 0)
+                snapshot["last_activity"] = getattr(context, 'last_activity', 0)
+                snapshot["snapshot_timestamp"] = time.time()
+            except Exception as e:
+                snapshot["created_at"] = 0
+                snapshot["last_activity"] = 0
+                snapshot["snapshot_timestamp"] = time.time()
+                snapshot["timestamp_error"] = str(e)
+            
             self.context_snapshots[when] = snapshot
             
         except Exception as e:
@@ -399,17 +479,21 @@ class TraceContext:
     
     def _calculate_context_changes(self) -> Dict[str, Any]:
         """
-        Calculate changes between before/after context snapshots
+        Enhanced context change analysis for UnifiedConversationContext
+        
+        Analyzes changes between before/after context snapshots including
+        room context, handler contexts, fire-and-forget tracking, and memory usage.
         
         Returns:
-            Dictionary describing context changes during execution
+            Dictionary describing comprehensive context changes during execution
         """
         before = self.context_snapshots.get("before", {})
         after = self.context_snapshots.get("after", {})
         
         if not before or not after:
-            return {"summary": "Incomplete context tracking"}
+            return {"summary": "Incomplete context tracking", "error": "Missing before or after snapshot"}
         
+        # Existing active actions analysis
         before_actions = before.get("active_actions", {})
         after_actions = after.get("active_actions", {})
         
@@ -428,11 +512,131 @@ class TraceContext:
         
         history_entries_added = after.get("conversation_history_length", 0) - before.get("conversation_history_length", 0)
         
+        # NEW: Room context changes
+        room_context_changed = (
+            before.get("client_id") != after.get("client_id") or
+            before.get("room_name") != after.get("room_name")
+        )
+        
+        # NEW: Language changes
+        language_changed = before.get("language") != after.get("language")
+        
+        # NEW: Handler context changes
+        before_handlers = set(before.get("handler_contexts", {}).keys())
+        after_handlers = set(after.get("handler_contexts", {}).keys())
+        handler_contexts_modified = []
+        
+        for handler in before_handlers.union(after_handlers):
+            before_ctx = before.get("handler_contexts", {}).get(handler, {})
+            after_ctx = after.get("handler_contexts", {}).get(handler, {})
+            
+            if before_ctx != after_ctx:
+                handler_contexts_modified.append({
+                    "handler": handler,
+                    "message_count_before": before_ctx.get("message_count", 0),
+                    "message_count_after": after_ctx.get("message_count", 0),
+                    "messages_added": after_ctx.get("message_count", 0) - before_ctx.get("message_count", 0)
+                })
+        
+        # NEW: Fire-and-forget tracking changes
+        recent_actions_added = after.get("recent_actions_count", 0) - before.get("recent_actions_count", 0)
+        failed_actions_added = after.get("failed_actions_count", 0) - before.get("failed_actions_count", 0)
+        
+        # NEW: Device context changes
+        devices_changed = before.get("available_devices_count") != after.get("available_devices_count")
+        device_types_before = set(before.get("device_types", []))
+        device_types_after = set(after.get("device_types", []))
+        device_types_added = list(device_types_after - device_types_before)
+        device_types_removed = list(device_types_before - device_types_after)
+        
+        # NEW: Memory usage changes
+        before_memory = before.get("memory_usage", {})
+        after_memory = after.get("memory_usage", {})
+        try:
+            memory_usage_delta_mb = after_memory.get("total_mb", 0) - before_memory.get("total_mb", 0)
+        except (TypeError, ValueError):
+            # Handle cases where memory usage values are not numeric (e.g., MagicMock in tests)
+            memory_usage_delta_mb = 0.0
+        
+        # NEW: Activity tracking
+        try:
+            activity_time_delta = after.get("last_activity", 0) - before.get("last_activity", 0)
+        except (TypeError, ValueError):
+            # Handle cases where activity values are not numeric (e.g., MagicMock in tests)
+            activity_time_delta = 0.0
+        
+        # Generate comprehensive summary
+        changes_summary = []
+        if actions_added:
+            changes_summary.append(f"Added {len(actions_added)} active actions")
+        if actions_removed:
+            changes_summary.append(f"Removed {len(actions_removed)} active actions")
+        if history_entries_added > 0:
+            changes_summary.append(f"Added {history_entries_added} conversation entries")
+        if handler_contexts_modified:
+            changes_summary.append(f"Modified {len(handler_contexts_modified)} handler contexts")
+        if room_context_changed:
+            changes_summary.append("Room context changed")
+        if language_changed:
+            changes_summary.append("Language changed")
+        if devices_changed:
+            changes_summary.append("Device context changed")
+        try:
+            if abs(memory_usage_delta_mb) > 0.1:
+                changes_summary.append(f"Memory usage changed by {memory_usage_delta_mb:.2f}MB")
+        except (TypeError, ValueError):
+            # Handle cases where memory_usage_delta_mb is not numeric
+            pass
+        
         return {
+            # Existing analysis
             "active_actions_added": actions_added,
             "active_actions_removed": actions_removed,
             "conversation_history_entries_added": history_entries_added,
             "total_active_actions_before": len(before_actions),
             "total_active_actions_after": len(after_actions),
-            "summary": f"Added {len(actions_added)} actions, removed {len(actions_removed)} actions, {history_entries_added} history entries"
+            
+            # NEW: Room context changes
+            "room_context_changed": room_context_changed,
+            "room_id_before": before.get("client_id"),
+            "room_id_after": after.get("client_id"),
+            "room_name_before": before.get("room_name"),
+            "room_name_after": after.get("room_name"),
+            
+            # NEW: Language changes
+            "language_changed": language_changed,
+            "language_before": before.get("language"),
+            "language_after": after.get("language"),
+            
+            # NEW: Handler context changes
+            "handler_contexts_modified": handler_contexts_modified,
+            "handler_contexts_count_before": len(before_handlers),
+            "handler_contexts_count_after": len(after_handlers),
+            
+            # NEW: Fire-and-forget changes
+            "recent_actions_added": recent_actions_added,
+            "failed_actions_added": failed_actions_added,
+            "action_error_count_before": len(before.get("action_error_count", {})),
+            "action_error_count_after": len(after.get("action_error_count", {})),
+            
+            # NEW: Device context changes
+            "devices_changed": devices_changed,
+            "device_count_before": before.get("available_devices_count", 0),
+            "device_count_after": after.get("available_devices_count", 0),
+            "device_types_added": device_types_added,
+            "device_types_removed": device_types_removed,
+            
+            # NEW: Memory usage changes
+            "memory_usage_delta_mb": round(memory_usage_delta_mb, 3),
+            "memory_usage_before_mb": before_memory.get("total_mb", 0),
+            "memory_usage_after_mb": after_memory.get("total_mb", 0),
+            
+            # NEW: Activity tracking
+            "activity_time_delta_seconds": round(activity_time_delta, 3) if isinstance(activity_time_delta, (int, float)) else 0.0,
+            "execution_duration_seconds": round(
+                (after.get("snapshot_timestamp", 0) - before.get("snapshot_timestamp", 0)), 3
+            ) if all(isinstance(x, (int, float)) for x in [after.get("snapshot_timestamp", 0), before.get("snapshot_timestamp", 0)]) else 0.0,
+            
+            # Enhanced summary
+            "summary": "; ".join(changes_summary) if changes_summary else "No significant changes detected"
         }
