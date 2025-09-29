@@ -36,6 +36,33 @@ def _rotate_log_file(log_file: Path) -> None:
             print(f"Warning: Could not rotate log file {log_file}: {e}")
 
 
+class UTF8StreamHandler(logging.StreamHandler):
+    """
+    StreamHandler that ensures UTF-8 encoding for stdout/stderr.
+    
+    Addresses Windows terminal encoding issues by explicitly writing
+    UTF-8 encoded bytes to the stream buffer when available.
+    """
+
+    def __init__(self, stream=None):
+        super().__init__(stream)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            # If stream supports buffer (like sys.stdout), write UTF-8 encoded bytes
+            if hasattr(stream, 'buffer'):
+                stream.buffer.write(msg.encode('utf-8'))
+                stream.buffer.write(self.terminator.encode('utf-8'))
+                stream.buffer.flush()
+            else:
+                stream.write(msg + self.terminator)
+                stream.flush()
+        except Exception:
+            self.handleError(record)
+
+
 def setup_logging(
     level: LogLevel = LogLevel.INFO,
     log_file: Optional[Path] = None,
@@ -61,18 +88,18 @@ def setup_logging(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     
-    # Console handler
+    # Console handler with UTF-8 support
     if enable_console:
-        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler = UTF8StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
     
-    # File handler
+    # File handler (already uses UTF-8 by default in Python 3)
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         # Rotate existing log file before creating new one
         _rotate_log_file(log_file)
-        file_handler = logging.FileHandler(log_file)
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
