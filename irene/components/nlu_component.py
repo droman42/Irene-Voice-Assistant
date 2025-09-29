@@ -844,6 +844,7 @@ class NLUComponent(Component, WebAPIPlugin):
         # Try providers in cascade order (fast -> slow)
         provider_order = self._get_provider_cascade_order()
         attempts = 0
+        failed_attempts = []  # Track detailed information about failed attempts
         
         for provider_name in provider_order:
             if attempts >= self.max_cascade_attempts:
@@ -878,12 +879,28 @@ class NLUComponent(Component, WebAPIPlugin):
                 intent.entities["_cascade_attempts"] = attempts
                 
                 return intent
+            else:
+                # Track failed attempt with context for fallback enhancement
+                failed_attempts.append({
+                    "provider": provider_name,
+                    "attempt_number": attempts
+                })
         
         # All providers failed or low confidence - use conversation fallback
         logger.info(f"All NLU providers failed or low confidence after {attempts} attempts, "
                    f"using conversation fallback")
         
-        fallback_intent = self._create_fallback_intent(text, context.session_id)
+        # Create enhanced fallback context
+        failed_context = {
+            "provider_attempts": failed_attempts,
+            "total_attempts": attempts,
+            "likely_domain": self._analyze_likely_domain(text, context),
+            "likely_action": self._analyze_likely_action(text, context),
+            "ambiguous_entities": self._extract_potential_entities(text, context),
+            "confidence_scores": {}  # Could be enhanced with actual scores
+        }
+        
+        fallback_intent = self._create_fallback_intent(text, context.session_id, failed_context)
         fallback_intent.entities["_recognition_provider"] = "fallback"
         fallback_intent.entities["_cascade_attempts"] = attempts
         
@@ -999,17 +1016,91 @@ class NLUComponent(Component, WebAPIPlugin):
         """
         return await self.context_processor.process_with_context(text, context)
     
-    def _create_fallback_intent(self, text: str, session_id: str) -> Intent:
+    def _create_fallback_intent(self, text: str, session_id: str, failed_context: Optional[Dict[str, Any]] = None) -> Intent:
         """Create a fallback conversation intent when NLU fails or has low confidence."""
+        entities = {"original_text": text}
+        
+        # Add enhanced fallback context if available
+        if failed_context:
+            entities["_fallback_context"] = failed_context
+        
         return Intent(
             name=self.fallback_intent,
-            entities={"original_text": text},
+            entities=entities,
             confidence=1.0,  # High confidence for conversation fallback
             raw_text=text,
             session_id=session_id,
             domain="conversation",
             action="general"
         )
+    
+    def _analyze_likely_domain(self, text: str, context: UnifiedConversationContext) -> Optional[str]:
+        """Analyze text to guess the most likely domain based on keywords."""
+        text_lower = text.lower()
+        
+        # Simple keyword-based domain analysis
+        domain_keywords = {
+            "audio": ["играй", "музыка", "песня", "play", "music", "song", "громче", "тише", "volume"],
+            "timer": ["таймер", "будильник", "timer", "alarm", "минут", "секунд", "час"],
+            "system": ["статус", "состояние", "система", "status", "system", "state"],
+            "datetime": ["время", "дата", "сегодня", "завтра", "time", "date", "today", "tomorrow"],
+            "translation": ["переведи", "translate", "перевод", "translation"]
+        }
+        
+        for domain, keywords in domain_keywords.items():
+            if any(keyword in text_lower for keyword in keywords):
+                return domain
+        
+        # Check active actions for context
+        if context.active_actions:
+            active_domains = list(context.active_actions.keys())
+            if active_domains:
+                return active_domains[0]  # Most recent active domain
+        
+        return None
+    
+    def _analyze_likely_action(self, text: str, context: UnifiedConversationContext) -> Optional[str]:
+        """Analyze text to guess the most likely action based on keywords."""
+        text_lower = text.lower()
+        
+        # Simple keyword-based action analysis
+        action_keywords = {
+            "play": ["играй", "включи", "воспроизведи", "play", "start"],
+            "stop": ["стоп", "останови", "прекрати", "stop", "pause"],
+            "set": ["поставь", "установи", "создай", "set", "create"],
+            "get": ["покажи", "скажи", "расскажи", "tell", "show", "get"],
+            "increase": ["увеличь", "громче", "больше", "increase", "louder", "more"],
+            "decrease": ["уменьши", "тише", "меньше", "decrease", "quieter", "less"]
+        }
+        
+        for action, keywords in action_keywords.items():
+            if any(keyword in text_lower for keyword in keywords):
+                return action
+        
+        return None
+    
+    def _extract_potential_entities(self, text: str, context: UnifiedConversationContext) -> List[str]:
+        """Extract potential entities that might have caused recognition failure."""
+        # Simple entity extraction - could be enhanced with actual NLP
+        import re
+        
+        entities = []
+        
+        # Extract numbers
+        numbers = re.findall(r'\d+', text)
+        entities.extend([f"number:{num}" for num in numbers])
+        
+        # Extract quoted strings
+        quoted = re.findall(r'"([^"]*)"', text)
+        entities.extend([f"quoted:{q}" for q in quoted])
+        
+        # Extract potential time expressions
+        time_patterns = [r'\d{1,2}:\d{2}', r'\d+\s*минут', r'\d+\s*час']
+        for pattern in time_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            entities.extend([f"time:{match}" for match in matches])
+        
+        return entities
     
     def configure(self, config: Dict[str, Any]):
         """Configure the NLU component."""

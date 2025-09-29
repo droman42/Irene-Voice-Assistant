@@ -2,9 +2,26 @@
 
 import time
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Dict, List, Any, Optional, Set
 
 from rapidfuzz import fuzz, process
+
+
+class ConversationState(Enum):
+    """Represents the current state of a conversation session"""
+    IDLE = "idle"                    # No active conversation
+    CONVERSING = "conversing"        # Active LLM conversation  
+    CLARIFYING = "clarifying"        # Resolving ambiguous intent
+    CONTEXTUAL = "contextual"        # Processing contextual command (already working)
+
+
+class ContextLayer(Enum):
+    """Represents different layers of context resolution (Phase 3)"""
+    SESSION = "session"      # Room, user preferences, device capabilities
+    THREAD = "thread"        # Domain-specific conversations  
+    ACTION = "action"        # Active fire-and-forget actions
+    INTENT = "intent"        # Current intent and entities
 
 
 @dataclass
@@ -102,6 +119,11 @@ class UnifiedConversationContext:
     
     # Handler-specific contexts (replaces ConversationSession approach)
     handler_contexts: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    
+    # Conversation state management (Phase 2)
+    conversation_state: ConversationState = ConversationState.IDLE
+    state_context: Dict[str, Any] = field(default_factory=dict)  # State-specific context
+    state_changed_at: float = field(default_factory=time.time)
     
     # Unified timestamps
     created_at: float = field(default_factory=time.time)
@@ -218,12 +240,28 @@ class UnifiedConversationContext:
     def get_handler_context(self, handler_name: str) -> Dict[str, Any]:
         """Get handler-specific context (e.g., LLM conversation history)"""
         if handler_name not in self.handler_contexts:
-            self.handler_contexts[handler_name] = {
-                "messages": [],
-                "conversation_type": "chat", 
-                "model_preference": "",
-                "created_at": time.time()
-            }
+            if handler_name == "conversation":
+                # Initialize conversation handler with threading support (Phase 3)
+                self.handler_contexts[handler_name] = {
+                    "messages": [],
+                    "conversation_type": "chat", 
+                    "model_preference": "",
+                    "created_at": time.time(),
+                    "threads": {}  # Domain-specific conversation threads
+                }
+            else:
+                # Standard handler context for non-conversation handlers
+                self.handler_contexts[handler_name] = {
+                    "messages": [],
+                    "conversation_type": "chat", 
+                    "model_preference": "",
+                    "created_at": time.time()
+                }
+            
+            # NEW: Restore conversation history for conversation handler
+            if handler_name == "conversation" and self.conversation_history:
+                self._restore_conversation_history_to_handler_context(handler_name)
+        
         return self.handler_contexts[handler_name]
     
     def clear_handler_context(self, handler_name: str, keep_system: bool = True):
@@ -234,6 +272,27 @@ class UnifiedConversationContext:
             context["messages"] = [system_msg]
         else:
             context["messages"] = []
+    
+    def _restore_conversation_history_to_handler_context(self, handler_name: str):
+        """Convert general conversation_history to LLM message format"""
+        messages = []
+        
+        # Convert recent conversation history to LLM format
+        recent_history = self.conversation_history[-10:]  # Last 10 interactions
+        
+        for interaction in recent_history:
+            if interaction.get("user_text"):
+                messages.append({
+                    "role": "user", 
+                    "content": interaction["user_text"]
+                })
+            if interaction.get("response"):
+                messages.append({
+                    "role": "assistant", 
+                    "content": interaction["response"]
+                })
+        
+        self.handler_contexts[handler_name]["messages"] = messages
     
     # CRITICAL: Fire-and-forget action management (preserved from ConversationContext)
     def add_active_action(self, domain: str, action_info: Dict[str, Any]):
@@ -606,3 +665,279 @@ class UnifiedConversationContext:
                 "error": str(e),
                 "breakdown": {}
             }
+    
+    # Conversation state management methods (Phase 2)
+    def transition_state(self, new_state: ConversationState, context: Optional[Dict[str, Any]] = None) -> bool:
+        """Transition to a new conversation state with optional context"""
+        old_state = self.conversation_state
+        
+        # Validate state transition
+        if not self._is_valid_transition(old_state, new_state):
+            return False
+        
+        # Update state
+        self.conversation_state = new_state
+        self.state_changed_at = time.time()
+        self.last_activity = time.time()
+        
+        # Update state context
+        if context:
+            self.state_context.update(context)
+        else:
+            # Clear context for new state if no context provided
+            self.state_context.clear()
+        
+        return True
+    
+    def _is_valid_transition(self, from_state: ConversationState, to_state: ConversationState) -> bool:
+        """Check if a state transition is valid"""
+        # Define valid state transitions
+        valid_transitions = {
+            ConversationState.IDLE: [ConversationState.CONVERSING, ConversationState.CLARIFYING, ConversationState.CONTEXTUAL],
+            ConversationState.CONVERSING: [ConversationState.IDLE, ConversationState.CLARIFYING, ConversationState.CONTEXTUAL],
+            ConversationState.CLARIFYING: [ConversationState.CONVERSING, ConversationState.IDLE],
+            ConversationState.CONTEXTUAL: [ConversationState.IDLE, ConversationState.CONVERSING]
+        }
+        
+        return to_state in valid_transitions.get(from_state, [])
+    
+    def get_conversation_state(self) -> ConversationState:
+        """Get current conversation state"""
+        return self.conversation_state
+    
+    def get_state_context(self) -> Dict[str, Any]:
+        """Get current state context"""
+        return self.state_context.copy()
+    
+    def get_state_duration(self) -> float:
+        """Get duration in current state (seconds)"""
+        return time.time() - self.state_changed_at
+    
+    def is_state(self, state: ConversationState) -> bool:
+        """Check if currently in specific state"""
+        return self.conversation_state == state
+    
+    def update_state_context(self, key: str, value: Any) -> None:
+        """Update a specific key in state context"""
+        self.state_context[key] = value
+        self.last_activity = time.time()
+    
+    def clear_state_context(self) -> None:
+        """Clear all state context data"""
+        self.state_context.clear()
+        self.last_activity = time.time()
+    
+    def get_state_summary(self) -> Dict[str, Any]:
+        """Get summary of current conversation state"""
+        return {
+            "current_state": self.conversation_state.value,
+            "state_duration": self.get_state_duration(),
+            "state_context": self.state_context.copy(),
+            "last_state_change": self.state_changed_at
+        }
+    
+    # Conversation threading methods (Phase 3)
+    def get_conversation_thread(self, domain: str) -> Dict[str, Any]:
+        """Get or create a domain-specific conversation thread"""
+        handler_context = self.get_handler_context("conversation")
+        
+        if domain not in handler_context["threads"]:
+            handler_context["threads"][domain] = {
+                "messages": [],
+                "last_activity": time.time(),
+                "active_context": {},
+                "created_at": time.time()
+            }
+        
+        return handler_context["threads"][domain]
+    
+    def add_to_thread(self, domain: str, role: str, content: str, context: Optional[Dict[str, Any]] = None) -> None:
+        """Add a message to a domain-specific conversation thread"""
+        thread = self.get_conversation_thread(domain)
+        
+        message = {
+            "role": role,
+            "content": content,
+            "timestamp": time.time()
+        }
+        
+        if context:
+            message["context"] = context
+        
+        thread["messages"].append(message)
+        thread["last_activity"] = time.time()
+        self.last_activity = time.time()
+    
+    def get_thread_messages(self, domain: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get messages from a domain-specific thread"""
+        thread = self.get_conversation_thread(domain)
+        messages = thread["messages"]
+        
+        if limit:
+            return messages[-limit:]
+        return messages
+    
+    def update_thread_context(self, domain: str, context: Dict[str, Any]) -> None:
+        """Update the active context for a domain thread"""
+        thread = self.get_conversation_thread(domain)
+        thread["active_context"].update(context)
+        thread["last_activity"] = time.time()
+        self.last_activity = time.time()
+    
+    def get_thread_context(self, domain: str) -> Dict[str, Any]:
+        """Get the active context for a domain thread"""
+        thread = self.get_conversation_thread(domain)
+        return thread["active_context"].copy()
+    
+    def clear_thread(self, domain: str, keep_context: bool = True) -> None:
+        """Clear a domain-specific conversation thread"""
+        thread = self.get_conversation_thread(domain)
+        thread["messages"] = []
+        thread["last_activity"] = time.time()
+        
+        if not keep_context:
+            thread["active_context"] = {}
+    
+    def get_active_threads(self, since_seconds: int = 300) -> List[str]:
+        """Get list of domain threads that have been active recently"""
+        handler_context = self.get_handler_context("conversation")
+        current_time = time.time()
+        
+        active_domains = []
+        for domain, thread in handler_context["threads"].items():
+            if current_time - thread["last_activity"] < since_seconds:
+                active_domains.append(domain)
+        
+        return active_domains
+    
+    def get_thread_summary(self, domain: str) -> Dict[str, Any]:
+        """Get summary information about a domain thread"""
+        thread = self.get_conversation_thread(domain)
+        
+        return {
+            "domain": domain,
+            "message_count": len(thread["messages"]),
+            "last_activity": thread["last_activity"],
+            "created_at": thread.get("created_at", 0),
+            "active_context_keys": list(thread["active_context"].keys()),
+            "age_seconds": time.time() - thread.get("created_at", time.time())
+        }
+    
+    def get_all_threads_summary(self) -> Dict[str, Any]:
+        """Get summary of all conversation threads"""
+        handler_context = self.get_handler_context("conversation")
+        
+        summaries = {}
+        for domain in handler_context["threads"]:
+            summaries[domain] = self.get_thread_summary(domain)
+        
+        return {
+            "total_threads": len(handler_context["threads"]),
+            "active_threads": len(self.get_active_threads()),
+            "threads": summaries
+        }
+    
+    # Progressive context resolution methods (Phase 3)
+    def resolve_context(self, layer: ContextLayer, domain: Optional[str] = None) -> Dict[str, Any]:
+        """Resolve context at specified layer with optional domain filtering"""
+        if layer == ContextLayer.SESSION:
+            return self._resolve_session_context()
+        elif layer == ContextLayer.THREAD and domain:
+            return self._resolve_thread_context(domain)
+        elif layer == ContextLayer.ACTION:
+            return self._resolve_action_context(domain)
+        elif layer == ContextLayer.INTENT:
+            return self._resolve_intent_context()
+        else:
+            return {}
+    
+    def _resolve_session_context(self) -> Dict[str, Any]:
+        """Resolve session-level context (room, user preferences, device capabilities)"""
+        return {
+            "session_id": self.session_id,
+            "client_id": self.client_id,
+            "room_name": self.room_name,
+            "language": self.language,
+            "available_devices": self.available_devices,
+            "client_metadata": self.client_metadata,
+            "conversation_state": self.conversation_state.value,
+            "created_at": self.created_at,
+            "last_activity": self.last_activity
+        }
+    
+    def _resolve_thread_context(self, domain: str) -> Dict[str, Any]:
+        """Resolve thread-level context for specific domain"""
+        if not domain:
+            return {}
+        
+        thread = self.get_conversation_thread(domain)
+        thread_summary = self.get_thread_summary(domain)
+        
+        return {
+            "domain": domain,
+            "messages": thread["messages"][-5:],  # Last 5 messages
+            "active_context": thread["active_context"],
+            "last_activity": thread["last_activity"],
+            "message_count": thread_summary["message_count"],
+            "age_seconds": thread_summary["age_seconds"]
+        }
+    
+    def _resolve_action_context(self, domain: Optional[str] = None) -> Dict[str, Any]:
+        """Resolve action-level context (active fire-and-forget actions)"""
+        if domain and domain in self.active_actions:
+            # Return specific domain action
+            return {
+                "domain": domain,
+                "action": self.active_actions[domain],
+                "recent_actions": [a for a in self.recent_actions if a.get("domain") == domain][-3:],
+                "failed_actions": [a for a in self.failed_actions if a.get("domain") == domain][-2:]
+            }
+        else:
+            # Return all actions
+            return {
+                "active_actions": self.active_actions,
+                "recent_actions": self.recent_actions[-5:],  # Last 5 actions
+                "failed_actions": self.failed_actions[-3:],  # Last 3 failures
+                "action_error_count": self.action_error_count
+            }
+    
+    def _resolve_intent_context(self) -> Dict[str, Any]:
+        """Resolve intent-level context (current intent and entities)"""
+        # This would typically be called with current intent passed in
+        # For now, return recent conversation context
+        return {
+            "conversation_history": self.conversation_history[-3:],  # Last 3 interactions
+            "current_intent_context": self.current_intent_context,
+            "last_intent_timestamp": self.last_intent_timestamp,
+            "state_context": self.state_context
+        }
+    
+    def resolve_layered_context(self, layers: List[ContextLayer], domain: Optional[str] = None) -> Dict[str, Any]:
+        """Resolve context across multiple layers with priority"""
+        layered_context = {}
+        
+        # Resolve contexts in priority order
+        for layer in layers:
+            layer_context = self.resolve_context(layer, domain)
+            if layer_context:
+                layered_context[layer.value] = layer_context
+        
+        return layered_context
+    
+    def get_contextual_summary(self, domain: Optional[str] = None, max_layers: int = 3) -> Dict[str, Any]:
+        """Get a comprehensive context summary across layers"""
+        # Define default layer priority
+        priority_layers = [ContextLayer.INTENT, ContextLayer.ACTION, ContextLayer.THREAD, ContextLayer.SESSION]
+        
+        # Limit to max layers for performance
+        selected_layers = priority_layers[:max_layers]
+        
+        layered_context = self.resolve_layered_context(selected_layers, domain)
+        
+        # Add metadata
+        return {
+            "domain": domain,
+            "layers_resolved": len(layered_context),
+            "resolution_timestamp": time.time(),
+            "context": layered_context
+        }

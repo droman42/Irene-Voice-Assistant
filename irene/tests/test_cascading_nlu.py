@@ -29,7 +29,7 @@ class MockNLUProvider(NLUProvider):
         self.should_fail = should_fail
         self.call_count = 0
     
-    async def recognize(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize(self, text: str, context: UnifiedConversationContext) -> Intent:
         """Mock recognition with configurable behavior"""
         self.call_count += 1
         
@@ -68,7 +68,7 @@ class MockNLUProvider(NLUProvider):
                 extracted[spec.name] = spec.default_value or f"mock_{spec.name}"
         return extracted
     
-    async def recognize_with_parameters(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize_with_parameters(self, text: str, context: UnifiedConversationContext) -> Intent:
         """Override to ensure mock entities are preserved in integrated recognition"""
         # Call the regular recognize method to get base intent
         intent = await self.recognize(text, context)
@@ -150,7 +150,7 @@ class TestCascadingNLU:
     @pytest.fixture
     def sample_context(self):
         """Create sample conversation context"""
-        return ConversationContext(
+        return UnifiedConversationContext(
             session_id="test_session",
             user_id="test_user",
             client_id="test_client",
@@ -354,7 +354,7 @@ def run_simple_cascading_test():
         }
         
         # Test context
-        context = ConversationContext(session_id="test")
+        context = UnifiedConversationContext(session_id="test")
         
         # Test cascading
         result = await component.recognize("test", context)
