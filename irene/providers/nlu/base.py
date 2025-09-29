@@ -9,7 +9,7 @@ from abc import abstractmethod
 from typing import Dict, Any, List, Optional
 
 from ..base import ProviderBase
-from ...intents.models import Intent, ConversationContext
+from ...intents.models import Intent, UnifiedConversationContext
 from ...core.donations import ParameterSpec
 
 
@@ -34,7 +34,7 @@ class NLUProvider(ProviderBase):
         self.parameter_specs: Dict[str, List[ParameterSpec]] = {}  # intent_name -> parameter specs
     
     @abstractmethod
-    async def recognize(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize(self, text: str, context: UnifiedConversationContext) -> Intent:
         """Recognize intent from text
         
         Args:
@@ -82,7 +82,7 @@ class NLUProvider(ProviderBase):
         """
         pass
     
-    async def recognize_with_parameters(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize_with_parameters(self, text: str, context: UnifiedConversationContext) -> Intent:
         """Recognize intent and extract parameters in one operation
         
         Args:

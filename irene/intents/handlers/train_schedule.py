@@ -11,7 +11,7 @@ from typing import List, Optional, Dict, Any, Type, TYPE_CHECKING
 import asyncio
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -101,7 +101,7 @@ class TrainScheduleIntentHandler(IntentHandler):
         
         return True
     
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute train schedule intent - delegates to specific handler methods"""
         # Determine which specific method to call based on intent suffix
         # For JSON donation pattern, route to handle_train_query
@@ -138,7 +138,7 @@ class TrainScheduleIntentHandler(IntentHandler):
                 f"Check assets/templates/train_schedule/{language}/status_messages.yaml for correct placeholders."
             )
     
-    async def handle_train_query(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def handle_train_query(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle train schedule and route queries - method expected by JSON donation"""
         try:
             # Check availability

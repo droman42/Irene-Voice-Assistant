@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +71,12 @@ class TextEnhancementIntentHandler(IntentHandler):
         
         return False
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute text enhancement intent"""
         # Use donation-driven routing exclusively
         return await self.execute_with_donation_routing(intent, context)
         
-    async def _handle_enhance_text(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_enhance_text(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle text enhancement request"""
         llm_component = await self._get_llm_component()
         if not llm_component:
@@ -112,7 +112,7 @@ class TextEnhancementIntentHandler(IntentHandler):
         else:
             return self._create_error_result(intent, context, "Could not extract text to enhance")
         
-    async def _handle_improve_text(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_improve_text(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle text improvement request"""
         llm_component = await self._get_llm_component()
         if not llm_component:
@@ -154,7 +154,7 @@ class TextEnhancementIntentHandler(IntentHandler):
             self.logger.error(f"Text improvement error: {e}")
             return self._create_error_result(intent, context, f"Text improvement failed: {e}")
             
-    async def _handle_correct_text(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_correct_text(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle text correction request"""
         llm_component = await self._get_llm_component()
         if not llm_component:
@@ -239,7 +239,7 @@ class TextEnhancementIntentHandler(IntentHandler):
                 f"Check assets/templates/text_enhancement/{language}/result_messages.yaml for correct placeholders."
             )
     
-    def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
+    def _create_error_result(self, intent: Intent, context: UnifiedConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = context.language or "ru"
         

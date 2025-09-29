@@ -11,6 +11,7 @@ from pathlib import Path
 
 from ..config.models import CoreConfig, ComponentConfig
 from ..core.engine import AsyncVACore
+from ..core.session_manager import SessionManager
 from ..core.components import ComponentLoader
 from ..utils.loader import get_component_status, suggest_installation
 
@@ -103,7 +104,7 @@ async def main():
             # Use unified workflow interface
             result = await core.workflow_manager.process_text_input(
                 text="hello",
-                session_id="dependency_demo",
+                session_id=SessionManager.generate_session_id("dependency_demo"),
                 wants_audio=False,
                 client_context={"source": "dependency_demo"}
             )
@@ -152,7 +153,7 @@ async def main():
                 # Use unified workflow interface
                 result = await core.workflow_manager.process_text_input(
                     text=command,
-                    session_id="dependency_demo_interactive",
+                    session_id=SessionManager.generate_session_id("dependency_demo_interactive"),
                     wants_audio=False,
                     client_context={"source": "dependency_demo"}
                 )

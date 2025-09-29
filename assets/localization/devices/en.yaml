@@ -1,0 +1,19 @@
+device_types:
+  light:
+    keywords: [light, lamp, bulb, lighting, illumination]
+    aliases: [lights, lamps, bulbs]
+  speaker:
+    keywords: [speaker, audio, sound, music player]
+    aliases: [speakers, audio system]
+  tv:
+    keywords: [tv, television, screen, display]
+    aliases: [television, telly, monitor]
+  switch:
+    keywords: [switch, outlet, plug, socket]
+    aliases: [switches, outlets, plugs]
+  sensor:
+    keywords: [sensor, detector, monitor]
+    aliases: [sensors, detectors]
+  camera:
+    keywords: [camera, cam, webcam]
+    aliases: [cameras, cams]

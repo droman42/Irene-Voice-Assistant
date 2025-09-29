@@ -22,7 +22,7 @@ import time
 # Import system components
 from irene.intents.manager import IntentHandlerManager
 from irene.intents.orchestrator import IntentOrchestrator
-from irene.intents.models import Intent, ConversationContext, IntentResult
+from irene.intents.models import Intent, UnifiedConversationContext, IntentResult
 from irene.components.intent_component import IntentComponent
 from irene.providers.nlu.hybrid_keyword_matcher import HybridKeywordMatcherProvider
 from irene.core.donations import KeywordDonation, ParameterSpec, ParameterType

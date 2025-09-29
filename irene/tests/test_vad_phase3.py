@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 from irene.workflows.voice_assistant import UnifiedVoiceAssistantWorkflow
 from irene.workflows.base import RequestContext
 from irene.config.models import VADConfig, UnifiedVoiceAssistantWorkflowConfig
-from irene.intents.models import AudioData, ConversationContext, IntentResult
+from irene.intents.models import AudioData, UnifiedConversationContext, IntentResult
 
 # Import Phase 1 & 2 components for testing
 from irene.tests.test_vad_basic import generate_test_audio_data
@@ -42,7 +42,7 @@ class MockComponent:
 class MockContextManager:
     """Mock context manager for testing"""
     async def get_or_create_context(self, session_id: str, client_id: str = None, client_metadata: dict = None):
-        return ConversationContext(
+        return UnifiedConversationContext(
             session_id=session_id,
             user_id="test_user",
             client_id=client_id

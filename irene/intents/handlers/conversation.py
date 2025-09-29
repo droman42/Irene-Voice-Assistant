@@ -10,7 +10,7 @@ import time
 from typing import Dict, List, Optional, Any, Type, TYPE_CHECKING
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -18,37 +18,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ConversationSession:
-    """Manages a single conversation session with message history"""
-    
-    def __init__(self, session_id: str, conversation_type: str = "chat", 
-                 system_prompt: str = "", model_preference: str = ""):
-        self.session_id = session_id
-        self.conversation_type = conversation_type  # "chat" or "reference"
-        self.messages: List[Dict[str, str]] = []
-        self.created_at = time.time()
-        self.last_activity = time.time()
-        self.model_preference = model_preference
-        
-        if system_prompt:
-            self.messages.append({"role": "system", "content": system_prompt})
-    
-    def add_message(self, role: str, content: str) -> None:
-        """Add a message to the conversation history"""
-        self.messages.append({"role": role, "content": content})
-        self.last_activity = time.time()
-    
-    def get_messages(self) -> List[Dict[str, str]]:
-        """Get the complete message history"""
-        return self.messages.copy()
-    
-    def clear_history(self, keep_system: bool = True) -> None:
-        """Clear conversation history, optionally keeping system message"""
-        if keep_system and self.messages and self.messages[0].get("role") == "system":
-            system_msg = self.messages[0]
-            self.messages = [system_msg]
-        else:
-            self.messages = []
+# ConversationSession class removed - functionality moved to UnifiedConversationContext.handler_contexts
 
 
 class ConversationIntentHandler(IntentHandler):
@@ -62,7 +32,7 @@ class ConversationIntentHandler(IntentHandler):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__()
         self.conversation_context: List[Dict[str, str]] = []
-        self.sessions: Dict[str, ConversationSession] = {}
+# Session management now handled by UnifiedConversationContext handler_contexts
         self.llm_component = None
         
         # Phase 5: Configuration injection via Pydantic ConversationHandlerConfig
@@ -148,28 +118,33 @@ class ConversationIntentHandler(IntentHandler):
         
         return False
     
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute conversation intent using LLM or fallback handling"""
         try:
             # Check if this is a fallback scenario (when NLU failed to recognize intent)
             is_fallback = intent.entities.get("_recognition_provider") == "fallback"
             
-            # For fallback scenarios, use the fallback handler regardless of action
+            # For fallback scenarios, check if LLM is available before deciding on fallback approach
             if is_fallback:
-                return await self._handle_fallback_without_llm(intent, context)
+                llm_component = await self._get_llm_component()
+                if llm_component and await llm_component.is_available():
+                    # LLM is available - treat as conversation.general and use LLM
+                    logger.info(f"NLU fallback detected but LLM available - using LLM for: {intent.raw_text}")
+                    return await self._handle_continue_conversation(intent, context)
+                else:
+                    # LLM not available - use template-based fallback
+                    logger.info(f"NLU fallback detected and LLM unavailable - using templates for: {intent.raw_text}")
+                    return await self._handle_fallback_without_llm(intent, context)
             
-            # Get or create conversation session for normal conversation actions
-            session = self._get_or_create_session(context.session_id, intent)
-            
-            # Handle specific conversation actions
+            # Handle specific conversation actions using unified context
             if intent.action == "start":
-                return await self._handle_start_conversation(intent, context, session)
+                return await self._handle_start_conversation(intent, context)
             elif intent.action == "end":
-                return await self._handle_end_conversation(intent, context, session)
+                return await self._handle_end_conversation(intent, context)
             elif intent.action == "clear":
-                return await self._handle_clear_conversation(intent, context, session)
+                return await self._handle_clear_conversation(intent, context)
             elif intent.action == "reference":
-                return await self._handle_reference_query(intent, session)
+                return await self._handle_reference_query(intent, context)
             else:
                 # Default: continue conversation
                 return await self._handle_continue_conversation(intent, context)
@@ -186,6 +161,20 @@ class ConversationIntentHandler(IntentHandler):
     def set_llm_component(self, llm_component):
         """Set the LLM component reference"""
         self.llm_component = llm_component
+    
+    async def _get_llm_component(self):
+        """Get LLM component from core (dynamic access pattern)"""
+        if self.llm_component is None:
+            try:
+                from ...core.engine import get_core
+                core = get_core()
+                if core and hasattr(core, 'component_manager'):
+                    self.llm_component = await core.component_manager.get_component('llm')
+            except Exception as e:
+                self.logger.error(f"Failed to get LLM component: {e}")
+                return None
+        
+        return self.llm_component
     
     def _get_prompt(self, prompt_type: str, language: str = "ru") -> str:
         """Get prompt from asset loader - raises fatal error if not available"""
@@ -266,30 +255,29 @@ class ConversationIntentHandler(IntentHandler):
     
     async def is_available(self) -> bool:
         """Check if LLM component is available for conversation"""
-        if not self.llm_component:
+        llm_component = await self._get_llm_component()
+        if not llm_component:
             return False
-        return await self.llm_component.is_available()
+        return await llm_component.is_available()
     
-    def _get_or_create_session(self, session_id: str, intent: Intent) -> ConversationSession:
-        """Get existing session or create new one"""
-        if session_id not in self.sessions:
-            # Determine conversation type from intent
-            conversation_type = "reference" if intent.action == "reference" else "chat"
-            system_prompt = (self._get_prompt("reference_system") if conversation_type == "reference" 
-                           else self._get_prompt("chat_system"))
-            
-            self.sessions[session_id] = ConversationSession(
-                session_id=session_id,
-                conversation_type=conversation_type,
-                system_prompt=system_prompt
-            )
-            
-        return self.sessions[session_id]
+# Session management removed - now handled by UnifiedConversationContext handler_contexts
     
-    async def _handle_start_conversation(self, intent: Intent, context: ConversationContext, session: ConversationSession) -> IntentResult:
+    async def _handle_start_conversation(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle conversation start intent"""
-        # Clear any existing history
-        session.clear_history(keep_system=True)
+        # Clear any existing conversation history in unified context
+        conversation_type = "reference" if intent.action == "reference" else "chat"
+        system_prompt = (self._get_prompt("reference_system") if conversation_type == "reference" 
+                        else self._get_prompt("chat_system"))
+        
+        # Initialize or reset handler context for conversation
+        handler_context = context.get_handler_context("conversation")
+        handler_context["conversation_type"] = conversation_type
+        handler_context["model_preference"] = ""
+        
+        # Clear and set system message if needed
+        context.clear_handler_context("conversation", keep_system=True)
+        if system_prompt and not handler_context["messages"]:
+            handler_context["messages"] = [{"role": "system", "content": system_prompt}]
         
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -304,12 +292,12 @@ class ConversationIntentHandler(IntentHandler):
             text=response,
             should_speak=True,
             metadata={
-                "conversation_type": session.conversation_type,
-                "session_id": session.session_id
+                "conversation_type": conversation_type,
+                "session_id": context.session_id
             }
         )
     
-    async def _handle_end_conversation(self, intent: Intent, context: ConversationContext, session: ConversationSession) -> IntentResult:
+    async def _handle_end_conversation(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle conversation end intent"""
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -320,9 +308,8 @@ class ConversationIntentHandler(IntentHandler):
         import random
         response = random.choice(farewells)
         
-        # Clean up session
-        if session.session_id in self.sessions:
-            del self.sessions[session.session_id]
+        # Clear conversation handler context
+        context.clear_handler_context("conversation", keep_system=False)
         
         return IntentResult(
             text=response,
@@ -330,9 +317,10 @@ class ConversationIntentHandler(IntentHandler):
             metadata={"conversation_ended": True}
         )
     
-    async def _handle_clear_conversation(self, intent: Intent, context: ConversationContext, session: ConversationSession) -> IntentResult:
+    async def _handle_clear_conversation(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle conversation clear/reset intent"""
-        session.clear_history(keep_system=True)
+        # Clear conversation handler context but keep system message
+        context.clear_handler_context("conversation", keep_system=True)
         
         # Use language from context (detected by NLU)
         language = context.language or "ru"
@@ -346,9 +334,10 @@ class ConversationIntentHandler(IntentHandler):
             metadata={"conversation_cleared": True}
         )
     
-    async def _handle_reference_query(self, intent: Intent, session: ConversationSession) -> IntentResult:
+    async def _handle_reference_query(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle reference/factual query intent"""
-        if not self.llm_component:
+        llm_component = await self._get_llm_component()
+        if not llm_component:
             return IntentResult(
                 text="Извините, справочный режим недоступен.",
                 should_speak=True,
@@ -362,7 +351,7 @@ class ConversationIntentHandler(IntentHandler):
         
         try:
             # Use LLM component's default model for factual queries
-            response = await self.llm_component.generate_response(
+            response = await llm_component.generate_response(
                 messages=[{"role": "user", "content": formatted_prompt}],
                 trace_context=self._trace_context
             )
@@ -385,18 +374,13 @@ class ConversationIntentHandler(IntentHandler):
                 error=str(e)
             )
     
-    async def _handle_continue_conversation(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_continue_conversation(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle ongoing conversation intent - donation-compatible method signature"""
+        # Note: Fallback logic is now handled in execute() method, not here
         
-        # Check if this is a fallback scenario (when NLU failed to recognize intent)
-        is_fallback = intent.entities.get("_recognition_provider") == "fallback"
-        
-        if is_fallback:
-            # Handle fallback scenario - works even without LLM
-            return await self._handle_fallback_without_llm(intent, context)
-        
-        # For normal conversation (not fallback), require LLM
-        if not self.llm_component:
+        # For conversation (including NLU fallback when LLM is available), require LLM
+        llm_component = await self._get_llm_component()
+        if not llm_component:
             return IntentResult(
                 text="Извините, диалоговый режим недоступен.",
                 should_speak=True,
@@ -404,31 +388,39 @@ class ConversationIntentHandler(IntentHandler):
             )
         
         try:
-            # Get or create conversation session using context session_id
-            session = self._get_or_create_session(context.session_id, intent)
+            # Get or create conversation handler context
+            handler_context = context.get_handler_context("conversation")
             
-            # Add user message to session (LLM-specific conversation management)
-            session.add_message("user", intent.raw_text)
+            # Check if this was an NLU fallback that we're now handling with LLM
+            is_fallback = intent.entities.get("_recognition_provider") == "fallback"
+            if is_fallback:
+                logger.debug(f"Processing NLU fallback with LLM: '{intent.raw_text}' -> conversation.general")
             
-            # Get conversation history from session (properly formatted for LLM)
-            messages = session.get_messages()
+            # Add user message to handler context (LLM-specific conversation management)
+            handler_context["messages"].append({"role": "user", "content": intent.raw_text})
+            
+            # Get conversation history from handler context (properly formatted for LLM)
+            messages = handler_context["messages"].copy()
             
             # Generate response using LLM component's default model
-            response = await self.llm_component.generate_response(
+            response = await llm_component.generate_response(
                 messages=messages,
                 trace_context=self._trace_context
             )
             
-            # Add assistant response to session
-            session.add_message("assistant", response)
+            # Add assistant response to handler context
+            handler_context["messages"].append({"role": "assistant", "content": response})
             
             return IntentResult(
                 text=response,
                 should_speak=True,
                 metadata={
-                    "conversation_type": session.conversation_type,
-                    "message_count": len(session.messages),
-                    "session_id": session.session_id
+                    "conversation_type": handler_context.get("conversation_type", "chat"),
+                    "message_count": len(handler_context["messages"]),
+                    "session_id": context.session_id,
+                    "nlu_fallback_handled_by_llm": is_fallback,
+                    "original_recognition_provider": intent.entities.get("_recognition_provider"),
+                    "cascade_attempts": intent.entities.get("_cascade_attempts", 0)
                 }
             )
             
@@ -440,7 +432,7 @@ class ConversationIntentHandler(IntentHandler):
                 success=False,
                 error=str(e)
             )
-    async def _handle_fallback_without_llm(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_fallback_without_llm(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle fallback scenario when NLU failed to recognize intent.
         
@@ -518,15 +510,7 @@ class ConversationIntentHandler(IntentHandler):
 
     
     async def cleanup(self) -> None:
-        """Clean up conversation sessions"""
-        # Clean up old sessions
-        current_time = time.time()
-        expired_sessions = [
-            session_id for session_id, session in self.sessions.items()
-            if current_time - session.last_activity > self.config["session_timeout"]
-        ]
-        
-        for session_id in expired_sessions:
-            del self.sessions[session_id]
-            
-        logger.info(f"Cleaned up {len(expired_sessions)} expired conversation sessions") 
+        """Clean up conversation sessions - now handled by ContextManager"""
+        # Session cleanup is now handled by the ContextManager for UnifiedConversationContext
+        # No local session management needed
+        logger.debug("Conversation handler cleanup completed - session management delegated to ContextManager") 

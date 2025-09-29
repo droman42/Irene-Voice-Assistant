@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..core.trace_context import TraceContext
-from ..intents.models import ConversationContext
+from ..intents.models import UnifiedConversationContext
 from ..utils.loader import dynamic_loader
 from ..utils.text_processing import all_num_to_text_async
 from ..providers.text_processing.base import TextProcessingProvider
@@ -31,6 +31,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         self.providers: Dict[str, TextProcessingProvider] = {}  # Proper ABC type hint
         self._provider_classes: Dict[str, type] = {}
         self._stage_providers: Dict[str, str] = {}  # Map stages to preferred providers
+        self.context_manager = None  # Will be injected
         
     async def initialize(self, core) -> None:
         """Initialize text processing providers with configuration-driven filtering"""
@@ -99,12 +100,14 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         
         logger.info(f"Text processing component initialized with {enabled_count} providers")
     
-    async def process(self, text: str, trace_context: Optional[TraceContext] = None) -> str:
+    async def process(self, text: str, context: 'UnifiedConversationContext', 
+                      trace_context: Optional[TraceContext] = None) -> str:
         """
         Process text using the general text processing provider with optional tracing.
         
         Args:
             text: Input text to process
+            context: UnifiedConversationContext with session and room information
             trace_context: Optional trace context for detailed execution tracking
             
         Returns:
@@ -112,13 +115,11 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         """
         # Fast path - existing logic when no tracing
         if not trace_context or not trace_context.enabled:
-            # Original implementation unchanged
             if not self.providers:
                 logger.debug("No text processing providers available, returning original text")
                 return text
             
-            from ..intents.models import ConversationContext
-            context = ConversationContext(session_id="text_processing", user_id=None, conversation_history=[])
+            # USE PASSED CONTEXT - NO CREATION
             return await self.improve(text, context, "general")
         
         # Trace path - detailed stage tracking
@@ -128,11 +129,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         if not self.providers:
             processed_text = text
         else:
-            # Trace each normalization step through improve() method
-            from ..intents.models import ConversationContext
-            context = ConversationContext(session_id="text_processing", user_id=None, conversation_history=[])
-            
-            # Call improve and trace internal provider calls
+            # USE PASSED CONTEXT - NO CREATION
             processed_text = await self.improve(text, context, "general")
             
             # Track which providers were used
@@ -150,10 +147,9 @@ class TextProcessorComponent(Component, WebAPIPlugin):
             output_data=processed_text,
             metadata={
                 "normalizers_applied": normalizers_applied,
-                "text_changed": text != processed_text,
-                "providers_available": list(self.providers.keys()),
-                "default_provider": getattr(self, 'default_provider', None),
-                "component_name": self.__class__.__name__
+                "provider_count": len(self.providers),
+                "session_id": context.session_id,
+                "room_context": bool(context.client_id)
             },
             processing_time_ms=(time.time() - stage_start) * 1000
         )
@@ -206,7 +202,7 @@ class TextProcessorComponent(Component, WebAPIPlugin):
         return []  # All platforms
     
 
-    async def improve(self, text: str, context: ConversationContext, stage: str = "general") -> str:
+    async def improve(self, text: str, context: UnifiedConversationContext, stage: str = "general") -> str:
         """
         Improve text using stage-specific providers or fallback to legacy processor.
         Stages: 'asr_output', 'general', 'tts_input'
@@ -337,37 +333,44 @@ class TextProcessorComponent(Component, WebAPIPlugin):
                 
             @router.post("/process", response_model=TextProcessingResponse)
             async def process_text(request: TextProcessingRequest):
-                """Process text through normalization pipeline"""
-                normalizers_applied = []
-                
-                if request.normalizer:
-                    # Use specific normalizer
-                    if request.normalizer == "numbers":
-                        processed = await self.normalize_numbers(request.text)
-                        normalizers_applied = ["NumberNormalizer"]
-                    elif request.normalizer == "prepare":
-                        processed = await self.prepare_normalize(request.text)
-                        normalizers_applied = ["PrepareNormalizer"]
-                    elif request.normalizer == "runorm":
-                        processed = await self.runorm_normalize(request.text)
-                        normalizers_applied = ["RunormNormalizer"]
-                    else:
+                """Process text through text processing pipeline with context"""
+                try:
+                    # GET CONTEXT FROM CONTEXT MANAGER - NO CREATION
+                    context = await self.context_manager.get_context(
+                        request.context.get("session_id", "api_session") if request.context else "api_session"
+                    )
+                    
+                    # Inject API request context if available
+                    if request.context:
+                        if "client_id" in request.context:
+                            context.client_id = request.context["client_id"]
+                        if "room_name" in request.context:
+                            context.room_name = request.context["room_name"]
+                        if "device_context" in request.context:
+                            context.client_metadata.update(request.context["device_context"])
+                    
+                    if request.stage == "bypass":
                         processed = request.text
                         normalizers_applied = []
-                else:
-                    # Use full pipeline
-                    context = ConversationContext(session_id="api")
-                    processed = await self.improve(request.text, context, request.stage)
-                    normalizers_applied = [n.__class__.__name__ for n in self.processor.normalizers 
-                                         if n.applies_to_stage(request.stage)]
+                    else:
+                        # Use context from context manager
+                        processed = await self.improve(request.text, context, request.stage)
+                        normalizers_applied = [n.__class__.__name__ for n in self.processor.normalizers 
+                                             if n.applies_to_stage(request.stage)]
                 
-                return TextProcessingResponse(
-                    success=True,
-                    original_text=request.text,
-                    processed_text=processed,
-                    stage=request.stage,
-                    normalizers_applied=normalizers_applied
-                )
+                    return TextProcessingResponse(
+                        success=True,
+                        original_text=request.text,
+                        processed_text=processed,
+                        stage=request.stage,
+                        normalizers_applied=normalizers_applied,
+                        session_id=context.session_id,
+                        room_context=bool(context.client_id)
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Text processing error: {e}")
+                    raise HTTPException(500, f"Text processing failed: {str(e)}")
             
             @router.post("/numbers", response_model=NumberConversionResponse)
             async def convert_numbers_to_text(request: NumberConversionRequest):
@@ -497,6 +500,21 @@ class TextProcessorComponent(Component, WebAPIPlugin):
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for text processing endpoints"""
         return ["Text Normalization"]
+
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Define service dependencies for injection"""
+        from ..intents.context import ContextManager
+        return {
+            'context_manager': ContextManager
+        }
+    
+    def inject_dependency(self, name: str, dependency: Any) -> None:
+        """Inject service dependencies"""
+        if name == 'context_manager':
+            self.context_manager = dependency
+            logger.debug("Context manager injected into TextProcessorComponent")
+        else:
+            super().inject_dependency(name, dependency)
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

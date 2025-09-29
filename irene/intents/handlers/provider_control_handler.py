@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any, TYPE_CHECKING
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -74,12 +74,12 @@ class ProviderControlIntentHandler(IntentHandler):
         
         return False
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute provider control intent"""
         # Use donation-driven routing exclusively
         return await self.execute_with_donation_routing(intent, context)
         
-    async def _handle_switch_provider(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_switch_provider(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle provider switching request"""
         # Extract component and provider from intent entities
         component_type = intent.entities.get("component", "").lower()
@@ -118,7 +118,7 @@ class ProviderControlIntentHandler(IntentHandler):
             success=success
         )
         
-    async def _handle_list_providers(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_list_providers(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle list providers request"""
         # Extract component type from intent entities
         component_type = intent.entities.get("component", "").lower()
@@ -155,7 +155,7 @@ class ProviderControlIntentHandler(IntentHandler):
             success=True
         )
         
-    async def _list_all_providers(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _list_all_providers(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """List providers from all components"""
         info_parts = []
         
@@ -351,7 +351,7 @@ class ProviderControlIntentHandler(IntentHandler):
         
         return self._components[component_type]
         
-    def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
+    def _create_error_result(self, intent: Intent, context: UnifiedConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = context.language or "ru"
         

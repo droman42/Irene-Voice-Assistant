@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from ..core.trace_context import TraceContext
-from ..intents.models import ConversationContext
+from ..intents.models import UnifiedConversationContext
 
 
 class TestTraceContextPerformance(unittest.TestCase):
@@ -15,7 +15,7 @@ class TestTraceContextPerformance(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures"""
-        self.mock_conversation_context = MagicMock(spec=ConversationContext)
+        self.mock_conversation_context = MagicMock(spec=UnifiedConversationContext)
         self.mock_conversation_context.active_actions = {"test": {"action": "test_action"}}
         self.mock_conversation_context.conversation_history = []
         self.mock_conversation_context.session_id = "test_session"

@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional, List
 
 from .base import TextProcessingProvider
 from ...utils.text_normalizers import NumberNormalizer
-from ...intents.models import ConversationContext
+from ...intents.models import UnifiedConversationContext
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ class ASRTextProcessor(TextProcessingProvider):
         
         return await self.process_asr_output(text)
     
-    async def improve_text(self, text: str, context: ConversationContext, stage: str = "asr_output") -> str:
+    async def improve_text(self, text: str, context: UnifiedConversationContext, stage: str = "asr_output") -> str:
         """
         Improve ASR text using context (currently just applies standard processing).
         

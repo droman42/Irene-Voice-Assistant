@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import List, Dict, Any, TYPE_CHECKING
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -79,7 +79,7 @@ class SystemServiceIntentHandler(IntentHandler):
         
         return False
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute system service intent"""
         # Use donation-driven routing exclusively
         try:
@@ -97,7 +97,7 @@ class SystemServiceIntentHandler(IntentHandler):
                 error=str(e)
             )
         
-    async def _handle_service_status(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_service_status(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle service status request"""
         # Simulate heartbeat update
         self._status_count += 1
@@ -130,7 +130,7 @@ class SystemServiceIntentHandler(IntentHandler):
             success=True
         )
         
-    async def _handle_service_stats(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_service_stats(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle service statistics request"""
         # Simulate async data collection
         await asyncio.sleep(0.1)
@@ -166,7 +166,7 @@ class SystemServiceIntentHandler(IntentHandler):
             success=True
         )
         
-    async def _handle_service_health(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_service_health(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle service health check request"""
         # Simulate health check
         await asyncio.sleep(0.05)

@@ -14,7 +14,7 @@ import time
 from typing import Dict, Any, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from irene.intents.models import ConversationContext, Intent, IntentResult
+from irene.intents.models import UnifiedConversationContext, Intent, IntentResult
 from irene.intents.context import ContextManager
 from irene.intents.orchestrator import IntentOrchestrator
 from irene.intents.registry import IntentRegistry
@@ -33,7 +33,7 @@ class MockHandler(IntentHandler):
     async def can_handle(self, intent: Intent) -> bool:
         return self._can_handle_result and intent.action in self.supported_commands
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         return IntentResult(
             success=True,
             response=f"Executed {intent.action} for {self.domain}",

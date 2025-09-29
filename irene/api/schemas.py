@@ -1193,6 +1193,34 @@ class NLUProvidersResponse(BaseAPIResponse):
     default: Optional[str] = Field(description="Default provider name")
 
 
+class RoomAliasesResponse(BaseAPIResponse):
+    """Response model for room aliases endpoint"""
+    room_aliases: List[str] = Field(
+        description="List of valid room IDs: ['kitchen', 'living_room', ...]"
+    )
+    language: str = Field(
+        description="Language used for response"
+    )
+    fallback_language: str = Field(
+        description="Fallback language if requested not available"
+    )
+    total_count: int = Field(
+        description="Number of room aliases returned"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "room_aliases": ["kitchen", "living_room", "bedroom", "bathroom"],
+                "language": "en",
+                "fallback_language": "en",
+                "total_count": 4,
+                "timestamp": 1704067200.123
+            }
+        }
+
+
 # ============================================================
 # SYSTEM/HEALTH SCHEMAS
 # ============================================================
@@ -1234,17 +1262,32 @@ class SystemStatusResponse(BaseAPIResponse):
 # ============================================================
 
 class CommandRequest(BaseAPIRequest):
-    """Request to execute a command"""
+    """Request to execute a command with optional room context"""
     command: str = Field(description="Command text to execute")
+    room_alias: Optional[str] = Field(
+        default=None,
+        description="Optional room identifier for room-scoped execution (e.g., 'kitchen', 'living_room')"
+    )
     metadata: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Additional command metadata"
     )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "command": "turn off the lights",
+                "room_alias": "kitchen",
+                "metadata": {"source": "mobile_app"}
+            }
+        }
 
 
 class CommandResponse(BaseAPIResponse):
     """Response from command execution"""
     response: str = Field(description="Command execution result")
+    session_id: str = Field(description="Session ID used for execution")
+    room_alias: Optional[str] = Field(default=None, description="Room alias used for execution")
     error: Optional[str] = Field(
         default=None,
         description="Error message if command failed"
@@ -1324,9 +1367,15 @@ class TraceCommandResponse(BaseAPIResponse):
     execution_trace: ExecutionTrace = Field(
         description="Complete pipeline execution trace with detailed stage information"
     )
+    session_id: str = Field(description="Session ID used for execution")
+    room_alias: Optional[str] = Field(default=None, description="Room alias used for execution")
     error: Optional[str] = Field(
         default=None,
         description="Error message if command execution failed"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional trace metadata"
     )
 
     class Config:

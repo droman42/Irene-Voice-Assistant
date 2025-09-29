@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from irene.providers.nlu.spacy_provider import SpaCyNLUProvider
-from irene.intents.models import ConversationContext
+from irene.intents.models import UnifiedConversationContext
 
 
 class TestSpaCyAssetIntegration:
@@ -45,7 +45,7 @@ class TestSpaCyAssetIntegration:
     @pytest.fixture
     def sample_context(self):
         """Create sample conversation context"""
-        return ConversationContext(
+        return UnifiedConversationContext(
             session_id="test_session",
             language="ru"
         )

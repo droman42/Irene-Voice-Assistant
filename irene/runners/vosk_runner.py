@@ -17,6 +17,7 @@ from typing import Optional, List
 from ..config.models import CoreConfig, LogLevel
 from ..config.manager import ConfigManager
 from ..core.engine import AsyncVACore
+from ..core.session_manager import SessionManager
 from ..utils.loader import get_component_status
 from ..utils.logging import setup_logging
 from .base import BaseRunner, RunnerConfig, check_component_dependencies, print_dependency_status
@@ -267,7 +268,7 @@ preload_models = true
             # Start audio processing through workflow manager with intelligent skip_wake_word setting
             async for result in self.core.workflow_manager.process_audio_stream(
                 audio_stream=audio_stream,
-                session_id="vosk_session",
+                session_id=SessionManager.generate_session_id("vosk"),
                 skip_wake_word=skip_wake_word,  # Key fix: bypass wake word when voice_trigger disabled
                 wants_audio=True,
                 client_context={"source": "vosk_runner", "runner": "vosk"}

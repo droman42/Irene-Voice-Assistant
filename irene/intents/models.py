@@ -47,40 +47,74 @@ class IntentResult:
     timestamp: float = field(default_factory=time.time)
 
 
+# OLD ConversationContext class removed - replaced by UnifiedConversationContext
+
+
 @dataclass
-class ConversationContext:
-    """Comprehensive conversation context with client identification and metadata"""
+class WakeWordResult:
+    """Result of wake word detection."""
     
-    # Core identification
-    session_id: str
-    user_id: Optional[str] = None
-    client_id: Optional[str] = None  # Room/client identifier
+    detected: bool
+    confidence: float
+    word: Optional[str] = None
+    timestamp: float = field(default_factory=time.time)
+    audio_data: Optional[bytes] = None
+
+
+@dataclass
+class AudioData:
+    """Audio data container for processing pipeline."""
     
-    # Client metadata for context-aware processing
-    client_metadata: Dict[str, Any] = field(default_factory=dict)
+    data: bytes
+    timestamp: float
+    sample_rate: int = 16000
+    channels: int = 1
+    format: str = "pcm16"
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class UnifiedConversationContext:
+    """Unified conversation context replacing both ConversationContext and ConversationSession
     
-    # Conversation state
+    CRITICAL: Maintains room/client-scoped session boundaries for fire-and-forget action tracking
+    and contextual command resolution (TODO16 compatibility).
+    
+    DESIGN: Single-user, multi-room system where sessions represent physical locations.
+    """
+    
+    # Core identification (room-scoped sessions preserved)
+    session_id: str                   # Room-based: "kitchen_session", "living_room_session"
+    client_id: Optional[str] = None   # Room ID: "kitchen", "living_room"
+    room_name: Optional[str] = None   # Human-readable: "Кухня", "Гостиная"
+    
+    # System-level context (from old ConversationContext)
     conversation_history: List[Dict[str, Any]] = field(default_factory=list)
+    client_metadata: Dict[str, Any] = field(default_factory=dict)
+    available_devices: List[Dict[str, Any]] = field(default_factory=list)
+    language: str = "ru"
+    
+    # CRITICAL: Fire-and-forget action tracking (room-scoped)
+    active_actions: Dict[str, Any] = field(default_factory=dict)      # Domain -> action info
+    recent_actions: List[Dict[str, Any]] = field(default_factory=list) # Completed actions
+    failed_actions: List[Dict[str, Any]] = field(default_factory=list) # Failed actions
+    action_error_count: Dict[str, int] = field(default_factory=dict)   # Error tracking
+    
+    # Handler-specific contexts (replaces ConversationSession approach)
+    handler_contexts: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    
+    # Unified timestamps
+    created_at: float = field(default_factory=time.time)
+    last_activity: float = field(default_factory=time.time)
+    
+    # Legacy compatibility fields (from ConversationContext)
+    user_id: Optional[str] = None
     current_intent_context: Optional[str] = None
     last_intent_timestamp: Optional[float] = None
-    
-    # NEW: Action tracking for fire-and-forget execution
-    active_actions: Dict[str, Any] = field(default_factory=dict)      # Currently running actions by domain/type
-    recent_actions: List[Dict[str, Any]] = field(default_factory=list) # Recently completed/failed actions with metadata
-    failed_actions: List[Dict[str, Any]] = field(default_factory=list) # Failed actions with detailed error information
-    action_error_count: Dict[str, int] = field(default_factory=dict)   # Error count by domain for failure tracking
-    
-    # Device and capability context
-    available_devices: List[Dict[str, Any]] = field(default_factory=list)
     preferred_output_device: Optional[str] = None
     client_capabilities: Dict[str, bool] = field(default_factory=dict)
-    
-    # User preferences
-    language: str = "ru"
     timezone: Optional[str] = None
     user_preferences: Dict[str, Any] = field(default_factory=dict)
-    
-    # Phase 3.1: User notification preferences
     notification_preferences: Dict[str, Any] = field(default_factory=lambda: {
         "action_completion": {
             "enabled": True,
@@ -100,8 +134,6 @@ class ConversationContext:
             "include_metrics": False
         }
     })
-    
-    # Phase 3.3: Memory management configuration
     memory_management: Dict[str, Any] = field(default_factory=lambda: {
         "retention_policies": {
             "conversation_history": {
@@ -131,15 +163,12 @@ class ConversationContext:
             "critical_threshold_mb": 200
         }
     })
-    
-    # System context
     timestamp: float = field(default_factory=time.time)
     request_source: str = "unknown"  # "microphone", "web", "api", etc.
     
     # Legacy compatibility fields
     history: List[Dict[str, Any]] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
     last_updated: float = field(default_factory=time.time)
     max_history_turns: int = 10
     
@@ -152,8 +181,11 @@ class ConversationContext:
         if self.metadata and not self.client_metadata:
             self.client_metadata.update(self.metadata)
     
+    # Combined methods from both old classes
     def get_room_name(self) -> Optional[str]:
         """Get human-readable room name from client context"""
+        if self.room_name:
+            return self.room_name
         if self.client_id:
             return self.client_metadata.get('room_name', self.client_id)
         return None
@@ -161,14 +193,6 @@ class ConversationContext:
     def get_device_capabilities(self) -> List[Dict[str, Any]]:
         """Get list of devices available in this client context"""
         return self.client_metadata.get('available_devices', self.available_devices)
-    
-    def set_client_context(self, client_id: str, metadata: Dict[str, Any]):
-        """Set client identification and metadata"""
-        self.client_id = client_id
-        self.client_metadata = metadata
-        # Update available devices from metadata
-        if 'available_devices' in metadata:
-            self.available_devices = metadata['available_devices']
     
     def get_device_by_name(self, device_name: str) -> Optional[Dict[str, Any]]:
         """Find device by name using fuzzy matching"""
@@ -190,46 +214,36 @@ class ConversationContext:
         
         return None
     
-    def add_to_history(self, user_text: str, response: str, intent: Optional[str] = None):
-        """Add interaction to conversation history"""
-        self.conversation_history.append({
-            "timestamp": time.time(),
-            "user_text": user_text,
-            "response": response,
-            "intent": intent,
-            "client_id": self.client_id
-        })
-        
-        # Keep only last 10 interactions to prevent memory bloat
-        if len(self.conversation_history) > 10:
-            self.conversation_history = self.conversation_history[-10:]
-        
-        self.last_updated = time.time()
+    # Handler-specific context management
+    def get_handler_context(self, handler_name: str) -> Dict[str, Any]:
+        """Get handler-specific context (e.g., LLM conversation history)"""
+        if handler_name not in self.handler_contexts:
+            self.handler_contexts[handler_name] = {
+                "messages": [],
+                "conversation_type": "chat", 
+                "model_preference": "",
+                "created_at": time.time()
+            }
+        return self.handler_contexts[handler_name]
     
-    def get_recent_intents(self, limit: int = 3) -> List[str]:
-        """Get recent intent names for context"""
-        recent = []
-        for interaction in reversed(self.conversation_history[-limit:]):
-            if interaction.get('intent'):
-                recent.append(interaction['intent'])
-        return recent
+    def clear_handler_context(self, handler_name: str, keep_system: bool = True):
+        """Clear handler-specific context (e.g., LLM history)"""
+        context = self.get_handler_context(handler_name)
+        if keep_system and context.get("messages") and context["messages"][0].get("role") == "system":
+            system_msg = context["messages"][0]
+            context["messages"] = [system_msg]
+        else:
+            context["messages"] = []
     
-    def has_capability(self, capability: str) -> bool:
-        """Check if client has specific capability"""
-        return self.client_capabilities.get(capability, False)
-    
-    def get_device_types(self) -> Set[str]:
-        """Get set of device types available in this context"""
-        devices = self.get_device_capabilities()
-        return {device.get('type', 'unknown') for device in devices}
-    
-    # NEW: Action tracking methods for fire-and-forget execution
+    # CRITICAL: Fire-and-forget action management (preserved from ConversationContext)
     def add_active_action(self, domain: str, action_info: Dict[str, Any]):
-        """Add an active action to the context"""
+        """Add active action with automatic room context injection"""
         self.active_actions[domain] = {
             **action_info,
-            'started_at': time.time(),
-            'client_id': self.client_id
+            'room_id': self.client_id,
+            'room_name': self.room_name,
+            'session_id': self.session_id,
+            'started_at': time.time()
         }
         self.last_updated = time.time()
     
@@ -250,22 +264,13 @@ class ConversationContext:
             
             self.last_updated = time.time()
     
-    def get_active_action_domains(self) -> List[str]:
-        """Get list of domains with currently active actions"""
-        return list(self.active_actions.keys())
-    
     def has_active_action(self, domain: str) -> bool:
         """Check if there's an active action in the specified domain"""
         return domain in self.active_actions
     
-    def get_recent_action_domains(self, limit: int = 3) -> List[str]:
-        """Get recent action domains for disambiguation"""
-        recent_domains = []
-        for action in reversed(self.recent_actions[-limit:]):
-            domain = action.get('domain')
-            if domain and domain not in recent_domains:
-                recent_domains.append(domain)
-        return recent_domains
+    def get_active_action_domains(self) -> List[str]:
+        """Get list of domains with currently active actions"""
+        return list(self.active_actions.keys())
     
     def remove_completed_action(self, domain: str, success: bool = True, error: Optional[str] = None):
         """Remove a completed action from active tracking and add to recent actions"""
@@ -306,8 +311,21 @@ class ConversationContext:
             return True
         return False
     
-    def update_action_status(self, domain: str, status: str, error: Optional[str] = None):
-        """Update the status of an active action"""
+    # Additional fire-and-forget management methods
+    def cancel_action(self, domain: str, reason: str = "User requested cancellation") -> bool:
+        """Cancel an active action and mark it as cancelled"""
+        if domain in self.active_actions:
+            self.active_actions[domain].update({
+                'status': 'cancelled',
+                'cancelled_at': time.time(),
+                'cancellation_reason': reason
+            })
+            self.last_updated = time.time()
+            return True
+        return False
+    
+    def update_action_status(self, domain: str, status: str, error: Optional[str] = None) -> bool:
+        """Update the status of a running action"""
         if domain in self.active_actions:
             self.active_actions[domain]['status'] = status
             if error:
@@ -316,6 +334,66 @@ class ConversationContext:
             self.last_updated = time.time()
             return True
         return False
+    
+    def get_cancellable_actions(self) -> List[str]:
+        """Get list of domains with actions that can be cancelled"""
+        return [domain for domain, action_info in self.active_actions.items()
+                if action_info.get('status') == 'running']
+    
+    # Legacy compatibility methods from ConversationContext
+    def set_client_context(self, client_id: str, metadata: Dict[str, Any]):
+        """Set client identification and metadata"""
+        self.client_id = client_id
+        self.client_metadata = metadata
+        # Update available devices from metadata
+        if 'available_devices' in metadata:
+            self.available_devices = metadata['available_devices']
+        # Update room name if provided
+        if 'room_name' in metadata:
+            self.room_name = metadata['room_name']
+        self.last_updated = time.time()
+    
+    def add_to_history(self, user_text: str, response: str, intent: Optional[str] = None):
+        """Add interaction to conversation history"""
+        self.conversation_history.append({
+            "timestamp": time.time(),
+            "user_text": user_text,
+            "response": response,
+            "intent": intent,
+            "client_id": self.client_id
+        })
+        
+        # Keep only last 10 interactions to prevent memory bloat
+        if len(self.conversation_history) > 10:
+            self.conversation_history = self.conversation_history[-10:]
+        
+        self.last_updated = time.time()
+    
+    def get_recent_intents(self, limit: int = 3) -> List[str]:
+        """Get recent intent names for context"""
+        recent = []
+        for interaction in reversed(self.conversation_history[-limit:]):
+            if interaction.get('intent'):
+                recent.append(interaction['intent'])
+        return recent
+    
+    def has_capability(self, capability: str) -> bool:
+        """Check if client has specific capability"""
+        return self.client_capabilities.get(capability, False)
+    
+    def get_device_types(self) -> Set[str]:
+        """Get set of device types available in this context"""
+        devices = self.get_device_capabilities()
+        return {device.get('type', 'unknown') for device in devices}
+    
+    def get_recent_action_domains(self, limit: int = 3) -> List[str]:
+        """Get recent action domains for disambiguation"""
+        recent_domains = []
+        for action in reversed(self.recent_actions[-limit:]):
+            domain = action.get('domain')
+            if domain and domain not in recent_domains:
+                recent_domains.append(domain)
+        return recent_domains
     
     def _classify_error(self, error: str) -> str:
         """Classify error type for better error handling"""
@@ -363,29 +441,7 @@ class ConversationContext:
         
         return any(indicator in error_lower for indicator in critical_indicators)
     
-    def get_failed_actions(self, limit: int = 5) -> List[Dict[str, Any]]:
-        """Get recent failed actions for error reporting"""
-        return self.failed_actions[-limit:] if self.failed_actions else []
-    
-    def get_error_summary(self) -> Dict[str, Any]:
-        """Get summary of action errors for monitoring"""
-        return {
-            'total_failed_actions': len(self.failed_actions),
-            'error_count_by_domain': self.action_error_count.copy(),
-            'recent_critical_failures': [
-                action for action in self.failed_actions[-10:] 
-                if action.get('is_critical', False)
-            ]
-        }
-    
-    def has_critical_failures(self) -> bool:
-        """Check if there are any recent critical failures"""
-        return any(
-            action.get('is_critical', False) 
-            for action in self.failed_actions[-5:]  # Check last 5 failures
-        )
-    
-    # Phase 3.1: User Notification System Methods
+    # User notification system methods
     def should_notify_completion(self, domain: str, duration: float) -> bool:
         """Check if action completion should trigger user notification"""
         prefs = self.notification_preferences.get("action_completion", {})
@@ -427,241 +483,27 @@ class ConversationContext:
             "notification_count": getattr(self, '_notification_count', 0)
         }
     
-    # Phase 3.3: Advanced Memory Management Methods
-    def get_memory_usage_estimate(self) -> Dict[str, Any]:
-        """Estimate memory usage of conversation context data"""
-        import sys
-        
-        try:
-            # Calculate approximate memory usage
-            conversation_size = sum(sys.getsizeof(str(item)) for item in self.conversation_history)
-            recent_actions_size = sum(sys.getsizeof(str(item)) for item in self.recent_actions)
-            failed_actions_size = sum(sys.getsizeof(str(item)) for item in self.failed_actions)
-            active_actions_size = sum(sys.getsizeof(str(item)) for item in self.active_actions.values())
-            metadata_size = sys.getsizeof(str(self.client_metadata))
-            preferences_size = sys.getsizeof(str(self.user_preferences))
-            
-            total_bytes = (
-                conversation_size + recent_actions_size + failed_actions_size +
-                active_actions_size + metadata_size + preferences_size
-            )
-            
-            return {
-                "total_bytes": total_bytes,
-                "total_mb": total_bytes / (1024 * 1024),
-                "breakdown": {
-                    "conversation_history": {
-                        "entries": len(self.conversation_history),
-                        "bytes": conversation_size
-                    },
-                    "recent_actions": {
-                        "entries": len(self.recent_actions),
-                        "bytes": recent_actions_size
-                    },
-                    "failed_actions": {
-                        "entries": len(self.failed_actions),
-                        "bytes": failed_actions_size
-                    },
-                    "active_actions": {
-                        "entries": len(self.active_actions),
-                        "bytes": active_actions_size
-                    },
-                    "metadata": {
-                        "bytes": metadata_size + preferences_size
-                    }
-                }
-            }
-        except Exception as e:
-            return {
-                "error": str(e),
-                "total_bytes": 0,
-                "total_mb": 0.0,
-                "breakdown": {}
-            }
+    def get_failed_actions(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """Get recent failed actions for error reporting"""
+        return self.failed_actions[-limit:] if self.failed_actions else []
     
-    def should_trigger_cleanup(self) -> Dict[str, bool]:
-        """Check if cleanup should be triggered based on retention policies"""
-        policies = self.memory_management.get("retention_policies", {})
-        current_time = time.time()
-        
-        cleanup_needed = {
-            "conversation_history": False,
-            "recent_actions": False,
-            "failed_actions": False,
-            "memory_pressure": False
-        }
-        
-        # Check conversation history
-        conv_policy = policies.get("conversation_history", {})
-        max_entries = conv_policy.get("max_entries", 50)
-        cleanup_threshold = conv_policy.get("cleanup_threshold", 60)
-        if len(self.conversation_history) > max_entries + cleanup_threshold:
-            cleanup_needed["conversation_history"] = True
-        
-        # Check recent actions
-        recent_policy = policies.get("recent_actions", {})
-        max_entries = recent_policy.get("max_entries", 20)
-        cleanup_threshold = recent_policy.get("cleanup_threshold", 25)
-        if len(self.recent_actions) > max_entries + cleanup_threshold:
-            cleanup_needed["recent_actions"] = True
-        
-        # Check failed actions
-        failed_policy = policies.get("failed_actions", {})
-        max_entries = failed_policy.get("max_entries", 50)
-        cleanup_threshold = failed_policy.get("cleanup_threshold", 60)
-        if len(self.failed_actions) > max_entries + cleanup_threshold:
-            cleanup_needed["failed_actions"] = True
-        
-        # Check memory pressure
-        memory_usage = self.get_memory_usage_estimate()
-        memory_config = self.memory_management.get("memory_monitoring", {})
-        alert_threshold = memory_config.get("alert_threshold_mb", 100)
-        if memory_usage.get("total_mb", 0) > alert_threshold:
-            cleanup_needed["memory_pressure"] = True
-        
-        return cleanup_needed
-    
-    def perform_cleanup(self, aggressive: bool = False) -> Dict[str, int]:
-        """Perform memory cleanup based on retention policies"""
-        policies = self.memory_management.get("retention_policies", {})
-        current_time = time.time()
-        
-        cleanup_stats = {
-            "conversation_history_removed": 0,
-            "recent_actions_removed": 0,
-            "failed_actions_removed": 0
-        }
-        
-        # Cleanup conversation history
-        conv_policy = policies.get("conversation_history", {})
-        max_entries = conv_policy.get("max_entries", 50)
-        max_age_seconds = conv_policy.get("max_age_hours", 24) * 3600
-        
-        if aggressive:
-            # Aggressive cleanup: keep only half the max entries
-            target_size = max_entries // 2
-        else:
-            target_size = max_entries
-        
-        # Remove old entries by age
-        cutoff_time = current_time - max_age_seconds
-        original_count = len(self.conversation_history)
-        self.conversation_history = [
-            entry for entry in self.conversation_history
-            if entry.get("timestamp", current_time) > cutoff_time
-        ]
-        
-        # Remove excess entries by count
-        if len(self.conversation_history) > target_size:
-            excess = len(self.conversation_history) - target_size
-            self.conversation_history = self.conversation_history[excess:]
-        
-        cleanup_stats["conversation_history_removed"] = original_count - len(self.conversation_history)
-        
-        # Cleanup recent actions
-        recent_policy = policies.get("recent_actions", {})
-        max_entries = recent_policy.get("max_entries", 20)
-        max_age_seconds = recent_policy.get("max_age_hours", 6) * 3600
-        
-        if aggressive:
-            target_size = max_entries // 2
-        else:
-            target_size = max_entries
-        
-        # Remove old entries by age
-        cutoff_time = current_time - max_age_seconds
-        original_count = len(self.recent_actions)
-        self.recent_actions = [
-            action for action in self.recent_actions
-            if action.get("completed_at", current_time) > cutoff_time
-        ]
-        
-        # Remove excess entries by count (keep most recent)
-        if len(self.recent_actions) > target_size:
-            self.recent_actions = self.recent_actions[-target_size:]
-        
-        cleanup_stats["recent_actions_removed"] = original_count - len(self.recent_actions)
-        
-        # Cleanup failed actions
-        failed_policy = policies.get("failed_actions", {})
-        max_entries = failed_policy.get("max_entries", 50)
-        max_age_seconds = failed_policy.get("max_age_hours", 48) * 3600
-        
-        if aggressive:
-            target_size = max_entries // 2
-        else:
-            target_size = max_entries
-        
-        # Remove old entries by age
-        cutoff_time = current_time - max_age_seconds
-        original_count = len(self.failed_actions)
-        self.failed_actions = [
-            action for action in self.failed_actions
-            if action.get("completed_at", current_time) > cutoff_time
-        ]
-        
-        # Remove excess entries by count (keep most recent)
-        if len(self.failed_actions) > target_size:
-            self.failed_actions = self.failed_actions[-target_size:]
-        
-        cleanup_stats["failed_actions_removed"] = original_count - len(self.failed_actions)
-        
-        # Update last updated timestamp
-        self.last_updated = time.time()
-        
-        return cleanup_stats
-    
-    def update_memory_management_config(self, config: Dict[str, Any]) -> None:
-        """Update memory management configuration"""
-        self.memory_management.update(config)
-        self.last_updated = time.time()
-    
-    def get_memory_management_status(self) -> Dict[str, Any]:
-        """Get comprehensive memory management status"""
-        memory_usage = self.get_memory_usage_estimate()
-        cleanup_needed = self.should_trigger_cleanup()
-        
+    def get_error_summary(self) -> Dict[str, Any]:
+        """Get summary of action errors for monitoring"""
         return {
-            "memory_usage": memory_usage,
-            "cleanup_needed": cleanup_needed,
-            "retention_policies": self.memory_management.get("retention_policies", {}),
-            "auto_cleanup_enabled": self.memory_management.get("auto_cleanup", {}).get("enabled", True),
-            "data_counts": {
-                "conversation_history": len(self.conversation_history),
-                "recent_actions": len(self.recent_actions),
-                "failed_actions": len(self.failed_actions),
-                "active_actions": len(self.active_actions)
-            },
-            "last_updated": self.last_updated
+            'total_failed_actions': len(self.failed_actions),
+            'error_count_by_domain': self.action_error_count.copy(),
+            'recent_critical_failures': [
+                action for action in self.failed_actions[-10:] 
+                if action.get('is_critical', False)
+            ]
         }
     
-    def cancel_action(self, domain: str, reason: str = "User requested cancellation") -> bool:
-        """
-        Cancel an active action in the specified domain.
-        
-        Args:
-            domain: Domain of the action to cancel
-            reason: Reason for cancellation
-            
-        Returns:
-            True if action was found and marked for cancellation, False otherwise
-        """
-        if domain in self.active_actions:
-            self.active_actions[domain].update({
-                'status': 'cancelled',
-                'cancelled_at': time.time(),
-                'cancellation_reason': reason
-            })
-            self.last_updated = time.time()
-            return True
-        return False
-    
-    def get_cancellable_actions(self) -> List[str]:
-        """Get list of domains with actions that can be cancelled"""
-        return [
-            domain for domain, action_info in self.active_actions.items()
-            if action_info.get('status') == 'running'
-        ]
+    def has_critical_failures(self) -> bool:
+        """Check if there are any recent critical failures"""
+        return any(
+            action.get('is_critical', False) 
+            for action in self.failed_actions[-5:]  # Check last 5 failures
+        )
     
     # Legacy compatibility methods
     def add_user_turn(self, intent: Intent):
@@ -703,27 +545,64 @@ class ConversationContext:
     
     def get_recent_context(self, turns: int = 3) -> List[Dict[str, Any]]:
         """Get recent conversation turns for context (legacy compatibility)"""
-        return self.history[-turns*2:] if self.history else []
-
-
-@dataclass
-class WakeWordResult:
-    """Result of wake word detection."""
-    
-    detected: bool
-    confidence: float
-    word: Optional[str] = None
-    timestamp: float = field(default_factory=time.time)
-    audio_data: Optional[bytes] = None
-
-
-@dataclass
-class AudioData:
-    """Audio data container for processing pipeline."""
-    
-    data: bytes
-    timestamp: float
-    sample_rate: int = 16000
-    channels: int = 1
-    format: str = "pcm16"
-    metadata: Dict[str, Any] = field(default_factory=dict) 
+        return self.history[-turns*2:] if self.history else []     
+    # Memory management methods (Phase 1.3 MemoryManager compatibility)
+    def get_memory_usage_estimate(self) -> Dict[str, Any]:
+        """Estimate memory usage of unified context data"""
+        import sys
+        
+        try:
+            # Calculate approximate memory usage for all context data
+            conversation_size = sum(sys.getsizeof(str(item)) for item in self.conversation_history)
+            handler_contexts_size = sum(sys.getsizeof(str(ctx)) for ctx in self.handler_contexts.values())
+            active_actions_size = sum(sys.getsizeof(str(action)) for action in self.active_actions.values())
+            recent_actions_size = sum(sys.getsizeof(str(action)) for action in self.recent_actions)
+            failed_actions_size = sum(sys.getsizeof(str(action)) for action in self.failed_actions)
+            metadata_size = sys.getsizeof(str(self.client_metadata))
+            devices_size = sum(sys.getsizeof(str(device)) for device in self.available_devices)
+            
+            total_bytes = (
+                conversation_size + handler_contexts_size + active_actions_size +
+                recent_actions_size + failed_actions_size + metadata_size + devices_size
+            )
+            
+            return {
+                "total_bytes": total_bytes,
+                "total_mb": total_bytes / (1024 * 1024),
+                "breakdown": {
+                    "conversation_history": {
+                        "entries": len(self.conversation_history),
+                        "bytes": conversation_size
+                    },
+                    "handler_contexts": {
+                        "handlers": len(self.handler_contexts),
+                        "bytes": handler_contexts_size
+                    },
+                    "active_actions": {
+                        "entries": len(self.active_actions),
+                        "bytes": active_actions_size
+                    },
+                    "recent_actions": {
+                        "entries": len(self.recent_actions),
+                        "bytes": recent_actions_size
+                    },
+                    "failed_actions": {
+                        "entries": len(self.failed_actions),
+                        "bytes": failed_actions_size
+                    },
+                    "client_metadata": {
+                        "bytes": metadata_size
+                    },
+                    "available_devices": {
+                        "entries": len(self.available_devices),
+                        "bytes": devices_size
+                    }
+                }
+            }
+        except Exception as e:
+            return {
+                "total_bytes": 0,
+                "total_mb": 0.0,
+                "error": str(e),
+                "breakdown": {}
+            }

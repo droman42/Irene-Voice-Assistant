@@ -18,6 +18,7 @@ from pathlib import Path
 from ..config.manager import ConfigManager
 from ..config.models import CoreConfig, create_config_from_profile
 from ..core.engine import AsyncVACore
+from ..core.session_manager import SessionManager
 
 # Setup logging for demo
 logging.basicConfig(
@@ -170,7 +171,7 @@ async def demo_plugin_configuration():
         # Use unified workflow interface
         result = await engine.workflow_manager.process_text_input(
             text="привет",
-            session_id="config_demo",
+            session_id=SessionManager.generate_session_id("config_demo"),
             wants_audio=False,
             client_context={"source": "config_demo"}
         )

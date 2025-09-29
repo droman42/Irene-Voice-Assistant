@@ -10,7 +10,7 @@ import logging
 import re
 from typing import Dict, Any, List, Optional, Tuple, Set
 from dataclasses import dataclass
-from ..intents.models import ConversationContext, Intent
+from ..intents.models import UnifiedConversationContext, Intent
 
 # Required rapidfuzz import for fuzzy matching
 from rapidfuzz import fuzz, process
@@ -37,22 +37,22 @@ class ContextualEntityResolver:
     Intent Keyword Donation Architecture document.
     """
     
-    def __init__(self):
+    def __init__(self, asset_loader=None):
         self.logger = logging.getLogger(f"{__name__}.ContextualEntityResolver")
         
         # Entity type resolvers
-        self.device_resolver = DeviceEntityResolver()
-        self.location_resolver = LocationEntityResolver()
+        self.device_resolver = DeviceEntityResolver(asset_loader)
+        self.location_resolver = LocationEntityResolver(asset_loader)
         self.temporal_resolver = TemporalEntityResolver()
         self.quantity_resolver = QuantityEntityResolver()
     
-    async def resolve_entities(self, intent: Intent, context: ConversationContext) -> Dict[str, Any]:
+    async def resolve_entities(self, intent: Intent, context: UnifiedConversationContext) -> Dict[str, Any]:
         """
         Resolve all entities in the intent using context-aware resolution.
         
         Args:
             intent: Intent with entities to resolve
-            context: ConversationContext with client and device information
+            context: UnifiedConversationContext with client and device information
             
         Returns:
             Dictionary with resolved entities and resolution metadata
@@ -84,7 +84,7 @@ class ContextualEntityResolver:
         return resolved_entities
     
     async def _resolve_single_entity(self, entity_name: str, entity_value: str, 
-                                   intent: Intent, context: ConversationContext) -> Optional[EntityResolutionResult]:
+                                   intent: Intent, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve a single entity using appropriate resolution strategy.
         """
@@ -109,81 +109,120 @@ class ContextualEntityResolver:
         return None
     
     def _is_device_entity(self, entity_name: str, entity_value: str, intent: Intent) -> bool:
-        """Check if entity is a device reference"""
-        device_indicators = [
-            # Russian device terms
-            "устройство", "прибор", "свет", "лампа", "лампочка", "светильник", 
-            "выключатель", "розетка", "телевизор", "тв", "колонка", "динамик",
-            "датчик", "сенсор", "камера", "термостат", "вентилятор", "кондиционер",
-            # English device terms  
-            "device", "light", "lamp", "switch", "tv", "television", "speaker", 
-            "sensor", "camera", "thermostat", "fan", "outlet", "plug"
+        """Check if entity is a device reference based on intent domain and generic entity name patterns"""
+        # Primary: Check intent domain for device-related intents
+        if intent.domain in ["device", "smart_home", "iot", "home_automation"]:
+            return True
+        
+        # Secondary: Check for generic device entity naming patterns
+        generic_device_patterns = [
+            "device", "target", "appliance", "устройство", "цель"
         ]
         
-        # Check entity name
-        if any(indicator in entity_name.lower() for indicator in device_indicators):
-            return True
-        
-        # Check entity value
-        if any(indicator in entity_value.lower() for indicator in device_indicators):
-            return True
-        
-        # Check intent domain for device-related intents
-        if intent.domain in ["device", "smart_home", "iot"]:
+        if any(pattern in entity_name.lower() for pattern in generic_device_patterns):
             return True
         
         return False
     
     def _is_location_entity(self, entity_name: str, entity_value: str, intent: Intent) -> bool:
-        """Check if entity is a location reference"""
-        location_indicators = [
-            # Russian location terms
-            "комната", "место", "локация", "расположение", "где", "куда", "в", "на",
-            "помещение", "зал", "зона", "область",
-            # English location terms
-            "room", "location", "place", "where", "in", "at"
+        """Check if entity is a location reference based on generic entity name patterns"""
+        # Check for generic location entity naming patterns
+        generic_location_patterns = [
+            "location", "place", "destination", "area", "zone",
+            "место", "локация", "расположение", "зона"  # Russian equivalents
         ]
         
-        return (any(indicator in entity_name.lower() for indicator in location_indicators) or
-                entity_name.lower() in ["location", "room", "place", "комната", "место", "локация"])
+        return any(pattern in entity_name.lower() for pattern in generic_location_patterns)
     
     def _is_temporal_entity(self, entity_name: str, entity_value: str, intent: Intent) -> bool:
-        """Check if entity is a time/date reference"""
-        temporal_indicators = [
-            # Russian temporal terms
-            "время", "дата", "когда", "в", "через", "на", "длительность", "продолжительность",
-            "таймаут", "минута", "час", "секунда", "день", "неделя", "месяц",
-            # English temporal terms
-            "time", "date", "when", "at", "duration", "timeout"
+        """Check if entity is a time/date reference based on entity name patterns and value patterns"""
+        # Check entity name patterns (common entity naming conventions)
+        temporal_entity_names = [
+            "time", "date", "when", "duration", "timeout", "delay", "schedule",
+            "время", "дата", "длительность", "таймаут", "расписание"  # Russian equivalents
         ]
         
-        # Russian and English time patterns
-        time_patterns = r'\d+:\d+|\d+\s*(hours?|minutes?|seconds?|часов?|часа|минут?|мин|секунд?|сек)'
+        # Check entity name patterns
+        if any(pattern in entity_name.lower() for pattern in temporal_entity_names):
+            return True
         
-        return (any(indicator in entity_name.lower() for indicator in temporal_indicators) or
-                bool(re.search(time_patterns, entity_value.lower())))
+        # Check entity value patterns (time formats)
+        time_patterns = r'\d+:\d+|\d+\s*(hours?|minutes?|seconds?|часов?|часа|минут?|мин|секунд?|сек)'
+        return bool(re.search(time_patterns, entity_value.lower()))
     
     def _is_quantity_entity(self, entity_name: str, entity_value: str, intent: Intent) -> bool:
-        """Check if entity is a quantity/number reference"""
-        quantity_indicators = [
-            # Russian quantity terms
-            "число", "количество", "сумма", "объем", "размер", "счет", "номер",
-            "длительность", "продолжительность", "таймаут",
-            # English quantity terms
-            "number", "count", "amount", "quantity", "duration", "timeout"
+        """Check if entity is a quantity/number reference based on entity name patterns and value patterns"""
+        # Check entity name patterns (common entity naming conventions)
+        quantity_entity_names = [
+            "number", "count", "amount", "quantity", "value", "level", "percent", "percentage",
+            "число", "количество", "сумма", "объем", "размер", "процент"  # Russian equivalents
         ]
         
-        return (any(indicator in entity_name.lower() for indicator in quantity_indicators) or
-                bool(re.search(r'\d+', entity_value)))
+        # Check entity name patterns
+        if any(pattern in entity_name.lower() for pattern in quantity_entity_names):
+            return True
+        
+        # Check entity value patterns (contains numbers)
+        return bool(re.search(r'\d+', entity_value))
 
 
 class DeviceEntityResolver:
     """Resolver for device-related entities using client context"""
     
-    def __init__(self):
+    def __init__(self, asset_loader=None):
+        self.asset_loader = asset_loader
         self.logger = logging.getLogger(f"{__name__}.DeviceEntityResolver")
     
-    async def resolve(self, device_reference: str, context: ConversationContext) -> Optional[EntityResolutionResult]:
+    def _load_device_types(self, language: str = "en") -> Dict[str, List[str]]:
+        """Load device type keywords from localization files"""
+        if not self.asset_loader:
+            raise RuntimeError(
+                "DeviceEntityResolver: Asset loader not initialized. "
+                "Cannot load device type mappings from localization files. "
+                "This is a fatal configuration error - device type mappings must be externalized."
+            )
+        
+        try:
+            device_localization = self.asset_loader.localizations.get("devices", {})
+            device_data = device_localization.get(language, {})
+            
+            if not device_data and language != "en":
+                # Fallback to English
+                device_data = device_localization.get("en", {})
+            
+            if not device_data:
+                raise RuntimeError(
+                    f"DeviceEntityResolver: No device type mappings found for language '{language}' "
+                    f"in assets/localization/devices/. This is a fatal error - device type mappings "
+                    f"must be defined in localization files."
+                )
+            
+            device_types = device_data.get("device_types", {})
+            if not device_types:
+                raise RuntimeError(
+                    f"DeviceEntityResolver: Empty device_types in "
+                    f"assets/localization/devices/{language}.yaml. "
+                    f"Device type mappings must be defined for language '{language}'."
+                )
+            
+            # Convert to expected format
+            result = {}
+            for device_type, config in device_types.items():
+                keywords = config.get("keywords", [])
+                aliases = config.get("aliases", [])
+                result[device_type] = keywords + aliases
+            
+            return result
+        except Exception as e:
+            if isinstance(e, RuntimeError):
+                raise  # Re-raise our own runtime errors
+            raise RuntimeError(
+                f"DeviceEntityResolver: Failed to load device types from localization files: {e}. "
+                f"Check assets/localization/devices/ directory and file structure."
+            )
+    
+    
+    async def resolve(self, device_reference: str, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve device reference using client context and fuzzy matching.
         """
@@ -220,45 +259,10 @@ class DeviceEntityResolver:
                         metadata={"match_type": "fuzzy_name", "similarity": best_match[1]}
                     )
         
-        # 3. Type-based matching (Russian + English)
-        device_types = {
-            "light": [
-                # Russian terms
-                "свет", "лампа", "лампочка", "светильник", "освещение", "подсветка",
-                # English terms
-                "light", "lamp", "bulb"
-            ],
-            "switch": [
-                # Russian terms
-                "выключатель", "переключатель", "розетка", "штепсель",
-                # English terms
-                "switch", "outlet", "plug"
-            ],
-            "speaker": [
-                # Russian terms
-                "колонка", "динамик", "аудио", "звук", "музыка",
-                # English terms
-                "speaker", "audio"
-            ],
-            "tv": [
-                # Russian terms
-                "телевизор", "тв", "экран", "дисплей", "монитор",
-                # English terms
-                "tv", "television", "display"
-            ],
-            "sensor": [
-                # Russian terms
-                "датчик", "сенсор", "детектор", "измеритель",
-                # English terms
-                "sensor", "detector"
-            ],
-            "camera": [
-                # Russian terms
-                "камера", "видеокамера", "веб-камера", "вебкамера",
-                # English terms
-                "camera", "cam"
-            ]
-        }
+        # 3. Type-based matching using localization files
+        # Determine language from context
+        language = getattr(context, 'language', 'ru') or 'ru'
+        device_types = self._load_device_types(language)
         
         for device_type, keywords in device_types.items():
             if any(keyword in device_reference_lower for keyword in keywords):
@@ -293,18 +297,64 @@ class DeviceEntityResolver:
 class LocationEntityResolver:
     """Resolver for location-related entities using client context"""
     
-    def __init__(self):
+    def __init__(self, asset_loader=None):
+        self.asset_loader = asset_loader
         self.logger = logging.getLogger(f"{__name__}.LocationEntityResolver")
     
-    async def resolve(self, location_reference: str, context: ConversationContext) -> Optional[EntityResolutionResult]:
+    def _load_location_keywords(self, language: str = "en") -> Dict[str, List[str]]:
+        """Load location keywords from localization files"""
+        if not self.asset_loader:
+            raise RuntimeError(
+                "LocationEntityResolver: Asset loader not initialized. "
+                "Cannot load location keywords from localization files. "
+                "This is a fatal configuration error - location keywords must be externalized."
+            )
+        
+        try:
+            room_localization = self.asset_loader.localizations.get("rooms", {})
+            room_data = room_localization.get(language, {})
+            
+            if not room_data and language != "en":
+                # Fallback to English
+                room_data = room_localization.get("en", {})
+            
+            if not room_data:
+                raise RuntimeError(
+                    f"LocationEntityResolver: No location keywords found for language '{language}' "
+                    f"in assets/localization/rooms/. This is a fatal error - location keywords "
+                    f"must be defined in localization files."
+                )
+            
+            room_keywords = room_data.get("room_keywords", {})
+            if not room_keywords:
+                raise RuntimeError(
+                    f"LocationEntityResolver: Empty room_keywords in "
+                    f"assets/localization/rooms/{language}.yaml. "
+                    f"Location keywords must be defined for language '{language}'."
+                )
+            
+            return room_keywords
+        except Exception as e:
+            if isinstance(e, RuntimeError):
+                raise  # Re-raise our own runtime errors
+            raise RuntimeError(
+                f"LocationEntityResolver: Failed to load location keywords from localization files: {e}. "
+                f"Check assets/localization/rooms/ directory and file structure."
+            )
+    
+    
+    async def resolve(self, location_reference: str, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve location reference using client and room context.
         """
         location_lower = location_reference.lower().strip()
         
-        # 1. Current room inference (Russian + English)
+        # 1. Current room inference using localization files
         current_room = context.get_room_name()
-        here_keywords = ["here", "this room", "здесь", "тут", "в этой комнате", "в комнате", "сюда"]
+        # Determine language from context
+        language = getattr(context, 'language', 'ru') or 'ru'
+        location_keywords = self._load_location_keywords(language)
+        here_keywords = location_keywords.get("here_indicators", [])
         
         if current_room and any(keyword in location_lower for keyword in here_keywords):
             return EntityResolutionResult(
@@ -357,7 +407,7 @@ class TemporalEntityResolver:
     def __init__(self):
         self.logger = logging.getLogger(f"{__name__}.TemporalEntityResolver")
     
-    async def resolve(self, temporal_reference: str, context: ConversationContext) -> Optional[EntityResolutionResult]:
+    async def resolve(self, temporal_reference: str, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve temporal references using context and patterns.
         """
@@ -441,7 +491,7 @@ class QuantityEntityResolver:
     def __init__(self):
         self.logger = logging.getLogger(f"{__name__}.QuantityEntityResolver")
     
-    async def resolve(self, quantity_reference: str, context: ConversationContext) -> Optional[EntityResolutionResult]:
+    async def resolve(self, quantity_reference: str, context: UnifiedConversationContext) -> Optional[EntityResolutionResult]:
         """
         Resolve quantity references with unit inference.
         """

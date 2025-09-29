@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any, Type, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -114,7 +114,7 @@ class TimerIntentHandler(IntentHandler):
         
         return False
     
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute timer intent"""
         try:
             if intent.action == "set" or intent.name == "timer.set":
@@ -146,7 +146,7 @@ class TimerIntentHandler(IntentHandler):
         """Timer functionality is always available"""
         return True
     
-    def _get_language(self, intent: Intent, context: ConversationContext) -> str:
+    def _get_language(self, intent: Intent, context: UnifiedConversationContext) -> str:
         """Determine language from intent or context"""
         # Check intent entities first
         if hasattr(intent, 'entities') and "language" in intent.entities:
@@ -188,7 +188,7 @@ class TimerIntentHandler(IntentHandler):
                 f"Check assets/templates/timer/{language}/status_messages.yaml for correct placeholders."
             )
     
-    async def _handle_set_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_set_timer(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle timer creation intent with fire-and-forget action execution"""
         # Extract timer parameters from intent entities or text
         duration = intent.entities.get('duration')
@@ -250,7 +250,7 @@ class TimerIntentHandler(IntentHandler):
                 success=False
             )
     
-    async def _handle_cancel_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_cancel_timer(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle timer cancellation intent with stop command disambiguation"""
         # Phase 2 TODO16: No more stop command parsing - handlers only receive resolved intents
         
@@ -317,7 +317,7 @@ class TimerIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
     
-    async def _handle_stop_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_stop_timer(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle domain-specific timer stop intent (timer.stop).
         
@@ -356,7 +356,7 @@ class TimerIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
     
-    async def _handle_pause_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_pause_timer(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle domain-specific timer pause intent (timer.pause).
         
@@ -391,7 +391,7 @@ class TimerIntentHandler(IntentHandler):
             success=True
         )
     
-    async def _handle_resume_timer(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_resume_timer(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle domain-specific timer resume intent (timer.resume).
         
@@ -431,7 +431,7 @@ class TimerIntentHandler(IntentHandler):
             success=True
         )
     
-    async def _handle_list_timers(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_list_timers(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle list timers intent"""
         session_timers = [(tid, timer) for tid, timer in self.active_timers.items() 
                         if timer['session_id'] == context.session_id]
@@ -469,7 +469,7 @@ class TimerIntentHandler(IntentHandler):
             metadata={"active_timer_count": len(timer_list)}
         )
     
-    async def _handle_timer_status(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_timer_status(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle timer status inquiry intent"""
         session_timers = [(tid, timer) for tid, timer in self.active_timers.items() 
                         if timer['session_id'] == context.session_id]

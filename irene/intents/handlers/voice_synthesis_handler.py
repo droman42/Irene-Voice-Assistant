@@ -10,7 +10,7 @@ import time
 from typing import List, Dict, Any, TYPE_CHECKING
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -75,12 +75,12 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         
         return False
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute voice synthesis intent"""
         # Use donation-driven routing exclusively
         return await self.execute_with_donation_routing(intent, context)
         
-    async def _handle_speak_with_voice(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_speak_with_voice(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle speak with specific voice request with fire-and-forget TTS generation"""
         tts_component = await self._get_tts_component()
         if not tts_component:
@@ -122,7 +122,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
         
-    async def _handle_list_voices(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_list_voices(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle list available voices request"""
         tts_component = await self._get_tts_component()
         if not tts_component:
@@ -148,7 +148,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
             success=success
         )
         
-    async def _handle_speak_text(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_speak_text(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle basic text-to-speech request with fire-and-forget synthesis"""
         tts_component = await self._get_tts_component()
         if not tts_component:
@@ -186,7 +186,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
             
-    async def _handle_switch_tts_provider(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_switch_tts_provider(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle TTS provider switching request"""
         tts_component = await self._get_tts_component()
         if not tts_component:
@@ -218,7 +218,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
             success=success
         )
     
-    async def _handle_stop_synthesis(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_stop_synthesis(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle domain-specific voice synthesis stop intent (voice_synthesis.stop).
         
@@ -245,7 +245,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
             action_metadata=action_metadata
         )
     
-    async def _handle_cancel_synthesis(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_cancel_synthesis(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """
         Handle domain-specific voice synthesis cancel intent (voice_synthesis.cancel).
         
@@ -341,7 +341,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
         
         return provider_mappings
         
-    def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
+    def _create_error_result(self, intent: Intent, context: UnifiedConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = context.language or "ru"
         error_text = self._get_template("synthesis_error", language, error=error)
@@ -569,7 +569,7 @@ class VoiceSynthesisIntentHandler(IntentHandler):
     # This handler delegates to TTS component and uses asset loader for voice mappings
     # No get_config_schema() method = no configuration required
     
-    def _get_language_from_context(self, context: ConversationContext) -> str:
+    def _get_language_from_context(self, context: UnifiedConversationContext) -> str:
         """Get language from conversation context with fallback"""
         return context.language or "ru"
     

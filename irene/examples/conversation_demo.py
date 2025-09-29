@@ -23,10 +23,11 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from irene.core.engine import AsyncVACore
-from irene.core.context import Context
+from irene.core.session_manager import SessionManager
+from irene.intents.models import UnifiedConversationContext
 # CommandResult removed - use IntentResult instead
 from irene.config.models import CoreConfig as Config
-from irene.intents.handlers.conversation import ConversationIntentHandler, ConversationSession
+from irene.intents.handlers.conversation import ConversationIntentHandler
 
 # Configure logging
 logging.basicConfig(
@@ -73,7 +74,7 @@ class ConversationDemoRunner:
         logger.info("="*60)
         
         # Create context for commands
-        context = Context()
+        context = UnifiedConversationContext(session_id=SessionManager.generate_session_id("demo"), user_id="demo_user")
         
         # Demo commands
         commands = [
@@ -113,40 +114,44 @@ class ConversationDemoRunner:
         
         handler = self._ensure_handler()
         
-        # Show initial state
-        logger.info(f"Initial sessions: {len(handler.sessions)}")
-        logger.info(f"Available sessions: {list(handler.sessions.keys())}")
+        # Session management now handled by UnifiedConversationContext.handler_contexts
+        logger.info("Session management now handled by UnifiedConversationContext")
         
-        # ConversationSession already imported above
+        # Create demo contexts with handler-specific conversation data
+        context1 = UnifiedConversationContext(session_id=SessionManager.generate_session_id("demo_1"))
+        context1.get_handler_context("conversation")["conversation_type"] = "chat"
+        context1.get_handler_context("conversation")["messages"] = [
+            {"role": "system", "content": "Ты дружелюбный помощник"},
+            {"role": "user", "content": "Привет!"},
+            {"role": "assistant", "content": "Привет! Как дела?"}
+        ]
         
-        session1 = ConversationSession("demo_1", "chat", "Ты дружелюбный помощник")
-        session1.add_message("user", "Привет!")
-        session1.add_message("assistant", "Привет! Как дела?")
+        context2 = UnifiedConversationContext(session_id=SessionManager.generate_session_id("demo_2"))
+        context2.get_handler_context("conversation")["conversation_type"] = "reference"
+        context2.get_handler_context("conversation")["messages"] = [
+            {"role": "system", "content": "Ты справочный помощник"},
+            {"role": "user", "content": "Что такое ИИ?"},
+            {"role": "assistant", "content": "Искусственный интеллект..."}
+        ]
         
-        session2 = ConversationSession("demo_2", "reference", "Ты справочный помощник")
-        session2.add_message("user", "Что такое ИИ?")
-        session2.add_message("assistant", "Искусственный интеллект...")
+        logger.info(f"Created demo contexts: demo_1, demo_2")
         
-        handler.sessions["demo_1"] = session1
-        handler.sessions["demo_2"] = session2
-        
-        logger.info(f"Created sessions: {list(handler.sessions.keys())}")
-        
-        # Show session details
-        for session_id, session in handler.sessions.items():
-            logger.info(f"\n📄 Session {session_id}:")
-            logger.info(f"  Type: {session.conversation_type}")
-            logger.info(f"  Messages: {len(session.messages)}")
-            logger.info(f"  Last activity: {session.last_activity}")
+        # Show context details
+        for context in [context1, context2]:
+            conv_context = context.get_handler_context("conversation")
+            logger.info(f"\n📄 Context {context.session_id}:")
+            logger.info(f"  Type: {conv_context.get('conversation_type', 'chat')}")
+            logger.info(f"  Messages: {len(conv_context.get('messages', []))}")
+            logger.info(f"  Created: {conv_context.get('created_at', 'unknown')}")
             
             # Show conversation history
-            for msg in session.messages:
+            for msg in conv_context.get('messages', []):
                 role_icon = "🤖" if msg["role"] == "assistant" else "👤" if msg["role"] == "user" else "⚙️"
                 logger.info(f"  {role_icon} {msg['role']}: {msg['content'][:50]}...")
         
-        # Test session cleanup (simplified for demo)
-        logger.info(f"\n🧹 Session cleanup functionality available in intent handler")
-        logger.info(f"Sessions after cleanup: {len(handler.sessions)}")
+        # Test context cleanup (simplified for demo)
+        logger.info(f"\n🧹 Context cleanup functionality available in UnifiedConversationContext")
+        logger.info(f"Context management now handled by ContextManager")
         
         # Test saving (simplified for demo)
         logger.info(f"\n💾 Session saving functionality available")

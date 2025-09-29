@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from .base import Component
 from ..core.interfaces.webapi import WebAPIPlugin
 from ..core.trace_context import TraceContext
-from ..intents.models import Intent, ConversationContext
+from ..intents.models import Intent, UnifiedConversationContext
 from ..utils.loader import dynamic_loader
 from ..providers.nlu.base import NLUProvider
 from ..core.entity_resolver import ContextualEntityResolver
@@ -32,16 +32,17 @@ class ContextAwareNLUProcessor:
         self.logger = logging.getLogger(f"{__name__}.ContextAwareNLUProcessor")
         
         # Entity resolver for context-based entity resolution
+        # Will be updated with asset loader when available
         self.entity_resolver = ContextualEntityResolver()
     
-    async def process_with_context(self, text: str, context: ConversationContext) -> Intent:
+    async def process_with_context(self, text: str, context: UnifiedConversationContext) -> Intent:
         """
         Enhanced NLU processing with context-aware entity resolution and 
         intent disambiguation using client identification and device capabilities.
         
         Args:
             text: Input text to analyze
-            context: Enhanced ConversationContext with client and device info
+            context: Enhanced UnifiedConversationContext with client and device info
             
         Returns:
             Intent with context-enhanced entities and disambiguation
@@ -61,7 +62,7 @@ class ContextAwareNLUProcessor:
         
         return enhanced_intent
     
-    async def _enhance_with_context(self, intent: Intent, context: ConversationContext, 
+    async def _enhance_with_context(self, intent: Intent, context: UnifiedConversationContext, 
                                    resolved_entities: Dict[str, Any]) -> Intent:
         """
         Enhance intent with context-aware entity resolution and disambiguation.
@@ -72,14 +73,14 @@ class ContextAwareNLUProcessor:
         # Start with resolved entities (includes original entities plus resolved ones)
         enhanced_entities = resolved_entities.copy()
         
-        # 1. Client Context Enhancement
+        # 1. Room Context Injection (simplified with unified context)
         if context.client_id:
             enhanced_entities["client_id"] = context.client_id
+            enhanced_entities["room_id"] = context.client_id  # Explicit room ID
             
-            room_name = context.get_room_name()
-            if room_name:
-                enhanced_entities["room_name"] = room_name
-                self.logger.debug(f"Added room context: {room_name}")
+        if context.room_name:
+            enhanced_entities["room_name"] = context.room_name
+            self.logger.debug(f"Added room context: {context.room_name}")
         
         # 2. Device Entity Resolution
         enhanced_entities = await self._resolve_device_entities(enhanced_entities, context)
@@ -115,7 +116,7 @@ class ContextAwareNLUProcessor:
         self.logger.info(f"Context-enhanced intent: {enhanced_intent.name} with {len(enhanced_entities)} entities")
         return enhanced_intent
     
-    async def _resolve_device_entities(self, entities: Dict[str, Any], context: ConversationContext) -> Dict[str, Any]:
+    async def _resolve_device_entities(self, entities: Dict[str, Any], context: UnifiedConversationContext) -> Dict[str, Any]:
         """
         Resolve device references in entities using client context and fuzzy matching.
         
@@ -153,7 +154,7 @@ class ContextAwareNLUProcessor:
         
         return enhanced_entities
     
-    async def _disambiguate_with_device_context(self, intent: Intent, context: ConversationContext) -> Intent:
+    async def _disambiguate_with_device_context(self, intent: Intent, context: UnifiedConversationContext) -> Intent:
         """
         Disambiguate intent based on available device capabilities and context.
         
@@ -185,7 +186,7 @@ class ContextAwareNLUProcessor:
         # In the future, this could return a different intent based on context
         return intent
     
-    async def _detect_language(self, text: str, context: ConversationContext) -> str:
+    async def _detect_language(self, text: str, context: UnifiedConversationContext) -> str:
         """
         Detect language from text with context awareness.
         
@@ -254,7 +255,7 @@ class ContextAwareNLUProcessor:
         else:
             return "ru"  # Default to Russian
     
-    def _should_redetect_language(self, context: ConversationContext) -> bool:
+    def _should_redetect_language(self, context: UnifiedConversationContext) -> bool:
         """
         Determine if language should be re-detected based on context and configuration.
         """
@@ -284,7 +285,7 @@ class ContextAwareNLUProcessor:
         
         return False
     
-    def _get_language_confidence(self, context: ConversationContext) -> float:
+    def _get_language_confidence(self, context: UnifiedConversationContext) -> float:
         """
         Calculate confidence in the current language detection based on conversation history.
         """
@@ -324,6 +325,8 @@ class NLUComponent(Component, WebAPIPlugin):
         self.confidence_threshold = 0.7
         self.fallback_intent = "conversation.general"
         self._provider_classes: Dict[str, type] = {}
+        self.context_manager = None  # Will be injected
+        self.asset_loader = None  # Will be initialized during provider loading
         
         # Cascading provider coordination configuration
         self.provider_cascade_order: List[str] = []
@@ -510,6 +513,13 @@ class NLUComponent(Component, WebAPIPlugin):
             if intent_component and hasattr(intent_component, 'get_enabled_handler_donations'):
                 donations = intent_component.get_enabled_handler_donations()
                 enabled_handlers = intent_component.get_enabled_handler_names()
+                
+                # Get asset loader from IntentComponent if available
+                if hasattr(intent_component, 'handler_manager') and intent_component.handler_manager:
+                    self.asset_loader = intent_component.handler_manager._asset_loader
+                    # Update entity resolver with asset loader
+                    self.context_processor.entity_resolver = ContextualEntityResolver(self.asset_loader)
+                
                 logger.info(f"Using shared donations from IntentComponent for handlers: {enabled_handlers}")
             
             # Fallback: Load donations independently if IntentComponent not available
@@ -533,13 +543,16 @@ class NLUComponent(Component, WebAPIPlugin):
                 # Initialize asset loader with strict validation
                 asset_config = AssetLoaderConfig(strict_mode=True)
                 assets_root = Path("assets")
-                asset_loader = IntentAssetLoader(assets_root, asset_config)
+                self.asset_loader = IntentAssetLoader(assets_root, asset_config)
                 
                 # Load assets only for enabled handlers
-                await asset_loader.load_all_assets(enabled_handler_names)
+                await self.asset_loader.load_all_assets(enabled_handler_names)
                 
                 # Get donations from the unified loader
-                donations = asset_loader.donations
+                donations = self.asset_loader.donations
+                
+                # Update entity resolver with asset loader
+                self.context_processor.entity_resolver = ContextualEntityResolver(self.asset_loader)
             
             if not donations:
                 logger.warning("No JSON donations found - providers will use fallback patterns")
@@ -719,7 +732,7 @@ class NLUComponent(Component, WebAPIPlugin):
         """
         return self.provider_cascade_order
     
-    def _get_cache_key(self, text: str, context: ConversationContext) -> str:
+    def _get_cache_key(self, text: str, context: UnifiedConversationContext) -> str:
         """Generate cache key for recognition results"""
         # Include client context for cache differentiation
         context_key = f"{context.session_id}:{context.client_id}:{context.language}"
@@ -752,7 +765,7 @@ class NLUComponent(Component, WebAPIPlugin):
         return self.confidence_threshold
     
     async def _try_provider_recognition(self, provider_name: str, text: str, 
-                                      context: ConversationContext) -> Optional[Intent]:
+                                      context: UnifiedConversationContext) -> Optional[Intent]:
         """
         Try recognition with a single provider with timeout and error handling.
         
@@ -796,7 +809,7 @@ class NLUComponent(Component, WebAPIPlugin):
             logger.warning(f"Provider {provider_name} failed: {e}")
             return None
     
-    async def recognize(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize(self, text: str, context: UnifiedConversationContext) -> Intent:
         """
         Recognize intent from text using cascading NLU providers.
         
@@ -894,7 +907,7 @@ class NLUComponent(Component, WebAPIPlugin):
         
         return "\n".join(info_lines)
     
-    async def process(self, text: str, context: ConversationContext, 
+    async def process(self, text: str, context: UnifiedConversationContext, 
                      trace_context: Optional[TraceContext] = None) -> Intent:
         """
         Process text using NLU recognition with optional detailed cascade tracing.
@@ -969,7 +982,7 @@ class NLUComponent(Component, WebAPIPlugin):
         
         return result
     
-    async def recognize_with_context(self, text: str, context: ConversationContext) -> Intent:
+    async def recognize_with_context(self, text: str, context: UnifiedConversationContext) -> Intent:
         """
         Context-aware intent recognition with enhanced entity resolution and disambiguation.
         
@@ -979,7 +992,7 @@ class NLUComponent(Component, WebAPIPlugin):
         
         Args:
             text: Input text to analyze
-            context: Enhanced ConversationContext with client and device info
+            context: Enhanced UnifiedConversationContext with client and device info
             
         Returns:
             Intent with context-enhanced entities and disambiguation
@@ -1021,7 +1034,7 @@ class NLUComponent(Component, WebAPIPlugin):
             from ..api.schemas import (
                 NLURequest, IntentResponse,
                 NLUConfigResponse, NLUProvidersResponse,
-                NLUConfigureResponse
+                NLUConfigureResponse, RoomAliasesResponse
             )
             
             router = APIRouter()
@@ -1029,30 +1042,45 @@ class NLUComponent(Component, WebAPIPlugin):
             @router.post("/recognize", response_model=IntentResponse)
             async def recognize_intent(request: NLURequest):
                 """Recognize intent from text input"""
-                # Create context from request
-                context = ConversationContext(
-                    session_id=request.context.get("session_id", "default") if request.context else "default",
-                    history=request.context.get("history", []) if request.context else []
-                )
-                
-                # Use specific provider if requested
-                if request.provider and request.provider in self.providers:
-                    # PHASE 4: Use integrated parameter extraction for direct provider calls
-                    intent = await self.providers[request.provider].recognize_with_parameters(request.text, context)
-                    provider_name = request.provider
-                else:
-                    intent = await self.recognize(request.text, context)
-                    provider_name = self.default_provider or "fallback"
-                
-                return IntentResponse(
-                    success=True,
-                    name=intent.name,
-                    entities=intent.entities,
-                    confidence=intent.confidence,
-                    provider=provider_name,
-                    domain=intent.domain,
-                    action=intent.action
-                )
+                try:
+                    # GET CONTEXT FROM CONTEXT MANAGER - NO CREATION
+                    session_id = request.context.get("session_id", "nlu_api_session") if request.context else "nlu_api_session"
+                    context = await self.context_manager.get_context(session_id)
+                    
+                    # Inject API request context if available
+                    if request.context:
+                        if "client_id" in request.context:
+                            context.client_id = request.context["client_id"]
+                        if "room_name" in request.context:
+                            context.room_name = request.context["room_name"]
+                        if "device_context" in request.context:
+                            context.client_metadata.update(request.context["device_context"])
+                        if "history" in request.context:
+                            context.conversation_history = request.context["history"]
+                    
+                    # Use specific provider if requested
+                    if request.provider and request.provider in self.providers:
+                        intent = await self.providers[request.provider].recognize_with_parameters(request.text, context=context)
+                        provider_name = request.provider
+                    else:
+                        intent = await self.recognize(request.text, context)
+                        provider_name = self.default_provider or "fallback"
+                    
+                    return IntentResponse(
+                        success=True,
+                        name=intent.name,
+                        entities=intent.entities,
+                        confidence=intent.confidence,
+                        domain=intent.domain,
+                        action=intent.action,
+                        provider=provider_name,
+                        session_id=context.session_id,
+                        room_context=bool(context.client_id)
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Intent recognition error: {e}")
+                    raise HTTPException(500, f"Intent recognition failed: {str(e)}")
             
             @router.get("/providers", response_model=NLUProvidersResponse)
             async def list_nlu_providers():
@@ -1128,6 +1156,44 @@ class NLUComponent(Component, WebAPIPlugin):
                     available_providers=list(self.providers.keys())
                 )
             
+            @router.get("/room_aliases", response_model=RoomAliasesResponse)
+            async def get_room_aliases(language: str = "en"):
+                """Get valid room aliases/IDs from localization files
+                
+                Returns list of room identifiers that can be used for:
+                - ESP32 room_id parameter in config messages
+                - Session ID generation (room_id + "_session")
+                - Room-scoped context management
+                """
+                try:
+                    # Access localization data through asset loader
+                    if not hasattr(self, 'asset_loader') or not self.asset_loader:
+                        raise HTTPException(503, "Asset loader not available")
+                    
+                    room_localization = self.asset_loader.localizations.get("rooms", {})
+                    room_data = room_localization.get(language, {})
+                    
+                    # Fallback to English if requested language not available
+                    if not room_data and language != "en":
+                        room_data = room_localization.get("en", {})
+                        language = "en"  # Update language to reflect fallback
+                    
+                    # Extract room aliases (keys from room_aliases section)
+                    room_aliases_data = room_data.get("room_keywords", {}).get("room_aliases", {})
+                    room_ids = list(room_aliases_data.keys()) if room_aliases_data else []
+                    
+                    return RoomAliasesResponse(
+                        success=True,
+                        room_aliases=room_ids,
+                        language=language,
+                        fallback_language="en",
+                        total_count=len(room_ids)
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Failed to get room aliases: {e}")
+                    raise HTTPException(500, f"Failed to retrieve room aliases: {str(e)}")
+            
             return router
             
         except ImportError:
@@ -1150,6 +1216,21 @@ class NLUComponent(Component, WebAPIPlugin):
     def get_api_tags(self) -> List[str]:
         """Get OpenAPI tags for NLU endpoints"""
         return ["Natural Language Understanding"]
+
+    def get_service_dependencies(self) -> Dict[str, type]:
+        """Define service dependencies for injection"""
+        from ..intents.context import ContextManager
+        return {
+            'context_manager': ContextManager
+        }
+    
+    def inject_dependency(self, name: str, dependency: Any) -> None:
+        """Inject service dependencies"""
+        if name == 'context_manager':
+            self.context_manager = dependency
+            logger.debug("Context manager injected into NLUComponent")
+        else:
+            super().inject_dependency(name, dependency)
 
     # Build dependency methods (TODO #5 Phase 2)
     @classmethod

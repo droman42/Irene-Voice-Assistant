@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any, TYPE_CHECKING
 
 from .base import IntentHandler
-from ..models import Intent, IntentResult, ConversationContext
+from ..models import Intent, IntentResult, UnifiedConversationContext
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -75,12 +75,12 @@ class SpeechRecognitionIntentHandler(IntentHandler):
         
         return False
         
-    async def execute(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def execute(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Execute speech recognition intent"""
         # Use donation-driven routing exclusively
         return await self.execute_with_donation_routing(intent, context)
         
-    async def _handle_show_recognition(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_show_recognition(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle show ASR providers request"""
         asr_component = await self._get_asr_component()
         if not asr_component:
@@ -103,7 +103,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
             success=True
         )
         
-    async def _handle_switch_asr_provider(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_switch_asr_provider(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle ASR provider switching request"""
         asr_component = await self._get_asr_component()
         if not asr_component:
@@ -141,7 +141,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
             success=success
         )
         
-    async def _handle_switch_language(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_switch_language(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle ASR language switching request"""
         asr_component = await self._get_asr_component()
         if not asr_component:
@@ -169,7 +169,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
             success=success
         )
         
-    async def _handle_configure_quality(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_configure_quality(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle ASR quality configuration request"""
         # Extract quality setting from intent entities
         quality = intent.entities.get("quality", "high")
@@ -194,7 +194,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
             success=False
         )
         
-    async def _handle_configure_microphone(self, intent: Intent, context: ConversationContext) -> IntentResult:
+    async def _handle_configure_microphone(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle microphone configuration request"""
         # Extract microphone device from intent entities
         microphone = intent.entities.get("microphone", "default")
@@ -262,7 +262,7 @@ class SpeechRecognitionIntentHandler(IntentHandler):
                 f"Check assets/templates/speech_recognition/{language}/error_messages.yaml for correct placeholders."
             )
     
-    def _create_error_result(self, intent: Intent, context: ConversationContext, error: str) -> IntentResult:
+    def _create_error_result(self, intent: Intent, context: UnifiedConversationContext, error: str) -> IntentResult:
         """Create error result with language awareness"""
         language = context.language or "ru"
         

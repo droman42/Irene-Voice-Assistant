@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass
 
 from ..core.engine import AsyncVACore
+from ..core.session_manager import SessionManager
 from ..config.models import CoreConfig, ComponentConfig, VOICE_PROFILE, API_PROFILE, HEADLESS_PROFILE
 
 # Configure logging
@@ -54,7 +55,7 @@ async def demo_deployment_profile(profile_name: str, component_config: Component
         # Use unified workflow interface
         result1 = await core.workflow_manager.process_text_input(
             text="hello",
-            session_id="component_demo",
+            session_id=SessionManager.generate_session_id("component_demo"),
             wants_audio=False,
             client_context={"source": "component_demo"}
         )
@@ -62,7 +63,7 @@ async def demo_deployment_profile(profile_name: str, component_config: Component
         
         result2 = await core.workflow_manager.process_text_input(
             text="what time is it",
-            session_id="component_demo",
+            session_id=SessionManager.generate_session_id("component_demo"),
             wants_audio=False,
             client_context={"source": "component_demo"}
         )
@@ -72,7 +73,7 @@ async def demo_deployment_profile(profile_name: str, component_config: Component
         print(f"\nTesting TTS output via workflow...")
         tts_result = await core.workflow_manager.process_text_input(
             text="Testing component-aware speech output",
-            session_id="component_demo_tts",
+            session_id=SessionManager.generate_session_id("component_demo_tts"),
             wants_audio=True,  # Request audio output
             client_context={"source": "component_demo"}
         )
