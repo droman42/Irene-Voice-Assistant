@@ -196,6 +196,7 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         if not trace_context or not trace_context.enabled:
             # Original implementation logic here
             provider_name = kwargs.get("provider", self.default_provider)
+            language = kwargs.get("language", self.default_language)
             
             # Debug logging for audio data reception
             logger.info(f"🎧 ASR received audio data: {len(audio_data.data)} bytes, "
@@ -207,12 +208,13 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
                 raise ValueError(f"ASR provider '{provider_name}' not available")
             
             provider = self.providers[provider_name]
-            return await provider.transcribe(audio_data)
+            return await provider.transcribe_audio(audio_data.data, language=language)
         
         # Trace path - detailed provider performance tracking
         stage_start = time.time()
         provider_attempts = []
         provider_name = kwargs.get("provider", self.default_provider)
+        language = kwargs.get("language", self.default_language)
         
         # Debug logging for audio data reception
         logger.info(f"🎧 ASR received audio data: {len(audio_data.data)} bytes, "
@@ -228,7 +230,7 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
         # Execute transcription with timing
         attempt_start = time.time()
         try:
-            transcription = await provider.transcribe(audio_data)
+            transcription = await provider.transcribe_audio(audio_data.data, language=language)
             provider_attempts.append({
                 "provider": provider_name,
                 "result": transcription,
@@ -267,6 +269,14 @@ class ASRComponent(Component, ASRPlugin, WebAPIPlugin):
     
     async def _original_process_audio_logic(self, audio_data: AudioData, **kwargs) -> str:
         """Original process_audio implementation for reference"""
+        # Extract provider info from kwargs
+        provider_name = kwargs.get("provider", self.default_provider)
+        
+        if provider_name not in self.providers:
+            raise ValueError(f"ASR provider '{provider_name}' not available")
+        
+        provider = self.providers[provider_name]
+        
         # Phase 4 Step 1: Get ASR configuration (AUTHORITATIVE per fix_vosk.md)
         asr_config = {}
         if hasattr(self, 'core') and self.core:
