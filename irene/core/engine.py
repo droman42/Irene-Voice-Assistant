@@ -23,6 +23,20 @@ from .metrics import get_metrics_collector  # Phase 2: Replaced AnalyticsManager
 
 logger = logging.getLogger(__name__)
 
+# Global core instance for component access by handlers
+_global_core: Optional['AsyncVACore'] = None
+
+
+def get_core() -> Optional['AsyncVACore']:
+    """Get the global AsyncVACore instance for component access"""
+    return _global_core
+
+
+def set_core(core: 'AsyncVACore') -> None:
+    """Set the global AsyncVACore instance"""
+    global _global_core
+    _global_core = core
+
 
 class AsyncVACore:
     """
@@ -51,6 +65,9 @@ class AsyncVACore:
     async def start(self) -> None:
         """Initialize and start the assistant"""
         logger.info("Starting Irene Voice Assistant v13...")
+        
+        # Set this instance as the global core for component access
+        set_core(self)
         
         try:
             # Initialize components first - PASS CORE REFERENCE
@@ -95,6 +112,9 @@ class AsyncVACore:
         logger.info("Stopping Irene Voice Assistant...")
         
         self._running = False
+        
+        # Clear global core instance
+        set_core(None)
         
         try:
             await self.timer_manager.stop()

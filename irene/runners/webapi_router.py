@@ -277,7 +277,7 @@ def create_webapi_router(
                 session_id=session_id,
                 room_alias=request.room_alias,  # NEW: Include room alias in response
                 metadata={
-                    "intent_name": result.intent_name,
+                    "intent_name": result.metadata.get("original_intent") if result.metadata else None,
                     "confidence": result.confidence,
                     "execution_time": result.metadata.get("execution_time") if result.metadata else None
                 }

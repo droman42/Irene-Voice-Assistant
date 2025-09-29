@@ -124,9 +124,17 @@ class ConversationIntentHandler(IntentHandler):
             # Check if this is a fallback scenario (when NLU failed to recognize intent)
             is_fallback = intent.entities.get("_recognition_provider") == "fallback"
             
-            # For fallback scenarios, use the fallback handler regardless of action
+            # For fallback scenarios, check if LLM is available before deciding on fallback approach
             if is_fallback:
-                return await self._handle_fallback_without_llm(intent, context)
+                llm_component = await self._get_llm_component()
+                if llm_component and await llm_component.is_available():
+                    # LLM is available - treat as conversation.general and use LLM
+                    logger.info(f"NLU fallback detected but LLM available - using LLM for: {intent.raw_text}")
+                    return await self._handle_continue_conversation(intent, context)
+                else:
+                    # LLM not available - use template-based fallback
+                    logger.info(f"NLU fallback detected and LLM unavailable - using templates for: {intent.raw_text}")
+                    return await self._handle_fallback_without_llm(intent, context)
             
             # Handle specific conversation actions using unified context
             if intent.action == "start":
@@ -153,6 +161,20 @@ class ConversationIntentHandler(IntentHandler):
     def set_llm_component(self, llm_component):
         """Set the LLM component reference"""
         self.llm_component = llm_component
+    
+    async def _get_llm_component(self):
+        """Get LLM component from core (dynamic access pattern)"""
+        if self.llm_component is None:
+            try:
+                from ...core.engine import get_core
+                core = get_core()
+                if core and hasattr(core, 'component_manager'):
+                    self.llm_component = await core.component_manager.get_component('llm')
+            except Exception as e:
+                self.logger.error(f"Failed to get LLM component: {e}")
+                return None
+        
+        return self.llm_component
     
     def _get_prompt(self, prompt_type: str, language: str = "ru") -> str:
         """Get prompt from asset loader - raises fatal error if not available"""
@@ -233,9 +255,10 @@ class ConversationIntentHandler(IntentHandler):
     
     async def is_available(self) -> bool:
         """Check if LLM component is available for conversation"""
-        if not self.llm_component:
+        llm_component = await self._get_llm_component()
+        if not llm_component:
             return False
-        return await self.llm_component.is_available()
+        return await llm_component.is_available()
     
 # Session management removed - now handled by UnifiedConversationContext handler_contexts
     
@@ -313,7 +336,8 @@ class ConversationIntentHandler(IntentHandler):
     
     async def _handle_reference_query(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle reference/factual query intent"""
-        if not self.llm_component:
+        llm_component = await self._get_llm_component()
+        if not llm_component:
             return IntentResult(
                 text="Извините, справочный режим недоступен.",
                 should_speak=True,
@@ -327,7 +351,7 @@ class ConversationIntentHandler(IntentHandler):
         
         try:
             # Use LLM component's default model for factual queries
-            response = await self.llm_component.generate_response(
+            response = await llm_component.generate_response(
                 messages=[{"role": "user", "content": formatted_prompt}],
                 trace_context=self._trace_context
             )
@@ -352,16 +376,11 @@ class ConversationIntentHandler(IntentHandler):
     
     async def _handle_continue_conversation(self, intent: Intent, context: UnifiedConversationContext) -> IntentResult:
         """Handle ongoing conversation intent - donation-compatible method signature"""
+        # Note: Fallback logic is now handled in execute() method, not here
         
-        # Check if this is a fallback scenario (when NLU failed to recognize intent)
-        is_fallback = intent.entities.get("_recognition_provider") == "fallback"
-        
-        if is_fallback:
-            # Handle fallback scenario - works even without LLM
-            return await self._handle_fallback_without_llm(intent, context)
-        
-        # For normal conversation (not fallback), require LLM
-        if not self.llm_component:
+        # For conversation (including NLU fallback when LLM is available), require LLM
+        llm_component = await self._get_llm_component()
+        if not llm_component:
             return IntentResult(
                 text="Извините, диалоговый режим недоступен.",
                 should_speak=True,
@@ -372,6 +391,11 @@ class ConversationIntentHandler(IntentHandler):
             # Get or create conversation handler context
             handler_context = context.get_handler_context("conversation")
             
+            # Check if this was an NLU fallback that we're now handling with LLM
+            is_fallback = intent.entities.get("_recognition_provider") == "fallback"
+            if is_fallback:
+                logger.debug(f"Processing NLU fallback with LLM: '{intent.raw_text}' -> conversation.general")
+            
             # Add user message to handler context (LLM-specific conversation management)
             handler_context["messages"].append({"role": "user", "content": intent.raw_text})
             
@@ -379,7 +403,7 @@ class ConversationIntentHandler(IntentHandler):
             messages = handler_context["messages"].copy()
             
             # Generate response using LLM component's default model
-            response = await self.llm_component.generate_response(
+            response = await llm_component.generate_response(
                 messages=messages,
                 trace_context=self._trace_context
             )
@@ -393,7 +417,10 @@ class ConversationIntentHandler(IntentHandler):
                 metadata={
                     "conversation_type": handler_context.get("conversation_type", "chat"),
                     "message_count": len(handler_context["messages"]),
-                    "session_id": context.session_id
+                    "session_id": context.session_id,
+                    "nlu_fallback_handled_by_llm": is_fallback,
+                    "original_recognition_provider": intent.entities.get("_recognition_provider"),
+                    "cascade_attempts": intent.entities.get("_cascade_attempts", 0)
                 }
             )
             

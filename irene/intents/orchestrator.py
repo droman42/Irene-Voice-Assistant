@@ -287,6 +287,11 @@ class IntentOrchestrator:
                     session_id=getattr(processed_intent, 'session_id', None)
                 )
                 
+                # Add original intent name to result metadata for API responses
+                if not result.metadata:
+                    result.metadata = {}
+                result.metadata["original_intent"] = processed_intent.name
+                
                 # Update conversation context
                 context.add_user_turn(processed_intent)
                 context.add_assistant_turn(result)
