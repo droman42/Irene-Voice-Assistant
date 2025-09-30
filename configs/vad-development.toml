@@ -83,7 +83,6 @@ resample_quality = "medium"   # Balance quality/speed for development
 enabled = true
 default_language = "en"       # English for development
 sample_rate = 16000
-confidence_threshold = 0.6    # Lower threshold for testing
 preload_models = true
 
 # ============================================================

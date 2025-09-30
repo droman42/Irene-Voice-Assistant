@@ -168,7 +168,6 @@ class VoskASRProviderSchema(ASRProviderSchema):
     """Vosk ASR provider configuration schema"""
     default_language: str = Field(default="ru", description="Default language: ru, en")
     sample_rate: int = Field(default=16000, description="Audio sample rate")
-    confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold")
     preload_models: bool = Field(default=False, description="Preload AI models during provider initialization")
 
 

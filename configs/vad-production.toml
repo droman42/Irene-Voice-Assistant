@@ -86,7 +86,6 @@ resample_quality = "high"     # High quality for production
 enabled = true
 default_language = "ru"       # Russian for production
 sample_rate = 16000
-confidence_threshold = 0.75   # Higher confidence for production
 preload_models = true
 
 # ============================================================

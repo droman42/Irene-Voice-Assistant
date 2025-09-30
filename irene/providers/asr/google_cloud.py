@@ -265,7 +265,7 @@ class GoogleCloudASRProvider(ASRProvider):
             "formats": self.get_supported_formats(),
             "streaming": True,
             "real_time": True,  # Supports real-time streaming
-            "confidence_scores": True,  # Provides confidence scores
+            "confidence_scores": False,  # Not implemented in current transcribe_audio method
             "offline": False,  # Requires internet connection
             "cloud_based": True,
             "high_accuracy": True,  # Generally high accuracy

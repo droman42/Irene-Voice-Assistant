@@ -83,7 +83,6 @@ resample_quality = "fast"     # Fast for testing
 enabled = true
 default_language = "en"       # English for consistent testing
 sample_rate = 16000
-confidence_threshold = 0.5    # Lower threshold for testing
 preload_models = true
 
 # ============================================================

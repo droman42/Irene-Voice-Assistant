@@ -222,7 +222,6 @@ preload_models = true              # Preload AI models during provider initializ
 enabled = true                     # Enable Vosk provider
 default_language = "ru"            # Default language: "ru", "en"
 sample_rate = 16000                # Audio sample rate (must match ASR component configuration)
-confidence_threshold = 0.7         # Minimum confidence for recognition
 preload_models = true              # Preload AI models during provider initialization for faster startup
 
 # Google Cloud Speech ASR Provider (cloud-based, high accuracy)

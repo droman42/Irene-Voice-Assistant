@@ -27,7 +27,6 @@ class VoskASRProvider(ASRProvider):
                 - model_paths: Dict mapping language codes to model paths (deprecated - uses asset manager)
                 - default_language: Default language code (default: 'ru')
                 - sample_rate: Audio sample rate (default: 16000)
-                - confidence_threshold: Minimum confidence for results (default: 0.7)
         """
         super().__init__(config)  # Proper ABC inheritance
         
@@ -43,7 +42,6 @@ class VoskASRProvider(ASRProvider):
             
         self.default_language = config.get("default_language", "ru")
         self.sample_rate = config.get("sample_rate", 16000)
-        self.confidence_threshold = config.get("confidence_threshold", 0.7)
         self._models: Dict[str, Any] = {}  # Lazy-loaded VOSK models cache
         self._recognizers: Dict[str, Any] = {}  # Cached VOSK recognizers per language
         
@@ -143,11 +141,9 @@ class VoskASRProvider(ASRProvider):
     async def transcribe_audio(self, audio_data: bytes, **kwargs) -> str:
         """Transcribe audio using VOSK - code moved from MicrophoneInput"""
         language = kwargs.get("language", self.default_language)
-        confidence_threshold = kwargs.get("confidence_threshold", self.confidence_threshold)
         
         # Debug logging for VOSK processing
-        logger.info(f"🗣️ VOSK transcribe_audio called: {len(audio_data)} bytes, "
-                   f"language={language}, confidence_threshold={confidence_threshold}")
+        logger.info(f"🗣️ VOSK transcribe_audio called: {len(audio_data)} bytes, language={language}")
         
         recognizer = None  # Initialize for cleanup in finally block
         text = ""  # Initialize for reset logic
@@ -172,15 +168,14 @@ class VoskASRProvider(ASRProvider):
             if recognizer.AcceptWaveform(audio_data):
                 result = json.loads(recognizer.Result())
                 text = result.get("text", "")
-                confidence = result.get("confidence", 0.0)
                 
-                logger.info(f"✅ VOSK full result: text='{text}', confidence={confidence}")
+                logger.info(f"✅ VOSK full result: text='{text}'")
                 
-                if confidence >= confidence_threshold:
+                if text.strip():
                     logger.info(f"✅ VOSK transcription successful: '{text}'")
                     return text.strip()
                 else:
-                    logger.debug(f"📉 VOSK confidence too low: {confidence} < {confidence_threshold}")
+                    logger.debug(f"📭 VOSK returned empty text")
             else:
                 # Check partial result for streaming scenarios
                 partial_result = json.loads(recognizer.PartialResult())
@@ -424,7 +419,7 @@ class VoskASRProvider(ASRProvider):
             "formats": self.get_supported_formats(),
             "streaming": True,
             "real_time": True,  # VOSK supports real-time processing
-            "confidence_scores": True,  # VOSK provides confidence scores
+            "confidence_scores": False,  # VOSK confidence scores are unreliable (always 0.0)
             "offline": True,  # VOSK works offline
             "model_based": True
         } 

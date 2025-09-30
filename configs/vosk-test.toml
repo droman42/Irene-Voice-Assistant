@@ -75,7 +75,6 @@ resample_quality = "high"     # Resampling quality for ASR: "fast", "medium", "h
 enabled = true                 # REQUIRED: Enable VOSK provider
 default_language = "ru"        # Default language: "ru", "en"
 sample_rate = 16000           # Audio sample rate (matches microphone config)
-confidence_threshold = 0.7    # Minimum confidence for recognition
 preload_models = true         # Preload AI models during startup
 
 # Other ASR providers (disabled for VOSK runner)
