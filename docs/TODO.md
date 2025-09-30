@@ -22,6 +22,7 @@ This document tracks architectural improvements and refactoring tasks for the Ir
 | 14 | [ESP32 INT8 Wake Word Model Migration](TODO/TODO14.md) | ✅ **COMPLETED** | High | ESP32 firmware, wake word training pipeline |
 | 15 | [Handler Response Templates and Configuration Refactoring](TODO/TODO15.md) | ✅ **COMPLETED** | Medium | Response templates, LLM prompts, Localization, Configuration externalization |
 | 16 | [General Command Disambiguation & Context-Aware Action Resolution](TODO/TODO16.md) | ✅ **COMPLETED** | Medium | Context aware  disambiguation for simple commands, workflow execution trace collection |
+| 17 | Wake Word Training Separation | ✅ **COMPLETED** | Medium | Moved wake_word_training to separate project, cleaned up dependencies |
 
 ## 🎯 Status Legend
 

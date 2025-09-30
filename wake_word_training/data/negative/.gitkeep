@@ -1,3 +1,0 @@
-# Negative samples (background noise and conversational speech)
-# Target: 2 hours idle room noise + 2 hours conversational speech
-# Format: 16kHz, 16-bit mono WAV files 

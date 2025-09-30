@@ -1,7 +1,6 @@
 {
   "include": [
-    "irene",
-    "wake_word_training"
+    "irene"
   ],
   "exclude": [
     "**/node_modules",
