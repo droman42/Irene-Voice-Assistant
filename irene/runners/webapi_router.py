@@ -291,7 +291,7 @@ def create_webapi_router(
     
     # Audio execution endpoint
     @router.post("/execute/audio", response_model=CommandResponse, tags=["General"])
-    async def execute_audio(audio_file: UploadFile = File(...), room_alias: Optional[str] = None):
+    async def execute_audio(audio_file: UploadFile = File(...), room_alias: Optional[str] = None, skip_asr: bool = False):
         """Execute audio processing via REST API with optional room context"""
         try:
             if not core:
@@ -338,6 +338,7 @@ def create_webapi_router(
                 "source": "audio_api",
                 "filename": audio_file.filename,
                 "skip_wake_word": True,  # Skip wake word for uploaded files
+                "skip_asr": skip_asr,  # Allow ASR to be skipped
                 "file_size_bytes": file_size,
                 "room_alias": room_alias,
                 "client_id": client_id
@@ -509,7 +510,7 @@ def create_webapi_router(
             )
     
     @router.post("/trace/audio", response_model=TraceCommandResponse, tags=["Tracing"])
-    async def trace_audio_execution(audio_file: UploadFile = File(...), room_alias: Optional[str] = None):
+    async def trace_audio_execution(audio_file: UploadFile = File(...), room_alias: Optional[str] = None, skip_asr: bool = False):
         """Execute audio processing with full execution trace and optional room context"""
         try:
             if not core:
@@ -562,6 +563,7 @@ def create_webapi_router(
                 "source": "trace_audio_api",
                 "filename": audio_file.filename,
                 "skip_wake_word": True,  # Skip wake word for uploaded files
+                "skip_asr": skip_asr,  # Allow ASR to be skipped
                 "file_size_bytes": file_size,
                 "trace_enabled": True,
                 "room_alias": room_alias,

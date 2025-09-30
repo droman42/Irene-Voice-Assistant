@@ -19,6 +19,7 @@ class RequestContext:
                  session_id: Optional[str] = None, 
                  wants_audio: bool = False,
                  skip_wake_word: bool = False,
+                 skip_asr: bool = False,
                  metadata: Optional[Dict[str, Any]] = None,
                  client_id: Optional[str] = None,
                  room_name: Optional[str] = None,
@@ -32,6 +33,7 @@ class RequestContext:
             session_id: Session identifier for context management (auto-generated if None)
             wants_audio: Whether the response should include audio output
             skip_wake_word: Whether to skip wake word detection
+            skip_asr: Whether to skip ASR (Automatic Speech Recognition) processing
             metadata: Additional request metadata
             client_id: Client/node identifier (e.g., "kitchen_node", "living_room_esp32")
             room_name: Human-readable room name (e.g., "Кухня", "Kitchen")
@@ -42,6 +44,7 @@ class RequestContext:
         self.session_id = session_id or SessionManager.generate_session_id(source)
         self.wants_audio = wants_audio
         self.skip_wake_word = skip_wake_word
+        self.skip_asr = skip_asr
         self.metadata = metadata or {}
         
         # Client identification and context
@@ -171,8 +174,8 @@ class Workflow(EntryPointMetadata, ABC):
         if context.skip_wake_word or context.source == "text":
             stages["voice_trigger"] = False
         
-        # ASR stage - disabled for text input
-        if context.source == "text":
+        # ASR stage - disabled for text input or when skip_asr is True
+        if context.source == "text" or getattr(context, 'skip_asr', False):
             stages["asr"] = False
         
         # TTS stage - conditional based on wants_audio preference

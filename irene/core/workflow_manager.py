@@ -451,6 +451,7 @@ class WorkflowManager:
             session_id=session_id,
             wants_audio=wants_audio,
             skip_wake_word=True,  # Always skip for text input
+            skip_asr=True,  # Always skip for text input
             metadata=client_context or {"mode": "text_input"},
             client_id=client_context.get("client_id") if client_context else None,
             room_name=client_context.get("room_name") if client_context else None,
@@ -542,6 +543,7 @@ class WorkflowManager:
                 session_id=session_id,
                 wants_audio=wants_audio,
                 skip_wake_word=client_context.get("skip_wake_word", False) if client_context else False,
+                skip_asr=client_context.get("skip_asr", False) if client_context else False,
                 metadata=client_context or {"mode": "audio_input"},
                 client_id=client_context.get("client_id") if client_context else None,
                 room_name=client_context.get("room_name") if client_context else None,
