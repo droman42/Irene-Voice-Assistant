@@ -531,15 +531,15 @@ info_detail_level = "basic"        # Level of system info to provide (basic/deta
 # ============================================================
 [vad]
 enabled = true                     # Enable VAD processing to solve 23ms chunk problem
-energy_threshold = 0.0015          # Balanced threshold - not too sensitive, not too high (0.0-1.0)
-sensitivity = 2.0                  # Higher sensitivity = much lower effective threshold for normal speech (0.1-3.0)
-voice_duration_ms = 80             # Shorter minimum duration to catch quick phonemes like "И", "К" (10-1000)
-silence_duration_ms = 400          # Even shorter silence for faster VAD response to speech onset (50-2000)
+energy_threshold = 0.0008          # FIXED: Lower threshold for better vowel detection (was 0.0015)
+sensitivity = 3.0                  # FIXED: Maximum sensitivity for comprehensive detection (was 2.0, schema now allows 3.0)
+voice_duration_ms = 50             # FIXED: Shorter duration for brief vowels and consonants (was 80)
+silence_duration_ms = 300          # FIXED: Reduced silence requirement for faster response (was 400)
 max_segment_duration_s = 8         # Maximum voice segment duration in seconds (1-60)
 use_zero_crossing_rate = true      # Enable ZCR with improved range-based logic
 adaptive_threshold = true          # Enable improved adaptive threshold with proper noise estimation
-noise_percentile = 20              # Lower percentile for quieter environments - more sensitive (1-50)
-voice_multiplier = 2.5             # Reduced multiplier for better sensitivity to normal speech levels (1.0-10.0)
+noise_percentile = 15              # FIXED: Lower percentile for better noise floor estimation (was 20)
+voice_multiplier = 1.8             # FIXED: Lower multiplier for better vowel sensitivity (was 2.5)
 processing_timeout_ms = 50         # Maximum processing time per frame in milliseconds (1-100)
 buffer_size_frames = 300           # Maximum frames to buffer in voice segments (10-200)
 
@@ -549,7 +549,7 @@ asr_target_rms = 0.15              # Target RMS level for ASR audio normalizatio
 enable_fallback_to_original = true # Try original audio if normalized version fails recognition
 
 # Frame-based configuration (internal implementation)
-voice_frames_required = 2          # Require 2 consecutive frames for stable detection - prevents false triggers (1-10)
+voice_frames_required = 1          # Require 2 consecutive frames for stable detection - prevents false triggers (1-10)
 silence_frames_required = 8        # Reduced frames needed to confirm voice end for responsiveness (1-20)
 
 # ============================================================

@@ -365,7 +365,7 @@ class VADConfig(BaseModel):
     
     # Core VAD parameters (Phase 4 specification)
     energy_threshold: float = Field(default=0.01, description="RMS energy threshold for voice detection", ge=0.0, le=1.0)
-    sensitivity: float = Field(default=0.5, description="Detection sensitivity multiplier", ge=0.1, le=2.0)
+    sensitivity: float = Field(default=0.5, description="Detection sensitivity multiplier", ge=0.1, le=3.0)
     voice_duration_ms: int = Field(default=100, description="Minimum voice duration in milliseconds", ge=10, le=1000)
     silence_duration_ms: int = Field(default=200, description="Minimum silence duration to end voice segment in milliseconds", ge=50, le=2000)
     max_segment_duration_s: int = Field(default=10, description="Maximum voice segment duration in seconds", ge=1, le=60)
@@ -405,8 +405,8 @@ class VADConfig(BaseModel):
     @field_validator('sensitivity')
     @classmethod
     def validate_sensitivity(cls, v):
-        if not 0.1 <= v <= 2.0:
-            raise ValueError("VAD sensitivity must be between 0.1 and 2.0")
+        if not 0.1 <= v <= 3.0:
+            raise ValueError("VAD sensitivity must be between 0.1 and 3.0")
         return v
 
 

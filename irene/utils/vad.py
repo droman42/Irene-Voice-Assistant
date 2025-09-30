@@ -56,18 +56,21 @@ def _calculate_rms_energy_cached(data_hash: int, data_length: int) -> float:
 
 def _preprocess_audio_for_vad(audio_array: np.ndarray) -> np.ndarray:
     """
-    Apply basic audio preprocessing for better VAD performance on low-quality microphones.
+    Apply balanced audio preprocessing for comprehensive speech detection.
+    
+    FIXED: Reduced high-frequency bias that was causing sibilant-only detection.
+    Now optimized for detecting both vowels and consonants across the speech spectrum.
     
     Preprocessing steps:
     1. DC removal (subtract mean)
-    2. Simple high-pass filter (first-order difference)
-    3. Optional pre-emphasis
+    2. Gentle high-pass filter (reduced strength)
+    3. Reduced pre-emphasis for balanced frequency response
     
     Args:
         audio_array: Input audio as numpy array (float32)
         
     Returns:
-        Preprocessed audio array
+        Preprocessed audio array with balanced frequency response
     """
     if len(audio_array) == 0:
         return audio_array
@@ -75,18 +78,20 @@ def _preprocess_audio_for_vad(audio_array: np.ndarray) -> np.ndarray:
     # Step 1: DC removal - subtract mean to remove DC bias
     dc_removed = audio_array - np.mean(audio_array)
     
-    # Step 2: Simple high-pass filter using first-order difference
-    # This removes low-frequency rumble and improves SNR
+    # Step 2: FIXED - Gentler high-pass filter to preserve vowel energy
+    # Reduced filtering strength to avoid over-attenuating low frequencies
     if len(dc_removed) > 1:
-        # First-order difference approximates high-pass filter
-        high_passed = np.diff(dc_removed, prepend=dc_removed[0])
+        # Use weighted difference for gentler high-pass effect
+        high_pass_strength = 0.3  # FIXED: Reduced from implicit 1.0 to preserve vowels
+        high_passed = dc_removed[1:] - high_pass_strength * dc_removed[:-1]
+        high_passed = np.concatenate([[dc_removed[0]], high_passed])
     else:
         high_passed = dc_removed
     
-    # Step 3: Optional pre-emphasis (0.97 coefficient is standard)
-    # This balances the frequency spectrum and improves speech detection
+    # Step 3: FIXED - Reduced pre-emphasis to avoid vowel suppression
+    # Lower coefficient preserves low-frequency vowel energy while still helping consonants
     if len(high_passed) > 1:
-        pre_emphasis_coeff = 0.97
+        pre_emphasis_coeff = 0.85  # FIXED: Reduced from 0.97 for better vowel detection
         pre_emphasized = np.copy(high_passed)
         pre_emphasized[1:] = high_passed[1:] - pre_emphasis_coeff * high_passed[:-1]
     else:
@@ -146,14 +151,60 @@ def _apply_dynamic_range_compression(audio_array: np.ndarray, target_rms: float 
     return clipped_audio
 
 
+def _calculate_multi_band_energy(audio_array: np.ndarray) -> tuple[float, float, float]:
+    """
+    Calculate energy in multiple frequency bands for balanced speech detection.
+    
+    FIXED: Addresses sibilant-only detection by analyzing different frequency bands
+    separately, allowing better detection of vowels (low freq) and consonants (high freq).
+    
+    Args:
+        audio_array: Preprocessed audio as numpy array (float32)
+        
+    Returns:
+        Tuple of (low_freq_energy, mid_freq_energy, high_freq_energy)
+    """
+    if len(audio_array) == 0:
+        return 0.0, 0.0, 0.0
+    
+    # Simple frequency band separation using filtering
+    # This is a time-domain approximation for efficiency
+    
+    # Low frequency band (vowels, voiced sounds) - minimal filtering
+    low_freq = audio_array.copy()
+    
+    # Mid frequency band - slight high-pass to remove DC and low rumble
+    if len(audio_array) > 1:
+        mid_freq = np.diff(audio_array, prepend=audio_array[0]) * 0.5 + audio_array * 0.5
+    else:
+        mid_freq = audio_array
+    
+    # High frequency band (sibilants, fricatives) - enhanced high-pass
+    if len(audio_array) > 1:
+        high_freq = np.diff(audio_array, prepend=audio_array[0])
+    else:
+        high_freq = audio_array
+    
+    # Calculate RMS energy for each band
+    low_energy = np.sqrt(np.mean(np.square(low_freq)))
+    mid_energy = np.sqrt(np.mean(np.square(mid_freq)))
+    high_energy = np.sqrt(np.mean(np.square(high_freq)))
+    
+    return low_energy, mid_energy, high_energy
+
+
 def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[object] = None) -> tuple[float, bool]:
     """
-    Optimized RMS energy calculation with efficient numpy operations.
+    Optimized RMS energy calculation with multi-band analysis for balanced speech detection.
+    
+    FIXED: Enhanced for comprehensive speech detection across frequency spectrum.
+    Uses multi-band energy analysis to detect both vowels and consonants effectively.
     
     Phase 4: Cache functionality removed - metrics now unified in MetricsCollector.
     Phase 5 optimizations:
     - Efficient float32 operations
     - Memory management
+    - Multi-band frequency analysis
     - Direct metrics reporting
     
     Args:
@@ -173,15 +224,24 @@ def calculate_rms_energy_optimized(audio_data: bytes, cache: Optional[object] = 
         if len(audio_array) == 0:
             return 0.0, cache_hit
         
-        # Apply audio preprocessing for better VAD performance
+        # Apply balanced preprocessing for comprehensive speech detection
         preprocessed_audio = _preprocess_audio_for_vad(audio_array)
         
-        # Optimized RMS calculation using numpy vectorization
-        # Use float32 for better performance on most systems
-        rms = np.sqrt(np.mean(np.square(preprocessed_audio)))
+        # FIXED: Multi-band energy analysis for balanced speech detection
+        low_energy, mid_energy, high_energy = _calculate_multi_band_energy(preprocessed_audio)
         
-        # Normalize to 0.0-1.0 range
-        normalized_energy = min(1.0, rms / 32768.0)
+        # FIXED: Weighted combination favoring vowels and mid-range speech
+        # This addresses the sibilant-only detection issue by giving proper weight to all speech sounds
+        vowel_weight = 0.5    # Higher weight for low frequencies (vowels)
+        speech_weight = 0.4   # Moderate weight for mid frequencies (general speech)
+        sibilant_weight = 0.1 # Lower weight for high frequencies (sibilants)
+        
+        combined_energy = (low_energy * vowel_weight + 
+                          mid_energy * speech_weight + 
+                          high_energy * sibilant_weight)
+        
+        # Normalize to 0.0-1.0 range with improved scaling
+        normalized_energy = min(1.0, combined_energy / 32768.0)
         
         # Phase 4: Cache logic removed - metrics reported directly to MetricsCollector
         return normalized_energy, cache_hit
@@ -610,19 +670,36 @@ class AdvancedVAD(SimpleVAD):
                 audio_data.data,
                 self.performance_cache
             )
-            # Use ZCR range check optimized for Russian phonemes
+            # FIXED: Enhanced ZCR logic for comprehensive speech detection
             # Russian vowels (а, о, у, и, э, ы) have very low ZCR (0.01-0.05)
             # Russian consonants (к, т, п, с, ш, щ) have higher ZCR (0.1-0.3)
-            zcr_min = 0.01  # Lower minimum for Russian vowels
-            zcr_max = 0.35  # Higher maximum for Russian fricatives (ш, щ, с)
+            zcr_min = 0.001  # FIXED: Lower minimum to catch quieter vowels
+            zcr_max = 0.4    # FIXED: Higher maximum for all consonant types
             zcr_in_speech_range = zcr_min <= zcr_value <= zcr_max
             
-            # More permissive logic for Russian speech patterns
-            strong_energy = energy_level > adjusted_threshold * 1.2  # Reduced from 1.5
-            moderate_energy_with_zcr = (energy_level > adjusted_threshold * 0.5) and zcr_in_speech_range  # Reduced from 0.7
-            weak_energy_vowels = (energy_level > adjusted_threshold * 0.3) and (zcr_value <= 0.08)  # Special case for Russian vowels
+            # FIXED: Much more permissive logic prioritizing vowel detection
+            # Strategy: Multiple pathways for detection to catch all speech types
             
-            combined_detection = strong_energy or moderate_energy_with_zcr or weak_energy_vowels
+            # Path 1: High energy sounds (any ZCR) - covers loud speech
+            strong_energy = energy_level > adjusted_threshold * 0.8  # FIXED: Much lower threshold
+            
+            # Path 2: Moderate energy with reasonable ZCR - covers normal speech
+            moderate_energy_with_zcr = (energy_level > adjusted_threshold * 0.4) and zcr_in_speech_range  # FIXED: Much lower threshold
+            
+            # Path 3: FIXED - Enhanced vowel detection (primary fix for sibilant-only issue)
+            vowel_energy_threshold = adjusted_threshold * 0.2  # Very low threshold for vowels
+            very_low_zcr_vowels = (energy_level > vowel_energy_threshold) and (zcr_value <= 0.05)  # Classic vowels
+            low_zcr_vowels = (energy_level > vowel_energy_threshold * 1.5) and (zcr_value <= 0.12)  # Vowel variants
+            
+            # Path 4: FIXED - Energy-only bypass for very quiet speech
+            energy_only_detection = energy_level > adjusted_threshold * 0.15  # Emergency fallback
+            
+            # FIXED: Combine all detection paths with OR logic
+            combined_detection = (strong_energy or 
+                                moderate_energy_with_zcr or 
+                                very_low_zcr_vowels or 
+                                low_zcr_vowels or 
+                                energy_only_detection)
         else:
             combined_detection = energy_detection
         

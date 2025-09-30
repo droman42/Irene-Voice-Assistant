@@ -1,0 +1,200 @@
+# ============================================================
+# IRENE VOICE ASSISTANT - VAD SIBILANT FIX CONFIGURATION
+# ============================================================
+# This configuration specifically addresses the sibilant-only detection issue
+# reported by the tester where VAD was only reacting to шипящие звуки (sibilant sounds)
+# but missing vowels and other speech sounds.
+
+name = "Irene"
+version = "15.0.0"
+debug = true                       # Enable debug for detailed VAD logging
+log_level = "DEBUG"                # Detailed logging to monitor VAD behavior
+
+# ============================================================
+# SYSTEM CAPABILITIES - Testing Mode
+# ============================================================
+[system]
+microphone_enabled = true
+audio_playback_enabled = true
+web_api_enabled = true             # Enable for monitoring VAD performance
+web_port = 8000
+metrics_enabled = true             # Required for VAD performance analysis
+metrics_port = 9090
+
+# ============================================================
+# INPUT SOURCES - Optimized for VAD Testing
+# ============================================================
+[inputs]
+microphone = true
+web = true
+cli = false
+default_input = "microphone"
+
+[inputs.microphone_config]
+enabled = true
+sample_rate = 16000                # Standard rate for speech processing
+channels = 1                       # Mono for cleaner VAD analysis
+chunk_size = 1024                  # Balanced chunk size for responsiveness
+
+# ============================================================
+# COMPONENT CONFIGURATIONS - VAD Focus
+# ============================================================
+[components]
+tts = true
+asr = true
+audio = true
+llm = false                        # Disabled for focused VAD testing
+voice_trigger = false              # Testing without wake word first
+nlu = true
+text_processor = true
+intent_system = true
+vad = true                         # Core component under test
+monitoring = true                  # Monitor VAD performance
+
+# ============================================================
+# VAD CONFIGURATION - SIBILANT FIX OPTIMIZED
+# ============================================================
+[vad]
+enabled = true                     # Enable VAD processing
+# FIXED: Optimized settings to detect ALL speech sounds, not just sibilants
+energy_threshold = 0.0005          # VERY LOW: Catch quiet vowels and consonants
+sensitivity = 3.0                  # MAXIMUM: Highest possible sensitivity for comprehensive detection (schema raised to 3.0)
+voice_duration_ms = 40             # SHORT: Catch brief phonemes and vowels
+silence_duration_ms = 250          # MODERATE: Quick response but avoid choppiness
+max_segment_duration_s = 8         # Maximum voice segment duration
+use_zero_crossing_rate = true      # Enable enhanced ZCR logic
+adaptive_threshold = true          # Enable adaptive threshold
+noise_percentile = 10              # VERY LOW: Aggressive noise floor estimation
+voice_multiplier = 1.5             # LOW: Gentle multiplier above noise floor
+processing_timeout_ms = 50         # Processing timeout
+buffer_size_frames = 300           # Buffer size
+
+# Audio normalization for ASR
+normalize_for_asr = true
+asr_target_rms = 0.15
+enable_fallback_to_original = true
+
+# Frame-based configuration (testing with immediate detection)
+voice_frames_required = 1          # TESTING: Immediate detection without hysteresis delay
+silence_frames_required = 6        # REDUCED: Faster silence confirmation
+
+# ============================================================
+# ASR CONFIGURATION - Testing Support
+# ============================================================
+[asr]
+enabled = true
+default_provider = "vosk"
+sample_rate = 16000
+channels = 1
+allow_resampling = true
+resample_quality = "medium"
+
+[asr.providers.vosk]
+enabled = true
+default_language = "ru"            # Russian for testing sibilants vs vowels
+sample_rate = 16000
+preload_models = true
+
+# ============================================================
+# TTS & AUDIO CONFIGURATION - Minimal for Testing
+# ============================================================
+[tts]
+enabled = true
+default_provider = "console"
+
+[tts.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+prefix = "[VAD-SIBILANT-FIX] "
+
+[audio]
+enabled = true
+default_provider = "console"
+
+[audio.providers.console]
+enabled = true
+color_output = true
+timing_simulation = false
+
+# ============================================================
+# NLU & TEXT PROCESSING - Basic Setup
+# ============================================================
+[nlu]
+enabled = true
+default_provider = "hybrid_keyword_matcher"
+
+[nlu.providers.hybrid_keyword_matcher]
+enabled = true
+
+[text_processor]
+enabled = true
+default_provider = "general_text_processor"
+
+[text_processor.providers.general_text_processor]
+enabled = true
+
+# ============================================================
+# INTENT SYSTEM - Basic Setup
+# ============================================================
+[intent_system]
+enabled = true
+
+# ============================================================
+# WORKFLOW CONFIGURATION - VAD Testing
+# ============================================================
+[workflows]
+enabled = ["unified_voice_assistant"]
+default = "unified_voice_assistant"
+
+[workflows.unified_voice_assistant]
+voice_trigger_enabled = false      # No wake word for focused VAD testing
+asr_enabled = true
+text_processing_enabled = true
+nlu_enabled = true
+intent_execution_enabled = true
+llm_enabled = false                # Disabled for focused testing
+tts_enabled = true
+audio_enabled = true
+enable_vad_processing = true       # CORE: Enable VAD processing
+
+# ============================================================
+# MONITORING CONFIGURATION - VAD Performance Analysis
+# ============================================================
+[monitoring]
+enabled = true
+metrics_enabled = true
+dashboard_enabled = true
+notifications_enabled = true
+debug_tools_enabled = true
+
+# Enhanced metrics for VAD analysis
+metrics_monitoring_interval = 60   # More frequent monitoring during testing
+metrics_retention_hours = 8        # Keep detailed metrics during test session
+
+# ============================================================
+# TESTING NOTES
+# ============================================================
+# Expected improvements with this configuration:
+# 
+# 1. VOWEL DETECTION: Much lower energy thresholds should catch Russian vowels
+#    (а, о, у, и, э, ы) that were previously missed
+#
+# 2. CONSONANT BALANCE: Multi-band energy analysis gives proper weight to 
+#    all frequency ranges, not just high-frequency sibilants
+#
+# 3. ENHANCED ZCR: Multiple detection pathways ensure vowels with low ZCR
+#    are properly detected alongside consonants with high ZCR
+#
+# 4. PREPROCESSING: Reduced high-frequency bias in audio preprocessing
+#    preserves vowel energy that was previously filtered out
+#
+# Test procedure:
+# 1. Speak individual vowels: "А", "О", "У", "И", "Э", "Ы"
+# 2. Speak individual consonants: "К", "Т", "П" (non-sibilants)
+# 3. Speak sibilants: "С", "Ш", "Щ", "Ф" (should still work)
+# 4. Speak full words: "МАМА", "ПАПА", "КОШКА"
+# 5. Monitor VAD logs for detection patterns
+#
+# Expected result: VAD should now detect ALL speech sounds, not just sibilants
+# ============================================================
