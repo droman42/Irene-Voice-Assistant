@@ -380,9 +380,25 @@ class UniversalAudioProcessor:
         # Calculate segment metadata
         end_time = time.time()
         end_timestamp = self.voice_buffer[-1].timestamp
-        
-        total_duration_ms = (end_time - self.voice_segment_start_time) * 1000 if self.voice_segment_start_time else 0
         chunk_count = len(self.voice_buffer)
+        
+        # Calculate duration based on actual audio data (FIXED: was using wall-clock time difference)
+        # This ensures the duration reflects the actual audio content, not processing time
+        if self.voice_buffer:
+            first_chunk = self.voice_buffer[0]
+            total_audio_bytes = sum(len(chunk.data) for chunk in self.voice_buffer)
+            bytes_per_sample = 2  # 16-bit PCM = 2 bytes per sample
+            total_samples = total_audio_bytes // (bytes_per_sample * first_chunk.channels)
+            total_duration_ms = (total_samples / first_chunk.sample_rate) * 1000
+            
+            # Debug logging to verify the fix
+            wall_clock_duration_ms = (end_time - self.voice_segment_start_time) * 1000 if self.voice_segment_start_time else 0
+            logger.debug(f"Voice segment creation: {chunk_count} chunks, {total_audio_bytes} bytes")
+            logger.debug(f"Duration calculation - Data-based: {total_duration_ms:.1f}ms, Wall-clock: {wall_clock_duration_ms:.1f}ms")
+            if abs(total_duration_ms - wall_clock_duration_ms) > 100:  # More than 100ms difference
+                logger.info(f"⚠️ Voice segment duration fix applied: {wall_clock_duration_ms:.1f}ms → {total_duration_ms:.1f}ms")
+        else:
+            total_duration_ms = 0
         
         # Create voice segment
         voice_segment = VoiceSegment(
@@ -477,8 +493,18 @@ class UniversalAudioProcessor:
         first_chunk = audio_chunks[0]
         last_chunk = audio_chunks[-1]
         
-        # Calculate total duration
-        duration_ms = (last_chunk.timestamp - first_chunk.timestamp) * 1000
+        # Calculate total duration based on actual audio data size (FIXED: was using timestamp difference)
+        # This fixes the critical bug where timestamp differences don't reflect actual audio content duration
+        bytes_per_sample = 2  # 16-bit PCM = 2 bytes per sample
+        total_samples = len(combined_data) // (bytes_per_sample * first_chunk.channels)
+        duration_ms = (total_samples / first_chunk.sample_rate) * 1000
+        
+        # Debug logging to verify the fix
+        timestamp_duration_ms = (last_chunk.timestamp - first_chunk.timestamp) * 1000
+        logger.debug(f"Audio combination: {len(audio_chunks)} chunks, {len(combined_data)} bytes")
+        logger.debug(f"Duration calculation - Data-based: {duration_ms:.1f}ms, Timestamp-based: {timestamp_duration_ms:.1f}ms")
+        if abs(duration_ms - timestamp_duration_ms) > 100:  # More than 100ms difference
+            logger.info(f"⚠️ Duration calculation fix applied: {timestamp_duration_ms:.1f}ms → {duration_ms:.1f}ms")
         
         return AudioData(
             data=combined_data,

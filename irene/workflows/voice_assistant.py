@@ -336,12 +336,12 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
                 metrics = self.audio_processor_interface.get_metrics()
                 state = self.audio_processor_interface.get_state()
                 self.logger.info(f"📊 Final VAD Metrics: "
-                               f"chunks_processed={metrics.total_chunks_processed}, "
-                               f"voice_segments={metrics.voice_segments_detected}, "
-                               f"silence_skipped={metrics.silence_chunks_skipped}, "
-                               f"avg_processing_time={metrics.average_processing_time_ms:.2f}ms, "
-                               f"buffer_overflows={metrics.buffer_overflow_count}, "
-                               f"timeouts={metrics.timeout_events}")
+                               f"chunks_processed={metrics.get('total_chunks_processed', 0)}, "
+                               f"voice_segments={metrics.get('voice_segments_detected', 0)}, "
+                               f"silence_skipped={metrics.get('silence_chunks_skipped', 0)}, "
+                               f"avg_processing_time={metrics.get('average_processing_time_ms', 0.0):.2f}ms, "
+                               f"buffer_overflows={metrics.get('buffer_overflow_count', 0)}, "
+                               f"timeouts={metrics.get('timeout_events', 0)}")
                 
         except Exception as e:
             self.logger.error(f"Audio processing error: {e}")
@@ -510,9 +510,9 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
         if self.audio_processor_interface:
             metrics = self.audio_processor_interface.get_metrics()
             self.logger.info(f"📊 VAD Pipeline completed: {voice_segment_count} voice segments, "
-                           f"{metrics.total_chunks_processed} chunks processed, "
-                           f"{metrics.silence_chunks_skipped} silence chunks skipped, "
-                           f"avg processing time: {metrics.average_processing_time_ms:.2f}ms")
+                           f"{metrics.get('total_chunks_processed', 0)} chunks processed, "
+                           f"{metrics.get('silence_chunks_skipped', 0)} silence chunks skipped, "
+                           f"avg processing time: {metrics.get('average_processing_time_ms', 0.0):.2f}ms")
     
     
     async def _process_voice_segment(self, voice_segment: VoiceSegment, context: RequestContext) -> Optional[str]:
@@ -608,23 +608,8 @@ class UnifiedVoiceAssistantWorkflow(Workflow):
             
             # Stage 2: ASR Transcription (conditional)
             if not context.skip_asr and self._asr_enabled and self.asr:
-                stage_start = time.time()
-                
+                # ASR component handles its own tracing internally
                 transcribed_text = await self.asr.process_audio(audio_data, trace_context)
-                
-                if trace_context:
-                    trace_context.record_stage(
-                        stage_name="asr_transcription",
-                        input_data=audio_data,
-                        output_data=transcribed_text,
-                        metadata={
-                            "transcription_length": len(transcribed_text),
-                            "audio_duration_ms": len(audio_data.data) / audio_data.sample_rate * 1000,
-                            "provider": self.asr.default_provider if hasattr(self.asr, 'default_provider') else None,
-                            "stage_enabled": self._asr_enabled
-                        },
-                        processing_time_ms=(time.time() - stage_start) * 1000
-                    )
                 
                 if not transcribed_text.strip():
                     self.logger.debug("ASR produced empty transcription")

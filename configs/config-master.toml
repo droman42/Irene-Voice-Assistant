@@ -56,7 +56,7 @@ default_input = "microphone"       # Default input: "microphone", "web", "cli"
 # Microphone Input Configuration
 [inputs.microphone_config]
 enabled = true                      # Enable microphone input processing
-device = 7                          # Audio device ID (ThinkPad USB-C Dock Audio: 44100 Hz, 1 channel)
+device_id = 7                       # Audio device ID (ThinkPad USB-C Dock Audio: 44100 Hz, 1 channel)
 sample_rate = 44100                # Audio sample rate: matches device 7 native rate
 channels = 1                       # Audio channels: 1 (mono) - matches device 7
 chunk_size = 4096                  # Audio buffer chunk size for stable processing
@@ -549,7 +549,7 @@ asr_target_rms = 0.15              # Target RMS level for ASR audio normalizatio
 enable_fallback_to_original = true # Try original audio if normalized version fails recognition
 
 # Frame-based configuration (internal implementation)
-voice_frames_required = 1          # Require 2 consecutive frames for stable detection - prevents false triggers (1-10)
+voice_frames_required = 2          # Require 2 consecutive frames for stable detection - prevents false triggers (1-10)
 silence_frames_required = 8        # Reduced frames needed to confirm voice end for responsiveness (1-20)
 
 # ============================================================

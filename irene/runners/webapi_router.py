@@ -333,6 +333,18 @@ def create_webapi_router(
             
             logger.info(f"Audio processing: {audio_file.filename}, size: {file_size} bytes, room: {room_alias or 'none'}")
             
+            # Convert uploaded audio bytes to AudioData object
+            from ..utils.audio_helpers import load_audio_file_to_audiodata_from_bytes
+            
+            try:
+                audio_data_obj = await load_audio_file_to_audiodata_from_bytes(
+                    audio_bytes=audio_data,
+                    filename=audio_file.filename
+                )
+            except Exception as e:
+                logger.error(f"Failed to process audio file '{audio_file.filename}': {e}")
+                raise HTTPException(status_code=400, detail=f"Invalid audio file: {str(e)}")
+            
             # Enhanced client context with room information
             client_context = {
                 "source": "audio_api",
@@ -346,7 +358,7 @@ def create_webapi_router(
             
             # Process audio through workflow manager with enhanced context
             result = await core.workflow_manager.process_audio_input(
-                audio_data=audio_data,
+                audio_data=audio_data_obj,  # Now passing AudioData object
                 session_id=session_id,
                 wants_audio=False,  # Don't generate TTS for API endpoint
                 client_context=client_context
@@ -558,6 +570,39 @@ def create_webapi_router(
             
             logger.info(f"Trace audio processing: {audio_file.filename}, size: {file_size} bytes, room: {room_alias or 'none'}")
             
+            # Convert uploaded audio bytes to AudioData object with tracing
+            from ..utils.audio_helpers import load_audio_file_to_audiodata_from_bytes
+            import time
+            
+            # Record audio file loading stage for tracing
+            stage_start = time.time()
+            
+            try:
+                audio_data_obj = await load_audio_file_to_audiodata_from_bytes(
+                    audio_bytes=audio_data,
+                    filename=audio_file.filename
+                )
+                
+                # Record the audio file loading stage in trace context
+                trace_context.record_stage(
+                    stage_name="audio_file_loading",
+                    input_data={"size_bytes": len(audio_data), "format": "auto_detected"},
+                    output_data=audio_data_obj,
+                    metadata={
+                        "original_size_bytes": len(audio_data),
+                        "converted_sample_rate": audio_data_obj.sample_rate,
+                        "converted_channels": audio_data_obj.channels,
+                        "detected_format": audio_data_obj.metadata.get("detected_format"),
+                        "source_type": "uploaded_bytes",
+                        "filename": audio_file.filename
+                    },
+                    processing_time_ms=(time.time() - stage_start) * 1000
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to process audio file '{audio_file.filename}': {e}")
+                raise HTTPException(status_code=400, detail=f"Invalid audio file: {str(e)}")
+            
             # Enhanced client context with room information and tracing
             client_context = {
                 "source": "trace_audio_api",
@@ -572,7 +617,7 @@ def create_webapi_router(
             
             # Process audio through workflow manager with tracing and room context
             result = await core.workflow_manager.process_audio_input(
-                audio_data=audio_data,
+                audio_data=audio_data_obj,  # Now passing AudioData object
                 session_id=session_id,
                 wants_audio=False,  # Don't generate TTS for trace endpoint
                 client_context=client_context,

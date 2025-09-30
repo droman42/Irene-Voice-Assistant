@@ -505,35 +505,10 @@ class WorkflowManager:
         unified_workflow = self.active_workflow
         
         try:
-            # Convert audio input to AudioData if needed
+            # Ensure we have AudioData object (bytes should be converted by caller)
             if isinstance(audio_data, bytes):
-                # Import the loading utility
-                from ..utils.audio_helpers import load_audio_file_to_audiodata_from_bytes
-                
-                if trace_context:
-                    stage_start = time.time()
-                    
-                converted_audio = await load_audio_file_to_audiodata_from_bytes(
-                    audio_bytes=audio_data,
-                    filename=client_context.get("filename") if client_context else None
-                )
-                
-                if trace_context:
-                    trace_context.record_stage(
-                        stage_name="audio_file_loading",
-                        input_data={"size_bytes": len(audio_data), "format": "auto_detected"},
-                        output_data=converted_audio,
-                        metadata={
-                            "original_size_bytes": len(audio_data),
-                            "converted_sample_rate": converted_audio.sample_rate,
-                            "converted_channels": converted_audio.channels,
-                            "detected_format": converted_audio.metadata.get("detected_format"),
-                            "source_type": "uploaded_bytes"
-                        },
-                        processing_time_ms=(time.time() - stage_start) * 1000
-                    )
-                
-                audio_data = converted_audio
+                raise ValueError("Workflow manager expects AudioData objects, not raw bytes. "
+                               "Convert bytes to AudioData in the calling endpoint.")
             elif not isinstance(audio_data, AudioData):
                 raise ValueError(f"audio_data must be bytes or AudioData, got {type(audio_data)}")
             
