@@ -16,8 +16,12 @@ from pathlib import Path
 from ..config.models import CoreConfig, ComponentConfig
 from ..utils.loader import DependencyChecker, get_component_status
 from ..components.base import Component
+from ..__version__ import __version__
 
 logger = logging.getLogger(__name__)
+
+# Extract major version for consistent messaging
+MAJOR_VERSION = __version__.split('.')[0]
 
 T = TypeVar('T', bound='Component')
 
@@ -98,10 +102,10 @@ class DependencyResolver:
 
 class ComponentManager:
     """
-    V14 Component Manager - Advanced component management with dependency injection
+    Component Manager - Advanced component management with dependency injection
     
     Features:
-    - V14 CoreConfig integration with direct component mapping
+    - CoreConfig integration with direct component mapping
     - Entry-point discovery for all components
     - Sophisticated dependency injection system
     - Topological dependency resolution
@@ -128,11 +132,11 @@ class ComponentManager:
         return get_component_status()  # From loader.py
         
     async def initialize_components(self, core) -> None:
-        """Initialize all configured components using V14 architecture with dependency injection"""
+        """Initialize all configured components using dependency injection"""
         if self._initialized:
             return
             
-        logger.info("Initializing V14 component system with dependency injection...")
+        logger.info(f"Initializing V{MAJOR_VERSION} component system with dependency injection...")
         
         # Get available components and create dependency resolver
         available_components = self.get_available_components()
@@ -158,7 +162,7 @@ class ComponentManager:
         profile = self.get_deployment_profile()
         success_count = len(self._components)
         failed_count = len(self._failed_components)
-        logger.info(f"V14 Components initialized. Profile: {profile}, Success: {success_count}, Failed: {failed_count}")
+        logger.info(f"V{MAJOR_VERSION} Components initialized. Profile: {profile}, Success: {success_count}, Failed: {failed_count}")
         
         if self._failed_components:
             logger.warning(f"Failed components with graceful degradation: {list(self._failed_components.keys())}")
@@ -339,11 +343,11 @@ class ComponentManager:
         return []
 
     def _is_component_enabled(self, component_name: str) -> bool:
-        """V14: Check if component is enabled using direct components mapping"""
+        """Check if component is enabled using direct components mapping"""
         return getattr(self.config.components, component_name, False)
         
     def _get_component_config(self, component_name: str) -> Optional[Any]:
-        """V14: Get component-specific configuration"""
+        """Get component-specific configuration"""
         return getattr(self.config, component_name, None)
         
     def has_component(self, name: str) -> bool:
@@ -395,7 +399,7 @@ class ComponentManager:
         if not self._initialized:
             return
             
-        logger.info("Shutting down V14 component system...")
+        logger.info(f"Shutting down V{MAJOR_VERSION} component system...")
         
         # Shutdown in reverse order of initialization
         shutdown_order = list(reversed(list(self._components.keys())))
@@ -413,7 +417,7 @@ class ComponentManager:
         self._failed_components.clear()
         self._initialized = False
         
-        logger.info("V14 component system shutdown completed")
+        logger.info(f"V{MAJOR_VERSION} component system shutdown completed")
             
     def get_component_info(self) -> dict[str, ComponentInfo]:
         """Get information about all components (successful and failed)"""
